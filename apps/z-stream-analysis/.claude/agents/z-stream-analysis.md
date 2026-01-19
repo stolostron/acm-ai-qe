@@ -95,9 +95,16 @@ CLASSIFICATION: [PRODUCT BUG | AUTOMATION BUG | AUTOMATION GAP | MIXED]
 ### Analysis Results Structure
 ```
 runs/<component>_<build-id>_<timestamp>/
-├── Detailed-Analysis.md
-├── analysis-metadata.json
-└── jenkins-metadata.json
+├── manifest.json              # File index
+├── core-data.json             # Primary data for AI
+├── repository-selectors.json  # Selector lookup (on-demand)
+├── repository-test-files.json # Test files (on-demand)
+├── repository-metadata.json   # Repo summary (on-demand)
+├── raw-data.json              # Backward-compat stub
+├── evidence-package.json      # Pre-calculated scores
+├── analysis-results.json      # AI analysis output
+├── Detailed-Analysis.md       # Human-readable report
+└── SUMMARY.txt                # Brief summary
 ```
 
 ## Execution Examples
@@ -111,11 +118,22 @@ runs/<component>_<build-id>_<timestamp>/
 
 ### Analysis Workflow
 1. Parse Jenkins URL and extract build context
-2. Execute comprehensive investigation across all evidence sources
-3. Apply evidence-based classification logic
-4. Generate prerequisite-aware solutions
-5. Provide definitive verdict with implementation guidance
-6. Save complete analysis package to runs/ directory
+2. Run data gathering: `python -m src.scripts.gather "<JENKINS_URL>"`
+3. **Read core-data.json first** (primary analysis data)
+4. Check evidence_package.test_failures for pre-calculated classifications
+5. For element_not_found errors, load repository-selectors.json on-demand
+6. For stack trace analysis, load repository-test-files.json on-demand
+7. Apply evidence-based classification logic
+8. Generate prerequisite-aware solutions
+9. Save analysis-results.json following the schema
+10. Run report generation: `python -m src.scripts.report <RUN_DIR>`
+
+### Multi-File Data Structure
+Data is split into multiple files to stay under token limits:
+- **core-data.json** (~5,500 tokens) - Read this first, contains all primary data
+- **repository-selectors.json** (~7,500 tokens) - Load on-demand for element_not_found
+- **repository-test-files.json** (~7,000 tokens) - Load on-demand for stack traces
+- **manifest.json** (~150 tokens) - File index and workflow instructions
 
 ## Quality Standards
 

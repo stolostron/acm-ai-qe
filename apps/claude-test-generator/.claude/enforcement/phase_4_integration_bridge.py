@@ -452,15 +452,17 @@ class Phase4IntegrationBridge:
         try:
             templates = {}
             
-            # Load test cases template
+            # Load test cases template (now updated with table format)
             test_cases_template_path = self.templates_dir / "enhanced-test-cases-template.md"
             with open(test_cases_template_path, 'r') as f:
                 templates["test_cases"] = f.read()
+                self.logger.info("✅ Loaded enhanced test cases template (with table format)")
                 
             # Load complete analysis template
             analysis_template_path = self.templates_dir / "enhanced-complete-analysis-template.md"
             with open(analysis_template_path, 'r') as f:
                 templates["complete_analysis"] = f.read()
+                self.logger.info("✅ Loaded enhanced complete analysis template")
                 
             return templates
             

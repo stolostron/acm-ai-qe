@@ -39,8 +39,16 @@ mandatory_fields_per_test_case:
 mandatory_columns:
   - step: "Sequential step number"
   - action: "MUST start with 'What We're Doing:' followed by business context"
-  - commands: "CLI commands, UI navigation, expected outputs"
   - expected_result: "Specific concrete expectations (yes/no/specific values)"
+  - sample_commands_ui_navigation: "CLI commands, UI navigation, expected outputs"
+```
+
+### MANDATORY TABLE FORMAT
+```markdown
+| Step | Action | Expected Result | Sample Commands/UI Navigation |
+|------|--------|----------------|-------------------------------|
+| 1 | **What We're Doing**: [Business context explaining WHY this step matters]<br><br>**CLI**: `[specific CLI command]`<br>**UI**: [specific UI navigation] | **Expected**: [concrete expectation - yes/no/specific value]<br>**Output shows**: `[expected command output]` | ```bash<br>[sample command]<br># Expected: [expected output]<br>``` |
+| 2 | **What We're Doing**: [Business context for step 2]<br><br>**CLI**: `[CLI command 2]`<br>**UI**: [UI navigation 2] | **Expected**: [concrete expectation 2] | ```bash<br>[sample command 2]<br>``` |
 ```
 
 ## CONTENT VALIDATION RULES
@@ -154,6 +162,77 @@ permission_validation_format:
   negative_test: 'oc auth can-i [forbidden-action] [resource] --as=[user] --context [cluster]' 
   expected_negative: 'Expected: `no` ([scoping rationale])'
 ```
+
+## COMPLETE TABLE FORMAT EXAMPLE
+
+### Universal Test Case Template (Generated Dynamically)
+
+**NOTE**: This template is populated dynamically based on component analysis. The example below shows the structure - actual content varies by technology.
+
+```markdown
+## Test Case 1: Verify {COMPONENT_NAME} {FUNCTIONALITY_TYPE} Functionality
+
+### Description
+**What We're Doing**: Validate {COMPONENT_NAME} {FEATURE_DESCRIPTION} for {USE_CASE_CONTEXT}.
+
+### Prerequisites
+- {PLATFORM} cluster with {COMPONENT_NAME} {COMPONENT_TYPE} installed
+- Administrative access to cluster (kubeadmin credentials)
+- {TECHNOLOGY_STACK} deployed with {COMPONENT_NAME}-controller active
+
+### Test Setup
+```bash
+# Environment Verification
+{CLI_TOOL} get {RESOURCE_TYPE} -A
+{CLI_TOOL} get nodes --no-headers | wc -l
+
+# Test Preparation
+{CLI_TOOL} new-project test-{COMPONENT_NAME}-1 || {CLI_TOOL} project test-{COMPONENT_NAME}-1
+```
+
+### Test Steps
+
+| Step | Action | Expected Result | Sample Commands/UI Navigation |
+|------|--------|----------------|-------------------------------|
+| 1 | **What We're Doing**: Validate cluster access and verify {COMPONENT_NAME} {COMPONENT_TYPE} availability for {TESTING_PURPOSE}<br><br>**CLI**: `{CLI_TOOL} get {RESOURCE_TYPE} -A`<br>**UI**: Navigate to Administration → Custom Resource Definitions → Search "{RESOURCE_TYPE}" | **Expected**: Command returns existing {COMPONENT_NAME} resources OR "No resources found" (both acceptable)<br>**Output shows**: {COMPONENT_TYPE} definition present | ```bash<br>{CLI_TOOL} get {RESOURCE_TYPE} -A<br># Expected: List of resources or "No resources found"<br>{CLI_TOOL} explain {RESOURCE_TYPE}.spec.{PRIMARY_FIELD}<br># Expected: Field description showing {FIELD_PURPOSE}<br>``` |
+| 2 | **What We're Doing**: Create test {COMPONENT_NAME} with {FEATURE_CONFIG} to enable {NEW_FUNCTIONALITY}<br><br>**CLI**: `{CLI_TOOL} apply -f {RESOURCE_TYPE}.yaml`<br>**UI**: Navigate to Installed Operators → {OPERATOR_NAME} → {COMPONENT_NAME} → Create Instance | **Expected**: {COMPONENT_NAME} resource created successfully<br>**Output shows**: `{RESOURCE_TYPE}.{API_GROUP}/test-{COMPONENT_NAME} created` | ```yaml<br>apiVersion: {API_GROUP}/{API_VERSION}<br>kind: {COMPONENT_NAME}<br>metadata:<br>  annotations:<br>    {ANNOTATION_KEY}: "{ANNOTATION_VALUE}"<br>``` |
+
+### Cleanup
+```bash
+# Remove test {COMPONENT_NAME}
+{CLI_TOOL} delete {RESOURCE_TYPE} test-{COMPONENT_NAME} -n test-{COMPONENT_NAME}-1
+
+# Cleanup test environment
+{CLI_TOOL} delete project test-{COMPONENT_NAME}-1
+
+# Verify cleanup
+{CLI_TOOL} get projects &#124; grep test-{COMPONENT_NAME}-1 &#124;&#124; echo "Cleanup successful"
+```
+```
+
+### Template Variables Reference
+
+The template system automatically substitutes these variables based on component analysis:
+
+- `{COMPONENT_NAME}`: Analyzed component name (e.g., "ClusterCurator", "IngressController", "DatabaseCluster")
+- `{FUNCTIONALITY_TYPE}`: Feature category (e.g., "Digest-Based Upgrade", "Traffic Routing", "Backup")
+- `{FEATURE_DESCRIPTION}`: Specific feature being tested
+- `{USE_CASE_CONTEXT}`: Business context (e.g., "disconnected environments", "high availability scenarios")
+- `{PLATFORM}`: Detected platform (OpenShift, Kubernetes, etc.)
+- `{COMPONENT_TYPE}`: Component classification (CRD, Controller, Operator, etc.)
+- `{TECHNOLOGY_STACK}`: Technology ecosystem (ACM, Kubernetes, Database, etc.)
+- `{CLI_TOOL}`: Appropriate CLI tool (oc, kubectl, etc.)
+- `{RESOURCE_TYPE}`: Kubernetes resource type (lowercase)
+- `{TESTING_PURPOSE}`: Specific testing objective
+- `{API_GROUP}`: Kubernetes API group
+- `{API_VERSION}`: API version
+- `{OPERATOR_NAME}`: Operator/product name for UI navigation
+- `{PRIMARY_FIELD}`: Main configuration field
+- `{FIELD_PURPOSE}`: Purpose of the configuration field
+- `{FEATURE_CONFIG}`: Feature-specific configuration
+- `{NEW_FUNCTIONALITY}`: New capability being tested
+- `{ANNOTATION_KEY}`: Feature annotation key
+- `{ANNOTATION_VALUE}`: Feature annotation value
 
 ## INTEGRATION WITH PHASE 4 PROCESSING
 

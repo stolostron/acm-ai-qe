@@ -8,6 +8,7 @@ venv/
 env/
 .venv/
 .env/
+.env
 *.egg-info/
 dist/
 build/
@@ -16,8 +17,24 @@ build/
 .idea/
 *.log
 temp_*
+!.claude/**/temp_*.py
 *.tmp
 
 # Test reports
 tests/reports/
 comprehensive_test_report_*.json
+
+# Claude framework runtime data
+.claude/staging/
+.claude/logs/
+.claude/logging/*/
+.claude/context/*/
+.claude/cache/
+.claude/analysis/
+.claude/ai-services/runs/
+.claude/enforcement/runs/
+.claude/run-organization/runs/
+
+# Runtime files with timestamp patterns
+*_[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-[0-9][0-9][0-9][0-9][0-9][0-9]_*.json
+pca_*_[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]_[0-9][0-9][0-9][0-9][0-9][0-9].json.cursorignore

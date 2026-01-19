@@ -17,16 +17,16 @@
   "enforcement_scope": "All test case generation",
   "auto_correction": "Enabled",
   "deployment_log": [
-    "\u2705 Created directory: /Users/ashafi/Documents/work/ai/ai_systems/apps/claude-test-generator/.claude/enforcement/format_validation",
-    "\u2705 Created directory: /Users/ashafi/Documents/work/ai/ai_systems/apps/claude-test-generator/.claude/enforcement/format_hooks",
-    "\u2705 Created directory: /Users/ashafi/Documents/work/ai/ai_systems/apps/claude-test-generator/.claude/enforcement/format_reports",
-    "\u2705 Created directory: /Users/ashafi/Documents/work/ai/ai_systems/apps/claude-test-generator/.claude/enforcement/format_corrections",
-    "\u2705 Created directory: /Users/ashafi/Documents/work/ai/ai_systems/apps/claude-test-generator/.claude/enforcement/deployment_logs",
-    "\u2705 Deployed pre-generation hook: /Users/ashafi/Documents/work/ai/ai_systems/apps/claude-test-generator/.claude/enforcement/format_hooks/pre_generation_format_hook.py",
-    "\u2705 Deployed post-generation hook: /Users/ashafi/Documents/work/ai/ai_systems/apps/claude-test-generator/.claude/enforcement/format_hooks/post_generation_format_hook.py",
-    "\u2705 Created agent format requirements: /Users/ashafi/Documents/work/ai/ai_systems/apps/claude-test-generator/.claude/enforcement/format_hooks/agent_format_requirements.md",
-    "\u2705 Created Pattern Extension integration: /Users/ashafi/Documents/work/ai/ai_systems/apps/claude-test-generator/.claude/enforcement/pattern_extension_format_integration.py",
-    "\u2705 Created framework workflow integration: /Users/ashafi/Documents/work/ai/ai_systems/apps/claude-test-generator/.claude/enforcement/framework_workflow_format_integration.py"
+    "\u2705 Created directory: /Users/ashafi/Documents/work/ai/ai_systems_v2/apps/claude-test-generator/.claude/enforcement/format_validation",
+    "\u2705 Created directory: /Users/ashafi/Documents/work/ai/ai_systems_v2/apps/claude-test-generator/.claude/enforcement/format_hooks",
+    "\u2705 Created directory: /Users/ashafi/Documents/work/ai/ai_systems_v2/apps/claude-test-generator/.claude/enforcement/format_reports",
+    "\u2705 Created directory: /Users/ashafi/Documents/work/ai/ai_systems_v2/apps/claude-test-generator/.claude/enforcement/format_corrections",
+    "\u2705 Created directory: /Users/ashafi/Documents/work/ai/ai_systems_v2/apps/claude-test-generator/.claude/enforcement/deployment_logs",
+    "\u2705 Deployed pre-generation hook: /Users/ashafi/Documents/work/ai/ai_systems_v2/apps/claude-test-generator/.claude/enforcement/format_hooks/pre_generation_format_hook.py",
+    "\u2705 Deployed post-generation hook: /Users/ashafi/Documents/work/ai/ai_systems_v2/apps/claude-test-generator/.claude/enforcement/format_hooks/post_generation_format_hook.py",
+    "\u2705 Created agent format requirements: /Users/ashafi/Documents/work/ai/ai_systems_v2/apps/claude-test-generator/.claude/enforcement/format_hooks/agent_format_requirements.md",
+    "\u2705 Created Pattern Extension integration: /Users/ashafi/Documents/work/ai/ai_systems_v2/apps/claude-test-generator/.claude/enforcement/pattern_extension_format_integration.py",
+    "\u2705 Created framework workflow integration: /Users/ashafi/Documents/work/ai/ai_systems_v2/apps/claude-test-generator/.claude/enforcement/framework_workflow_format_integration.py"
   ],
   "status": "ACTIVE"
 }

@@ -255,16 +255,106 @@ class TestPatternExtensionService(unittest.TestCase):
             self.assertIn('cli_method', step)
             self.assertIn('expected_result', step)
     
+    @patch('phase_4_pattern_extension.PatternExtensionService._try_ai_test_generation')
+    async def test_generate_test_cases_with_ai_success(self, mock_ai_generation):
+        """Test test case generation with AI service success"""
+        # Mock AI generation returning MTV-specific test cases
+        mock_ai_test_cases = [
+            {
+                'test_case_id': 'AI_TC_01',
+                'title': 'Verify MTV Addon Webhook Provider Creation',
+                'description': 'Verify MTV addon webhook automatically creates providers for CNV clusters',
+                'pattern_used': 'AI_Generated_Contextual',
+                'ai_generated': True,
+                'ai_confidence': 0.92,
+                'technology_context': {
+                    'primary': 'MTV_CNV_Integration',
+                    'components': ['Migration Toolkit for Virtualization', 'CNV Operator']
+                },
+                'steps': [
+                    {
+                        'step_number': 1,
+                        'description': 'Apply CNV operator installation label to managed cluster',
+                        'ui_method': 'Navigate to Cluster Management → Add label',
+                        'cli_method': 'oc label managedcluster <CLUSTER> acm/cnv-operator-install=true',
+                        'expected_result': 'Label applied successfully, CNV operator installation begins'
+                    }
+                ]
+            }
+        ]
+        mock_ai_generation.return_value = mock_ai_test_cases
+        
+        # Create MTV context for AI generation
+        mtv_strategic_intelligence = {
+            'complete_agent_intelligence': {
+                'agents': {
+                    'agent_a_jira_intelligence': {
+                        'context_metadata': {
+                            'jira_id': 'ACM-22348',
+                            'jira_title': 'Onboard CNV addon and MTV-integrations into ACM Installer',
+                            'component': 'MTV Addon Integration'
+                        }
+                    }
+                }
+            }
+        }
+        
+        selected_patterns = [{'pattern_type': 'Basic Pattern'}]
+        
+        test_cases = await self.service._generate_test_cases(selected_patterns, mtv_strategic_intelligence)
+        
+        # Verify AI generation was attempted and succeeded
+        mock_ai_generation.assert_called_once_with(mtv_strategic_intelligence)
+        
+        # Verify AI test cases were returned
+        self.assertEqual(test_cases, mock_ai_test_cases)
+        self.assertEqual(len(test_cases), 1)
+        
+        # Verify AI-specific fields
+        test_case = test_cases[0]
+        self.assertTrue(test_case['ai_generated'])
+        self.assertEqual(test_case['ai_confidence'], 0.92)
+        self.assertEqual(test_case['technology_context']['primary'], 'MTV_CNV_Integration')
+    
+    @patch('phase_4_pattern_extension.PatternExtensionService._try_ai_test_generation')
+    async def test_generate_test_cases_ai_fallback_to_patterns(self, mock_ai_generation):
+        """Test test case generation falling back to patterns when AI fails"""
+        # Mock AI generation returning None (failure)
+        mock_ai_generation.return_value = None
+        
+        selected_patterns = [
+            {
+                'pattern_type': 'Basic Functionality Pattern',
+                'structure': ['Access system', 'Execute operation', 'Verify results']
+            }
+        ]
+        
+        strategic_intelligence = self.mock_phase_3_result['strategic_intelligence']
+        
+        test_cases = await self.service._generate_test_cases(selected_patterns, strategic_intelligence)
+        
+        # Verify AI generation was attempted
+        mock_ai_generation.assert_called_once_with(strategic_intelligence)
+        
+        # Verify fallback to pattern-based generation
+        self.assertIsInstance(test_cases, list)
+        self.assertGreater(len(test_cases), 0)
+        
+        # Verify pattern-based fields (not AI-generated)
+        test_case = test_cases[0]
+        self.assertNotIn('ai_generated', test_case)
+        self.assertEqual(test_case['pattern_used'], 'Basic Functionality Pattern')
+    
     def test_customize_step(self):
         """Test step template customization"""
         component = 'cluster-curator-controller'
         
         # Test various step templates
         test_cases = [
-            ('Access and login to system', 'Log into the ACM hub cluster'),
-            ('Navigate to feature area', f'Navigate to {component} section in ACM Console'),
-            ('Execute core functionality', f'Execute primary {component} operations'),
-            ('Verify expected results', f'Verify {component} operation completed successfully')
+            ('Access and login to system', 'initial cluster authentication'),
+            ('Navigate to feature area', f'{component} availability'),
+            ('Execute core functionality', f'{component} core operations'),
+            ('Verify expected results', f'{component} operation completion')
         ]
         
         for template, expected_content in test_cases:
@@ -277,7 +367,7 @@ class TestPatternExtensionService(unittest.TestCase):
         
         # Test login step
         ui_method = self.service._generate_ui_method('login', component)
-        self.assertIn('console-openshift-console.apps.<cluster-host>', ui_method)
+        self.assertIn('<CLUSTER_CONSOLE_URL>', ui_method)
         
         # Test navigate step
         ui_method = self.service._generate_ui_method('navigate to feature', component)
@@ -295,19 +385,19 @@ class TestPatternExtensionService(unittest.TestCase):
         
         # Test login step
         cli_method = self.service._generate_cli_method('login', component)
-        self.assertIn('```bash', cli_method)
         self.assertIn('oc login', cli_method)
+        self.assertIn('<CLUSTER_API_URL>', cli_method)
         
         # Test configure step
         cli_method = self.service._generate_cli_method('configure', component)
-        self.assertIn('```yaml', cli_method)
+        self.assertIn('oc apply', cli_method)
         self.assertIn('apiVersion', cli_method)
         self.assertIn(component, cli_method)
         
         # Test verify step
         cli_method = self.service._generate_cli_method('verify status', component)
-        self.assertIn('```bash', cli_method)
         self.assertIn('oc get', cli_method)
+        self.assertIn('Expected YAML', cli_method)
     
     def test_generate_expected_result(self):
         """Test expected result generation"""
@@ -481,11 +571,11 @@ class TestPatternExtensionService(unittest.TestCase):
         # Verify content structure
         self.assertIn('# Test Cases', content)
         self.assertIn('## Test Case 1', content)
-        self.assertIn('**Description**: Test description', content)
-        self.assertIn('**Setup**: Test setup', content)
+        self.assertIn('**What We\'re Doing**: Test description', content)
+        self.assertIn('### Prerequisites', content)
         self.assertIn('### Test Steps', content)
         self.assertIn('| Step | Action | UI Method | CLI Method | Expected Result |', content)
-        self.assertIn('| 1 | Step 1 | UI Method 1 | CLI Method 1 | Result 1 |', content)
+        self.assertIn('| 1 | **What We\'re Doing**: Step 1 | UI Method 1 |', content)
     
     def test_generate_complete_analysis_report(self):
         """Test complete analysis report generation"""
@@ -504,15 +594,14 @@ class TestPatternExtensionService(unittest.TestCase):
         
         # Verify content structure
         self.assertIn('# Complete Analysis Report', content)
-        self.assertIn('## Summary', content)
-        self.assertIn('## 1. Strategic Intelligence Summary', content)
-        self.assertIn('## 2. Pattern Extension Analysis', content)
-        self.assertIn('## 3. Test Scenarios Analysis', content)
-        self.assertIn('## 4. Quality Assurance', content)
+        self.assertIn('## 🎯 Executive Summary', content)
+        self.assertIn('## 📊 JIRA Intelligence Analysis', content)
+        self.assertIn('## 🌍 Environment Intelligence Assessment', content)
+        self.assertIn('## 🧪 Testing Strategy & Scope', content)
         
-        # Verify pattern information
-        self.assertIn('Core Feature Testing', content)
+        # Verify test case information
         self.assertIn('Test Case 1', content)
+        self.assertIn('comprehensive test scenarios', content)
     
     def test_calculate_pattern_confidence(self):
         """Test pattern confidence calculation"""
@@ -818,49 +907,112 @@ class TestPhase4Integration(unittest.TestCase):
                 self.assertTrue(os.path.exists(file_path))
 
 
-if __name__ == '__main__':
-    print("🧪 Phase 4 Pattern Extension Unit Tests")
-    print("=" * 45)
-    print("Testing Pattern Extension Service comprehensive functionality")
-    print("=" * 45)
+
+
+class TestChangeImpactAnalysis(unittest.TestCase):
+    """Test Change Impact Analysis functionality"""
     
-    if not PATTERN_EXTENSION_AVAILABLE:
-        print("❌ Phase 4 Pattern Extension not available - skipping tests")
-        exit(1)
+    def setUp(self):
+        """Set up test fixtures"""
+        self.service = PatternExtensionService()
     
-    # Create test suite
-    suite = unittest.TestSuite()
+    def test_should_skip_test_case_unchanged_acm_integration(self):
+        """Test skipping test cases for unchanged ACM integrations"""
+        pattern = {
+            'pattern_type': 'Multi-Component Integration Testing',
+            'description': 'Test ACM integration'
+        }
+        unchanged_functionality = [
+            'ACM ManagedCluster status propagation',
+            'Cross-cluster communication mechanisms'
+        ]
+        
+        result = self.service._should_skip_test_case_for_unchanged_functionality(
+            pattern, unchanged_functionality
+        )
+        
+        self.assertTrue(result)
     
-    # Add all test classes
-    loader = unittest.TestLoader()
-    suite.addTests(loader.loadTestsFromTestCase(TestPatternExtensionService))
-    suite.addTests(loader.loadTestsFromTestCase(TestPhase4ConvenienceFunctions))
-    suite.addTests(loader.loadTestsFromTestCase(TestPhase4EdgeCases))
-    suite.addTests(loader.loadTestsFromTestCase(TestPhase4Integration))
-    suite.addTests(loader.loadTestsFromTestCase(TestPatternExtensionEnforcementIntegration))
+    def test_should_skip_test_case_unchanged_status_propagation(self):
+        """Test skipping test cases for unchanged status propagation"""
+        pattern = {
+            'pattern_type': 'Integration Validation Testing',
+            'description': 'Test status validation'
+        }
+        unchanged_functionality = [
+            'ACM ManagedCluster status propagation'
+        ]
+        
+        result = self.service._should_skip_test_case_for_unchanged_functionality(
+            pattern, unchanged_functionality
+        )
+        
+        self.assertTrue(result)
     
-    # Run tests
-    runner = unittest.TextTestRunner(verbosity=2)
-    result = runner.run(suite)
+    def test_should_not_skip_test_case_new_functionality(self):
+        """Test not skipping test cases for new functionality"""
+        pattern = {
+            'pattern_type': 'Core Feature Testing',
+            'description': 'Test new digest functionality'
+        }
+        unchanged_functionality = [
+            'ACM ManagedCluster status propagation'
+        ]
+        
+        result = self.service._should_skip_test_case_for_unchanged_functionality(
+            pattern, unchanged_functionality
+        )
+        
+        self.assertFalse(result)
     
-    # Summary
-    print(f"\n📊 Phase 4 Test Summary:")
-    print(f"Tests run: {result.testsRun}")
-    print(f"Failures: {len(result.failures)}")
-    print(f"Errors: {len(result.errors)}")
-    print(f"Success rate: {((result.testsRun - len(result.failures) - len(result.errors)) / result.testsRun * 100):.1f}%")
+    def test_should_not_skip_test_case_no_unchanged_functionality(self):
+        """Test not skipping when no unchanged functionality specified"""
+        pattern = {
+            'pattern_type': 'Multi-Component Integration Testing'
+        }
+        unchanged_functionality = []
+        
+        result = self.service._should_skip_test_case_for_unchanged_functionality(
+            pattern, unchanged_functionality
+        )
+        
+        self.assertFalse(result)
     
-    if result.failures:
-        print(f"\n❌ Failures:")
-        for test, traceback in result.failures:
-            print(f"  - {test}: {traceback.split('AssertionError:')[-1].strip()}")
-    
-    if result.errors:
-        print(f"\n❌ Errors:")
-        for test, traceback in result.errors:
-            print(f"  - {test}: {traceback.split('Error:')[-1].strip()}")
-    
-    exit(0 if result.wasSuccessful() else 1)
+    async def test_generate_test_cases_with_change_impact_filtering(self):
+        """Test test case generation with change impact filtering enabled"""
+        phase_3_result = {
+            'strategic_intelligence': {
+                'jira_id': 'ACM-22079',
+                'component': 'ClusterCurator',
+                'complexity': 'Medium',
+                'testing_scope': 'Medium',
+                'functionality_categories': {
+                    'new_functionality': ['Digest-based upgrade pathway'],
+                    'enhanced_functionality': ['ClusterCurator upgrade workflow'],
+                    'unchanged_functionality': ['ACM ManagedCluster status propagation']
+                },
+                'change_impact_filtering_applied': True
+            },
+            'pattern_generation_directives': {
+                'test_case_count': 6,
+                'steps_per_case': 8,
+                'testing_approach': 'Comprehensive'
+            }
+        }
+        
+        test_cases = await self.service._generate_test_cases(phase_3_result)
+        
+        # Verify test cases were generated
+        self.assertIsInstance(test_cases, list)
+        self.assertGreater(len(test_cases), 0)
+        
+        # Verify change impact filtering was applied (should have fewer cases)
+        self.assertLessEqual(len(test_cases), 6)
+        
+        # Verify change impact awareness is marked in test cases
+        for test_case in test_cases:
+            if 'change_impact_aware' in test_case:
+                self.assertTrue(test_case['change_impact_aware'])
 
 
 class TestPatternExtensionEnforcementIntegration(unittest.TestCase):
@@ -955,3 +1107,49 @@ class TestPatternExtensionEnforcementIntegration(unittest.TestCase):
         self.assertIn('Enforcement validation encountered an error', result)
         self.assertIn('Enforcement system error', result)
         self.assertIn('Original content', result)
+
+
+if __name__ == '__main__':
+    print("🧪 Phase 4 Pattern Extension Unit Tests")
+    print("=" * 45)
+    print("Testing Pattern Extension Service comprehensive functionality")
+    print("=" * 45)
+    
+    if not PATTERN_EXTENSION_AVAILABLE:
+        print("❌ Phase 4 Pattern Extension not available - skipping tests")
+        exit(1)
+    
+    # Create test suite
+    suite = unittest.TestSuite()
+    
+    # Add all test classes
+    loader = unittest.TestLoader()
+    suite.addTests(loader.loadTestsFromTestCase(TestPatternExtensionService))
+    suite.addTests(loader.loadTestsFromTestCase(TestPhase4ConvenienceFunctions))
+    suite.addTests(loader.loadTestsFromTestCase(TestPhase4EdgeCases))
+    suite.addTests(loader.loadTestsFromTestCase(TestPhase4Integration))
+    suite.addTests(loader.loadTestsFromTestCase(TestChangeImpactAnalysis))
+    suite.addTests(loader.loadTestsFromTestCase(TestPatternExtensionEnforcementIntegration))
+    
+    # Run tests
+    runner = unittest.TextTestRunner(verbosity=2)
+    result = runner.run(suite)
+    
+    # Summary
+    print(f"\n📊 Phase 4 Test Summary:")
+    print(f"Tests run: {result.testsRun}")
+    print(f"Failures: {len(result.failures)}")
+    print(f"Errors: {len(result.errors)}")
+    print(f"Success rate: {((result.testsRun - len(result.failures) - len(result.errors)) / result.testsRun * 100):.1f}%")
+    
+    if result.failures:
+        print(f"\n❌ Failures:")
+        for test, traceback in result.failures:
+            print(f"  - {test}: {traceback.split('AssertionError:')[-1].strip()}")
+    
+    if result.errors:
+        print(f"\n❌ Errors:")
+        for test, traceback in result.errors:
+            print(f"  - {test}: {traceback.split('Error:')[-1].strip()}")
+    
+    exit(0 if result.wasSuccessful() else 1)

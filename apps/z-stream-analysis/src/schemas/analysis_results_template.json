@@ -1,0 +1,71 @@
+{
+  "_comment": "Template for analysis-results.json - AI should generate content following this structure",
+  "_version": "1.0.0",
+
+  "analysis_metadata": {
+    "jenkins_url": "<JENKINS_URL_FROM_RAW_DATA>",
+    "analyzed_at": "<ISO_8601_TIMESTAMP e.g., 2026-01-15T15:02:00Z>",
+    "analyzer": "z-stream-analysis",
+    "build_result": "<UNSTABLE|FAILURE|SUCCESS>",
+    "branch": "<BRANCH_NAME>"
+  },
+
+  "per_test_analysis": [
+    {
+      "test_name": "<FULL_TEST_NAME_FROM_TEST_REPORT.FAILED_TESTS>",
+      "classification": "<PRODUCT_BUG|AUTOMATION_BUG|INFRASTRUCTURE>",
+      "confidence": 0.85,
+      "reasoning": "<DETAILED_ANALYSIS_OF_WHY_THIS_CLASSIFICATION - explain the evidence and logic>",
+      "evidence": [
+        "<EVIDENCE_1_FROM_CONSOLE_LOG_OR_TEST_REPORT>",
+        "<EVIDENCE_2_FROM_ENVIRONMENT_STATUS>",
+        "<EVIDENCE_3_FROM_REPOSITORY_ANALYSIS>"
+      ],
+      "root_cause": "<ROOT_CAUSE_DESCRIPTION>",
+      "recommended_fix": "<SPECIFIC_ACTION_TO_RESOLVE>",
+      "owner": "<Product Team|Automation Team|Platform Team>",
+      "priority": "<CRITICAL|HIGH|MEDIUM|LOW>"
+    }
+  ],
+
+  "summary": {
+    "total_tests": 0,
+    "passed_count": 0,
+    "failed_count": 0,
+    "pass_rate": 0.0,
+    "by_classification": {
+      "PRODUCT_BUG": 0,
+      "AUTOMATION_BUG": 0,
+      "INFRASTRUCTURE": 0
+    },
+    "overall_classification": "<DOMINANT_CLASSIFICATION_ACROSS_ALL_FAILURES>",
+    "overall_confidence": 0.85
+  },
+
+  "environment_summary": {
+    "target_cluster": "<CLUSTER_API_URL_FROM_RAW_DATA.ENVIRONMENT>",
+    "target_cluster_used": true,
+    "environment_score": 1.0,
+    "cluster_healthy": true,
+    "all_services_running": true
+  },
+
+  "patterns_detected": [
+    {
+      "pattern": "<PATTERN_NAME e.g., Monaco Editor Integration Bug>",
+      "description": "<PATTERN_DESCRIPTION>",
+      "affected_tests": ["<TEST_1>", "<TEST_2>"],
+      "recommendation": "<HOW_TO_ADDRESS_PATTERN>"
+    }
+  ],
+
+  "action_items": [
+    {
+      "priority": 1,
+      "action": "<ACTION_DESCRIPTION>",
+      "owner": "<Product Team|Automation Team|Platform Team>",
+      "type": "BUG_FIX",
+      "details": "<DETAILED_DESCRIPTION>"
+    }
+  ]
+}

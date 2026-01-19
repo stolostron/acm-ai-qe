@@ -12,7 +12,26 @@
       "WebFetch(domain:github.com)",
       "Bash(rm:*)",
       "Bash(mv:*)",
-      "Bash(git -C temp-repo-analysis/ branch --show-current)"
+      "Bash(git -C temp-repo-analysis/ branch --show-current)",
+      "Bash(python -m src.scripts.gather:*)",
+      "Bash(python:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr diff:*)",
+      "Bash(oc whoami:*)",
+      "Bash(oc get:*)",
+      "WebFetch(domain:console-openshift-console.apps.slot-03.dev09.red-chesterfield.com)",
+      "Bash(oc login:*)",
+      "Bash(CONSOLE_URL=https://console-openshift-console.apps.ci-vb-tr35-y.dev09.red-chesterfield.com curl -sk $CONSOLE_URL/)",
+      "Bash(git fetch:*)",
+      "Bash(CONSOLE_URL=\"https://console-openshift-console.apps.ci-vb-tr35-y.dev09.red-chesterfield.com\")",
+      "Bash(echo:*)",
+      "Bash(find:*)",
+      "Bash(ls:*)",
+      "Bash(gh pr list:*)",
+      "Bash(cat:*)",
+      "Bash(pytest:*)",
+      "Bash(pip3 list:*)",
+      "WebSearch"
     ],
     "deny": []
   }

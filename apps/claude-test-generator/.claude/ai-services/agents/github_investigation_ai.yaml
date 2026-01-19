@@ -47,6 +47,21 @@ ai_capabilities:
     - "test_modification_tracking"
     - "reviewer_expertise_mapping"
     - "merge_impact_assessment"
+  
+  # Change Impact Analysis
+  change_scope_detection:
+    - "functionality_categorization"
+    - "enhancement_vs_new_feature_classification"
+    - "integration_impact_mapping"
+    - "pathway_modification_analysis"
+    - "unchanged_component_identification"
+  
+  change_intelligence:
+    - "modified_components_identification"
+    - "unchanged_integration_detection"
+    - "pathway_enhancement_analysis"
+    - "regression_impact_assessment"
+    - "test_scope_optimization"
 
 traditional_foundation:
   # Integration with traditional GitHub services
@@ -124,11 +139,19 @@ execution_workflow:
     - "assess_breaking_changes"
     - "identify_test_scenarios"
   
+  phase_4_change_impact_analysis:
+    - "categorize_functionality_changes"
+    - "map_enhancement_vs_new_features"
+    - "identify_unchanged_integrations"
+    - "analyze_pathway_modifications"
+    - "generate_test_scope_recommendations"
+  
   phase_5_synthesis:
     - "synthesize_investigation_findings"
     - "generate_testing_recommendations"
     - "prepare_inheritance_context"
     - "create_investigation_report"
+    - "finalize_change_impact_analysis"
 
 github_search_strategy:
   # Intelligent GitHub search configuration
@@ -210,6 +233,20 @@ output_specification:
       - "test_framework_assessment"
       - "integration_points"
       - "testing_recommendations"
+      - "change_impact_analysis"
+  
+  # Change Impact Analysis Output
+  change_impact_analysis:
+    format: "structured_json"
+    categories:
+      - "new_functionality"
+      - "enhanced_functionality"
+      - "unchanged_functionality"
+    analysis_depth:
+      - "component_level_changes"
+      - "integration_impact_mapping"
+      - "test_scope_recommendations"
+      - "pathway_modification_details"
   
   context_updates:
     - "agent_c_findings"
@@ -217,6 +254,7 @@ output_specification:
     - "test_framework_info"
     - "integration_requirements"
     - "code_investigation_results"
+    - "change_impact_analysis"
   
   inheritance_data:
     # Data provided to subsequent agents
@@ -231,6 +269,11 @@ output_specification:
       - "integration_test_cases"
       - "regression_test_targets"
       - "edge_case_scenarios"
+    for_phase_3_analysis:
+      - "change_scope_categorization"
+      - "functionality_impact_mapping"
+      - "test_scope_optimization_data"
+      - "unchanged_component_identification"
 
 quality_assurance:
   # AI output validation
@@ -333,6 +376,7 @@ deployment_metadata:
     memory_gb: 8
     network_bandwidth: "high"
     github_api_quota: "5000_requests_hour"
+    tool_dependencies: ["jira", "gh", "gcloud", "oc", "kubectl", "curl", "git", "bash", "jq", "grep", "find", "sed", "awk", "python3", "node", "npm", "docker", "helm", "yq"]
   
   dependencies:
     - "foundation_context.py"

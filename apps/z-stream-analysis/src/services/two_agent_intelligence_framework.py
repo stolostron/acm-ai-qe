@@ -12,6 +12,8 @@ from typing import Dict, Any, List, Optional, Tuple
 from enum import Enum
 
 from .jenkins_intelligence_service import JenkinsIntelligenceService, JenkinsIntelligence
+from .environment_validation_service import EnvironmentValidationService
+from .repository_analysis_service import RepositoryAnalysisService
 
 
 class AnalysisPhase(Enum):
@@ -61,9 +63,18 @@ class InvestigationIntelligenceAgent:
     Phase 1: Comprehensive evidence gathering and validation
     """
     
-    def __init__(self):
+    def __init__(self, kubeconfig_path: Optional[str] = None, repo_base_path: Optional[str] = None):
+        """
+        Initialize Investigation Intelligence Agent.
+        
+        Args:
+            kubeconfig_path: Optional path to kubeconfig for cluster validation
+            repo_base_path: Base path for cloning repositories (default: /tmp/z-stream-repos)
+        """
         self.logger = logging.getLogger(f"{__name__}.InvestigationAgent")
         self.jenkins_service = JenkinsIntelligenceService()
+        self.env_validation_service = EnvironmentValidationService(kubeconfig_path)
+        self.repo_analysis_service = RepositoryAnalysisService(repo_base_path)
         
     def investigate_pipeline_failure(self, jenkins_url: str) -> InvestigationResult:
         """
@@ -113,78 +124,89 @@ class InvestigationIntelligenceAgent:
         )
     
     def _validate_environment(self, jenkins_intelligence: JenkinsIntelligence) -> Dict[str, Any]:
-        """Validate environment connectivity and functionality"""
-        validation_result = {
-            'cluster_connectivity': False,
-            'api_accessibility': False,
-            'service_health': {},
-            'environment_score': 0.0,
-            'validation_timestamp': time.time()
-        }
-        
+        """Validate environment connectivity and functionality using real oc/kubectl commands"""
         env_info = jenkins_intelligence.environment_info
         cluster_name = env_info.get('cluster_name')
         
-        if cluster_name:
-            # Simulate environment validation (would be real API calls in production)
-            validation_result.update({
-                'cluster_connectivity': True,
-                'api_accessibility': True,
-                'service_health': {
-                    'console_accessible': True,
-                    'api_responsive': True,
-                    'authentication_working': True
-                },
-                'environment_score': 0.85
-            })
+        # Common namespaces to check access for
+        namespaces_to_check = [
+            'open-cluster-management',
+            'open-cluster-management-hub',
+            'openshift-cnv',
+            'default'
+        ]
+        
+        try:
+            # Use the real environment validation service
+            validation_result = self.env_validation_service.validate_environment(
+                cluster_name=cluster_name,
+                namespaces=namespaces_to_check
+            )
             
-            self.logger.info(f"Environment validation completed for cluster: {cluster_name}")
-        else:
-            self.logger.warning("No cluster information available for environment validation")
+            # Convert to dictionary format expected by the framework
+            result_dict = self.env_validation_service.to_dict(validation_result)
             
-        return validation_result
+            self.logger.info(f"Environment validation completed. Score: {result_dict['environment_score']:.2f}")
+            
+            return result_dict
+            
+        except Exception as e:
+            self.logger.warning(f"Environment validation failed: {str(e)}")
+            
+            # Return a failed validation result
+            return {
+                'cluster_info': None,
+                'cluster_connectivity': False,
+                'api_accessibility': False,
+                'service_health': {},
+                'namespace_access': {},
+                'environment_score': 0.0,
+                'validation_timestamp': time.time(),
+                'validation_errors': [str(e)]
+            }
     
     def _analyze_repository(self, jenkins_intelligence: JenkinsIntelligence) -> Dict[str, Any]:
-        """Analyze automation repository for test logic and patterns"""
-        repo_analysis = {
-            'repository_cloned': False,
-            'branch_analyzed': None,
-            'test_files_found': [],
-            'dependency_analysis': {},
-            'code_patterns': {},
-            'analysis_timestamp': time.time()
-        }
-        
+        """Analyze automation repository for test logic and patterns using real git clone"""
         metadata = jenkins_intelligence.metadata
         branch = metadata.branch
+        job_name = metadata.job_name
         
-        if branch:
-            # Simulate repository analysis (would be real git operations in production)
-            repo_analysis.update({
-                'repository_cloned': True,
+        try:
+            # Use the real repository analysis service
+            analysis_result = self.repo_analysis_service.analyze_repository(
+                branch=branch,
+                job_name=job_name
+            )
+            
+            # Convert to dictionary format expected by the framework
+            result_dict = self.repo_analysis_service.to_dict(analysis_result)
+            
+            # Add branch_analyzed for backwards compatibility
+            result_dict['branch_analyzed'] = result_dict.get('branch')
+            
+            # Convert test_files to simple list of paths for backwards compatibility
+            result_dict['test_files_found'] = [
+                tf['path'] for tf in result_dict.get('test_files', [])
+            ]
+            
+            self.logger.info(f"Repository analysis completed. Found {len(result_dict['test_files_found'])} test files")
+            
+            return result_dict
+            
+        except Exception as e:
+            self.logger.warning(f"Repository analysis failed: {str(e)}")
+            
+            # Return a failed analysis result
+            return {
+                'repository_cloned': False,
                 'branch_analyzed': branch,
-                'test_files_found': [
-                    'tests/e2e/cluster_test.js',
-                    'tests/e2e/application_test.js',
-                    'cypress/integration/cluster.spec.js'
-                ],
-                'dependency_analysis': {
-                    'framework': 'cypress',
-                    'version': '12.17.0',
-                    'dependencies_healthy': True
-                },
-                'code_patterns': {
-                    'selector_patterns': ['data-test', 'data-cy', 'class'],
-                    'wait_patterns': ['cy.wait', 'cy.get().should'],
-                    'assertion_patterns': ['should', 'expect']
-                }
-            })
-            
-            self.logger.info(f"Repository analysis completed for branch: {branch}")
-        else:
-            self.logger.warning("No branch information available for repository analysis")
-            
-        return repo_analysis
+                'test_files_found': [],
+                'test_files': [],
+                'dependency_analysis': {},
+                'code_patterns': {},
+                'analysis_timestamp': time.time(),
+                'analysis_errors': [str(e)]
+            }
     
     def _correlate_evidence(self, jenkins_intel: JenkinsIntelligence, 
                           env_validation: Dict[str, Any], 
@@ -308,28 +330,46 @@ class SolutionIntelligenceAgent:
         )
     
     def _analyze_evidence(self, investigation: InvestigationResult) -> Dict[str, Any]:
-        """Analyze complete investigation evidence"""
+        """Analyze complete investigation evidence including per-test analysis"""
         jenkins_failures = investigation.jenkins_intelligence.failure_analysis
         env_status = investigation.environment_validation
         repo_info = investigation.repository_analysis
+        test_report = investigation.jenkins_intelligence.test_report
         
         analysis = {
             'primary_failure_indicators': [],
             'secondary_factors': [],
             'evidence_strength': {},
-            'pattern_analysis': {}
+            'pattern_analysis': {},
+            'per_test_analysis': [],  # NEW: Individual test case analysis
+            'multi_failure_summary': {}  # NEW: Summary across all failures
         }
         
-        # Analyze Jenkins failure patterns
-        failure_patterns = jenkins_failures.get('patterns', {})
-        primary_failure = jenkins_failures.get('primary_failure_type', 'unknown')
-        
-        if primary_failure != 'unknown':
-            analysis['primary_failure_indicators'].append({
-                'source': 'jenkins_console',
-                'type': primary_failure,
-                'confidence': 0.8
-            })
+        # If we have per-test analysis, use it for more accurate classification
+        if test_report and test_report.failed_tests:
+            analysis['per_test_analysis'] = self._analyze_per_test_failures(test_report.failed_tests)
+            analysis['multi_failure_summary'] = self._summarize_multi_failures(test_report.failed_tests)
+            
+            # Use per-test analysis for primary indicators
+            for summary_item in analysis['multi_failure_summary'].get('by_classification', {}).items():
+                classification, count = summary_item
+                analysis['primary_failure_indicators'].append({
+                    'source': 'test_report',
+                    'type': classification,
+                    'count': count,
+                    'confidence': 0.9  # Higher confidence from test report
+                })
+        else:
+            # Fall back to console log analysis
+            failure_patterns = jenkins_failures.get('patterns', {})
+            primary_failure = jenkins_failures.get('primary_failure_type', 'unknown')
+            
+            if primary_failure != 'unknown':
+                analysis['primary_failure_indicators'].append({
+                    'source': 'jenkins_console',
+                    'type': primary_failure,
+                    'confidence': 0.8
+                })
         
         # Analyze environment factors
         if not env_status.get('cluster_connectivity', False):
@@ -348,74 +388,220 @@ class SolutionIntelligenceAgent:
             })
         
         # Pattern analysis
+        failure_patterns = jenkins_failures.get('patterns', {})
         analysis['pattern_analysis'] = {
             'failure_frequency': len(failure_patterns.get('timeout_errors', [])),
             'error_distribution': self._analyze_error_distribution(failure_patterns),
-            'temporal_patterns': {}
+            'temporal_patterns': {},
+            'test_report_available': test_report is not None
         }
         
         return analysis
     
+    def _analyze_per_test_failures(self, failed_tests: List) -> List[Dict[str, Any]]:
+        """Analyze each failed test case individually."""
+        per_test = []
+        
+        for test in failed_tests:
+            per_test.append({
+                'test_name': test.test_name,
+                'class_name': test.class_name,
+                'failure_type': test.failure_type,
+                'classification': test.classification,
+                'confidence': test.classification_confidence,
+                'reasoning': test.classification_reasoning,
+                'recommended_fix': test.recommended_fix,
+                'error_snippet': test.error_message[:200] if test.error_message else None
+            })
+        
+        return per_test
+    
+    def _summarize_multi_failures(self, failed_tests: List) -> Dict[str, Any]:
+        """Summarize across multiple failures to determine overall classification."""
+        summary = {
+            'total_failures': len(failed_tests),
+            'by_classification': {},
+            'by_failure_type': {},
+            'dominant_classification': None,
+            'dominant_failure_type': None,
+            'mixed_classifications': False
+        }
+        
+        for test in failed_tests:
+            # Count classifications
+            cl = test.classification or 'UNKNOWN'
+            summary['by_classification'][cl] = summary['by_classification'].get(cl, 0) + 1
+            
+            # Count failure types
+            ft = test.failure_type or 'unknown'
+            summary['by_failure_type'][ft] = summary['by_failure_type'].get(ft, 0) + 1
+        
+        # Determine dominant classification
+        if summary['by_classification']:
+            summary['dominant_classification'] = max(
+                summary['by_classification'].items(),
+                key=lambda x: x[1]
+            )[0]
+        
+        # Determine dominant failure type
+        if summary['by_failure_type']:
+            summary['dominant_failure_type'] = max(
+                summary['by_failure_type'].items(),
+                key=lambda x: x[1]
+            )[0]
+        
+        # Check if mixed classifications
+        unique_classifications = set(summary['by_classification'].keys()) - {'UNKNOWN'}
+        summary['mixed_classifications'] = len(unique_classifications) > 1
+        
+        return summary
+    
     def _classify_bug_type(self, investigation: InvestigationResult, 
                           evidence_analysis: Dict[str, Any]) -> Dict[str, Any]:
-        """Classify bug as PRODUCT BUG vs AUTOMATION BUG"""
+        """
+        Classify bugs using per-test analysis when available.
+        Provides both overall classification and per-test breakdown.
+        """
         classification = {
             'primary_classification': 'UNKNOWN',
             'confidence': 0.0,
             'reasoning': [],
-            'secondary_classifications': []
+            'secondary_classifications': [],
+            'per_test_classifications': [],  # NEW: Individual test classifications
+            'classification_breakdown': {}   # NEW: Count by type
         }
         
-        primary_indicators = evidence_analysis.get('primary_failure_indicators', [])
+        multi_failure_summary = evidence_analysis.get('multi_failure_summary', {})
+        per_test_analysis = evidence_analysis.get('per_test_analysis', [])
         
-        # Classification logic based on failure patterns
-        for indicator in primary_indicators:
-            failure_type = indicator.get('type', '')
+        # If we have per-test analysis, use it
+        if per_test_analysis:
+            classification['per_test_classifications'] = per_test_analysis
+            classification['classification_breakdown'] = multi_failure_summary.get('by_classification', {})
             
-            if failure_type in ['timeout_errors', 'element_not_found']:
-                # Likely automation bug - test code issue
-                classification['primary_classification'] = 'AUTOMATION BUG'
-                classification['confidence'] = max(classification['confidence'], 0.75)
+            # Determine primary classification based on dominant type
+            dominant = multi_failure_summary.get('dominant_classification')
+            if dominant:
+                # Map internal classifications to display names
+                display_map = {
+                    'AUTOMATION_BUG': 'AUTOMATION BUG',
+                    'PRODUCT_BUG': 'PRODUCT BUG',
+                    'INFRASTRUCTURE': 'INFRASTRUCTURE',
+                    'UNKNOWN': 'UNKNOWN'
+                }
+                classification['primary_classification'] = display_map.get(dominant, dominant)
+                
+                # Calculate confidence based on how dominant the classification is
+                total = multi_failure_summary.get('total_failures', 1)
+                dominant_count = multi_failure_summary['by_classification'].get(dominant, 0)
+                dominance_ratio = dominant_count / total if total > 0 else 0
+                
+                # Higher confidence if most failures are the same type
+                classification['confidence'] = 0.5 + (0.4 * dominance_ratio)
+                
+                # Add reasoning
                 classification['reasoning'].append(
-                    f"Test automation issue detected: {failure_type}"
+                    f"{dominant_count}/{total} failures classified as {dominant}"
                 )
                 
-            elif failure_type in ['network_errors']:
-                # Could be product or infrastructure issue
-                env_healthy = investigation.environment_validation.get('environment_score', 0) > 0.7
-                if env_healthy:
-                    classification['primary_classification'] = 'PRODUCT BUG'
-                    classification['confidence'] = max(classification['confidence'], 0.6)
+                # Note if mixed classifications
+                if multi_failure_summary.get('mixed_classifications'):
                     classification['reasoning'].append(
-                        "Network errors with healthy environment suggest product issue"
+                        "Note: Multiple failure types detected - see per-test breakdown"
                     )
-                else:
-                    classification['primary_classification'] = 'INFRASTRUCTURE BUG'
-                    classification['confidence'] = max(classification['confidence'], 0.8)
+                    # Add secondary classifications
+                    for cl_type, count in multi_failure_summary['by_classification'].items():
+                        if cl_type != dominant and count > 0:
+                            classification['secondary_classifications'].append({
+                                'type': display_map.get(cl_type, cl_type),
+                                'count': count
+                            })
+        else:
+            # Fall back to console log analysis
+            primary_indicators = evidence_analysis.get('primary_failure_indicators', [])
+            
+            for indicator in primary_indicators:
+                failure_type = indicator.get('type', '')
+                
+                if failure_type in ['timeout_errors', 'element_not_found']:
+                    classification['primary_classification'] = 'AUTOMATION BUG'
+                    classification['confidence'] = max(classification['confidence'], 0.75)
                     classification['reasoning'].append(
-                        "Network errors with unhealthy environment suggest infrastructure issue"
+                        f"Test automation issue detected: {failure_type}"
                     )
+                    
+                elif failure_type in ['network_errors']:
+                    env_healthy = investigation.environment_validation.get('environment_score', 0) > 0.7
+                    if env_healthy:
+                        classification['primary_classification'] = 'PRODUCT BUG'
+                        classification['confidence'] = max(classification['confidence'], 0.6)
+                        classification['reasoning'].append(
+                            "Network errors with healthy environment suggest product issue"
+                        )
+                    else:
+                        classification['primary_classification'] = 'INFRASTRUCTURE'
+                        classification['confidence'] = max(classification['confidence'], 0.8)
+                        classification['reasoning'].append(
+                            "Network errors with unhealthy environment suggest infrastructure issue"
+                        )
         
-        # Default to automation bug if no specific indicators
+        # Default if still unknown
         if classification['primary_classification'] == 'UNKNOWN':
-            classification['primary_classification'] = 'AUTOMATION BUG'
-            classification['confidence'] = 0.5
-            classification['reasoning'].append("Default classification based on test failure context")
+            classification['primary_classification'] = 'REQUIRES INVESTIGATION'
+            classification['confidence'] = 0.3
+            classification['reasoning'].append("Insufficient evidence for definitive classification")
         
         return classification
     
     def _generate_fix_recommendations(self, investigation: InvestigationResult,
                                     evidence_analysis: Dict[str, Any],
                                     bug_classification: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Generate specific fix recommendations"""
+        """
+        Generate fix recommendations with per-test granularity when available.
+        """
         recommendations = []
+        per_test_recs = []  # Individual test recommendations
         
         classification = bug_classification.get('primary_classification', 'UNKNOWN')
+        per_test_classifications = bug_classification.get('per_test_classifications', [])
+        
+        # NEW: Generate per-test recommendations if available
+        if per_test_classifications:
+            for test_analysis in per_test_classifications:
+                test_name = test_analysis.get('test_name', 'unknown')
+                test_classification = test_analysis.get('classification', 'UNKNOWN')
+                failure_type = test_analysis.get('failure_type', 'unknown')
+                recommended_fix = test_analysis.get('recommended_fix', '')
+                
+                per_test_recs.append({
+                    'type': 'per_test_fix',
+                    'test_name': test_name,
+                    'classification': test_classification,
+                    'failure_type': failure_type,
+                    'priority': self._get_priority_for_classification(test_classification),
+                    'title': f"Fix: {test_name}",
+                    'description': recommended_fix,
+                    'reasoning': test_analysis.get('reasoning', ''),
+                    'confidence': test_analysis.get('confidence', 0.5)
+                })
+            
+            # Group recommendations by classification
+            recommendations.append({
+                'type': 'per_test_breakdown',
+                'priority': 'high',
+                'title': f'Individual Test Fixes ({len(per_test_recs)} failures)',
+                'description': 'Per-test-case recommendations for each failure',
+                'tests': per_test_recs,
+                'summary': bug_classification.get('classification_breakdown', {}),
+                'confidence': 0.85
+            })
+        
+        # Add overall recommendations based on dominant classification
         jenkins_failures = investigation.jenkins_intelligence.failure_analysis
         primary_failure = jenkins_failures.get('primary_failure_type', 'unknown')
         
         if classification == 'AUTOMATION BUG':
-            if primary_failure == 'timeout_errors':
+            if primary_failure == 'timeout_errors' or 'timeout' in str(jenkins_failures):
                 recommendations.append({
                     'type': 'code_fix',
                     'priority': 'high',
@@ -465,23 +651,52 @@ class SolutionIntelligenceAgent:
                 'confidence': 0.7
             })
         
-        # Always add a comprehensive analysis recommendation
-        recommendations.append({
-            'type': 'analysis',
-            'priority': 'medium',
-            'title': 'Comprehensive test suite review',
-            'description': 'Review and improve overall test reliability',
-            'implementation': {
-                'actions': [
-                    'Audit all timeout values across test suite',
-                    'Implement standardized wait patterns',
-                    'Add comprehensive error handling and reporting'
-                ]
-            },
-            'confidence': 0.9
-        })
+        elif classification == 'INFRASTRUCTURE':
+            recommendations.append({
+                'type': 'infrastructure',
+                'priority': 'critical',
+                'title': 'Infrastructure/Environment Issue',
+                'description': 'Cluster or network infrastructure needs attention',
+                'implementation': {
+                    'actions': [
+                        'Verify cluster health and connectivity',
+                        'Check network policies and DNS',
+                        'Review cluster resource availability'
+                    ]
+                },
+                'confidence': 0.75
+            })
+        
+        # Add summary recommendation if multiple failures
+        if per_test_classifications and len(per_test_classifications) > 1:
+            mixed = bug_classification.get('classification_breakdown', {})
+            if len(mixed) > 1:
+                recommendations.append({
+                    'type': 'summary',
+                    'priority': 'high',
+                    'title': 'Multiple Root Causes Detected',
+                    'description': 'This build has failures from multiple categories - prioritize accordingly',
+                    'implementation': {
+                        'actions': [
+                            f"Address {mixed.get('PRODUCT_BUG', 0)} PRODUCT BUG(s) first - escalate to dev team",
+                            f"Fix {mixed.get('AUTOMATION_BUG', 0)} AUTOMATION BUG(s) - update test code",
+                            f"Resolve {mixed.get('INFRASTRUCTURE', 0)} INFRASTRUCTURE issue(s) - check environment"
+                        ]
+                    },
+                    'confidence': 0.8
+                })
         
         return recommendations
+    
+    def _get_priority_for_classification(self, classification: str) -> str:
+        """Map classification to priority level."""
+        priority_map = {
+            'PRODUCT_BUG': 'critical',
+            'AUTOMATION_BUG': 'high',
+            'INFRASTRUCTURE': 'critical',
+            'UNKNOWN': 'medium'
+        }
+        return priority_map.get(classification, 'medium')
     
     def _generate_implementation_guidance(self, fix_recommendations: List[Dict[str, Any]],
                                         investigation: InvestigationResult) -> Dict[str, Any]:

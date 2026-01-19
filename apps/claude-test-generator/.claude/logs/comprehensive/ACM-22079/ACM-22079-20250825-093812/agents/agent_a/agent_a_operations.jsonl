@@ -1,4 +1,0 @@
-{"timestamp": "2025-08-25T09:38:12.000Z", "agent": "agent_a_jira", "operation": "jira_intelligence_analysis", "status": "started", "ticket": "ACM-22079", "analysis_type": "comprehensive_fresh_analysis", "context_isolation": "enabled"}
-{"timestamp": "2025-08-25T09:38:12.100Z", "agent": "agent_a_jira", "operation": "requirements_analysis", "status": "executing", "focus": "clustercurator_digest_upgrades", "customer": "amadeus_disconnected_env"}
-{"timestamp": "2025-08-25T09:38:12.200Z", "agent": "agent_a_jira", "operation": "stakeholder_analysis", "status": "executing", "scope": "business_technical_product_stakeholders", "priorities": "reliability_performance_auditability"}
-{"timestamp": "2025-08-25T09:38:12.300Z", "agent": "agent_a_jira", "operation": "acceptance_criteria_formulation", "status": "executing", "criteria_types": "functional_performance_quality_customer_success", "coverage_gap": "18.8_percent_pr_468"}

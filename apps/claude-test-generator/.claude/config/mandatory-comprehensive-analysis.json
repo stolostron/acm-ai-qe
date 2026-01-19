@@ -1,0 +1,95 @@
+{
+  "policy_name": "mandatory_comprehensive_test_plan_generation",
+  "description": "Enforces comprehensive analysis for ALL test plan generation requests",
+  "enforcement_level": "CRITICAL",
+  "version": "1.0.0",
+  "effective_date": "2025-09-01",
+
+  "trigger_patterns": {
+    "test_plan_requests": [
+      "generate test plan",
+      "test plan for",
+      "create test cases",
+      "test cases for",
+      "analyze.*test",
+      "test.*plan.*generation",
+      "comprehensive.*test",
+      "e2e.*test.*plan",
+      "end.*to.*end.*test"
+    ],
+
+    "jira_analysis_requests": [
+      "analyze [A-Z]+-[0-9]+",
+      "test [A-Z]+-[0-9]+",
+      "generate.*[A-Z]+-[0-9]+",
+      "create.*test.*[A-Z]+-[0-9]+",
+      "[A-Z]+-[0-9]+.*test"
+    ],
+
+    "general_testing_requests": [
+      "test plan",
+      "test cases",
+      "testing.*strategy",
+      "qa.*analysis",
+      "quality.*assurance"
+    ]
+  },
+
+  "mandatory_enforcement": {
+    "always_required": [
+      "execute_complete_4_agent_analysis",
+      "use_real_jira_data_only",
+      "use_real_environment_data_only",
+      "use_real_repository_data_only",
+      "perform_fresh_analysis_no_cache",
+      "comprehensive_framework_execution"
+    ],
+
+    "never_allowed": [
+      "simulated_data_usage",
+      "cached_results_shortcuts",
+      "framework_optimization_shortcuts",
+      "fake_jira_responses",
+      "synthetic_environment_data",
+      "hardcoded_test_patterns"
+    ]
+  },
+
+  "enforcement_actions": {
+    "trigger_detection": "automatic_comprehensive_analysis_initiation",
+    "simulation_attempt": "immediate_blocking_with_policy_reminder",
+    "shortcut_attempt": "redirect_to_comprehensive_framework",
+    "cache_usage": "force_fresh_data_collection"
+  },
+
+  "framework_requirements": {
+    "phase_0": "framework_initialization_with_cleanup",
+    "phase_1": "parallel_foundation_analysis_agent_a_and_d",
+    "phase_2": "parallel_deep_investigation_agent_b_and_c",
+    "phase_2_5": "data_flow_and_qe_intelligence",
+    "phase_3": "ai_strategic_analysis",
+    "phase_4": "template_driven_generation_and_validation",
+    "phase_5": "comprehensive_cleanup_reports_only"
+  },
+
+  "success_criteria": {
+    "data_authenticity": "100_percent_real_data_sources",
+    "framework_completeness": "all_6_phases_executed",
+    "agent_participation": "all_4_agents_active_and_contributing",
+    "output_quality": "comprehensive_test_cases_generated",
+    "evidence_validation": "all_claims_backed_by_real_evidence"
+  },
+
+  "user_communication": {
+    "policy_reminder": "This app ALWAYS performs comprehensive test plan generation with real data only",
+    "no_shortcuts_message": "Framework executing complete analysis - no simulations or shortcuts permitted",
+    "completion_confirmation": "Comprehensive analysis complete with real data validation"
+  },
+
+  "integration_points": {
+    "claude_md_memory": "CLAUDE.md mandatory section",
+    "policies_enforcement": "CLAUDE.policies.md critical policy",
+    "workflow_triggers": "universal workflow pattern recognition",
+    "agent_coordination": "4_agent_framework_mandatory_execution"
+  }
+}

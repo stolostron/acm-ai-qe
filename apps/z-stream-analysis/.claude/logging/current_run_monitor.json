@@ -1,8 +1,0 @@
-{
-  "run_id": "clc-e2e-pipeline_789_20250826_075315",
-  "jenkins_url": "https://jenkins-test.example.com/job/clc-e2e-pipeline/789/",
-  "start_time": "2025-08-26T07:53:15.327453+00:00",
-  "status": "completed",
-  "log_directory": "/Users/ashafi/Documents/work/ai/ai_systems/apps/z-stream-analysis/.claude/logging/runs/clc-e2e-pipeline_789_20250826_075315",
-  "end_time": "2025-08-26T07:53:15.329923+00:00"
-}

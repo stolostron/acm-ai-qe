@@ -5,6 +5,7 @@ Integrates with inter-agent communication system for real-time coordination with
 """
 
 import os
+import sys
 import json
 import logging
 import asyncio
@@ -17,6 +18,7 @@ from jira_api_client import JiraApiClient
 from inter_agent_communication import AgentCommunicationInterface, InterAgentMessage
 from information_sufficiency_analyzer import InformationSufficiencyAnalyzer, SufficiencyScore
 from framework_stop_handler import FrameworkStopHandler, InsufficientInformationError
+from technology_classification_service import UniversalComponentAnalyzer, get_component_patterns
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +67,9 @@ class JIRAIntelligenceAgent:
         # Initialize information sufficiency components
         self.sufficiency_analyzer = InformationSufficiencyAnalyzer()
         self.stop_handler = FrameworkStopHandler(run_dir)
+        
+        # Initialize universal component analyzer
+        self.component_analyzer = UniversalComponentAnalyzer()
         
         # Analysis state
         self.analysis_results = {}
@@ -150,7 +155,7 @@ class JIRAIntelligenceAgent:
         logger.info(f"Performing basic JIRA analysis for {jira_id}")
         
         # Get JIRA ticket data
-        ticket_data = self.jira_client.get_ticket_information(jira_id)
+        ticket_data = await self.jira_client.get_ticket_information(jira_id)
         
         # Extract comprehensive information
         basic_analysis = {
@@ -211,31 +216,44 @@ class JIRAIntelligenceAgent:
         return pr_discoveries
     
     async def _analyze_pr_details(self, pr_ref: str, context: Dict[str, Any]) -> PRDiscoveryResult:
-        """Analyze detailed PR information"""
+        """Analyze detailed PR information using real GitHub API"""
         
         # Extract PR number
         pr_number = self._extract_pr_number(pr_ref)
         
-        # Simulate GitHub API call to get PR details
-        # In real implementation, this would use GitHub API
-        pr_details = {
-            'title': f'ClusterCurator digest-based upgrades for {pr_number}',
-            'files_changed': [
-                'pkg/clustercurator/controller.go',
-                'config/crd/bases/cluster.open-cluster-management.io_clustercurators.yaml',
-                'test/functional/clustercurator_test.go',
-                'docs/clustercurator-usage.md'
-            ],
-            'url': f'https://github.com/stolostron/cluster-curator-controller/pull/{pr_number}'
-        }
+        # Use real GitHub API via MCP server to get PR details
+        pr_details = await self._fetch_real_github_pr_data(pr_number, context)
         
+        if not pr_details:
+            # If MCP fails, use GitHub CLI fallback
+            pr_details = await self._fetch_github_pr_via_cli(pr_number, context)
+        
+        if not pr_details:
+            # ANTI-SIMULATION: Return error result instead of fabricating data
+            logger.warning(f"⚠️ Could not fetch real PR data for PR #{pr_number} - no simulation fallback")
+            return PRDiscoveryResult(
+                pr_number=pr_number,
+                pr_title=f"PR #{pr_number} (data unavailable)",
+                pr_url=f"https://github.com/unknown/repo/pull/{pr_number}",
+                files_changed=[],
+                deployment_components=[],
+                yaml_files=[],
+                config_changes=[],
+                api_changes=[],
+                operator_changes=[],
+                confidence_score=0.0  # Zero confidence - no real data available
+            )
+
         # Analyze file changes for deployment impact
         deployment_components = self._analyze_deployment_components(pr_details['files_changed'])
         yaml_files = self._identify_yaml_files(pr_details['files_changed'])
         config_changes = self._identify_config_changes(pr_details['files_changed'])
         api_changes = self._identify_api_changes(pr_details['files_changed'])
         operator_changes = self._identify_operator_changes(pr_details['files_changed'])
-        
+
+        # Calculate confidence based on actual data quality
+        data_quality_score = self._calculate_pr_data_confidence(pr_details)
+
         return PRDiscoveryResult(
             pr_number=pr_number,
             pr_title=pr_details['title'],
@@ -246,7 +264,7 @@ class JIRAIntelligenceAgent:
             config_changes=config_changes,
             api_changes=api_changes,
             operator_changes=operator_changes,
-            confidence_score=0.95
+            confidence_score=data_quality_score  # Calculated, not hardcoded
         )
     
     async def _publish_pr_discovery_realtime(self, pr_discovery: PRDiscoveryResult):
@@ -278,37 +296,256 @@ class JIRAIntelligenceAgent:
         requirements = []
         
         for pr_discovery in pr_discoveries:
-            # Generate requirements based on PR analysis
-            req = EnvironmentCollectionRequirements(
-                target_components=pr_discovery.deployment_components,
-                required_yamls=[
-                    f"clustercurator-{pr_discovery.pr_number}-*.yaml",
-                    "clustercurator-controller-deployment.yaml",
-                    "clustercurator-crd.yaml"
-                ] + pr_discovery.yaml_files,
-                required_logs=[
-                    "clustercurator-controller-manager logs",
-                    "open-cluster-management-hub namespace events",
-                    "clustercurator operator logs"
-                ],
-                required_commands=[
-                    "oc get clustercurators -A -o yaml",
-                    "oc get managedclusters -o yaml",
-                    "oc describe clustercurator",
-                    "oc logs -n open-cluster-management clustercurator-controller-manager",
-                    f"oc get deployment clustercurator-controller-manager -n open-cluster-management -o yaml"
-                ],
-                sample_resources=[
-                    "sample-clustercurator-upgrade.yaml",
-                    "sample-managedcluster.yaml",
-                    "clustercurator-status-examples.yaml"
-                ],
-                priority="high"
-            )
+            # Generate dynamic requirements based on PR analysis and component intelligence
+            req = self._generate_dynamic_environment_requirements(pr_discovery, component_analysis)
             
             requirements.append(req)
         
         return requirements
+    
+    def _generate_dynamic_environment_requirements(self, pr_discovery: PRDiscoveryResult, 
+                                                  component_analysis: Dict[str, Any]) -> EnvironmentCollectionRequirements:
+        """Generate dynamic environment requirements for any component/feature"""
+        
+        # Extract component information dynamically
+        components = pr_discovery.deployment_components
+        primary_component = components[0].lower() if components else 'unknown'
+        
+        # Generate dynamic YAML requirements based on component
+        required_yamls = self._generate_dynamic_yaml_requirements(primary_component, pr_discovery)
+        
+        # Generate dynamic log requirements based on component
+        required_logs = self._generate_dynamic_log_requirements(primary_component, pr_discovery)
+        
+        # Generate dynamic command requirements based on component
+        required_commands = self._generate_dynamic_command_requirements(primary_component, pr_discovery)
+        
+        # Generate dynamic sample resources based on component
+        sample_resources = self._generate_dynamic_sample_resources(primary_component, pr_discovery)
+        
+        # Determine priority based on PR analysis
+        priority = self._determine_dynamic_priority(pr_discovery, component_analysis)
+        
+        return EnvironmentCollectionRequirements(
+            target_components=components,
+            required_yamls=required_yamls,
+            required_logs=required_logs,
+            required_commands=required_commands,
+            sample_resources=sample_resources,
+            priority=priority
+        )
+    
+    def _generate_dynamic_yaml_requirements(self, component: str, pr_discovery: PRDiscoveryResult) -> List[str]:
+        """Generate YAML requirements dynamically using Universal Component Analyzer"""
+        
+        # Create JIRA content for component analysis
+        jira_content = {
+            'id': getattr(self, 'current_jira_id', 'unknown'),
+            'title': getattr(self, 'current_jira_title', ''),
+            'description': getattr(self, 'current_jira_description', ''),
+            'component': component
+        }
+        
+        # Analyze component using universal analyzer
+        try:
+            component_info = self.component_analyzer.analyze_component(jira_content)
+            
+            # Get discovered patterns
+            patterns = get_component_patterns(component_info)
+            
+            # Start with universal patterns
+            yamls = patterns.yaml_files.copy()
+            
+            # Add PR-specific patterns
+            if pr_discovery.pr_number:
+                pr_patterns = [
+                    f"{component_info.component_name}-{pr_discovery.pr_number}-*.yaml",
+                    f"{component_info.component_name}-{pr_discovery.pr_number}.yaml"
+                ]
+                yamls.extend(pr_patterns)
+            
+            # Add PR-discovered YAML files
+            yamls.extend(pr_discovery.yaml_files)
+            
+            logger.info(f"Generated {len(yamls)} YAML patterns for {component_info.primary_technology}/{component_info.component_type}")
+            
+        except Exception as e:
+            logger.warning(f"Component analysis failed for {component}, falling back to generic patterns: {e}")
+            
+            # Fallback to basic patterns
+            yamls = [
+                f"{component}.yaml",
+                f"{component}-controller-deployment.yaml",
+                f"{component}-crd.yaml",
+                f"{component}*.yaml"
+            ]
+            
+            # Add PR-specific patterns if available
+            if pr_discovery.pr_number:
+                yamls.extend([
+                    f"{component}-{pr_discovery.pr_number}-*.yaml",
+                    f"{component}-{pr_discovery.pr_number}.yaml"
+                ])
+            
+            # Add PR-discovered YAML files
+            yamls.extend(pr_discovery.yaml_files)
+        
+        return yamls
+    
+    def _generate_dynamic_log_requirements(self, component: str, pr_discovery: PRDiscoveryResult) -> List[str]:
+        """Generate log requirements dynamically using Universal Component Analyzer"""
+        
+        # Create JIRA content for component analysis
+        jira_content = {
+            'id': getattr(self, 'current_jira_id', 'unknown'),
+            'title': getattr(self, 'current_jira_title', ''),
+            'description': getattr(self, 'current_jira_description', ''),
+            'component': component
+        }
+        
+        # Analyze component using universal analyzer
+        try:
+            component_info = self.component_analyzer.analyze_component(jira_content)
+            
+            # Get discovered patterns
+            patterns = get_component_patterns(component_info)
+            
+            # Use universal log patterns
+            logs = patterns.log_patterns.copy()
+            
+            logger.info(f"Generated {len(logs)} log patterns for {component_info.primary_technology}/{component_info.component_type}")
+            
+        except Exception as e:
+            logger.warning(f"Component analysis failed for {component}, falling back to generic log patterns: {e}")
+            
+            # Fallback to basic log patterns
+            logs = [
+                f"{component}-controller-manager logs",
+                f"{component} operator logs",
+                f"{component} namespace events"
+            ]
+        
+        return logs
+    
+    def _generate_dynamic_command_requirements(self, component: str, pr_discovery: PRDiscoveryResult) -> List[str]:
+        """Generate command requirements dynamically using Universal Component Analyzer"""
+        
+        # Create JIRA content for component analysis
+        jira_content = {
+            'id': getattr(self, 'current_jira_id', 'unknown'),
+            'title': getattr(self, 'current_jira_title', ''),
+            'description': getattr(self, 'current_jira_description', ''),
+            'component': component
+        }
+        
+        # Analyze component using universal analyzer
+        try:
+            component_info = self.component_analyzer.analyze_component(jira_content)
+            
+            # Get discovered patterns
+            patterns = get_component_patterns(component_info)
+            
+            # Use universal CLI command patterns
+            commands = patterns.cli_commands.copy()
+            
+            # Add troubleshooting commands if available
+            if hasattr(patterns, 'troubleshooting_commands'):
+                commands.extend(patterns.troubleshooting_commands)
+            
+            logger.info(f"Generated {len(commands)} CLI commands for {component_info.primary_technology}/{component_info.component_type}")
+            
+        except Exception as e:
+            logger.warning(f"Component analysis failed for {component}, falling back to generic commands: {e}")
+            
+            # Fallback to basic command patterns
+            component_resource = component.lower().replace('_', '').replace('-', '')
+            commands = [
+                f"oc get {component_resource}s -A -o yaml",
+                f"oc describe {component_resource}",
+                f"oc logs -l app={component}",
+                f"oc get deployment {component}-controller-manager -o yaml"
+            ]
+        
+        return commands
+    
+    def _generate_dynamic_sample_resources(self, component: str, pr_discovery: PRDiscoveryResult) -> List[str]:
+        """Generate sample resources dynamically for any component"""
+        
+        samples = []
+        
+        # Component-specific sample patterns
+        component_sample_patterns = {
+            'clustercurator': [
+                f"sample-{component}-upgrade.yaml",
+                "sample-managedcluster.yaml",
+                f"{component}-status-examples.yaml"
+            ],
+            'policy': [
+                f"sample-{component}.yaml",
+                "sample-policyset.yaml",
+                f"{component}-compliance-examples.yaml"
+            ],
+            'observability': [
+                f"sample-multicluster{component}.yaml",
+                f"sample-{component}addon.yaml",
+                f"{component}-metrics-examples.yaml"
+            ],
+            'application': [
+                f"sample-{component}.yaml",
+                "sample-subscription.yaml",
+                f"{component}-deployment-examples.yaml"
+            ],
+            'console': [
+                f"sample-{component}-config.yaml",
+                f"{component}-route-examples.yaml",
+                f"{component}-deployment-examples.yaml"
+            ]
+        }
+        
+        # Get component-specific samples
+        if component in component_sample_patterns:
+            samples.extend(component_sample_patterns[component])
+        else:
+            # Generic ACM component samples
+            samples.extend([
+                f"sample-{component}.yaml",
+                f"{component}-config-examples.yaml",
+                f"{component}-status-examples.yaml"
+            ])
+        
+        return samples
+    
+    def _determine_dynamic_priority(self, pr_discovery: PRDiscoveryResult, 
+                                   component_analysis: Dict[str, Any]) -> str:
+        """Determine priority dynamically based on PR and component analysis"""
+        
+        # Start with medium priority
+        priority_score = 2  # 1=low, 2=medium, 3=high, 4=critical
+        
+        # Adjust based on PR characteristics
+        if pr_discovery.confidence_score > 0.9:
+            priority_score += 1
+        
+        if len(pr_discovery.files_changed) > 10:
+            priority_score += 1  # Large PR = higher priority
+        
+        if len(pr_discovery.deployment_components) > 2:
+            priority_score += 1  # Multi-component = higher priority
+        
+        # Adjust based on file types
+        critical_files = ['controller.go', 'types.go', 'crd', 'operator']
+        if any(critical in file.lower() for file in pr_discovery.files_changed for critical in critical_files):
+            priority_score += 1
+        
+        # Convert score to priority
+        if priority_score >= 5:
+            return "critical"
+        elif priority_score >= 4:
+            return "high"
+        elif priority_score >= 3:
+            return "normal"
+        else:
+            return "low"
     
     async def _publish_environment_requirements(self, requirements: List[EnvironmentCollectionRequirements]):
         """Publish environment collection requirements to Agent D"""
@@ -458,12 +695,416 @@ class JIRAIntelligenceAgent:
         return list(set(pr_refs))
     
     async def _search_github_for_prs(self, jira_id: str, basic_analysis: Dict[str, Any]) -> List[str]:
-        """Search GitHub for PRs related to this JIRA ticket"""
-        # Simulate GitHub search
-        # In real implementation, this would use GitHub API
-        if jira_id == "ACM-22079":
-            return ["468"]  # Known PR for ACM-22079
-        return []
+        """Search GitHub for PRs related to this JIRA ticket using real GitHub API"""
+        
+        try:
+            # Use real GitHub search via MCP server
+            pr_refs = await self._real_github_search_for_prs(jira_id, basic_analysis)
+            
+            if pr_refs:
+                logger.info(f"✅ Found {len(pr_refs)} PRs via GitHub API for {jira_id}")
+                return pr_refs
+            
+            # Fallback to GitHub CLI search
+            pr_refs = await self._github_cli_search_for_prs(jira_id, basic_analysis)
+            
+            if pr_refs:
+                logger.info(f"✅ Found {len(pr_refs)} PRs via GitHub CLI for {jira_id}")
+                return pr_refs
+            
+            # Final fallback: intelligent PR discovery from JIRA content
+            pr_refs = self._intelligent_pr_discovery_from_jira(jira_id, basic_analysis)
+            
+            if pr_refs:
+                logger.info(f"✅ Found {len(pr_refs)} PRs via intelligent discovery for {jira_id}")
+                return pr_refs
+            
+            logger.info(f"No PRs found for {jira_id} using any method")
+            return []
+            
+        except Exception as e:
+            logger.error(f"GitHub PR search failed for {jira_id}: {e}")
+            return []
+    
+    async def _fetch_real_github_pr_data(self, pr_number: str, context: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Fetch real GitHub PR data using MCP server"""
+        try:
+            # Import MCP coordinator
+            # Try to import MCP coordinator with fallback paths
+            try:
+                import sys
+                import os
+                mcp_path = os.path.join(os.path.dirname(__file__), '..', 'mcp')
+                if mcp_path not in sys.path:
+                    sys.path.append(mcp_path)
+                from simplified_mcp_coordinator import create_mcp_coordinator
+            except ImportError:
+                sys.path.append('../mcp')
+                from simplified_mcp_coordinator import create_mcp_coordinator
+            
+            mcp = create_mcp_coordinator()
+            
+            # Determine repository from context
+            repository = self._determine_target_repository(context)
+            
+            logger.info(f"🔍 Fetching PR {pr_number} from {repository} via GitHub MCP")
+            
+            # Use real GitHub MCP to get PR details
+            pr_result = mcp.github_get_pull_request(repository, int(pr_number))
+            
+            if pr_result.get('status') == 'success':
+                pr_data = pr_result.get('data', {})
+                
+                # Extract real PR information
+                real_pr_details = {
+                    'title': pr_data.get('title', f'PR #{pr_number}'),
+                    'files_changed': self._extract_files_from_pr_data(pr_data),
+                    'url': f'https://github.com/{repository}/pull/{pr_number}',
+                    'state': pr_data.get('state', 'unknown'),
+                    'author': pr_data.get('author', {}).get('login', 'unknown'),
+                    'body': pr_data.get('body', ''),
+                    'commits': pr_data.get('commits', [])
+                }
+                
+                logger.info(f"✅ Successfully fetched real PR data for {pr_number}")
+                return real_pr_details
+            else:
+                logger.warning(f"GitHub MCP failed for PR {pr_number}: {pr_result.get('error', 'Unknown error')}")
+                return None
+                
+        except Exception as e:
+            logger.warning(f"GitHub MCP PR fetch failed: {e}")
+            return None
+    
+    async def _fetch_github_pr_via_cli(self, pr_number: str, context: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Fetch GitHub PR data using GitHub CLI as fallback"""
+        try:
+            import subprocess
+            import json
+            
+            repository = self._determine_target_repository(context)
+            
+            logger.info(f"🔧 Fetching PR {pr_number} from {repository} via GitHub CLI")
+            
+            # Use real GitHub CLI to get PR details
+            result = subprocess.run(
+                ['gh', 'pr', 'view', pr_number, '--repo', repository, 
+                 '--json', 'title,body,state,author,files,commits,url'],
+                capture_output=True, text=True, timeout=30
+            )
+            
+            if result.returncode == 0:
+                pr_data = json.loads(result.stdout)
+                
+                cli_pr_details = {
+                    'title': pr_data.get('title', f'PR #{pr_number}'),
+                    'files_changed': [f.get('path', '') for f in pr_data.get('files', [])],
+                    'url': pr_data.get('url', f'https://github.com/{repository}/pull/{pr_number}'),
+                    'state': pr_data.get('state', 'unknown'),
+                    'author': pr_data.get('author', {}).get('login', 'unknown'),
+                    'body': pr_data.get('body', ''),
+                    'commits': pr_data.get('commits', [])
+                }
+                
+                logger.info(f"✅ Successfully fetched PR data via CLI for {pr_number}")
+                return cli_pr_details
+            else:
+                logger.warning(f"GitHub CLI failed for PR {pr_number}: {result.stderr}")
+                return None
+                
+        except Exception as e:
+            logger.warning(f"GitHub CLI PR fetch failed: {e}")
+            return None
+
+    def _calculate_pr_data_confidence(self, pr_details: Dict[str, Any]) -> float:
+        """Calculate confidence score based on actual PR data quality - not hardcoded"""
+        if not pr_details:
+            return 0.0
+
+        confidence = 0.0
+
+        # Has title (0.2)
+        if pr_details.get('title') and pr_details['title'] != 'Unknown':
+            confidence += 0.2
+
+        # Has files changed (0.3)
+        files = pr_details.get('files_changed', [])
+        if files and len(files) > 0:
+            confidence += 0.3
+            # Bonus for having multiple files (indicates comprehensive change info)
+            if len(files) >= 3:
+                confidence += 0.1
+
+        # Has valid URL (0.1)
+        url = pr_details.get('url', '')
+        if url and 'github.com' in url and 'unknown' not in url.lower():
+            confidence += 0.1
+
+        # Has state info (0.1)
+        if pr_details.get('state') and pr_details['state'] != 'unknown':
+            confidence += 0.1
+
+        # Has author info (0.1)
+        if pr_details.get('author') and pr_details['author'] != 'unknown':
+            confidence += 0.1
+
+        # Has body/description (0.1)
+        if pr_details.get('body') and len(pr_details['body']) > 20:
+            confidence += 0.1
+
+        return min(confidence, 1.0)
+
+    def _generate_intelligent_pr_analysis(self, pr_number: str, context: Dict[str, Any]) -> Dict[str, Any]:
+        """DEPRECATED: This method violates anti-simulation policy and should not be called.
+
+        Per anti-simulation policy, data fabrication is not allowed. If real PR data
+        cannot be fetched via MCP or CLI, the caller should handle the None case.
+        """
+        logger.error(f"❌ ANTI-SIMULATION VIOLATION: _generate_intelligent_pr_analysis() called for PR #{pr_number}")
+        logger.error("This method is deprecated and should not be called. Use real GitHub data only.")
+        raise RuntimeError(
+            f"Anti-simulation policy violation: Cannot fabricate PR data for PR #{pr_number}. "
+            "Real GitHub API or CLI must be used. Check MCP server connectivity or GitHub CLI authentication."
+        )
+    
+    async def _real_github_search_for_prs(self, jira_id: str, basic_analysis: Dict[str, Any]) -> List[str]:
+        """Search for PRs using real GitHub API via MCP"""
+        try:
+            # Try to import MCP coordinator with fallback paths
+            try:
+                import sys
+                import os
+                mcp_path = os.path.join(os.path.dirname(__file__), '..', 'mcp')
+                if mcp_path not in sys.path:
+                    sys.path.append(mcp_path)
+                from simplified_mcp_coordinator import create_mcp_coordinator
+            except ImportError:
+                sys.path.append('../mcp')
+                from simplified_mcp_coordinator import create_mcp_coordinator
+            
+            mcp = create_mcp_coordinator()
+            
+            # Create intelligent search queries
+            search_queries = self._generate_github_search_queries(jira_id, basic_analysis)
+            
+            pr_refs = []
+            
+            for query in search_queries:
+                logger.info(f"🔍 Searching GitHub with query: {query}")
+                
+                # Use real GitHub search via MCP
+                search_result = mcp.github_search_repositories(query, limit=10)
+                
+                if search_result.get('status') == 'success':
+                    search_data = search_result.get('data', {})
+                    repos = search_data.get('items', [])
+                    
+                    # Extract PR references from repository search results
+                    for repo in repos:
+                        repo_name = repo.get('fullName', '')
+                        if repo_name:
+                            # Search for PRs in this repository
+                            repo_pr_refs = await self._search_prs_in_repository(repo_name, jira_id, mcp)
+                            pr_refs.extend(repo_pr_refs)
+                
+                # Limit total PR references to avoid excessive processing
+                if len(pr_refs) >= 5:
+                    break
+            
+            return list(set(pr_refs))  # Remove duplicates
+            
+        except Exception as e:
+            logger.warning(f"Real GitHub search failed for {jira_id}: {e}")
+            return []
+    
+    async def _github_cli_search_for_prs(self, jira_id: str, basic_analysis: Dict[str, Any]) -> List[str]:
+        """Search for PRs using GitHub CLI as fallback"""
+        try:
+            import subprocess
+            import json
+            
+            # Generate search queries for CLI
+            search_queries = self._generate_github_search_queries(jira_id, basic_analysis)
+            
+            pr_refs = []
+            
+            for query in search_queries[:3]:  # Limit to 3 queries for CLI
+                logger.info(f"🔧 CLI search with query: {query}")
+                
+                try:
+                    # Use GitHub CLI search
+                    result = subprocess.run(
+                        ['gh', 'search', 'prs', query, '--limit', '5', '--json', 'number,repository'],
+                        capture_output=True, text=True, timeout=30
+                    )
+                    
+                    if result.returncode == 0:
+                        search_data = json.loads(result.stdout)
+                        
+                        for pr in search_data:
+                            pr_number = str(pr.get('number', ''))
+                            if pr_number and pr_number not in pr_refs:
+                                pr_refs.append(pr_number)
+                    
+                except subprocess.TimeoutExpired:
+                    logger.warning(f"GitHub CLI search timed out for query: {query}")
+                except Exception as e:
+                    logger.warning(f"GitHub CLI search failed for query '{query}': {e}")
+            
+            return pr_refs
+            
+        except Exception as e:
+            logger.warning(f"GitHub CLI search failed for {jira_id}: {e}")
+            return []
+    
+    def _intelligent_pr_discovery_from_jira(self, jira_id: str, basic_analysis: Dict[str, Any]) -> List[str]:
+        """Discover PRs intelligently from JIRA content"""
+        
+        # Extract PR references from JIRA description and title
+        jira_info = basic_analysis.get('jira_info', {})
+        description = jira_info.get('description', '')
+        title = jira_info.get('title', '')
+        
+        # Combine text for analysis
+        combined_text = f"{title} {description}"
+        
+        # Extract PR references using intelligent patterns - no hardcoded mappings
+        pr_refs = self._extract_pr_references(combined_text)
+
+        # Dynamic discovery: all PR mappings come from JIRA content analysis
+        # No hardcoded JIRA -> PR mappings to ensure universal compatibility
+
+        return list(set(pr_refs))  # Remove duplicates
+    
+    def _determine_target_repository(self, context: Dict[str, Any]) -> Optional[str]:
+        """Determine target repository based on context using dynamic discovery.
+
+        Returns:
+            Optional[str]: Repository path if discovered, None otherwise.
+            Dynamic discovery from JIRA content - no hardcoded mappings.
+        """
+        jira_info = context.get('jira_info', {})
+
+        # Strategy 1: Extract from explicit repository references in JIRA
+        description = jira_info.get('description', '')
+        repo_pattern = r'github\.com/([^/]+/[^/\s]+)'
+        import re
+        matches = re.findall(repo_pattern, description)
+        if matches:
+            # Clean up the match (remove trailing punctuation, etc.)
+            repo = matches[0].rstrip('.,;:)')
+            return repo
+
+        # Strategy 2: Extract from linked PRs
+        pr_pattern = r'https://github\.com/([^/]+)/([^/]+)/pull/\d+'
+        pr_matches = re.findall(pr_pattern, description)
+        if pr_matches:
+            org, repo = pr_matches[0]
+            return f"{org}/{repo}"
+
+        # Strategy 3: Use JIRA project key to inform search
+        # No hardcoded mapping - return None to trigger dynamic GitHub search
+        return None
+    
+    def _generate_github_search_queries(self, jira_id: str, basic_analysis: Dict[str, Any]) -> List[str]:
+        """Generate intelligent GitHub search queries"""
+        
+        jira_info = basic_analysis.get('jira_info', {})
+        component = jira_info.get('component', '')
+        title = jira_info.get('title', '')
+        
+        queries = [
+            f'{jira_id}',  # Direct JIRA ID search
+            f'{jira_id} in:comments',  # Search in PR comments
+            f'{jira_id} in:body',  # Search in PR body
+        ]
+        
+        # Add component-based queries
+        if component:
+            queries.append(f'{component.lower()} {jira_id}')
+        
+        # Add title-based queries
+        if title:
+            # Extract key terms from title
+            title_words = [word for word in title.lower().split() if len(word) > 3]
+            if title_words:
+                queries.append(f'{title_words[0]} {jira_id}')
+        
+        return queries
+    
+    async def _search_prs_in_repository(self, repo_name: str, jira_id: str, mcp) -> List[str]:
+        """Search for PRs in a specific repository"""
+        try:
+            # Use GitHub CLI to search PRs within specific repository
+            import subprocess
+            import json
+            
+            logger.info(f"Searching PRs in {repo_name} for {jira_id}")
+            
+            # Search PRs in specific repository using GitHub CLI
+            result = subprocess.run(
+                ['gh', 'search', 'prs', f'{jira_id} repo:{repo_name}', '--limit', '5', '--json', 'number'],
+                capture_output=True, text=True, timeout=30
+            )
+            
+            if result.returncode == 0:
+                search_data = json.loads(result.stdout)
+                pr_numbers = [str(pr.get('number', '')) for pr in search_data if pr.get('number')]
+                logger.info(f"Found {len(pr_numbers)} PRs in {repo_name}")
+                return pr_numbers
+            else:
+                logger.debug(f"No PRs found in {repo_name} for {jira_id}")
+                return []
+            
+        except Exception as e:
+            logger.warning(f"Repository PR search failed for {repo_name}: {e}")
+            return []
+    
+    def _extract_files_from_pr_data(self, pr_data: Dict[str, Any]) -> List[str]:
+        """Extract file list from real PR data"""
+        files = []
+        
+        # Handle different PR data formats
+        if 'files' in pr_data:
+            files_data = pr_data['files']
+            if isinstance(files_data, list):
+                for file_info in files_data:
+                    if isinstance(file_info, dict):
+                        file_path = file_info.get('filename') or file_info.get('path') or file_info.get('name')
+                        if file_path:
+                            files.append(file_path)
+                    else:
+                        files.append(str(file_info))
+        
+        return files
+    
+    def _generate_intelligent_pr_title(self, pr_number: str, component: str, jira_title: str) -> str:
+        """DEPRECATED: This method violates anti-simulation policy.
+
+        PR titles must come from real GitHub API data, not be fabricated.
+        """
+        logger.error(f"❌ ANTI-SIMULATION VIOLATION: _generate_intelligent_pr_title() called for PR #{pr_number}")
+        raise RuntimeError(
+            f"Anti-simulation policy violation: Cannot fabricate PR title for PR #{pr_number}. "
+            "Use real GitHub data only."
+        )
+    
+    def _predict_likely_files_changed(self, component: str, title: str) -> List[str]:
+        """DEPRECATED: This method violates anti-simulation policy.
+
+        File change lists must come from real GitHub PR data via API or CLI,
+        not be predicted based on hardcoded component patterns.
+
+        This method contained ACM-biased hardcoded file patterns which violate
+        the universal technology support requirement.
+        """
+        logger.error(f"❌ ANTI-SIMULATION VIOLATION: _predict_likely_files_changed() called")
+        logger.error(f"Component: {component}, Title: {title}")
+        raise RuntimeError(
+            "Anti-simulation policy violation: Cannot predict files changed without real GitHub data. "
+            "This method contained hardcoded ACM-specific file patterns that violate universal support. "
+            "Use real GitHub API or CLI to get actual files changed in a PR."
+        )
     
     def _extract_pr_number(self, pr_ref: str) -> str:
         """Extract clean PR number from reference"""
@@ -582,12 +1223,22 @@ class JIRAIntelligenceAgent:
         
         # Extract PR references from discoveries
         for pr_discovery in analysis_data.get('pr_discoveries', []):
-            prepared_data['pr_references'].append(pr_discovery.pr_number)
-            prepared_data['github_prs'].append({
-                'number': pr_discovery.pr_number,
-                'title': pr_discovery.pr_title,
-                'files_changed': pr_discovery.files_changed
-            })
+            if hasattr(pr_discovery, 'pr_number'):
+                # PRDiscoveryResult object
+                prepared_data['pr_references'].append(pr_discovery.pr_number)
+                prepared_data['github_prs'].append({
+                    'number': pr_discovery.pr_number,
+                    'title': pr_discovery.pr_title,
+                    'files_changed': pr_discovery.files_changed
+                })
+            else:
+                # Dict format fallback
+                prepared_data['pr_references'].append(pr_discovery.get('pr_number', ''))
+                prepared_data['github_prs'].append({
+                    'number': pr_discovery.get('pr_number', ''),
+                    'title': pr_discovery.get('pr_title', ''),
+                    'files_changed': pr_discovery.get('files_changed', [])
+                })
         
         return prepared_data
     
@@ -600,13 +1251,20 @@ class JIRAIntelligenceAgent:
         
         # Search for missing PRs if needed
         if 'GitHub PR references' in sufficiency_result.missing_critical:
-            logger.info("Searching web for GitHub PR references...")
-            # Simulate web search for PRs
-            # In real implementation, this would use web search APIs
+            logger.info("Searching for GitHub PR references using real APIs...")
+            
             jira_id = collected_data.get('jira_info', {}).get('jira_id', '')
-            search_query = f"{jira_id} site:github.com pull request"
-            logger.info(f"Web search query: {search_query}")
-            # For now, we'll just log the attempt
+            
+            # Use real GitHub search to find PRs
+            found_prs = await self._real_github_search_for_prs(jira_id, collected_data)
+            
+            if found_prs:
+                # Add found PRs to enhanced data
+                enhanced_data['pr_references'] = found_prs
+                enhanced_data['github_prs'] = [{'number': pr, 'source': 'real_github_search'} for pr in found_prs]
+                logger.info(f"✅ Found {len(found_prs)} PRs via real GitHub search")
+            else:
+                logger.info(f"No PRs found for {jira_id} via GitHub search")
             
         # Search for technical documentation if needed
         if 'Technical design' in sufficiency_result.missing_critical:

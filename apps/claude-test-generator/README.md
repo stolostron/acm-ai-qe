@@ -21,10 +21,17 @@
 # 1. Navigate to the framework
 cd apps/claude-test-generator
 
-# 2. Generate your first test plan
+# 2. Setup environment (first time only)
+cp .env.example .env
+# Edit .env with your GitHub token
+
+# 3. Validate setup
+python3 setup.py
+
+# 4. Generate your first test plan
 "Generate test plan for ACM-22079"
 
-# 3. View results
+# 5. View results
 ls runs/ACM-22079/*/
 ```
 
@@ -208,13 +215,9 @@ Works with: **ACM** • **OpenShift** • **Kubernetes** • **APIs** • **UI C
 ## 📚 Documentation
 
 ### Core Documentation
-- **[Framework Architecture](docs/framework-workflow-details.md)**: Technical deep dive
-- **[Agent Concepts](docs/agents_concepts_workflow.md)**: How agents work together
-- **[Configuration Guide](CLAUDE.md)**: Complete setup and customization
-
-### Technical References
-- **[CLAUDE.core.md](CLAUDE.core.md)**: Essential framework identity and features
-- **[CLAUDE.features.md](CLAUDE.features.md)**: Detailed architecture and capabilities
+- **[Workflow Analysis](docs/COMPLETE_WORKFLOW_ANALYSIS.md)**: Phase-by-phase workflow with script references
+- **[MCP Integration](docs/MCP_IMPLEMENTATION_CONCEPTS.md)**: MCP architecture and usage
+- **[CLAUDE.md](CLAUDE.md)**: Framework configuration and architecture
 - **[CLAUDE.policies.md](CLAUDE.policies.md)**: Security policies and enforcement rules
 
 ---

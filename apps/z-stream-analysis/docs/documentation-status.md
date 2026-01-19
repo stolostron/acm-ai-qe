@@ -1,97 +1,131 @@
 # Documentation Status - Z-Stream Analysis
 
-## ✅ **All Documentation Updated and Current**
+## Documentation Current as of January 2026
 
-All MD files in the z-stream-analysis app have been reviewed and updated to reflect the **complete Python implementation** with comprehensive unit testing (64 tests).
+All documentation files have been reviewed and updated to reflect the complete Python implementation with hybrid classification system, multi-file data architecture, and 220 unit tests.
 
-## 📝 **Updated Documentation Files**
+## Documentation Files
 
-### **Primary Documentation** ✅
-- **`CLAUDE.md`** - Updated with implementation reality, 64 unit tests, production status
-- **`README.md`** - Updated with architecture, testing framework, implementation details
-- **`docs/implementation-status.md`** - Complete implementation summary (NEW)
+### Primary Documentation
 
-### **Technical Documentation** ✅
-- **`docs/framework_workflow_details.md`** - Updated production status with unit testing
-- **`docs/agents_concepts_workflow.md`** - Updated with Python services and testing validation
+| File | Location | Description |
+|------|----------|-------------|
+| `CLAUDE.md` | Root | Primary reference with workflow, classification system, security features |
 
-### **Workflow Documentation** (No updates needed)
-- **`.claude/workflows/*.md`** - Internal AI workflow definitions (current)
+### Technical Documentation (docs/)
 
-## 🎯 **Key Documentation Updates**
+| File | Description |
+|------|-------------|
+| `implementation-status.md` | 17 services, 220 tests, multi-file architecture |
+| `agents_concepts_workflow.md` | 2-Agent framework concepts and classification system |
+| `framework_workflow_details.md` | Technical architecture and workflow details |
+| `WORKFLOW.md` | Complete workflow documentation with all three stages |
+| `documentation-status.md` | This file |
 
-### **Implementation Reality Updates**
-```diff
-- "Actual Claude Code Agents with `/agents` visibility"
-+ "Complete Python Implementation with comprehensive unit testing"
+### Agent Documentation (.claude/agents/)
 
-- "Agent Implementation: COMPLETE CLAUDE CODE INTEGRATION"  
-+ "Core Implementation: COMPREHENSIVE SERVICES with systematic unit testing"
+| File | Description |
+|------|-------------|
+| `z-stream-analysis.md` | Main analysis agent with multi-file workflow |
+| `investigation-intelligence.md` | Investigation phase agent |
+| `solution-intelligence.md` | Solution phase agent |
 
-- "Agent Features: ENTERPRISE-GRADE AGENTS"
-+ "Testing Framework: 35 UNIT TESTS PASSING"
+## Implementation Summary
+
+### Services Layer (17 Services)
+
+```
+src/services/
+├── jenkins_intelligence_service.py        # Build info, test reports
+├── jenkins_mcp_client.py                  # MCP integration
+├── two_agent_intelligence_framework.py    # 2-Agent orchestration
+├── evidence_validation_engine.py          # False positive prevention
+├── environment_validation_service.py      # Cluster validation (READ-ONLY)
+├── repository_analysis_service.py         # Git clone, selector indexing
+├── report_generator.py                    # Report generation
+├── schema_validation_service.py           # JSON schema validation
+├── shared_utils.py                        # Common utilities
+│   # Classification Services
+├── stack_trace_parser.py                  # Parse stack traces
+├── classification_decision_matrix.py      # Formal classification rules
+├── confidence_calculator.py               # 5-factor confidence scoring
+├── cross_reference_validator.py           # Misclassification correction
+├── evidence_package_builder.py            # Evidence package building
+├── ast_integration_service.py             # Node.js AST helper
+└── timeline_comparison_service.py         # Git date comparison
 ```
 
-### **Production Status Updates**
-```diff
-- "AGENT TESTING: COMPREHENSIVE VALIDATION"
-+ "IMPLEMENTATION TESTING: COMPREHENSIVE VALIDATION with 35 tests"
+### Multi-File Data Architecture
 
-- "Dependencies: No external app dependencies with native Claude Code agent coordination"
-+ "Dependencies: Completely self-contained with comprehensive error handling and edge case coverage"
+Data is split to stay under Claude Code's 25,000 token limit:
+
+```
+runs/<job>_<timestamp>/
+├── manifest.json              # ~150 tokens - File index
+├── core-data.json             # ~5,500 tokens - Primary data
+├── repository-selectors.json  # ~7,500 tokens - Selector lookup
+├── repository-test-files.json # ~7,000 tokens - Test files
+├── repository-metadata.json   # ~800 tokens - Repo summary
+├── raw-data.json              # ~200 tokens - Backward-compat stub
+├── evidence-package.json      # Pre-calculated scores
+├── jenkins-build-info.json    # Build metadata (masked)
+├── console-log.txt            # Full console output
+├── test-report.json           # Per-test failure details
+├── environment-status.json    # Cluster health
+├── analysis-results.json      # AI analysis output
+├── Detailed-Analysis.md       # Human-readable report
+└── SUMMARY.txt                # Brief summary
 ```
 
-## 📊 **Documentation Accuracy Validation**
+### Test Coverage (220 Tests)
 
-All documentation now accurately reflects:
+| Test File | Tests |
+|-----------|-------|
+| test_classification_decision_matrix.py | 35 |
+| test_cross_reference_validator.py | 28 |
+| test_evidence_package_builder.py | 28 |
+| test_confidence_calculator.py | 27 |
+| test_timeline_comparison_service.py | 19 |
+| test_stack_trace_parser.py | 19 |
+| test_data_classes.py | 16 |
+| test_two_agent_intelligence_framework.py | 15 |
+| test_integration_edge_cases.py | 13 |
+| test_evidence_validation_engine.py | 11 |
+| test_jenkins_intelligence_service.py | 9 |
 
-### **✅ Current Implementation**
-- **Complete Python Services**: 3 core services with 1,654+ lines of implementation
-- **Comprehensive Testing**: 64 unit tests providing full validation coverage including edge cases and integration scenarios
-- **Production Ready**: Error handling, serialization, edge cases, Unicode handling, large data processing all validated
-- **Zero False Positives**: Evidence Validation Engine proven through comprehensive testing
+## Three-Stage Workflow
 
-### **✅ File Structure Accuracy**
 ```
-src/
-├── services/
-│   ├── jenkins_intelligence_service.py      ✅ Implemented & tested (9 tests)
-│   ├── two_agent_intelligence_framework.py  ✅ Implemented & tested (15 tests)  
-│   └── evidence_validation_engine.py        ✅ Implemented & tested (11 tests)
-tests/
-├── unit/services/                           ✅ Complete test suites
-└── fixtures/                               ✅ Test data samples
+Stage 1: Data Gathering (gather.py)
+    ├── Jenkins API → build info, console log, test report
+    ├── Environment → cluster validation (READ-ONLY)
+    ├── Repository → clone, index selectors, git history
+    └── Evidence → pre-calculated classification scores
+         │
+         ▼
+    core-data.json + evidence-package.json
+         │
+         ▼
+Stage 2: AI Analysis (Claude)
+    ├── Read core-data.json
+    ├── Check evidence_package.test_failures
+    ├── Load repository-selectors.json if needed
+    ├── Classify each test failure
+    └── Save analysis-results.json
+         │
+         ▼
+Stage 3: Report Generation (report.py)
+    ├── Detailed-Analysis.md
+    ├── SUMMARY.txt
+    └── analysis-metadata.json
 ```
 
-### **✅ Capability Accuracy**
-- **2-Service Intelligence Framework**: Implemented as Python services with progressive context and comprehensive validation
-- **Evidence Validation Engine**: Implemented with false positive prevention and boundary condition testing
-- **Jenkins Intelligence Service**: Implemented with comprehensive URL parsing, analysis, and edge case handling
-- **Unit Testing Framework**: 64 tests validating all critical functionality, data structures, edge cases, and integration scenarios
+## Maintenance Guidelines
 
-## 🚀 **Documentation Quality Standards**
+When updating the codebase:
 
-### **Consistency Achieved**
-- All references to "Claude Code agents" updated to "Python services"
-- All testing claims backed by actual test implementation (64 tests)
-- All capability claims validated through comprehensive unit testing including edge cases
-- All production readiness claims supported by comprehensive validation and integration testing
-
-### **Accuracy Verified**
-- **Technical Claims**: All verified against actual implementation
-- **Test Coverage**: All claims backed by real test results (64 comprehensive tests)
-- **Performance Metrics**: All validated through implementation testing including edge cases and boundary conditions
-- **Production Status**: Confirmed through comprehensive validation and integration testing
-
-## 📈 **Next Steps**
-
-The documentation is **complete and current**. Future updates should maintain this accuracy by:
-
-1. **Updating implementation details** when code changes
-2. **Updating test counts** when new tests are added (currently 64 tests)
-3. **Updating production status** when deployment readiness changes
-4. **Maintaining consistency** between technical claims and actual implementation with comprehensive validation
-
----
-
-**Status**: ✅ **ALL DOCUMENTATION CURRENT** - Complete alignment between documentation claims and actual Python implementation with comprehensive unit testing (64 tests) providing enterprise-grade Jenkins pipeline failure analysis with complete edge case coverage and integration validation.
+1. **New services** - Add to implementation-status.md service table
+2. **New tests** - Update test counts in implementation-status.md
+3. **Schema changes** - Update file structure sections
+4. **Classification changes** - Update decision matrix documentation
+5. **Workflow changes** - Update WORKFLOW.md and CLAUDE.md

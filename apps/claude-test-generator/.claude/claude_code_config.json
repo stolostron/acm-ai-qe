@@ -1,13 +1,25 @@
 {
   "hooks": {
     "enabled": true,
-    "hook_directory": "/Users/ashafi/Documents/work/ai/ai_systems/apps/claude-test-generator/.claude/hooks",
+    "hook_directory": ".claude/hooks",
     "active_hooks": [
       {
-        "name": "user_prompt_completion_hook",
-        "file": "user_prompt_completion_hook.py",
-        "function": "user_prompt_completion_hook.claude_code_tool_hook",
-        "mandatory": false
+        "name": "comprehensive_logging_hook",
+        "file": "comprehensive_logging_hook.py",
+        "function": "claude_code_tool_hook",
+        "mandatory": true
+      },
+      {
+        "name": "pre_write_enforcement_hook",
+        "file": "pre_write_enforcement_hook.py",
+        "function": "claude_code_tool_hook",
+        "mandatory": true
+      },
+      {
+        "name": "todo_display_hook",
+        "file": "todo_display_hook.py",
+        "function": "claude_code_tool_hook",
+        "mandatory": true
       }
     ]
   },
@@ -15,6 +27,6 @@
     "comprehensive_logging": true,
     "mandatory_logging": true,
     "log_all_tools": true,
-    "log_directory": ".claude/logs/active-runs"
+    "log_directory": ".claude/logging"
   }
 }

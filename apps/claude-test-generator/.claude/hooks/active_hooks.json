@@ -1,50 +1,49 @@
 {
-  "last_updated": "2025-08-29T01:02:28.815850",
+  "last_updated": "2025-09-10T14:50:31.606753",
   "active_hooks": {
-    "user_prompt_completion_hook": {
-      "enabled": true,
-      "file_path": "/Users/ashafi/Documents/work/ai/ai_systems/apps/claude-test-generator/.claude/hooks/user_prompt_completion_hook.py",
-      "registered_at": "2025-08-25T21:57:33.571274",
-      "hook_function": "user_prompt_completion_hook.claude_code_tool_hook",
-      "mandatory": false
-    },
     "comprehensive_logging_hook": {
       "enabled": true,
-      "file_path": "/Users/ashafi/Documents/work/ai/ai_systems/apps/claude-test-generator/.claude/hooks/comprehensive_logging_hook.py",
-      "registered_at": "2025-08-29T01:02:28.812700",
+      "file_path": "/Users/ashafi/Documents/work/ai/ai_systems_v2/apps/claude-test-generator/.claude/hooks/comprehensive_logging_hook.py",
+      "registered_at": "2025-09-10T14:50:31.599914",
       "hook_function": "comprehensive_logging_hook.claude_code_tool_hook",
       "mandatory": true
     },
     "pre_write_enforcement_hook": {
       "enabled": true,
-      "file_path": "/Users/ashafi/Documents/work/ai/ai_systems/apps/claude-test-generator/.claude/hooks/pre_write_enforcement_hook.py",
-      "registered_at": "2025-08-29T01:02:28.815324",
+      "file_path": "/Users/ashafi/Documents/work/ai/ai_systems_v2/apps/claude-test-generator/.claude/hooks/pre_write_enforcement_hook.py",
+      "registered_at": "2025-09-10T14:50:31.604413",
       "hook_function": "pre_write_enforcement_hook.claude_code_tool_hook",
       "mandatory": true
     },
     "todo_display_hook": {
       "enabled": true,
-      "file_path": "/Users/ashafi/Documents/work/ai/ai_systems/apps/claude-test-generator/.claude/hooks/todo_display_hook.py",
-      "registered_at": "2025-08-29T01:02:28.815846",
-      "hook_function": null,
+      "file_path": "/Users/ashafi/Documents/work/ai/ai_systems_v2/apps/claude-test-generator/.claude/hooks/todo_display_hook.py",
+      "registered_at": "2025-09-10T14:50:31.606739",
+      "hook_function": "todo_display_hook.claude_code_tool_hook",
       "mandatory": true
     }
   },
   "hook_metadata": {
-    "user_prompt_completion_hook": {
-      "name": "user_prompt_completion_hook",
-      "version": "1.0-PRODUCTION",
-      "description": "Sound notification when Claude completes responding to user prompts",
-      "author": "AI Systems Suite",
-      "hook_function": "claude_code_tool_hook",
-      "triggers": [
-        "user_prompt_submit"
-      ],
-      "enabled": true
-    },
     "comprehensive_logging_hook": {
       "name": "comprehensive_logging_hook",
       "version": "1.0-PRODUCTION",
       "description": "Comprehensive logging of all Claude Code tool executions for framework observability",
       "author": "AI Systems Suite",
-      "hook_function": 
+      "hook_function": "comprehensive_logging_hook.claude_code_tool_hook"
+    },
+    "pre_write_enforcement_hook": {
+      "name": "pre_write_enforcement_hook",
+      "version": "1.0-PRODUCTION",
+      "description": "Pre-write validation to ensure output quality and security compliance",
+      "author": "AI Systems Suite",
+      "hook_function": "pre_write_enforcement_hook.claude_code_tool_hook"
+    },
+    "todo_display_hook": {
+      "name": "todo_display_hook",
+      "version": "1.0-PRODUCTION",
+      "description": "Todo list display hook for task tracking visibility",
+      "author": "AI Systems Suite",
+      "hook_function": "todo_display_hook.claude_code_tool_hook"
+    }
+  }
+}

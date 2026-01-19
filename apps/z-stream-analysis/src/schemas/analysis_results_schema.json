@@ -1,0 +1,228 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://z-stream-analysis/schemas/analysis-results.schema.json",
+  "title": "Z-Stream Analysis Results",
+  "description": "Schema for analysis-results.json produced by AI analysis of Jenkins pipeline failures",
+  "type": "object",
+  "required": ["per_test_analysis", "summary"],
+  "additionalProperties": true,
+  "properties": {
+    "analysis_metadata": {
+      "type": "object",
+      "description": "Metadata about the analysis session",
+      "properties": {
+        "jenkins_url": { "type": "string" },
+        "analyzed_at": { "type": "string" },
+        "analyzer": { "type": "string", "default": "z-stream-analysis" },
+        "build_result": {
+          "type": "string",
+          "enum": ["SUCCESS", "UNSTABLE", "FAILURE", "ABORTED", "NOT_BUILT"]
+        },
+        "branch": { "type": "string" }
+      }
+    },
+    "per_test_analysis": {
+      "type": "array",
+      "description": "Individual analysis for each failed test",
+      "items": {
+        "type": "object",
+        "required": ["test_name", "classification", "confidence"],
+        "properties": {
+          "test_name": {
+            "type": "string",
+            "description": "Full name of the failed test case",
+            "minLength": 1
+          },
+          "test_file": {
+            "type": "string",
+            "description": "Path to the test file"
+          },
+          "class_name": {
+            "type": "string",
+            "description": "Test class or suite name"
+          },
+          "classification": {
+            "type": "string",
+            "enum": ["PRODUCT_BUG", "AUTOMATION_BUG", "INFRASTRUCTURE", "UNKNOWN", "NO_BUG", "FLAKY"],
+            "description": "Definitive classification of the failure"
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Confidence score (0.0 to 1.0)"
+          },
+          "reasoning": {
+            "oneOf": [
+              { "type": "string" },
+              {
+                "type": "object",
+                "properties": {
+                  "summary": { "type": "string" },
+                  "evidence": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                  },
+                  "conclusion": { "type": "string" }
+                }
+              }
+            ],
+            "description": "Analysis reasoning - can be string or structured object"
+          },
+          "evidence": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Supporting evidence for classification"
+          },
+          "root_cause": {
+            "type": "string",
+            "description": "Root cause of the failure"
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "message": { "type": "string" },
+              "type": { "type": "string" },
+              "stack_trace": { "type": "string" }
+            }
+          },
+          "recommended_fix": {
+            "oneOf": [
+              { "type": "string" },
+              {
+                "type": "object",
+                "properties": {
+                  "action": { "type": "string" },
+                  "steps": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                  },
+                  "owner": { "type": "string" }
+                }
+              }
+            ],
+            "description": "Fix recommendation - can be string or structured object"
+          },
+          "owner": {
+            "type": "string",
+            "description": "Team responsible for the fix"
+          },
+          "priority": {
+            "type": "string",
+            "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW"]
+          },
+          "jira_component": {
+            "type": "string",
+            "description": "JIRA component for tracking"
+          },
+          "related_files": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Related files for investigation"
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "description": "Overall summary of all test failures",
+      "required": ["by_classification"],
+      "properties": {
+        "total_tests": { "type": "integer", "minimum": 0 },
+        "passed_count": { "type": "integer", "minimum": 0 },
+        "failed_count": { "type": "integer", "minimum": 0 },
+        "total_failures": { "type": "integer", "minimum": 0 },
+        "pass_rate": {
+          "oneOf": [
+            { "type": "number", "minimum": 0, "maximum": 100 },
+            { "type": "string" }
+          ]
+        },
+        "by_classification": {
+          "type": "object",
+          "properties": {
+            "PRODUCT_BUG": { "type": "integer", "minimum": 0 },
+            "AUTOMATION_BUG": { "type": "integer", "minimum": 0 },
+            "INFRASTRUCTURE": { "type": "integer", "minimum": 0 },
+            "UNKNOWN": { "type": "integer", "minimum": 0 },
+            "NO_BUG": { "type": "integer", "minimum": 0 },
+            "FLAKY": { "type": "integer", "minimum": 0 }
+          },
+          "additionalProperties": false
+        },
+        "overall_classification": {
+          "type": "string",
+          "enum": ["PRODUCT_BUG", "AUTOMATION_BUG", "INFRASTRUCTURE", "UNKNOWN", "NO_BUG", "FLAKY", "REQUIRES_INVESTIGATION"]
+        },
+        "overall_confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "priority_order": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "test": { "type": "string" },
+              "priority": { "type": "string" },
+              "reason": { "type": "string" },
+              "classification": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "environment_summary": {
+      "type": "object",
+      "description": "Environment health summary",
+      "properties": {
+        "target_cluster": { "type": "string" },
+        "target_cluster_used": { "type": "boolean" },
+        "environment_score": { "type": "number", "minimum": 0, "maximum": 1 },
+        "cluster_healthy": { "type": "boolean" },
+        "all_services_running": { "type": "boolean" }
+      }
+    },
+    "patterns_detected": {
+      "type": "array",
+      "description": "Common patterns across failures",
+      "items": {
+        "type": "object",
+        "properties": {
+          "pattern": { "type": "string" },
+          "description": { "type": "string" },
+          "affected_tests": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "recommendation": { "type": "string" }
+        }
+      }
+    },
+    "action_items": {
+      "type": "array",
+      "description": "Prioritized action items",
+      "items": {
+        "type": "object",
+        "properties": {
+          "priority": {
+            "oneOf": [
+              { "type": "integer" },
+              { "type": "string" }
+            ]
+          },
+          "action": { "type": "string" },
+          "owner": { "type": "string" },
+          "type": { "type": "string" },
+          "details": { "type": "string" }
+        }
+      }
+    },
+    "common_patterns": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Simple list of common patterns"
+    }
+  }
+}

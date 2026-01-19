@@ -10,6 +10,7 @@ import json
 import subprocess
 import requests
 import os
+import sys
 import time
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
@@ -36,25 +37,48 @@ class OptimizedGitHubMCPIntegration:
     def _initialize(self):
         """Lazy initialization to avoid startup overhead"""
         if self.auth_token is None:
-            self.auth_token = self._get_github_token()
+            try:
+                self.auth_token = self._get_github_token()
+                print(f"DEBUG: Retrieved token: {self.auth_token[:10]}...{self.auth_token[-4:] if len(self.auth_token) > 10 else 'SHORT'}", file=sys.stderr)
+            except Exception as e:
+                print(f"DEBUG: Token retrieval failed: {e}", file=sys.stderr)
+                raise
+            
             self.headers = {
                 "Authorization": f"token {self.auth_token}",
                 "Accept": "application/vnd.github.v3+json",
                 "X-GitHub-Api-Version": "2022-11-28"
             }
+            print(f"DEBUG: Headers set: Authorization=token {self.auth_token[:10]}...", file=sys.stderr)
+            
             # Use session for connection pooling
             self.session = requests.Session()
             self.session.headers.update(self.headers)
+            print("DEBUG: Session initialized", file=sys.stderr)
     
     @lru_cache(maxsize=1)
     def _get_github_token(self) -> str:
-        """Cached GitHub token retrieval"""
+        """Cached GitHub token retrieval with enhanced error handling"""
+        # First try environment variable
+        env_token = os.getenv('GITHUB_TOKEN')
+        print(f"DEBUG: GITHUB_TOKEN env var: {env_token[:10] if env_token else 'None'}...", file=sys.stderr)
+        if env_token and env_token != 'your_github_token_here':
+            print(f"DEBUG: Using environment token", file=sys.stderr)
+            return env_token
+        
+        # Then try GitHub CLI
         try:
             result = subprocess.run(['gh', 'auth', 'token'], 
                                   capture_output=True, text=True, check=True, timeout=5)
-            return result.stdout.strip()
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
-            raise Exception("GitHub CLI not authenticated or timeout. Run 'gh auth login' first.")
+            token = result.stdout.strip()
+            if token and len(token) > 10:  # Basic validation
+                return token
+            else:
+                raise Exception("GitHub CLI returned invalid token")
+        except subprocess.FileNotFoundError:
+            raise Exception("GitHub CLI not found in PATH. Install GitHub CLI or set GITHUB_TOKEN environment variable.")
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+            raise Exception(f"GitHub CLI error: {e}. Run 'gh auth login' first.")
     
     def _is_cache_valid(self, cache_key: str) -> bool:
         """Check if cache entry is still valid"""

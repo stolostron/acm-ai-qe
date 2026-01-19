@@ -1,0 +1,36 @@
+{
+  "session_info": {
+    "hook_version": "1.0-PRODUCTION",
+    "run_id": "run-20250910-152449",
+    "jira_ticket": null,
+    "start_time": "2025-09-10T15:24:49.490666",
+    "current_time": "2025-09-10T15:24:49.495776"
+  },
+  "execution_stats": {
+    "bash_commands": 1,
+    "file_reads": 1,
+    "file_writes": 0,
+    "agent_spawns": 1,
+    "searches": 0,
+    "file_edits": 0
+  },
+  "framework_state": {
+    "current_phase": null,
+    "active_agents": [
+      {
+        "agent_id": "agent_general-purpose_1757532289495",
+        "type": "general-purpose",
+        "description": "Test agent",
+        "spawn_time": "2025-09-10T15:24:49.495127"
+      }
+    ],
+    "tool_execution_count": 3,
+    "session_start_time": "2025-09-10T15:24:49.490666",
+    "jira_ticket": null
+  },
+  "total_logs": 4,
+  "log_files": {
+    "session_log": "/Users/ashafi/Documents/work/ai/ai_systems_v2/apps/claude-test-generator/.claude/hooks/.claude/logging/current-session/session-20250910-152449.jsonl",
+    "run_log": "/Users/ashafi/Documents/work/ai/ai_systems_v2/apps/claude-test-generator/.claude/hooks/.claude/logging/run-20250910-152449/comprehensive_tool_log.jsonl"
+  }
+}

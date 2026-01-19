@@ -1,0 +1,494 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://z-stream-analysis/schemas/evidence-package.json",
+  "title": "Evidence Package Schema",
+  "description": "Schema for structured evidence packages used in pipeline failure analysis",
+  "type": "object",
+  "required": ["metadata", "test_failures", "summary"],
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "required": ["jenkins_url", "build_number", "build_result", "timestamp"],
+      "properties": {
+        "jenkins_url": {
+          "type": "string",
+          "format": "uri",
+          "description": "URL of the Jenkins build"
+        },
+        "build_number": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Jenkins build number"
+        },
+        "build_result": {
+          "type": "string",
+          "enum": ["SUCCESS", "UNSTABLE", "FAILURE", "ABORTED", "NOT_BUILT", "UNKNOWN"],
+          "description": "Jenkins build result"
+        },
+        "branch": {
+          "type": ["string", "null"],
+          "description": "Git branch that was tested"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Build timestamp"
+        },
+        "generated_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When this evidence package was generated"
+        }
+      }
+    },
+    "test_failures": {
+      "type": "array",
+      "description": "Array of test failure evidence packages",
+      "items": {
+        "$ref": "#/definitions/test_failure_evidence"
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": ["total_failures", "by_classification"],
+      "properties": {
+        "total_failures": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total number of test failures"
+        },
+        "by_classification": {
+          "type": "object",
+          "description": "Count of failures by classification type",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "overall_classification": {
+          "type": ["string", "null"],
+          "enum": ["PRODUCT_BUG", "AUTOMATION_BUG", "INFRASTRUCTURE", "UNKNOWN", "FLAKY", null],
+          "description": "Dominant classification across all failures"
+        },
+        "overall_confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Average confidence for the dominant classification"
+        }
+      }
+    }
+  },
+  "definitions": {
+    "test_failure_evidence": {
+      "type": "object",
+      "required": ["test_name", "failure_evidence", "final_classification", "final_confidence"],
+      "properties": {
+        "test_name": {
+          "type": "string",
+          "description": "Name of the failed test"
+        },
+        "failure_evidence": {
+          "$ref": "#/definitions/failure_evidence"
+        },
+        "repository_evidence": {
+          "$ref": "#/definitions/repository_evidence"
+        },
+        "environment_evidence": {
+          "$ref": "#/definitions/environment_evidence"
+        },
+        "console_evidence": {
+          "$ref": "#/definitions/console_evidence"
+        },
+        "pre_calculated_scores": {
+          "type": "object",
+          "description": "Classification scores from decision matrix",
+          "properties": {
+            "product_bug_score": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "automation_bug_score": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "infrastructure_score": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          }
+        },
+        "classification_result": {
+          "$ref": "#/definitions/classification_result"
+        },
+        "confidence_breakdown": {
+          "$ref": "#/definitions/confidence_breakdown"
+        },
+        "validation_report": {
+          "$ref": "#/definitions/validation_report"
+        },
+        "final_classification": {
+          "type": "string",
+          "enum": ["PRODUCT_BUG", "AUTOMATION_BUG", "INFRASTRUCTURE", "UNKNOWN", "FLAKY"],
+          "description": "Final classification after validation"
+        },
+        "final_confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Final confidence score after all adjustments"
+        },
+        "reasoning": {
+          "type": "string",
+          "description": "Human-readable reasoning for the classification"
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Warnings about classification reliability"
+        }
+      }
+    },
+    "failure_evidence": {
+      "type": "object",
+      "required": ["test_name", "error_message", "failure_category"],
+      "properties": {
+        "test_name": {
+          "type": "string"
+        },
+        "error_message": {
+          "type": "string",
+          "description": "Error message from the test failure"
+        },
+        "error_type": {
+          "type": "string",
+          "description": "Type of error (e.g., AssertionError, TimeoutError)"
+        },
+        "failure_category": {
+          "type": "string",
+          "enum": ["timeout", "element_not_found", "assertion", "server_error", "auth_error", "not_found", "network", "unknown"],
+          "description": "Categorized failure type"
+        },
+        "root_cause_file": {
+          "type": ["string", "null"],
+          "description": "File path where failure originated"
+        },
+        "root_cause_line": {
+          "type": ["integer", "null"],
+          "minimum": 1,
+          "description": "Line number where failure originated"
+        },
+        "stack_frames": {
+          "type": "array",
+          "description": "Parsed stack trace frames",
+          "items": {
+            "type": "object",
+            "properties": {
+              "file": {
+                "type": "string"
+              },
+              "line": {
+                "type": "integer"
+              },
+              "function": {
+                "type": ["string", "null"]
+              },
+              "is_test_file": {
+                "type": "boolean"
+              },
+              "is_framework_file": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      }
+    },
+    "repository_evidence": {
+      "type": "object",
+      "properties": {
+        "repository_cloned": {
+          "type": "boolean",
+          "description": "Whether repository was successfully cloned"
+        },
+        "branch": {
+          "type": ["string", "null"]
+        },
+        "commit_sha": {
+          "type": ["string", "null"]
+        },
+        "test_file_exists": {
+          "type": "boolean",
+          "description": "Whether the failing test file exists in repo"
+        },
+        "test_file_content": {
+          "type": ["string", "null"],
+          "description": "Content around the failure point (±20 lines)"
+        },
+        "imports_resolved": {
+          "type": "boolean",
+          "description": "Whether imports were successfully traced"
+        },
+        "import_chain": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Chain of imports to the failing code"
+        },
+        "selector_evidence": {
+          "$ref": "#/definitions/selector_evidence"
+        }
+      }
+    },
+    "selector_evidence": {
+      "type": "object",
+      "properties": {
+        "selector": {
+          "type": "string",
+          "description": "The failing CSS/XPath selector"
+        },
+        "found_in_codebase": {
+          "type": "boolean",
+          "description": "Whether selector was found in repository"
+        },
+        "file_paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Files containing this selector"
+        },
+        "last_modified_date": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "When selector was last modified"
+        },
+        "last_commit_sha": {
+          "type": ["string", "null"],
+          "description": "SHA of commit that last modified the selector"
+        },
+        "last_commit_message": {
+          "type": ["string", "null"],
+          "description": "Message of commit that last modified selector"
+        },
+        "days_since_modified": {
+          "type": ["integer", "null"],
+          "description": "Days since the selector was last modified"
+        },
+        "recently_changed": {
+          "type": "boolean",
+          "description": "Whether selector was changed in last 30 days"
+        }
+      }
+    },
+    "environment_evidence": {
+      "type": "object",
+      "properties": {
+        "cluster_healthy": {
+          "type": "boolean",
+          "description": "Overall cluster health status"
+        },
+        "cluster_accessible": {
+          "type": "boolean",
+          "description": "Whether cluster could be reached"
+        },
+        "api_accessible": {
+          "type": "boolean",
+          "description": "Whether API server is accessible"
+        },
+        "target_cluster_used": {
+          "type": "boolean",
+          "description": "Whether target cluster credentials were used"
+        },
+        "cluster_url": {
+          "type": ["string", "null"],
+          "description": "URL of the validated cluster"
+        },
+        "validation_errors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Errors encountered during validation"
+        },
+        "pod_status": {
+          "type": ["object", "null"],
+          "description": "Status of relevant pods"
+        }
+      }
+    },
+    "console_evidence": {
+      "type": "object",
+      "properties": {
+        "has_500_errors": {
+          "type": "boolean",
+          "description": "Whether console contains HTTP 500 errors"
+        },
+        "has_network_errors": {
+          "type": "boolean",
+          "description": "Whether console contains network errors"
+        },
+        "has_api_errors": {
+          "type": "boolean",
+          "description": "Whether console contains API errors"
+        },
+        "has_timeout_errors": {
+          "type": "boolean",
+          "description": "Whether console contains timeout errors"
+        },
+        "has_connection_refused": {
+          "type": "boolean",
+          "description": "Whether console contains connection refused errors"
+        },
+        "error_snippets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Key error messages from console"
+        }
+      }
+    },
+    "classification_result": {
+      "type": "object",
+      "properties": {
+        "classification": {
+          "type": "string",
+          "enum": ["PRODUCT_BUG", "AUTOMATION_BUG", "INFRASTRUCTURE", "UNKNOWN", "FLAKY"]
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "reasoning": {
+          "type": "string"
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "scores": {
+          "type": "object",
+          "properties": {
+            "product_bug_score": {
+              "type": "number"
+            },
+            "automation_bug_score": {
+              "type": "number"
+            },
+            "infrastructure_score": {
+              "type": "number"
+            },
+            "primary_classification": {
+              "type": "string"
+            },
+            "score_separation": {
+              "type": "number"
+            }
+          }
+        },
+        "adjustments": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "confidence_breakdown": {
+      "type": "object",
+      "properties": {
+        "final_confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "confidence_level": {
+          "type": "string",
+          "enum": ["HIGH", "MEDIUM", "LOW", "VERY_LOW", "UNKNOWN"]
+        },
+        "factors": {
+          "type": "object",
+          "properties": {
+            "score_separation": {
+              "type": "number"
+            },
+            "evidence_completeness": {
+              "type": "number"
+            },
+            "source_consistency": {
+              "type": "number"
+            },
+            "selector_certainty": {
+              "type": "number"
+            },
+            "history_signal": {
+              "type": "number"
+            }
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "validation_report": {
+      "type": "object",
+      "properties": {
+        "original_classification": {
+          "type": "string"
+        },
+        "final_classification": {
+          "type": "string"
+        },
+        "original_confidence": {
+          "type": "number"
+        },
+        "final_confidence": {
+          "type": "number"
+        },
+        "was_corrected": {
+          "type": "boolean",
+          "description": "Whether classification was corrected"
+        },
+        "needs_review": {
+          "type": "boolean",
+          "description": "Whether manual review is recommended"
+        },
+        "validation_results": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "rule_name": {
+                "type": "string"
+              },
+              "action": {
+                "type": "string",
+                "enum": ["keep", "correct", "flag", "boost", "reduce"]
+              },
+              "reason": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "summary": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

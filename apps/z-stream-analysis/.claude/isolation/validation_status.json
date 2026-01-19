@@ -1,9 +1,0 @@
-{
-  "isolation_active": true,
-  "last_validation": "2025-08-24T03:23:45.273670",
-  "validation_score": 100.0,
-  "external_access_blocked": true,
-  "internal_access_preserved": true,
-  "app_id": "z-stream-analysis",
-  "validation_version": "1.0.0"
-}

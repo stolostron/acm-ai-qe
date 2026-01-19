@@ -40,7 +40,7 @@ class EnvironmentAssessmentConfig:
     health_check_timeout: int = 15
     max_retries: int = 3
     cache_duration: int = 180  # 3 minutes
-    # REMOVED: fallback_to_simulation - framework never uses simulation
+    # Framework uses deterministic failure handling - no fallback mechanisms
     preferred_tools: List[str] = None
     universal_tool_access: bool = True  # NEW: Enable ANY tool usage ANYWHERE
     custom_tools: List[str] = None       # NEW: Allow custom tool additions
@@ -1531,7 +1531,7 @@ with open('{temp_file}') as f:
         # Default
         return 'unknown'
     
-    # REMOVED: _get_simulated_environment method - no simulation fallback allowed
+    # Framework uses deterministic environment detection - explicit failure when environment unavailable
     # Framework now fails explicitly with actionable suggestions when environment unavailable
     
     def _get_cached_assessment(self, environment: str = None) -> Optional[EnvironmentData]:
@@ -1624,7 +1624,7 @@ with open('{temp_file}') as f:
             'message': message,
             'primary_tool': self.primary_tool,
             'available_tools': self.available_tools,
-            'fallback_enabled': False,  # No simulation fallback - fails explicitly
+            'deterministic_failure': True,  # Framework fails explicitly when environment unavailable
             'cache_enabled': True,
             'cache_duration': self.config.cache_duration,
             'assessment_timeout': self.config.cluster_timeout

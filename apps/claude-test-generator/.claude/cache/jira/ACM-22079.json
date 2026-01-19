@@ -1,5 +1,5 @@
 {
-  "cache_timestamp": "2025-08-30T02:20:59.642722",
+  "cache_timestamp": "2025-09-10T15:37:43.057527",
   "ticket_data": {
     "id": "ACM-22079",
     "title": "Support digest-based upgrades via ClusterCurator for non-recommended upgrades",

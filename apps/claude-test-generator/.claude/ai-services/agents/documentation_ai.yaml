@@ -282,3 +282,5 @@ deployment_metadata:
     - ".claude/config/documentation_sources.json"
     - ".claude/config/search_strategies.json"
     - ".claude/config/ai_models_config.json"
+  
+  tool_dependencies: ["jira", "gh", "gcloud", "oc", "kubectl", "curl", "git", "bash", "jq", "grep", "find", "sed", "awk", "python3", "node", "npm", "docker", "helm", "yq"]

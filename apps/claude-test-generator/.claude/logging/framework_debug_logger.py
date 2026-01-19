@@ -532,7 +532,7 @@ class FrameworkDebugLogger:
             'timestamp': self._get_timestamp()
         })
         
-        self.log_debug("TOOL_EXECUTION", f"Executing {tool_name}: {action}", {
+        self.log_debug(action, f"Executing {tool_name}: {action}", {
             "tool_name": tool_name,
             "action": action,
             "execution_id": execution_id,
@@ -547,7 +547,7 @@ class FrameworkDebugLogger:
         if inheritance_chain:
             self.context_inheritance_chain = inheritance_chain
         
-        self.log_debug("CONTEXT_FLOW", action, {
+        self.log_debug(action, f"Context flow: {action}", {
             "action": action,
             "context_snapshot": context_data or {},
             "inheritance_chain": self.context_inheritance_chain,

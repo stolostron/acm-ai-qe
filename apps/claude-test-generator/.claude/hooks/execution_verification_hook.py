@@ -7,7 +7,7 @@ Automatically validates any execution claims with required evidence
 import re
 import json
 import logging
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -143,6 +143,66 @@ HOOK_CONFIG = {
     "enforcement_level": "strict",
     "auto_validate": True
 }
+
+# Claude Code hook interface - REQUIRED FUNCTION
+def claude_code_tool_hook(tool_name: str, args: Dict[str, Any], result: Any, **kwargs) -> Optional[Dict[str, Any]]:
+    """
+    Claude Code hook interface for execution verification
+    
+    This hook validates execution claims to prevent fictional data generation.
+    It ensures that any claims of running/executing commands have proper evidence.
+    
+    Args:
+        tool_name: Name of the tool being executed
+        args: Tool arguments
+        result: Tool execution result
+        **kwargs: Additional context
+        
+    Returns:
+        Hook metadata with validation results
+    """
+    
+    # Initialize the verification hook
+    hook = create_execution_verification_hook()
+    
+    # Tools that might make execution claims
+    verification_tools = ['Bash', 'Write', 'Edit', 'MultiEdit']
+    
+    # Only verify for relevant tools
+    if tool_name not in verification_tools:
+        return None
+    
+    # Extract response text to validate
+    response_text = ""
+    if isinstance(result, str):
+        response_text = result
+    elif isinstance(result, dict):
+        response_text = str(result.get('output', '')) + str(result.get('content', ''))
+    
+    # Validate execution claims
+    validation = hook.validate_execution_claim(response_text)
+    
+    # Log validation results
+    if not validation['validation_passed']:
+        logger.warning(f"Execution verification failed for {tool_name}: {validation['errors']}")
+        
+        # Return validation failure metadata
+        return {
+            'hook_name': 'execution_verification',
+            'validation_failed': True,
+            'errors': validation['errors'],
+            'missing_evidence': validation['missing_evidence'],
+            'enforcement_message': hook.enforce_evidence_requirements(response_text)
+        }
+    
+    # Return success metadata
+    return {
+        'hook_name': 'execution_verification',
+        'validation_passed': True,
+        'tool_name': tool_name,
+        'has_execution_claims': validation['has_execution_claims'],
+        'has_required_evidence': validation['has_required_evidence']
+    }
 
 if __name__ == "__main__":
     # Test the hook

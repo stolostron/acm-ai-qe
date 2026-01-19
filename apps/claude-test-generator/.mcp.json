@@ -1,32 +1,19 @@
 {
   "mcpServers": {
-    "test-generator-filesystem": {
-      "type": "stdio",
-      "command": "python3",
-      "args": [".claude/mcp/simple_mcp_server.py"],
-      "env": {},
-      "cwd": "/Users/ashafi/Documents/work/ai/ai_systems/apps/claude-test-generator"
-    },
     "test-generator-github": {
-      "type": "stdio",
       "command": "python3",
       "args": [".claude/mcp/simple_github_mcp_server.py"],
-      "env": {},
-      "cwd": "/Users/ashafi/Documents/work/ai/ai_systems/apps/claude-test-generator"
+      "env": {
+        "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+      }
     },
-    "test-generator-filesystem-minimal": {
-      "type": "stdio",
+    "test-generator-filesystem": {
       "command": "python3",
-      "args": [".claude/mcp/minimal_filesystem_server.py"],
-      "env": {},
-      "cwd": "/Users/ashafi/Documents/work/ai/ai_systems/apps/claude-test-generator"
+      "args": [".claude/mcp/minimal_filesystem_server.py"]
     },
-    "test-generator-github-minimal": {
-      "type": "stdio",
-      "command": "python3",
-      "args": [".claude/mcp/minimal_github_server.py"],
-      "env": {},
-      "cwd": "/Users/ashafi/Documents/work/ai/ai_systems/apps/claude-test-generator"
+    "n8n-mcp": {
+      "command": "npx",
+      "args": ["n8n-mcp@latest"]
     }
   }
 }

@@ -1,245 +1,194 @@
 # Z-Stream Analysis Implementation Status
 
-## 🎯 **Current Status: PRODUCTION READY**
+## Current Status: Production Ready
 
-The Z-Stream Analysis Engine is **fully implemented** with comprehensive Python services and **64 unit tests passing**, providing enterprise-grade Jenkins pipeline failure analysis.
+The Z-Stream Analysis framework is implemented with 17 Python services, a hybrid AI + script classification system, multi-file data architecture, and 220 unit tests.
 
-## 📊 **Implementation Summary**
+## Services (17 Total)
 
-### ✅ **Core Services Implemented**
+### Core Services
 
-| Service | Status | Tests | Description |
-|---------|--------|-------|-------------|
-| **Jenkins Intelligence Service** | ✅ Complete | 9/9 ✅ | URL parsing, console analysis, metadata extraction |
-| **2-Agent Intelligence Framework** | ✅ Complete | 15/15 ✅ | Investigation + Solution agents with progressive context |
-| **Evidence Validation Engine** | ✅ Complete | 11/11 ✅ | False positive prevention, citation validation |
+| Service | File | Purpose |
+|---------|------|---------|
+| Jenkins Intelligence | `jenkins_intelligence_service.py` | Build info extraction, test report parsing |
+| Two-Agent Framework | `two_agent_intelligence_framework.py` | Agent orchestration |
+| Evidence Validation | `evidence_validation_engine.py` | Claim validation, false positive detection |
+| Environment Validation | `environment_validation_service.py` | Cluster validation (READ-ONLY) |
+| Repository Analysis | `repository_analysis_service.py` | Git clone, selector indexing |
 
-### 📁 **File Structure**
+### Classification Services
+
+| Service | File | Purpose |
+|---------|------|---------|
+| Stack Trace Parser | `stack_trace_parser.py` | Parse stack traces to file:line |
+| Classification Matrix | `classification_decision_matrix.py` | Formal classification rules |
+| Confidence Calculator | `confidence_calculator.py` | 5-factor weighted scoring |
+| Cross-Reference Validator | `cross_reference_validator.py` | Misclassification correction |
+| Evidence Package Builder | `evidence_package_builder.py` | Build evidence packages |
+| Timeline Comparison | `timeline_comparison_service.py` | Git date comparison |
+| AST Integration | `ast_integration_service.py` | Optional Node.js AST helper |
+
+### Utility Services
+
+| Service | File | Purpose |
+|---------|------|---------|
+| Report Generator | `report_generator.py` | Multi-format reports |
+| Jenkins MCP Client | `jenkins_mcp_client.py` | MCP integration |
+| Schema Validation | `schema_validation_service.py` | JSON schema validation |
+| Shared Utils | `shared_utils.py` | Common functions |
+
+## Scripts
+
+| Script | File | Purpose |
+|--------|------|---------|
+| Data Gathering | `src/scripts/gather.py` | Jenkins data collection, evidence package building |
+| Report Generation | `src/scripts/report.py` | Generate Markdown/Text/JSON reports |
+
+## Schemas
+
+| Schema | File | Purpose |
+|--------|------|---------|
+| Analysis Results | `analysis_results_schema.json` | JSON Schema for analysis output |
+| Analysis Template | `analysis_results_template.json` | Template for AI-generated results |
+| Evidence Package | `evidence_package_schema.json` | Schema for evidence packages |
+| Manifest | `manifest_schema.json` | Schema for multi-file structure |
+
+## Test Coverage (220 Tests)
+
+| Test File | Tests | Coverage |
+|-----------|-------|----------|
+| test_classification_decision_matrix.py | 35 | Classification rules |
+| test_cross_reference_validator.py | 28 | Misclassification correction |
+| test_evidence_package_builder.py | 28 | Evidence package building |
+| test_confidence_calculator.py | 27 | Confidence scoring |
+| test_timeline_comparison_service.py | 19 | Git date comparison |
+| test_stack_trace_parser.py | 19 | Stack trace parsing |
+| test_data_classes.py | 16 | Data structures, enums |
+| test_two_agent_intelligence_framework.py | 15 | Agent coordination |
+| test_integration_edge_cases.py | 13 | Edge cases |
+| test_evidence_validation_engine.py | 11 | False positive prevention |
+| test_jenkins_intelligence_service.py | 9 | Build info, console analysis |
+
+## File Structure
+
 ```
 z-stream-analysis/
+├── main.py                                    # Full pipeline orchestration
+├── CLAUDE.md                                  # Primary documentation
+├── .claude/
+│   ├── settings.json
+│   ├── settings.local.json
+│   └── agents/
+│       ├── z-stream-analysis.md
+│       ├── investigation-intelligence.md
+│       └── solution-intelligence.md
 ├── src/
-│   ├── __init__.py                        ✅ Created
+│   ├── schemas/
+│   │   ├── analysis_results_schema.json
+│   │   ├── analysis_results_template.json
+│   │   ├── evidence_package_schema.json
+│   │   └── manifest_schema.json
+│   ├── scripts/
+│   │   ├── gather.py
+│   │   └── report.py
 │   └── services/
-│       ├── __init__.py                    ✅ Created
-│       ├── jenkins_intelligence_service.py         ✅ 450+ lines, complete implementation
-│       ├── two_agent_intelligence_framework.py     ✅ 650+ lines, complete implementation  
-│       └── evidence_validation_engine.py           ✅ 550+ lines, complete implementation
+│       ├── jenkins_intelligence_service.py
+│       ├── jenkins_mcp_client.py
+│       ├── two_agent_intelligence_framework.py
+│       ├── evidence_validation_engine.py
+│       ├── environment_validation_service.py
+│       ├── repository_analysis_service.py
+│       ├── report_generator.py
+│       ├── schema_validation_service.py
+│       ├── shared_utils.py
+│       ├── stack_trace_parser.py
+│       ├── classification_decision_matrix.py
+│       ├── confidence_calculator.py
+│       ├── cross_reference_validator.py
+│       ├── evidence_package_builder.py
+│       ├── ast_integration_service.py
+│       └── timeline_comparison_service.py
 ├── tests/
-│   ├── unit/services/
-│   │   ├── test_jenkins_intelligence_service.py      ✅ 9 tests passing
-│   │   ├── test_two_agent_intelligence_framework.py  ✅ 15 tests passing
-│   │   ├── test_evidence_validation_engine.py        ✅ 11 tests passing
-│   │   ├── test_data_classes.py                      ✅ 16 tests passing
-│   │   └── test_integration_edge_cases.py            ✅ 13 tests passing
-│   └── fixtures/
-│       └── sample_jenkins_data.json        ✅ Complete test data
-└── CLAUDE.md                              ✅ Updated with implementation details
-└── README.md                              ✅ Updated with architecture and testing
+│   ├── deep_dive_validation.py
+│   ├── e2e_workflow_simulation.py
+│   └── unit/
+│       └── services/
+│           ├── test_jenkins_intelligence_service.py
+│           ├── test_two_agent_intelligence_framework.py
+│           ├── test_evidence_validation_engine.py
+│           ├── test_data_classes.py
+│           ├── test_integration_edge_cases.py
+│           ├── test_stack_trace_parser.py
+│           ├── test_classification_decision_matrix.py
+│           ├── test_confidence_calculator.py
+│           ├── test_cross_reference_validator.py
+│           ├── test_evidence_package_builder.py
+│           └── test_timeline_comparison_service.py
+├── docs/
+│   ├── implementation-status.md
+│   ├── agents_concepts_workflow.md
+│   ├── documentation-status.md
+│   ├── framework_workflow_details.md
+│   └── WORKFLOW.md
+└── runs/
+    └── <job>_<timestamp>/
+        ├── manifest.json
+        ├── core-data.json
+        ├── repository-selectors.json
+        ├── repository-test-files.json
+        ├── repository-metadata.json
+        ├── raw-data.json
+        ├── evidence-package.json
+        ├── jenkins-build-info.json
+        ├── console-log.txt
+        ├── test-report.json
+        ├── environment-status.json
+        ├── analysis-results.json
+        ├── Detailed-Analysis.md
+        └── SUMMARY.txt
 ```
 
-## 🧪 **Unit Testing Framework**
+## Multi-File Data Architecture
 
-### **Test Coverage: 64 Tests Passing**
+Data is split across multiple files to stay under Claude Code's 25,000 token limit:
 
-#### **Jenkins Intelligence Service (9 tests)**
-- ✅ URL parsing and metadata extraction accuracy
-- ✅ Console log analysis and failure pattern detection  
-- ✅ Environment information extraction from parameters
-- ✅ Branch and commit extraction validation
-- ✅ Evidence source generation for citations
-- ✅ Confidence score calculation accuracy
-- ✅ Complete integration test with mocked subprocess
-- ✅ Error handling for network failures and invalid data
-- ✅ Serialization and data persistence
+| File | Tokens | Purpose |
+|------|--------|---------|
+| manifest.json | ~150 | File index and workflow instructions |
+| core-data.json | ~5,500 | Primary data (read first) |
+| repository-selectors.json | ~7,500 | Selector lookup (on-demand) |
+| repository-test-files.json | ~7,000 | Test file details (on-demand) |
+| repository-metadata.json | ~800 | Repo summary (on-demand) |
+| raw-data.json | ~200 | Backward compatibility stub |
 
-#### **2-Agent Intelligence Framework (15 tests)**
-- ✅ Complete investigation pipeline execution
-- ✅ Environment validation logic with different scenarios
-- ✅ Repository analysis logic with branch scenarios
-- ✅ Evidence correlation across multiple sources
-- ✅ Investigation confidence calculation accuracy
-- ✅ Complete solution generation pipeline
-- ✅ Bug classification logic (PRODUCT vs AUTOMATION)
-- ✅ Fix recommendation generation for different bug types
-- ✅ Implementation guidance generation
-- ✅ Solution confidence calculation accuracy
-- ✅ Complete end-to-end analysis pipeline
-- ✅ Overall confidence calculation
-- ✅ Agent coordination and progressive context
-- ✅ Performance and timing validation
-- ✅ Serialization and data persistence
+## Hybrid Classification System
 
-#### **Evidence Validation Engine (11 tests)**
-- ✅ File extension validation accuracy (prevents .cy.js vs .js false positives)
-- ✅ Dependency claim verification (prevents false MobX claims)
-- ✅ Citation validation for evidence backing
-- ✅ False positive pattern detection
-- ✅ Claim type detection accuracy
-- ✅ Complete validation pipeline
-- ✅ Validation summary generation
-- ✅ Claim categorization logic
-- ✅ Confidence score calculation
-- ✅ Serialization and data persistence
-- ✅ Edge cases and error handling
+Classification uses a formal decision matrix with cross-reference validation:
 
-#### **Data Classes and Enums (16 tests)**
-- ✅ JenkinsMetadata field validation and constraints
-- ✅ JenkinsIntelligence composition and serialization
-- ✅ InvestigationResult structure validation
-- ✅ SolutionResult composition testing
-- ✅ ComprehensiveAnalysis integration validation
-- ✅ ValidationCheck structure and field validation
-- ✅ ValidationSummary calculation accuracy
-- ✅ EvidenceValidationResult composition
-- ✅ ValidationType enum values and behavior
-- ✅ ValidationResult enum states and transitions
-- ✅ AnalysisPhase enum workflow validation
-- ✅ Enum serialization and string representation
-- ✅ Unicode and special character handling
-- ✅ Large data structure performance
-- ✅ Extreme values boundary testing
-- ✅ Data integrity and type validation
+1. **Stack Trace Parser** - Extract file:line from error stack traces
+2. **Classification Decision Matrix** - Formal rules based on failure_type, env_healthy, selector_found
+3. **Confidence Calculator** - 5-factor weighted scoring
+4. **Cross-Reference Validator** - Catch and correct misclassifications
+5. **Timeline Comparison Service** - Compare git dates between automation and console repos
 
-#### **Integration and Edge Cases (13 tests)**
-- ✅ Concurrent execution of multiple analyses
-- ✅ Large console log processing (1MB+ data)
-- ✅ Extreme failure pattern detection
-- ✅ Complex evidence validation scenarios
-- ✅ Complete 2-agent framework integration
-- ✅ Memory usage with large datasets
-- ✅ Error cascade prevention across services
-- ✅ Complete serialization roundtrip testing
-- ✅ Jenkins URL edge cases (Unicode, special chars)
-- ✅ Console log boundary conditions
-- ✅ Parameter extraction edge cases
-- ✅ Validation engine boundary conditions
-- ✅ Confidence score boundary validation
+## Security Features
 
-## 🎯 **Key Features Implemented**
+- **Credential Masking**: PASSWORD, TOKEN, SECRET, KEY patterns masked
+- **READ-ONLY Cluster Operations**: Only whitelisted oc/kubectl commands
+- **Target Cluster Authentication**: Credentials from Jenkins parameters
 
-### **🤖 2-Agent Intelligence Framework**
-```python
-class TwoAgentIntelligenceFramework:
-    def __init__(self):
-        self.investigation_agent = InvestigationIntelligenceAgent()
-        self.solution_agent = SolutionIntelligenceAgent()
-        
-    def analyze_pipeline_failure(self, jenkins_url: str) -> ComprehensiveAnalysis:
-        # Phase 1: Investigation Intelligence Agent
-        investigation_result = self.investigation_agent.investigate_pipeline_failure(jenkins_url)
-        
-        # Phase 2: Solution Intelligence Agent  
-        solution_result = self.solution_agent.generate_solution(investigation_result)
-        
-        # Return complete analysis with progressive context
-        return ComprehensiveAnalysis(...)
-```
+## Usage
 
-### **🔍 Jenkins Intelligence Service**
-```python
-class JenkinsIntelligenceService:
-    def analyze_jenkins_url(self, jenkins_url: str) -> JenkinsIntelligence:
-        # Extract metadata, analyze console logs, build evidence sources
-        metadata = self._extract_jenkins_metadata(jenkins_url)
-        failure_analysis = self._analyze_failure_patterns(metadata.console_log_snippet)
-        environment_info = self._extract_environment_info(metadata.parameters)
-        evidence_sources = self._build_evidence_sources(metadata)
-        confidence_score = self._calculate_confidence_score(metadata, failure_analysis)
-        
-        return JenkinsIntelligence(...)
-```
-
-### **🛡️ Evidence Validation Engine**
-```python
-class EvidenceValidationEngine:
-    def validate_technical_claims(self, claims: List[str], 
-                                investigation_data: Dict[str, Any]) -> EvidenceValidationResult:
-        # Validate each claim against actual evidence
-        validation_checks = []
-        for claim in claims:
-            checks = self._validate_single_claim(claim, investigation_data)
-            validation_checks.extend(checks)
-        
-        # Generate summary and categorize claims
-        summary = self._generate_validation_summary(validation_checks)
-        validated_claims, rejected_claims = self._categorize_claims(claims, validation_checks)
-        
-        return EvidenceValidationResult(...)
-```
-
-## 🏆 **Quality Assurance**
-
-### **Error Handling**
-- ✅ Network timeouts and connection failures
-- ✅ Malformed JSON responses
-- ✅ Invalid Jenkins URLs
-- ✅ Missing build parameters
-- ✅ Empty console logs
-- ✅ Unicode and special character handling
-
-### **Data Integrity**
-- ✅ JSON serialization with enum handling
-- ✅ Dataclass serialization and deserialization
-- ✅ Confidence score validation (0.0-1.0 range)
-- ✅ Timestamp consistency across components
-- ✅ Evidence source format validation
-
-### **Performance Validation**
-- ✅ Execution timing requirements (< 5 seconds for components)
-- ✅ Memory usage with large console logs
-- ✅ Progressive context data transfer efficiency
-- ✅ Agent coordination overhead measurement
-
-## 🚀 **Ready for Production**
-
-### **What Works Now**
-1. **Complete Python Implementation**: All core services fully implemented
-2. **Comprehensive Testing**: 64 unit tests covering all critical functionality, edge cases, and integration scenarios
-3. **Error Resilience**: Graceful handling of network failures and malformed data
-4. **Data Persistence**: Reliable JSON serialization for analysis results
-5. **False Positive Prevention**: Proven accuracy through Evidence Validation Engine
-
-### **Production Capabilities**
-- ✅ **Jenkins URL Analysis**: Any Jenkins build URL can be analyzed
-- ✅ **2-Agent Coordination**: Investigation → Solution with progressive context
-- ✅ **Evidence Validation**: Technical claims verified against actual sources with comprehensive edge case testing
-- ✅ **Bug Classification**: Definitive PRODUCT vs AUTOMATION determination
-- ✅ **Fix Generation**: Implementable solutions with confidence scoring
-
-### **Testing Validation**
 ```bash
-# All tests pass consistently
-$ python3 tests/unit/services/test_jenkins_intelligence_service.py
-----------------------------------------------------------------------
-Ran 9 tests in 0.002s
-OK
+# Data gathering
+python -m src.scripts.gather "https://jenkins.example.com/job/pipeline/123/"
 
-$ python3 tests/unit/services/test_two_agent_intelligence_framework.py  
-----------------------------------------------------------------------
-Ran 15 tests in 0.162s
-OK
+# Report generation
+python -m src.scripts.report runs/<run_dir>
 
-$ python3 tests/unit/services/test_evidence_validation_engine.py
-----------------------------------------------------------------------
-Ran 11 tests in 0.002s
-OK
+# Full pipeline
+python main.py "https://jenkins.example.com/job/pipeline/123/"
+
+# Run tests
+python3 -m pytest tests/unit/services/ -v
 ```
-
-## 📈 **Next Steps (Optional Enhancements)**
-
-### **Remaining Components (Lower Priority)**
-- Progressive Context Architecture tests (additional validation)
-- Environment Validation Service tests (real connectivity testing)
-- Integration tests across all services
-- Performance benchmarking with large datasets
-
-### **Production Deployment**
-The current implementation is **production-ready** for Jenkins pipeline analysis with:
-- Complete 2-Agent Intelligence Framework
-- Evidence Validation Engine preventing false positives  
-- Comprehensive unit test coverage (64 tests including integration and edge cases)
-- Enterprise-grade error handling, data persistence, and boundary condition validation
-
----
-
-**Status:** ✅ **PRODUCTION READY** - Complete Python implementation with comprehensive unit testing (64 tests) providing enterprise-grade Jenkins pipeline failure analysis through 2-Agent Intelligence Framework with proven zero false positives, complete edge case coverage, and integration validation.

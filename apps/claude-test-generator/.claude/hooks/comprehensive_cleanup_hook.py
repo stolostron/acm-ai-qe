@@ -23,7 +23,25 @@ from typing import Dict, Any, Optional
 current_dir = Path(__file__).parent
 sys.path.insert(0, str(current_dir / '..' / 'ai-services'))
 
-from comprehensive_temp_data_cleanup_service import ComprehensiveTempDataCleanupService
+import sys
+sys.path.append('../ai-services')
+try:
+    import sys
+    import os
+    # Try to import temp cleanup service with fallback paths
+    try:
+        ai_services_path = os.path.join(os.path.dirname(__file__), '..', 'ai-services')
+        if ai_services_path not in sys.path:
+            sys.path.append(ai_services_path)
+        from temp_data_cleanup_service import ComprehensiveTempDataCleanupService
+    except ImportError:
+        sys.path.append('../ai-services')
+        from temp_data_cleanup_service import ComprehensiveTempDataCleanupService
+except ImportError:
+    ComprehensiveTempDataCleanupService = None
+
+# Import enhanced logging manager
+from enhanced_logging_manager import enhanced_cleanup_with_preservation
 
 logger = logging.getLogger(__name__)
 
@@ -51,10 +69,12 @@ class ComprehensiveCleanupHook:
     
     def post_execution_cleanup_hook(self, run_directory: str) -> Dict[str, Any]:
         """
-        Hook: Clean temporary data after framework execution
+        Hook: Enhanced cleanup with log preservation
         
-        This is called automatically after each framework run to ensure
-        only essential reports remain in the output directory.
+        NEW ARCHITECTURE:
+        - Preserves ALL logs in .claude/logs/executions/{JIRA_ID}/{TIMESTAMP}/
+        - Keeps only essential reports in runs/{JIRA_ID}/{TIMESTAMP}/
+        - Maintains complete historical tracking for debugging
         
         Args:
             run_directory: Directory of the completed run
@@ -62,20 +82,34 @@ class ComprehensiveCleanupHook:
         Returns:
             Dict with cleanup results
         """
-        logger.info(f"🧹 POST-EXECUTION CLEANUP HOOK: Cleaning {run_directory}")
+        logger.info(f"🧹 ENHANCED POST-EXECUTION CLEANUP: Organizing logs and cleaning {run_directory}")
         
         try:
-            result = self.cleanup_service.execute_comprehensive_cleanup(run_directory)
+            # Use enhanced cleanup with log preservation
+            result = enhanced_cleanup_with_preservation(run_directory)
             
             if result['success']:
-                logger.info(f"✅ Post-execution cleanup completed: {result['summary']}")
+                logger.info(f"✅ Enhanced cleanup completed: {result['summary']}")
+                logger.info(f"📊 Reports in: runs directory")
+                logger.info(f"🔍 Comprehensive logs in: .claude/logs/executions/")
             else:
-                logger.warning(f"⚠️ Post-execution cleanup had issues: {result.get('error', 'Unknown')}")
+                logger.warning(f"⚠️ Enhanced cleanup had issues: {result.get('error', 'Unknown')}")
+                
+                # Fallback to original cleanup if enhanced fails
+                if self.cleanup_service and ComprehensiveTempDataCleanupService:
+                    logger.info("🔄 Falling back to original cleanup...")
+                    fallback_result = self.cleanup_service.execute_comprehensive_cleanup(run_directory)
+                    return {
+                        'success': fallback_result.get('success', False),
+                        'enhanced_cleanup_error': result.get('error'),
+                        'fallback_used': True,
+                        'fallback_result': fallback_result
+                    }
             
             return result
             
         except Exception as e:
-            logger.error(f"❌ Post-execution cleanup hook failed: {e}")
+            logger.error(f"❌ Enhanced cleanup hook failed: {e}")
             return {
                 'success': False,
                 'error': str(e),

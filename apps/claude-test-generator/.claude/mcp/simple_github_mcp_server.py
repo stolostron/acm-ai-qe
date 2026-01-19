@@ -14,12 +14,31 @@ from pathlib import Path
 from typing import Dict, Any, Optional, List
 
 # Add current directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent))
+current_dir = str(Path(__file__).parent)
+sys.path.insert(0, current_dir)
 
-try:
-    from optimized_github_mcp_integration import OptimizedGitHubMCPIntegration
-except ImportError:
-    print("❌ Could not import OptimizedGitHubMCPIntegration", file=sys.stderr)
+# Import strategy: Use what works in current environment
+GitHubIntegration = None
+integration_name = "none"
+
+# Try imports in order of preference
+import_attempts = [
+    ("optimized_github_mcp_integration", "OptimizedGitHubMCPIntegration", "optimized"),
+]
+
+for module_name, class_name, desc in import_attempts:
+    try:
+        module = __import__(module_name)
+        GitHubIntegration = getattr(module, class_name)
+        integration_name = desc
+        print(f"✅ Using {desc} GitHub integration", file=sys.stderr)
+        break
+    except ImportError as e:
+        print(f"❌ Could not import {desc}: {e}", file=sys.stderr)
+        continue
+
+if GitHubIntegration is None:
+    print("❌ FATAL: Could not import any GitHub integration", file=sys.stderr)
     sys.exit(1)
 
 class SimpleGitHubMCPServer:
@@ -30,7 +49,7 @@ class SimpleGitHubMCPServer:
         self.initialized = False
         self.tools = {}
         self.resources = {}
-        self.github_client = OptimizedGitHubMCPIntegration(lazy_init=True)
+        self.github_client = GitHubIntegration(lazy_init=True)
         
         # Register tools
         self._register_tools()
@@ -222,7 +241,7 @@ class SimpleGitHubMCPServer:
             return {"error": "repo and pr_number are required"}
         
         try:
-            # Delegate to existing optimized implementation
+            # Delegate to fixed implementation
             result = self.github_client.get_pr_details(repo, pr_number)
             
             return {
@@ -252,22 +271,23 @@ class SimpleGitHubMCPServer:
             return {"error": "query is required"}
         
         try:
-            # Use optimized implementation if available, fallback to basic search
-            if hasattr(self.github_client, 'search_repositories'):
-                result = self.github_client.search_repositories(query, max_results, sort)
-            else:
-                # Basic implementation using existing patterns
-                self.github_client._initialize()
-                search_url = f"{self.github_client.base_url}/search/repositories"
-                params = {
-                    "q": query,
-                    "sort": sort,
-                    "per_page": min(max_results, 100)
+            # Use integration's make_request method with parameters
+            endpoint = "/search/repositories"
+            params = {
+                "q": query,
+                "sort": sort,
+                "per_page": min(max_results, 100)
+            }
+            
+            result = self.github_client._make_request(endpoint, params)
+            
+            if "error" in result:
+                return {
+                    "status": "error",
+                    "error": result["error"],
+                    "error_type": result.get("error_type", "APIError"),
+                    "query": query
                 }
-                
-                response = self.github_client.session.get(search_url, params=params)
-                response.raise_for_status()
-                result = response.json()
             
             return {
                 "status": "success",
@@ -275,7 +295,7 @@ class SimpleGitHubMCPServer:
                 "query": query,
                 "max_results": max_results,
                 "sort": sort,
-                "cached": getattr(self.github_client, 'last_was_cached', False)
+                "integration_method": integration_name
             }
         except Exception as e:
             return {
@@ -293,20 +313,23 @@ class SimpleGitHubMCPServer:
             return {"error": "repo is required"}
         
         try:
-            # Initialize if needed
-            self.github_client._initialize()
+            # Use integration's make_request method for consistency
+            endpoint = f"/repos/{repo}"
+            result = self.github_client._make_request(endpoint)
             
-            # Get repository info using existing session
-            repo_url = f"{self.github_client.base_url}/repos/{repo}"
-            response = self.github_client.session.get(repo_url)
-            response.raise_for_status()
-            result = response.json()
+            if "error" in result:
+                return {
+                    "status": "error",
+                    "error": result["error"],
+                    "error_type": result.get("error_type", "APIError"),
+                    "repo": repo
+                }
             
             return {
                 "status": "success",
                 "data": result,
                 "repo": repo,
-                "cached": False  # Could add caching for this too
+                "integration_method": integration_name
             }
         except Exception as e:
             return {
@@ -325,20 +348,25 @@ class SimpleGitHubMCPServer:
             return {"error": "repo and pr_number are required"}
         
         try:
-            self.github_client._initialize()
+            # Use integration's make_request method for consistency
+            endpoint = f"/repos/{repo}/pulls/{pr_number}/files"
+            result = self.github_client._make_request(endpoint)
             
-            # Get PR files using existing session
-            files_url = f"{self.github_client.base_url}/repos/{repo}/pulls/{pr_number}/files"
-            response = self.github_client.session.get(files_url)
-            response.raise_for_status()
-            files = response.json()
+            if "error" in result:
+                return {
+                    "status": "error",
+                    "error": result["error"],
+                    "error_type": result.get("error_type", "APIError"),
+                    "repo": repo,
+                    "pr_number": pr_number
+                }
             
             return {
                 "status": "success",
-                "data": files,
+                "data": result,
                 "repo": repo,
                 "pr_number": pr_number,
-                "file_count": len(files)
+                "file_count": len(result) if isinstance(result, list) else "unknown"
             }
         except Exception as e:
             return {
@@ -355,35 +383,59 @@ class SimpleGitHubMCPServer:
             # Test GitHub API connectivity
             self.github_client._initialize()
             
-            # Simple API test
-            test_url = f"{self.github_client.base_url}/rate_limit"
-            response = self.github_client.session.get(test_url)
-            response.raise_for_status()
-            rate_limit = response.json()
-            
-            return {
-                "status": "healthy",
-                "server_name": self.name,
-                "initialized": self.initialized,
-                "github_api": "connected",
-                "rate_limit_remaining": rate_limit.get('rate', {}).get('remaining', 'unknown'),
-                "auth_token": "present" if self.github_client.auth_token else "missing",
-                "tools_available": len(self.tools)
+            # Debug info about authentication
+            debug_info = {
+                "token_length": len(self.github_client.auth_token) if self.github_client.auth_token else 0,
+                "token_prefix": self.github_client.auth_token[:10] if self.github_client.auth_token else "None",
+                "headers": dict(self.github_client.session.headers) if hasattr(self.github_client, 'session') and self.github_client.session else dict(self.github_client.headers) if hasattr(self.github_client, 'headers') and self.github_client.headers else {},
+                "base_url": self.github_client.base_url,
+                "integration_type": integration_name
             }
+            
+            # Test GitHub API connectivity using integration's test method
+            connection_result = self.github_client.test_connection()
+            
+            if connection_result.get("status") == "connected":
+                return {
+                    "status": "healthy",
+                    "server_name": self.name,
+                    "initialized": self.initialized,
+                    "github_api": "connected",
+                    "rate_limit_remaining": connection_result.get("rate_limit_remaining", "unknown"),
+                    "auth_token": "present" if self.github_client.auth_token else "missing",
+                    "tools_available": len(self.tools),
+                    "debug": debug_info,
+                    "connection_details": connection_result
+                }
+            else:
+                return {
+                    "status": "unhealthy",
+                    "error": f"Connection test failed: {connection_result.get('error', 'Unknown error')}",
+                    "error_type": "ConnectionError",
+                    "server_name": self.name,
+                    "debug": debug_info,
+                    "connection_details": connection_result
+                }
+                
         except Exception as e:
             return {
                 "status": "unhealthy",
                 "error": str(e),
                 "error_type": type(e).__name__,
-                "server_name": self.name
+                "server_name": self.name,
+                "debug": {
+                    "token_available": hasattr(self.github_client, 'auth_token') and self.github_client.auth_token is not None,
+                    "session_available": hasattr(self.github_client, 'session') and self.github_client.session is not None
+                }
             }
     
     def run(self):
         """Run the MCP server (listen on stdin)"""
         print(f"🚀 Simple GitHub MCP Server '{self.name}' starting...", file=sys.stderr)
         print(f"🔧 Tools: {len(self.tools)} available", file=sys.stderr)
-        print(f"🔑 Auth: {'Present' if self.github_client.auth_token else 'Missing'}", file=sys.stderr)
-        print("✅ Server ready for MCP requests", file=sys.stderr)
+        auth_status = 'Present' if self.github_client.auth_token else 'Missing'
+        print(f"🔑 Auth: {auth_status} (using {integration_name} integration)", file=sys.stderr)
+        print("✅ Server ready for MCP requests (with debugging)", file=sys.stderr)
         
         try:
             while True:

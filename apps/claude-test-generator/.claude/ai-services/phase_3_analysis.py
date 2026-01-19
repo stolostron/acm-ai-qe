@@ -526,8 +526,12 @@ class AIAnalysisEngine:
         
         if qe_insights.get('coverage_gaps'):
             gaps = qe_insights['coverage_gaps'].get('identified_gaps', [])
-            if gaps:
+            if gaps and isinstance(gaps, list):
                 testing_boundaries['in_scope'].extend([f'Coverage gap: {gap}' for gap in gaps[:2]])
+            elif gaps:
+                logger.warning(f"Expected list for coverage gaps, got {type(gaps)}: {gaps}")
+                # Convert to string if it's not a list
+                testing_boundaries['in_scope'].append(f'Coverage gap: {str(gaps)}')
         
         enhanced_scoping = {
             'testing_scope': testing_scope,

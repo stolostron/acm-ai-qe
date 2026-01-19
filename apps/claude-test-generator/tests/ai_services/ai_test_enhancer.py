@@ -53,7 +53,7 @@ class AITestEnhancer:
         self.framework_root = framework_root
         self.docs_path = os.path.join(framework_root, "docs")
         self.ai_services_path = os.path.join(framework_root, ".claude", "ai-services")
-        self.claude_config_path = os.path.join(framework_root, "CLAUDE.features.md")
+        self.claude_config_path = os.path.join(framework_root, "CLAUDE.md")
         
     def analyze_phase_0_documentation_vs_implementation(self) -> AIAnalysisResult:
         """

@@ -7,7 +7,11 @@
       "WebFetch(domain:arxiv.org)",
       "Bash(rm:*)",
       "Bash(python3:*)",
-      "Bash(lsof:*)"
+      "Bash(lsof:*)",
+      "Bash(wc:*)",
+      "Bash(ls:*)",
+      "Bash(tree:*)",
+      "Bash(find:*)"
     ],
     "deny": []
   }

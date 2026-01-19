@@ -66,8 +66,38 @@
       "Bash(docker --version:*)",
       "Bash(true:*)",
       "Bash(awk:*)",
-      "Bash(sed:*)"
+      "Bash(sed:*)",
+      "Bash(node:*)",
+      "Bash(npm:*)",
+      "WebFetch(domain:docs.anthropic.com)",
+      "Bash(python:*)",
+      "Bash(cat:*)",
+      "WebFetch(domain:docs.docker.com)",
+      "Bash(gtimeout:*)",
+      "Bash(claude --print:*)",
+      "Bash(env:*)",
+      "Bash(xargs:*)",
+      "Read(//Users/ashafi/.claude/**)",
+      "Bash(JIRA_TICKET=\"ACM-22079\")",
+      "Bash(RUN_ID=\"ACM-22079-20250910-153551\")",
+      "Read(//private/tmp/test_run/insufficient_info_reports/**)",
+      "Read(//tmp/test_run/insufficient_info_reports/**)",
+      "Read(//Users/ashafi/.kube/**)",
+      "Bash(oc config:*)",
+      "Bash(RUN_ID=\"ACM-22079-REAL-20250910-161132\")",
+      "Bash(LOG_DIR=\".claude/logs/comprehensive/ACM-22079/$RUN_ID\")",
+      "Bash(ls:*)",
+      "Bash(COLLECTION_DIR=\"comprehensive_phase_0_1_data_collection\")",
+      "Bash(du:*)",
+      "Bash(RUN_ID=\"ACM-22079-PHASE2-20250910-165009\")",
+      "Bash(claude doctor:*)"
     ],
     "deny": []
-  }
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "test-generator-github",
+    "test-generator-filesystem",
+    "n8n-mcp"
+  ]
 }

@@ -1,20 +1,23 @@
 {
-  "cache_timestamp": "2025-08-27T17:14:39.933713",
+  "cache_timestamp": "2025-09-05T19:31:50.772703",
   "ticket_data": {
     "id": "ACM-12345",
-    "title": "CLI Test Issue",
-    "status": "Open",
-    "fix_version": "2.15.0",
-    "priority": "High",
-    "component": "TestComponent",
-    "description": "Test description from CLI",
-    "assignee": "CLI Test Assignee",
-    "reporter": "CLI Test Reporter",
-    "created": "2024-01-01T00:00:00.000+0000",
-    "updated": "2024-01-02T00:00:00.000+0000",
+    "title": "CVE-2024-6104 multicluster-engine-cluster-api-provider-azure-container: go-retryablehttp: url might write sensitive information to log file [mce-2.3]",
+    "status": "Closed",
+    "fix_version": null,
+    "priority": "Normal",
+    "component": "CAPI",
+    "description": "Security Tracking Issue\n\nDo not make this issue public.\n\nImpact: Moderate\nReported Date: 24-Jun-2024\nResolve Bug By: 22-Sep-2024\n\nIn case the dates above are already past, please evaluate this bug in your next prioritization review and make a decision then. Remember to explicitly set CLOSED:WONTFIX (in Bugzilla) or Closed:Won't Do (in Jira) if you decide not to fix this bug.\n\nPlease review this tracker and its impact on your product or service, as soon as possible. The trackers are filed WITHOUT in-depth analysis as the vulnerability has a Low or Moderate severity impact on this product or service. For more details, please refer to following confluence page - https://docs.engineering.redhat.com/x/3e_3EQ\n\nPlease see the Security Errata Policy for further details: https://docs.engineering.redhat.com/x/9kKpDw\n\nFlaw:\n-----\n\nCVE-2024-6104 go-retryablehttp: url might write sensitive information to log file\nhttps://bugzilla.redhat.com/show_bug.cgi?id=2294000\n\ngo-retryablehttp prior to 0.7.7 did not sanitize urls when writing them to its log file. This could lead to go-retryablehttp writing sensitive HTTP basic auth credentials to its log file. This vulnerability, CVE-2024-6104, was fixed in go-retryablehttp 0.7.7.\n\nhttps://discuss.hashicorp.com/c/security\n",
+    "assignee": "Roke Jung",
+    "reporter": "Patrick Del Bello",
+    "created": "2024-06-24T22:20:54.889+0000",
+    "updated": "2025-07-12T22:52:09.789+0000",
     "labels": [
-      "test",
-      "cli-test"
+      "CVE-2024-6104",
+      "Security",
+      "SecurityTracking",
+      "flaw:bz#2294000",
+      "pscomponent:multicluster-engine-cluster-api-provider-azure-container"
     ],
     "custom_fields": {}
   }

@@ -1,0 +1,42 @@
+{
+  "display": {
+    "enabled": true,
+    "show_phase_progress": true,
+    "show_execution_timing": true,
+    "show_agent_status": true,
+    "real_time_updates": true,
+    "terminal": {
+      "use_enhanced_format": true,
+      "show_phase_header": true,
+      "include_observability_tips": true
+    }
+  },
+  "enforcement": {
+    "enabled": true,
+    "mandatory_phase_display": true,
+    "require_execution_context": true,
+    "block_standard_display": true,
+    "requirements": {
+      "must_show_current_phase": true,
+      "must_show_phase_progress": true,
+      "must_show_execution_timing": true,
+      "must_include_observability_tips": true
+    },
+    "violation_handling": {
+      "auto_correct": true,
+      "log_violations": true,
+      "alert_on_fallback": true
+    }
+  },
+  "features": {
+    "active": true,
+    "activated_at": "2025-08-24T00:00:00Z",
+    "version": "1.0",
+    "enabled_features": [
+      "phase_by_phase_display",
+      "real_time_progress_tracking",
+      "execution_context_awareness",
+      "observability_integration"
+    ]
+  }
+}

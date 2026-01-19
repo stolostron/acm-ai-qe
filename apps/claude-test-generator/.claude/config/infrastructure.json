@@ -1,0 +1,82 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "description": "Infrastructure configuration - requires explicit environment variables, no hardcoded URLs",
+  "version": "1.0.0",
+
+  "jira": {
+    "description": "JIRA API configuration",
+    "base_url_env_var": "JIRA_BASE_URL",
+    "username_env_var": "JIRA_USERNAME",
+    "api_token_env_var": "JIRA_API_TOKEN",
+    "require_explicit_config": true,
+    "fallback_behavior": {
+      "when_not_configured": "error",
+      "error_message": "JIRA is not configured. Set JIRA_BASE_URL, JIRA_USERNAME, and JIRA_API_TOKEN environment variables.",
+      "alternative_methods": [
+        "Use 'jira' CLI tool if installed and authenticated",
+        "Use WebFetch to retrieve public JIRA issues"
+      ]
+    },
+    "cache_settings": {
+      "enabled": true,
+      "duration_seconds": 300,
+      "location": ".claude/cache/jira/"
+    }
+  },
+
+  "github": {
+    "description": "GitHub API configuration",
+    "api_base_url": "https://api.github.com",
+    "token_env_vars": ["GITHUB_TOKEN", "GH_TOKEN"],
+    "require_explicit_config": false,
+    "fallback_behavior": {
+      "when_not_configured": "use_gh_cli",
+      "gh_cli_command": "gh auth token"
+    }
+  },
+
+  "environments": {
+    "description": "Target environment configuration",
+    "require_explicit_selection": true,
+    "selection_methods": [
+      "command_line_argument",
+      "environment_variable",
+      "user_prompt"
+    ],
+    "env_var_name": "TARGET_ENVIRONMENT",
+    "no_default_environment": true,
+    "error_on_missing": {
+      "enabled": true,
+      "message": "Target environment not specified. Provide environment via command line or TARGET_ENVIRONMENT variable."
+    }
+  },
+
+  "internal_services": {
+    "description": "Configuration for internal service URLs",
+    "require_env_vars": true,
+    "no_hardcoded_urls": true,
+    "services": {
+      "cluster_console": {
+        "env_var": "CLUSTER_CONSOLE_URL",
+        "required": false,
+        "placeholder": "<CLUSTER_CONSOLE_URL>"
+      },
+      "cluster_api": {
+        "env_var": "CLUSTER_API_URL",
+        "required": false,
+        "placeholder": "<CLUSTER_API_URL>"
+      }
+    }
+  },
+
+  "security": {
+    "mask_credentials": true,
+    "never_log_tokens": true,
+    "credential_patterns": [
+      "(?i)(password|passwd|pwd|secret|token|api[_-]?key|auth[_-]?token)",
+      "(?i)(bearer\\s+)[a-zA-Z0-9\\-._~+/]+=*",
+      "gh[ops]_[A-Za-z0-9_]{36}",
+      "github_pat_[A-Za-z0-9_]{22,}"
+    ]
+  }
+}

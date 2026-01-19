@@ -3,11 +3,23 @@
 ## 🚨 CRITICAL SECURITY: Credential Exposure Prevention
 
 # Run data protection (CRITICAL for credential safety)
+# Pipeline runs contain console logs with embedded credentials
+**/runs/
+apps/*/runs/
+runs/
+
+# Legacy specific patterns (kept for backwards compatibility)
 apps/*/runs/*/jenkins-metadata.json
 apps/*/runs/*/analysis-metadata.json  
 apps/*/runs/*/*.credentials
 apps/*/runs/*/secure-*
 apps/*/runs/*/auth-*
+
+# Console logs and raw data (contain passwords, tokens)
+**/console-log.txt
+**/console-log*.txt
+**/jenkins-build-info.json
+**/raw-data.json
 
 # Temporary repository protection (Prevent accidental credential exposure)
 apps/*/temp_repos/

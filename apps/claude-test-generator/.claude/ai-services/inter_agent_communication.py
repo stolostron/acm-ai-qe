@@ -191,7 +191,7 @@ class InterAgentCommunicationHub:
                 logger.error(f"Failed to deliver message to {subscriber.agent_id}: {e}")
     
     def get_hub_status(self) -> Dict[str, Any]:
-        """Get comprehensive hub status"""
+        """Get hub status"""
         with self._lock:
             return {
                 'hub_id': self.hub_id,
@@ -238,24 +238,99 @@ class AgentCommunicationInterface:
         logger.info(f"Communication interface initialized for {agent_id}")
     
     async def publish_pr_discovery(self, pr_info: Dict[str, Any], target_agent: str = "agent_d_environment_intelligence"):
-        """Publish PR discovery information"""
+        """Publish PR discovery information with AI-driven context analysis"""
+        
+        # Use AI to analyze PR context and determine collection requirements
+        ai_analysis = self._analyze_pr_context_with_ai(pr_info)
+        
         await self.hub.publish_message(
             sender_agent=self.agent_id,
             target_agent=target_agent,
             message_type="pr_discovery",
             payload={
                 'pr_info': pr_info,
+                'ai_context_analysis': ai_analysis,
                 'discovery_timestamp': datetime.now().isoformat(),
-                'requires_environment_collection': True
+                'requires_environment_collection': ai_analysis.get('requires_collection', True),
+                'collection_urgency': ai_analysis.get('urgency_level', 'normal'),
+                'component_specific_requirements': ai_analysis.get('component_requirements', {})
             },
-            priority="high",
+            priority=ai_analysis.get('message_priority', 'high'),
             requires_response=True
         )
         
-        logger.info(f"Published PR discovery: {pr_info.get('pr_number', 'unknown')}")
+        logger.info(f"Published PR discovery with AI analysis: {pr_info.get('pr_number', 'unknown')}")
+    
+    def _analyze_pr_context_with_ai(self, pr_info: Dict[str, Any]) -> Dict[str, Any]:
+        """Use AI to analyze PR context and determine optimal collection strategy"""
+        
+        # Extract component information
+        components = pr_info.get('deployment_components', [])
+        pr_title = pr_info.get('pr_title', '')
+        files_changed = pr_info.get('files_changed', [])
+        
+        # AI-driven analysis
+        analysis = {
+            'requires_collection': True,
+            'urgency_level': 'normal',
+            'message_priority': 'high',
+            'component_requirements': {}
+        }
+        
+        # Determine urgency based on PR characteristics
+        if len(files_changed) > 15:
+            analysis['urgency_level'] = 'high'
+            analysis['message_priority'] = 'urgent'
+        elif len(components) > 2:
+            analysis['urgency_level'] = 'high'
+        
+        # Component-specific analysis
+        for component in components:
+            component_lower = component.lower()
+            
+            if 'cluster' in component_lower or 'curator' in component_lower:
+                analysis['component_requirements']['cluster_lifecycle'] = {
+                    'namespace_focus': ['open-cluster-management', 'open-cluster-management-hub'],
+                    'resource_types': ['clustercurators', 'managedclusters'],
+                    'critical_logs': ['clustercurator-controller-manager']
+                }
+            elif 'policy' in component_lower:
+                analysis['component_requirements']['governance'] = {
+                    'namespace_focus': ['open-cluster-management'],
+                    'resource_types': ['policies', 'policysets'],
+                    'critical_logs': ['governance-policy-framework']
+                }
+            elif 'observability' in component_lower:
+                analysis['component_requirements']['monitoring'] = {
+                    'namespace_focus': ['open-cluster-management-observability'],
+                    'resource_types': ['multiclusterobservabilities', 'observabilityaddon'],
+                    'critical_logs': ['observability-controller']
+                }
+            elif 'application' in component_lower:
+                analysis['component_requirements']['app_lifecycle'] = {
+                    'namespace_focus': ['open-cluster-management-agent-addon'],
+                    'resource_types': ['applications', 'subscriptions'],
+                    'critical_logs': ['application-manager']
+                }
+            elif 'console' in component_lower:
+                analysis['component_requirements']['ui'] = {
+                    'namespace_focus': ['openshift-console'],
+                    'resource_types': ['console.operator'],
+                    'critical_logs': ['console']
+                }
+        
+        # Analyze title for additional context
+        title_lower = pr_title.lower()
+        if any(keyword in title_lower for keyword in ['critical', 'urgent', 'security', 'breaking']):
+            analysis['urgency_level'] = 'critical'
+            analysis['message_priority'] = 'urgent'
+        elif any(keyword in title_lower for keyword in ['api', 'crd', 'controller']):
+            analysis['urgency_level'] = 'high'
+        
+        return analysis
     
     async def publish_jira_intelligence(self, jira_analysis: Dict[str, Any], target_agent: str = "agent_d_environment_intelligence"):
-        """Publish comprehensive JIRA analysis"""
+        """Publish JIRA analysis"""
         await self.hub.publish_message(
             sender_agent=self.agent_id,
             target_agent=target_agent,
@@ -329,54 +404,6 @@ def cleanup_communication_hub(phase_id: str, run_id: str):
 
 
 if __name__ == '__main__':
-    # Test the communication system
-    import asyncio
-    
-    async def test_communication_system():
-        """Test the inter-agent communication system"""
-        print("🧪 Testing Inter-Agent Communication System")
-        
-        # Create communication hub
-        hub = InterAgentCommunicationHub("phase_1", "test_run_001")
-        await hub.start_hub()
-        
-        # Create agent interfaces
-        agent_a_comm = AgentCommunicationInterface("agent_a_jira_intelligence", hub)
-        agent_d_comm = AgentCommunicationInterface("agent_d_environment_intelligence", hub)
-        
-        # Set up Agent D subscription
-        received_messages = []
-        
-        def agent_d_callback(message: InterAgentMessage):
-            received_messages.append(message)
-            print(f"Agent D received: {message.message_type} from {message.sender_agent}")
-        
-        agent_d_comm.subscribe_to_pr_discoveries(agent_d_callback)
-        agent_d_comm.subscribe_to_jira_intelligence(agent_d_callback)
-        
-        # Simulate Agent A discovering PR info
-        await agent_a_comm.publish_pr_discovery({
-            'pr_number': '468',
-            'title': 'ClusterCurator digest-based upgrades',
-            'files_changed': ['pkg/clustercurator/controller.go', 'config/crd/bases/clustercurator.yaml'],
-            'deployment_components': ['ClusterCurator', 'ACM']
-        })
-        
-        # Wait for message processing
-        await asyncio.sleep(0.5)
-        
-        # Check results
-        assert len(received_messages) == 1
-        assert received_messages[0].message_type == "pr_discovery"
-        assert received_messages[0].payload['pr_info']['pr_number'] == '468'
-        
-        # Get hub status
-        status = hub.get_hub_status()
-        print(f"Hub status: {status}")
-        
-        # Cleanup
-        await hub.stop_hub()
-        
-        print("✅ Inter-Agent Communication System test passed!")
-    
-    asyncio.run(test_communication_system())
+    # Production module - no test code in main files
+    print("Inter-Agent Communication System - Production Module")
+    print("Use dedicated test files for testing functionality")

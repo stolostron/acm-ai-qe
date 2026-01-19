@@ -474,17 +474,19 @@ class FrameworkLogAnalyzer:
         
         print(f"\n📊 Errors by Component:")
         for component, count in error_stats['by_component'].most_common():
-            if component != 'UNKNOWN':
-                print(f"   {component:15} {count:3} errors")
+            if component and component != 'UNKNOWN':
+                print(f"   {str(component):15} {count:3} errors")
         
         print(f"\n📊 Errors by Phase:")
         for phase, count in error_stats['by_phase'].most_common():
-            if phase != 'UNKNOWN':
-                print(f"   {phase:15} {count:3} errors")
+            if phase and phase != 'UNKNOWN':
+                print(f"   {str(phase):15} {count:3} errors")
         
         print(f"\n📊 Recent Errors:")
         for error in error_stats['timeline'][-5:]:  # Show last 5 errors
-            print(f"   {error['component']:12} {error['action'][:40]}")
+            component = str(error.get('component', 'UNKNOWN'))[:12]
+            action = str(error.get('action', 'UNKNOWN'))[:40]
+            print(f"   {component:12} {action}")
         
         return {
             'error_count': len(error_events),

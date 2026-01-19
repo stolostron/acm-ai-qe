@@ -42,6 +42,10 @@ class FrameworkHookIntegration:
         self.original_functions = {}
         self.hook_registry = {}
         
+        # Set up phase management methods
+        self.manual_phase_start = self.logger.log_phase_start
+        self.manual_phase_complete = self.logger.log_phase_complete
+        
         # Framework state tracking
         self.framework_state = {
             'current_phase': None,
@@ -694,6 +698,13 @@ class FrameworkHookIntegration:
     
     def log_agent_activity(self, agent: str, action: str, details: Dict[str, Any] = None):
         """Log agent activity"""
+        # Update framework state
+        with self._lock:
+            if action in ["spawn", "start"]:
+                self.framework_state['active_agents'].add(agent)
+            elif action in ["complete", "finish", "stop"]:
+                self.framework_state['active_agents'].discard(agent)
+        
         self.logger.log_info(f"AGENT_{action.upper()}", f"Agent {agent}: {action}", {
             "agent": agent,
             "action": action,

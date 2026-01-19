@@ -31,24 +31,51 @@
     "mandate_error_transparency": true
   },
   
-  "hooks": {
-    "pre_response_validation": [
-      ".claude/hooks/execution_verification_hook.py"
-    ],
-    "execution_claim_triggers": [
-      "fresh execution",
-      "executed",
-      "ran the",
-      "running",
-      "command output",
-      "framework run"
-    ]
-  },
-  
   "prompt_enforcement": {
     "always_require_evidence": true,
     "auto_validate_execution": true,
     "transparent_failure_reporting": true,
     "distinguish_analysis_vs_execution": true
+  },
+  
+  "api_configuration": {
+    "provider": "vertex-ai",
+    "vertex_settings": {
+      "project_id": "itpc-gcp-hcm-pe-eng-claude",
+      "region": "us-central1",
+      "model": "claude-sonnet-4@20250514"
+    },
+    "authentication": {
+      "method": "gcp-application-default",
+      "enforce_real_execution": true
+    }
+  },
+  
+  "permissions": {
+    "allow": [
+      "Bash",
+      "Read",
+      "Write",
+      "WebFetch(domain:*.googleapis.com)"
+    ],
+    "deny": [],
+    "defaultMode": "default"
+  },
+  
+  "logging": {
+    "comprehensive_logging": true,
+    "mandatory_logging": true,
+    "log_all_tools": true,
+    "log_directory": ".claude/logs/active-runs",
+    "log_api_calls": true,
+    "log_vertex_requests": true
+  },
+  
+  "anti_simulation": {
+    "disable_mocking": true,
+    "disable_test_mode": true,
+    "force_real_api_calls": true,
+    "require_network_evidence": true,
+    "validate_api_responses": true
   }
 }

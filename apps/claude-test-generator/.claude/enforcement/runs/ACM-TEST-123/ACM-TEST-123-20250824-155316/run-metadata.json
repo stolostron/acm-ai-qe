@@ -1,9 +1,0 @@
-{
-  "jira_ticket": "ACM-TEST-123",
-  "run_directory": "runs/ACM-TEST-123/ACM-TEST-123-20250824-155316",
-  "start_timestamp": "2025-08-24T19:53:16.875053+00:00",
-  "framework_version": "v4.2.0-strict-enforcement",
-  "enforcement_level": "MANDATORY_NO_BYPASS",
-  "execution_guarantee": "FULL_6_PHASE_WORKFLOW_REQUIRED",
-  "feature": "Test feature"
-}

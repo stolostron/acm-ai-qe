@@ -337,7 +337,7 @@ deployment_metadata:
     cpu_cores: 2
     memory_gb: 4
     network_access: "cluster_connectivity_required"
-    tool_dependencies: ["oc", "kubectl", "curl"]
+    tool_dependencies: ["jira", "gh", "gcloud", "oc", "kubectl", "curl", "git", "bash", "jq", "grep", "find", "sed", "awk", "python3", "node", "npm", "docker", "helm", "yq"]
   
   dependencies:
     - "foundation_context.py"
@@ -364,4 +364,4 @@ execution_coordination:
     expected_duration: "3-5_minutes"
     timeout_threshold: "10_minutes"
     retry_strategy: "exponential_backoff"
-    failure_escalation: "fallback_to_simulation"
+    failure_escalation: "deterministic_failure"

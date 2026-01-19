@@ -1,0 +1,49 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "description": "Repository mapping configuration - uses dynamic discovery, no hardcoded values",
+  "version": "1.0.0",
+
+  "discovery_method": "dynamic",
+  "discovery_settings": {
+    "enabled": true,
+    "extract_from_jira": true,
+    "extract_from_pr_references": true,
+    "use_component_mapping": true
+  },
+
+  "fallback_patterns": {
+    "description": "Patterns for discovering QE repositories when not explicitly referenced",
+    "patterns": [
+      "{org}/*-e2e",
+      "{org}/qe-*",
+      "{org}/*-automation",
+      "{org}/*-test"
+    ],
+    "apply_when": "no_explicit_repository_found"
+  },
+
+  "component_repository_discovery": {
+    "enabled": true,
+    "description": "Dynamic mapping from JIRA component to repository via GitHub search",
+    "search_strategy": {
+      "primary": "github_code_search",
+      "fallback": "github_repo_search",
+      "cache_duration_hours": 24
+    }
+  },
+
+  "pr_extraction_patterns": {
+    "description": "Patterns for extracting PR references from JIRA content",
+    "patterns": [
+      "https://github\\.com/([^/]+)/([^/]+)/pull/(\\d+)",
+      "PR[:#\\s]+(\\d+)",
+      "pull request[:#\\s]+(\\d+)",
+      "#(\\d+)\\s+(?:in|on)\\s+([\\w-]+/[\\w-]+)"
+    ]
+  },
+
+  "known_mappings": {
+    "description": "EMPTY by design - all mappings should be discovered dynamically",
+    "note": "Do not add hardcoded JIRA -> PR mappings here. Use dynamic discovery."
+  }
+}

@@ -215,6 +215,8 @@ deployment_metadata:
     - "version_intelligence_service.py"
     - "progressive_context_setup.py"
   
+  tool_dependencies: ["jira", "gh", "gcloud", "oc", "kubectl", "curl", "git", "bash", "jq", "grep", "find", "sed", "awk", "python3", "node", "npm", "docker", "helm", "yq"]
+  
   configuration_files:
     - ".claude/config/jira_config.json"
     - ".claude/config/ai_models_config.json"

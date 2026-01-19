@@ -44,7 +44,6 @@ graph TB
     USER[👤 User Request] --> ROUTER[🧠 Smart Proxy Router]
     ROUTER --> APP1[📋 Test Generator]
     ROUTER --> APP2[🔍 Z-Stream Analysis]
-
     subgraph "Complete Isolation"
         APP1 --> RESULT1[✅ Test Plans]
         APP2 --> RESULT2[✅ Bug Analysis]

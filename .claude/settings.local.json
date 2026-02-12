@@ -5,13 +5,25 @@
       "WebFetch(domain:modelcontextprotocol.io)",
       "WebFetch(domain:github.com)",
       "WebFetch(domain:arxiv.org)",
+      "WebFetch(domain:jenkins-csb-rhacm-tests.dno.corp.redhat.com)",
       "Bash(rm:*)",
       "Bash(python3:*)",
+      "Bash(python:*)",
+      "Bash(python -m pytest:*)",
+      "Bash(pytest:*)",
       "Bash(lsof:*)",
       "Bash(wc:*)",
       "Bash(ls:*)",
       "Bash(tree:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(git:*)",
+      "Bash(gh:*)",
+      "Bash(oc whoami:*)",
+      "Bash(oc get:*)",
+      "Bash(oc login:*)",
+      "Bash(curl:*)",
+      "Bash(mkdir:*)",
+      "Bash(mv:*)"
     ],
     "deny": []
   }

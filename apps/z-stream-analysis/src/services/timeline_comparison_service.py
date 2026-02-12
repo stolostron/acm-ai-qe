@@ -24,6 +24,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Tuple
 
+# Import centralized configuration
+from .shared_utils import REPOS, TIMEOUTS, THRESHOLDS
+
 
 @dataclass
 class ElementTimeline:
@@ -71,7 +74,12 @@ class SelectorTimeline:
 
 @dataclass
 class TimelineComparisonResult:
-    """Result of comparing timelines between automation and product repos."""
+    """
+    Result of comparing timelines between automation and product repos.
+
+    Note: This provides FACTUAL DATA only. AI performs the classification
+    based on this data. No pre-calculated classification is included.
+    """
     selector: str
     element_id: str
 
@@ -79,16 +87,15 @@ class TimelineComparisonResult:
     automation_timeline: Optional[SelectorTimeline] = None
     console_timeline: Optional[ElementTimeline] = None
 
-    # Comparison results
-    classification: str = "UNKNOWN"
-    confidence: float = 0.0
-    reasoning: str = ""
-
-    # Detailed analysis
+    # Factual analysis (no classification - AI determines this)
     console_changed_after_automation: Optional[bool] = None
     days_difference: Optional[int] = None
     element_removed_from_console: bool = False
     element_never_existed: bool = False
+
+    # Derived temporal signals
+    stale_test_signal: bool = False  # True when product changed after test AND test not updated since
+    product_commit_type: Optional[str] = None  # intentional_change | fix_or_revert | ambiguous
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -96,36 +103,38 @@ class TimelineComparisonResult:
             "element_id": self.element_id,
             "automation_timeline": self.automation_timeline.to_dict() if self.automation_timeline else None,
             "console_timeline": self.console_timeline.to_dict() if self.console_timeline else None,
-            "classification": self.classification,
-            "confidence": round(self.confidence, 3),
-            "reasoning": self.reasoning,
             "console_changed_after_automation": self.console_changed_after_automation,
             "days_difference": self.days_difference,
             "element_removed_from_console": self.element_removed_from_console,
             "element_never_existed": self.element_never_existed,
+            "stale_test_signal": self.stale_test_signal,
+            "product_commit_type": self.product_commit_type,
         }
 
 
 @dataclass
 class TimeoutPatternResult:
-    """Result of analyzing timeout patterns across test failures."""
+    """
+    Result of analyzing timeout patterns across test failures.
+
+    Note: Provides FACTUAL DATA only. AI uses this to determine classification.
+    """
     total_failures: int
     timeout_count: int
     timeout_percentage: float
-    is_infrastructure_pattern: bool
-    classification: str
-    confidence: float
-    reasoning: str
+    # Factual flags for AI to use in classification
+    multiple_timeouts: bool = False  # True if 2+ tests timed out
+    majority_timeouts: bool = False  # True if >=50% of failures are timeouts
+    env_was_unhealthy: bool = False  # Environment health status at time of analysis
 
     def to_dict(self) -> Dict[str, Any]:
         return {
             "total_failures": self.total_failures,
             "timeout_count": self.timeout_count,
             "timeout_percentage": round(self.timeout_percentage, 2),
-            "is_infrastructure_pattern": self.is_infrastructure_pattern,
-            "classification": self.classification,
-            "confidence": round(self.confidence, 3),
-            "reasoning": self.reasoning,
+            "multiple_timeouts": self.multiple_timeouts,
+            "majority_timeouts": self.majority_timeouts,
+            "env_was_unhealthy": self.env_was_unhealthy,
         }
 
 
@@ -137,21 +146,33 @@ class TimelineComparisonService:
     when a selector/element mismatch occurs.
     """
 
-    # Console repository URL
-    CONSOLE_REPO_URL = "https://github.com/stolostron/console.git"
+    # Console repository URL - use centralized config (can be overridden via env var)
+    @property
+    def CONSOLE_REPO_URL(self) -> str:
+        return REPOS.CONSOLE_REPO_URL
+
+    # KubeVirt plugin repository URL - use centralized config
+    @property
+    def KUBEVIRT_REPO_URL(self) -> str:
+        return REPOS.KUBEVIRT_REPO_URL
 
     # Patterns to search for element IDs in console repo
+    # Ordered by frequency in React/ACM codebases - data-testid patterns first
+    # CRITICAL: Git history search uses [:3] slice, so most common patterns must be first
     ELEMENT_SEARCH_PATTERNS = [
-        'id="{element_id}"',           # JSX: id="google"
-        "id='{element_id}'",           # JSX: id='google'
-        'id: "{element_id}"',          # Object: id: "google"
-        "id: '{element_id}'",          # Object: id: 'google'
-        'data-testid="{element_id}"',  # data-testid="google"
+        # data-testid is most common in React/ACM - check first
+        'data-testid="{element_id}"',
         "data-testid='{element_id}'",
         'data-test-id="{element_id}"',
         "data-test-id='{element_id}'",
-        'testId="{element_id}"',       # React prop
+        # React testId prop
+        'testId="{element_id}"',
         "testId='{element_id}'",
+        # Standard id attribute (less common in React)
+        'id="{element_id}"',
+        "id='{element_id}'",
+        'id: "{element_id}"',
+        "id: '{element_id}'",
     ]
 
     # File extensions to search in console repo
@@ -166,11 +187,13 @@ class TimelineComparisonService:
                       Default: /tmp/z-stream-repos
         """
         self.logger = logging.getLogger(__name__)
-        self.base_path = Path(base_path or '/tmp/z-stream-repos')
+        default_base = os.environ.get('Z_STREAM_REPO_BASE_PATH', '/tmp/z-stream-repos')
+        self.base_path = Path(base_path or default_base)
         self.base_path.mkdir(parents=True, exist_ok=True)
 
         self.console_path: Optional[Path] = None
         self.automation_path: Optional[Path] = None
+        self.kubevirt_path: Optional[Path] = None
 
     def clone_console_repo(self, branch: str = "main") -> Tuple[Optional[Path], Optional[str]]:
         """
@@ -189,7 +212,7 @@ class TimelineComparisonService:
             cmd = [
                 'git', 'clone',
                 '--branch', branch,
-                '--depth', '200',  # Shallow clone with enough history for git log -S
+                '--depth', str(THRESHOLDS.GIT_SHALLOW_CLONE_DEPTH),  # Shallow clone with enough history
                 self.CONSOLE_REPO_URL,
                 str(clone_dir)
             ]
@@ -200,7 +223,7 @@ class TimelineComparisonService:
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=180
+                timeout=TIMEOUTS.GIT_CLONE
             )
 
             if result.returncode != 0:
@@ -212,7 +235,7 @@ class TimelineComparisonService:
                         cmd,
                         capture_output=True,
                         text=True,
-                        timeout=180
+                        timeout=TIMEOUTS.GIT_CLONE
                     )
 
                 if result.returncode != 0:
@@ -289,7 +312,7 @@ class TimelineComparisonService:
                     cwd=self.console_path,
                     capture_output=True,
                     text=True,
-                    timeout=30
+                    timeout=TIMEOUTS.GIT_LOG
                 )
 
                 if result.returncode == 0 and result.stdout.strip():
@@ -336,7 +359,7 @@ class TimelineComparisonService:
                         cwd=self.console_path,
                         capture_output=True,
                         text=True,
-                        timeout=30
+                        timeout=TIMEOUTS.GIT_LOG
                     )
 
                     if result.returncode == 0 and result.stdout.strip():
@@ -365,7 +388,7 @@ class TimelineComparisonService:
                     cwd=self.console_path,
                     capture_output=True,
                     text=True,
-                    timeout=30
+                    timeout=TIMEOUTS.GIT_LOG
                 )
 
                 if result.returncode == 0 and result.stdout.strip():
@@ -409,7 +432,7 @@ class TimelineComparisonService:
                 cwd=self.automation_path,
                 capture_output=True,
                 text=True,
-                timeout=30
+                timeout=TIMEOUTS.GIT_LOG
             )
 
             if result.returncode == 0 and result.stdout.strip():
@@ -423,7 +446,7 @@ class TimelineComparisonService:
                 cwd=self.automation_path,
                 capture_output=True,
                 text=True,
-                timeout=30
+                timeout=TIMEOUTS.GIT_LOG
             )
 
             if result.returncode == 0 and result.stdout.strip():
@@ -446,11 +469,13 @@ class TimelineComparisonService:
         """
         Compare modification timelines between automation and console repos.
 
+        Returns FACTUAL DATA only - AI performs classification based on this data.
+
         Args:
             selector: The failing selector (e.g., "#google")
 
         Returns:
-            TimelineComparisonResult with classification
+            TimelineComparisonResult with factual timeline data (no classification)
         """
         element_id = self.extract_element_id(selector)
 
@@ -465,43 +490,30 @@ class TimelineComparisonService:
         # Get console timeline
         result.console_timeline = self.get_element_last_modified(element_id)
 
-        # Classify based on timelines
-        result = self._classify_by_timeline(result)
+        # Compute factual analysis (no classification - AI does this)
+        result = self._compute_timeline_facts(result)
 
         return result
 
-    def _classify_by_timeline(self, result: TimelineComparisonResult) -> TimelineComparisonResult:
-        """Apply classification logic based on timeline comparison."""
+    def _compute_timeline_facts(self, result: TimelineComparisonResult) -> TimelineComparisonResult:
+        """
+        Compute factual timeline data without classification.
 
+        AI will use this factual data to make classification decisions.
+        """
         auto = result.automation_timeline
         console = result.console_timeline
 
-        # Case 1: Element doesn't exist in console
+        # Fact 1: Does element exist in console?
         if console and not console.exists_in_console:
             if console.last_modified_date:
-                # Element was removed
+                # Element was removed (we found it in git history)
                 result.element_removed_from_console = True
-                result.classification = "AUTOMATION_BUG"
-                result.confidence = 0.90
-                result.reasoning = (
-                    f"Element '{result.element_id}' was removed from console "
-                    f"(last seen: {console.last_modified_date.strftime('%Y-%m-%d')}). "
-                    f"Automation uses selector '{result.selector}' which no longer exists. "
-                    "Automation needs to be updated with the new selector."
-                )
             else:
                 # Element never existed in history we can see
                 result.element_never_existed = True
-                result.classification = "AUTOMATION_BUG"
-                result.confidence = 0.85
-                result.reasoning = (
-                    f"Element '{result.element_id}' not found in console codebase. "
-                    f"Automation uses selector '{result.selector}' that may never have existed "
-                    "or was removed long ago. Automation needs to use the correct selector."
-                )
-            return result
 
-        # Case 2: Both have dates - compare them
+        # Fact 2: Compare dates if both are available
         if auto and auto.last_modified_date and console and console.last_modified_date:
             auto_date = auto.last_modified_date
             console_date = console.last_modified_date
@@ -509,50 +521,51 @@ class TimelineComparisonService:
             result.days_difference = abs((console_date - auto_date).days)
             result.console_changed_after_automation = console_date > auto_date
 
-            if console_date > auto_date:
-                # Console changed AFTER automation was last updated
-                result.classification = "AUTOMATION_BUG"
-                result.confidence = 0.92
-                result.reasoning = (
-                    f"Console updated element on {console_date.strftime('%Y-%m-%d')} "
-                    f"(commit: {console.last_commit_sha[:8] if console.last_commit_sha else 'N/A'}). "
-                    f"Automation selector was last updated on {auto_date.strftime('%Y-%m-%d')} "
-                    f"({result.days_difference} days before). "
-                    "Automation fell behind product changes and needs updating."
-                )
-            else:
-                # Automation was updated AFTER console
-                result.classification = "PRODUCT_BUG"
-                result.confidence = 0.85
-                result.reasoning = (
-                    f"Automation selector was updated on {auto_date.strftime('%Y-%m-%d')}, "
-                    f"after console last changed element on {console_date.strftime('%Y-%m-%d')}. "
-                    "Element exists in console but may not be rendering correctly. "
-                    "This could be a product rendering issue or the element is conditionally hidden."
-                )
-            return result
+            # Fact 3: Stale test signal — product changed after test AND test not updated since
+            result.stale_test_signal = console_date > auto_date
 
-        # Case 3: Only have automation date
-        if auto and auto.last_modified_date and (not console or not console.last_modified_date):
-            result.classification = "AUTOMATION_BUG"
-            result.confidence = 0.75
-            result.reasoning = (
-                f"Automation uses selector '{result.selector}' "
-                f"(last updated: {auto.last_modified_date.strftime('%Y-%m-%d')}), "
-                "but cannot find corresponding element in console. "
-                "Likely using incorrect or outdated selector."
-            )
-            return result
+        # Fact 4: Classify the product commit message type
+        if console and console.last_commit_message:
+            result.product_commit_type = self._classify_commit_type(console.last_commit_message)
 
-        # Case 4: No timeline data available
-        result.classification = "UNKNOWN"
-        result.confidence = 0.30
-        result.reasoning = (
-            "Unable to determine timeline comparison. "
-            "Neither automation nor console modification dates could be retrieved. "
-            "Manual review recommended."
-        )
         return result
+
+    @staticmethod
+    def _classify_commit_type(message: str) -> str:
+        """
+        Classify a git commit message into a change type category.
+
+        Uses conventional commit prefixes to determine whether the change
+        was intentional (feature/refactor) vs a fix/revert vs ambiguous.
+
+        Args:
+            message: Git commit message string
+
+        Returns:
+            'intentional_change' for feat/refactor/chore/style/perf
+            'fix_or_revert' for fix/revert/hotfix
+            'ambiguous' if no conventional prefix matches
+        """
+        if not message:
+            return "ambiguous"
+
+        lower = message.lower().strip()
+
+        # fix/revert patterns
+        fix_patterns = re.compile(
+            r'^(fix|revert|hotfix|bugfix)[\s(:!]'
+        )
+        if fix_patterns.match(lower):
+            return "fix_or_revert"
+
+        # Intentional change patterns
+        intentional_patterns = re.compile(
+            r'^(feat|feature|refactor|chore|style|perf|build|ci|docs|test)[\s(:!]'
+        )
+        if intentional_patterns.match(lower):
+            return "intentional_change"
+
+        return "ambiguous"
 
     def analyze_timeout_pattern(
         self,
@@ -562,14 +575,14 @@ class TimelineComparisonService:
         """
         Analyze timeout patterns across test failures.
 
-        If multiple tests timeout, it's likely an infrastructure issue.
+        Returns FACTUAL DATA only - AI performs classification based on this data.
 
         Args:
             failed_tests: List of failed test dictionaries with error_message
             env_healthy: Whether the environment is healthy
 
         Returns:
-            TimeoutPatternResult with classification
+            TimeoutPatternResult with factual pattern data (no classification)
         """
         total = len(failed_tests)
         timeout_count = 0
@@ -581,49 +594,148 @@ class TimelineComparisonService:
 
         timeout_pct = (timeout_count / total * 100) if total > 0 else 0
 
-        result = TimeoutPatternResult(
+        # Return factual data only - AI will determine classification
+        return TimeoutPatternResult(
             total_failures=total,
             timeout_count=timeout_count,
             timeout_percentage=timeout_pct,
-            is_infrastructure_pattern=False,
-            classification="UNKNOWN",
-            confidence=0.0,
-            reasoning="",
+            multiple_timeouts=timeout_count >= THRESHOLDS.MULTIPLE_TIMEOUTS_MIN,
+            majority_timeouts=timeout_pct >= THRESHOLDS.MAJORITY_TIMEOUT_PERCENT,
+            env_was_unhealthy=not env_healthy,
         )
 
-        # Pattern detection
-        if timeout_count >= 2 and timeout_pct >= 50:
-            result.is_infrastructure_pattern = True
-            result.classification = "INFRASTRUCTURE"
-            result.confidence = 0.85
-            result.reasoning = (
-                f"{timeout_count} of {total} tests ({timeout_pct:.0f}%) timed out. "
-                "This pattern suggests slow cluster or Jenkins environment. "
-                "Check infrastructure performance before investigating individual tests."
-            )
-        elif not env_healthy and timeout_count >= 1:
-            result.is_infrastructure_pattern = True
-            result.classification = "INFRASTRUCTURE"
-            result.confidence = 0.80
-            result.reasoning = (
-                f"Environment is unhealthy and {timeout_count} test(s) timed out. "
-                "Infrastructure issues are likely causing the timeouts."
-            )
-        elif timeout_count == 1 and total > 1:
-            result.classification = "ELEMENT_SPECIFIC"
-            result.confidence = 0.60
-            result.reasoning = (
-                f"Only 1 of {total} tests timed out. "
-                "This is likely an element-specific timeout, not infrastructure. "
-                "Treat as element_not_found for classification."
-            )
-        else:
-            result.reasoning = "No clear timeout pattern detected."
+    def clone_console_to(
+        self,
+        branch: str,
+        target_path: Path,
+        acm_version: Optional[str] = None
+    ) -> Tuple[bool, Optional[str]]:
+        """
+        Clone the console repository with improved branch detection.
 
-        return result
+        This method clones to a persistent location (e.g., runs/<dir>/repos/console)
+        instead of /tmp, allowing AI to have full access during analysis.
+
+        Branch selection priority:
+        1. Specified branch (e.g., from automation repo)
+        2. ACM version-based branch (e.g., release-2.15)
+        3. Main branch as fallback
+
+        Args:
+            branch: Branch to checkout (should match automation branch)
+            target_path: Directory to clone into
+            acm_version: Optional ACM version string (e.g., "2.15", "2.14")
+
+        Returns:
+            Tuple of (success, error_message)
+        """
+        # Build list of branches to try
+        branches_to_try = [branch]
+
+        # Add ACM version-based branch if available and different
+        if acm_version:
+            version_branch = f"release-{acm_version}"
+            if version_branch not in branches_to_try:
+                branches_to_try.append(version_branch)
+
+        # Always include main as fallback
+        if "main" not in branches_to_try:
+            branches_to_try.append("main")
+
+        self.logger.info(f"Console clone: will try branches in order: {branches_to_try}")
+
+        # Try each branch in order
+        for try_branch in branches_to_try:
+            # Verify branch exists before cloning
+            if not self._verify_branch_exists(try_branch):
+                self.logger.warning(f"Branch '{try_branch}' does not exist in console repo")
+                continue
+
+            success, error = self._try_clone_branch(try_branch, target_path)
+            if success:
+                self.logger.info(f"Console repo cloned successfully at branch: {try_branch}")
+                return True, None
+
+            self.logger.warning(f"Clone failed for branch '{try_branch}': {error}")
+            # Clean up failed clone attempt
+            if target_path.exists():
+                shutil.rmtree(target_path, ignore_errors=True)
+
+        return False, f"Could not clone console repo (tried: {branches_to_try})"
+
+    def _verify_branch_exists(self, branch: str) -> bool:
+        """
+        Verify a branch exists in the console repo using git ls-remote.
+
+        Args:
+            branch: Branch name to verify
+
+        Returns:
+            True if branch exists, False otherwise
+        """
+        try:
+            result = subprocess.run(
+                ['git', 'ls-remote', '--heads', self.CONSOLE_REPO_URL, branch],
+                capture_output=True,
+                text=True,
+                timeout=TIMEOUTS.GIT_LOG
+            )
+            exists = result.returncode == 0 and branch in result.stdout
+            if exists:
+                self.logger.debug(f"Branch '{branch}' exists in console repo")
+            return exists
+        except subprocess.TimeoutExpired:
+            self.logger.warning(f"Timeout checking if branch '{branch}' exists")
+            return False
+        except Exception as e:
+            self.logger.warning(f"Error checking branch existence: {e}")
+            return False
+
+    def _try_clone_branch(self, branch: str, target_path: Path) -> Tuple[bool, Optional[str]]:
+        """
+        Attempt to clone a specific branch.
+
+        Args:
+            branch: Branch to clone
+            target_path: Directory to clone into
+
+        Returns:
+            Tuple of (success, error_message)
+        """
+        try:
+            # Create target directory if needed
+            target_path.mkdir(parents=True, exist_ok=True)
+
+            cmd = [
+                'git', 'clone',
+                '--branch', branch,
+                self.CONSOLE_REPO_URL,
+                str(target_path)
+            ]
+
+            self.logger.info(f"Cloning console repo branch '{branch}' to: {target_path}")
+
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=TIMEOUTS.GIT_CLONE
+            )
+
+            if result.returncode != 0:
+                error = f"Git clone failed: {result.stderr}"
+                return False, error
+
+            self.console_path = target_path
+            return True, None
+
+        except subprocess.TimeoutExpired:
+            return False, "Git clone timed out after 180s"
+        except Exception as e:
+            return False, f"Git clone error: {str(e)}"
 
     def cleanup(self):
-        """Clean up cloned console repository."""
+        """Clean up cloned console and kubevirt repositories."""
         if self.console_path and self.console_path.exists():
             try:
                 shutil.rmtree(self.console_path)
@@ -631,3 +743,139 @@ class TimelineComparisonService:
                 self.console_path = None
             except Exception as e:
                 self.logger.warning(f"Failed to cleanup console repo: {e}")
+
+        if self.kubevirt_path and self.kubevirt_path.exists():
+            try:
+                shutil.rmtree(self.kubevirt_path)
+                self.logger.info(f"Cleaned up kubevirt repo: {self.kubevirt_path}")
+                self.kubevirt_path = None
+            except Exception as e:
+                self.logger.warning(f"Failed to cleanup kubevirt repo: {e}")
+
+    def clone_kubevirt_to(
+        self,
+        branch: str,
+        target_path: Path
+    ) -> Tuple[bool, Optional[str]]:
+        """
+        Clone the kubevirt-plugin repository with intelligent branch detection.
+
+        This method clones to a persistent location (e.g., runs/<dir>/repos/kubevirt-plugin)
+        instead of /tmp, allowing AI to have full access during analysis.
+
+        The kubevirt-plugin repo contains virtualization feature UI components that
+        are integrated into ACM console but maintained in a separate repository.
+
+        Branch selection priority:
+        1. Specified branch (e.g., from automation repo)
+        2. Main branch as fallback
+
+        Args:
+            branch: Branch to checkout (should match automation branch if possible)
+            target_path: Directory to clone into
+
+        Returns:
+            Tuple of (success, error_message)
+        """
+        # Build list of branches to try
+        branches_to_try = [branch]
+
+        # Always include main as fallback
+        if "main" not in branches_to_try:
+            branches_to_try.append("main")
+
+        # Also try master as kubevirt-plugin may use it
+        if "master" not in branches_to_try:
+            branches_to_try.append("master")
+
+        self.logger.info(f"KubeVirt clone: will try branches in order: {branches_to_try}")
+
+        # Try each branch in order
+        for try_branch in branches_to_try:
+            # Verify branch exists before cloning
+            if not self._verify_kubevirt_branch_exists(try_branch):
+                self.logger.warning(f"Branch '{try_branch}' does not exist in kubevirt-plugin repo")
+                continue
+
+            success, error = self._try_clone_kubevirt_branch(try_branch, target_path)
+            if success:
+                self.logger.info(f"KubeVirt plugin repo cloned successfully at branch: {try_branch}")
+                return True, None
+
+            self.logger.warning(f"Clone failed for branch '{try_branch}': {error}")
+            # Clean up failed clone attempt
+            if target_path.exists():
+                shutil.rmtree(target_path, ignore_errors=True)
+
+        return False, f"Could not clone kubevirt-plugin repo (tried: {branches_to_try})"
+
+    def _verify_kubevirt_branch_exists(self, branch: str) -> bool:
+        """
+        Verify a branch exists in the kubevirt-plugin repo using git ls-remote.
+
+        Args:
+            branch: Branch name to verify
+
+        Returns:
+            True if branch exists, False otherwise
+        """
+        try:
+            result = subprocess.run(
+                ['git', 'ls-remote', '--heads', self.KUBEVIRT_REPO_URL, branch],
+                capture_output=True,
+                text=True,
+                timeout=TIMEOUTS.GIT_LS_REMOTE
+            )
+            exists = result.returncode == 0 and branch in result.stdout
+            if exists:
+                self.logger.debug(f"Branch '{branch}' exists in kubevirt-plugin repo")
+            return exists
+        except subprocess.TimeoutExpired:
+            self.logger.warning(f"Timeout checking if branch '{branch}' exists in kubevirt-plugin")
+            return False
+        except Exception as e:
+            self.logger.warning(f"Error checking kubevirt branch existence: {e}")
+            return False
+
+    def _try_clone_kubevirt_branch(self, branch: str, target_path: Path) -> Tuple[bool, Optional[str]]:
+        """
+        Attempt to clone a specific branch of kubevirt-plugin.
+
+        Args:
+            branch: Branch to clone
+            target_path: Directory to clone into
+
+        Returns:
+            Tuple of (success, error_message)
+        """
+        try:
+            # Create target directory if needed
+            target_path.mkdir(parents=True, exist_ok=True)
+
+            cmd = [
+                'git', 'clone',
+                '--branch', branch,
+                self.KUBEVIRT_REPO_URL,
+                str(target_path)
+            ]
+
+            self.logger.info(f"Cloning kubevirt-plugin repo branch '{branch}' to: {target_path}")
+
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=TIMEOUTS.GIT_CLONE
+            )
+
+            if result.returncode != 0:
+                error = f"Git clone failed: {result.stderr}"
+                return False, error
+
+            self.kubevirt_path = target_path
+            return True, None
+
+        except subprocess.TimeoutExpired:
+            return False, "Git clone timed out after 180s"
+        except Exception as e:
+            return False, f"Git clone error: {str(e)}"

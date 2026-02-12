@@ -11,7 +11,128 @@ import logging
 import os
 import subprocess
 from dataclasses import asdict, dataclass, field
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
+
+
+# =============================================================================
+# CENTRALIZED CONFIGURATION
+# =============================================================================
+
+@dataclass(frozen=True)
+class TimeoutConfig:
+    """
+    Centralized timeout configuration for all services.
+
+    All timeouts are in seconds. Use these constants instead of hardcoding values.
+    """
+    # Command execution timeouts
+    DEFAULT_COMMAND: int = 30       # Default for simple commands
+    CONSOLE_LOG_FETCH: int = 60     # Fetching Jenkins console logs (can be large)
+    TEST_REPORT_FETCH: int = 45     # Fetching test reports
+    API_REQUEST: int = 30           # General API requests
+
+    # Git operations
+    GIT_CLONE: int = 180            # Cloning repositories (can be large)
+    GIT_LOG: int = 30               # Git log/history queries
+    GIT_LS_REMOTE: int = 30         # Branch verification
+
+    # Cluster operations
+    CLUSTER_COMMAND: int = 30       # oc/kubectl commands
+
+    # Quick checks (Node.js, CLI availability)
+    NODE_VERSION_CHECK: int = 5     # Checking if node is available
+    CLI_WHICH_CHECK: int = 5        # Checking if oc/kubectl is available (which command)
+    AST_HELPER_CHECK: int = 10      # Checking if AST helper works
+
+    # Subprocess buffer: subprocess timeout = curl --max-time + buffer
+    # This ensures curl can complete gracefully before subprocess kills it
+    SUBPROCESS_BUFFER: int = 5
+
+
+# Global timeout instance
+TIMEOUTS = TimeoutConfig()
+
+
+@dataclass
+class RepositoryConfig:
+    """
+    Repository configuration with environment variable overrides.
+
+    Environment Variables:
+        Z_STREAM_CONSOLE_REPO_URL: Override console repository URL
+        Z_STREAM_KUBEVIRT_REPO_URL: Override kubevirt-plugin repository URL
+        Z_STREAM_AUTOMATION_REPOS: JSON dict of repo name -> URL mappings
+    """
+    # Console repository (stolostron/console)
+    CONSOLE_REPO_URL: str = field(
+        default_factory=lambda: os.environ.get(
+            'Z_STREAM_CONSOLE_REPO_URL',
+            'https://github.com/stolostron/console.git'
+        )
+    )
+
+    # KubeVirt plugin repository (kubevirt-ui/kubevirt-plugin)
+    # Used for virtualization feature UI components
+    KUBEVIRT_REPO_URL: str = field(
+        default_factory=lambda: os.environ.get(
+            'Z_STREAM_KUBEVIRT_REPO_URL',
+            'https://github.com/kubevirt-ui/kubevirt-plugin.git'
+        )
+    )
+
+    # Known automation repository mappings
+    # Can be overridden with Z_STREAM_AUTOMATION_REPOS env var (JSON)
+    KNOWN_REPOS: Dict[str, str] = field(default_factory=lambda: {
+        'clc-e2e': 'https://github.com/stolostron/clc-ui-e2e.git',
+        'clc-ui-e2e': 'https://github.com/stolostron/clc-ui-e2e.git',
+        'console-e2e': 'https://github.com/stolostron/console-e2e.git',
+        'acm-e2e': 'https://github.com/stolostron/acm-e2e.git',
+        'grc-ui-e2e': 'https://github.com/stolostron/grc-ui-e2e.git',
+        'search-e2e': 'https://github.com/stolostron/search-e2e-test.git',
+    })
+
+    def __post_init__(self):
+        """Load repository overrides from environment."""
+        repos_override = os.environ.get('Z_STREAM_AUTOMATION_REPOS')
+        if repos_override:
+            try:
+                override_dict = json.loads(repos_override)
+                self.KNOWN_REPOS.update(override_dict)
+            except json.JSONDecodeError:
+                pass  # Ignore invalid JSON
+
+
+# Global repository config instance
+REPOS = RepositoryConfig()
+
+
+@dataclass(frozen=True)
+class ThresholdConfig:
+    """
+    Centralized threshold configuration for analysis and classification.
+
+    These values control how the system interprets patterns and calculates confidence.
+    """
+    # Timeout pattern detection
+    MULTIPLE_TIMEOUTS_MIN: int = 2          # Minimum count to consider "multiple"
+    MAJORITY_TIMEOUT_PERCENT: float = 50.0  # Percentage to consider "majority"
+
+    # Confidence score thresholds
+    HIGH_CONFIDENCE: float = 0.80           # High confidence threshold
+    MEDIUM_CONFIDENCE: float = 0.60         # Medium confidence threshold
+    LOW_CONFIDENCE: float = 0.50            # Low confidence / UNKNOWN threshold
+
+    # Stack trace limits
+    MAX_STACK_FRAMES: int = 20              # Maximum frames to process
+    CONSOLE_LOG_SNIPPET_SIZE: int = 2000    # Characters for console snippets
+
+    # Repository analysis limits
+    MAX_SELECTORS_PER_FILE: int = 50        # Max selectors to extract per file
+    GIT_SHALLOW_CLONE_DEPTH: int = 500      # Depth for shallow clones (500 for better history coverage)
+
+
+# Global thresholds instance
+THRESHOLDS = ThresholdConfig()
 
 
 # =============================================================================
@@ -70,6 +191,7 @@ def build_curl_command(
     token: Optional[str] = None,
     timeout: int = 30,
     extra_args: Optional[List[str]] = None,
+    verify_ssl: bool = False,
 ) -> List[str]:
     """
     Build a curl command with optional authentication.
@@ -80,11 +202,16 @@ def build_curl_command(
         token: Optional token/password for basic auth
         timeout: Request timeout in seconds
         extra_args: Additional curl arguments
+        verify_ssl: Whether to verify SSL certificates (default False for internal servers)
 
     Returns:
         List of command arguments
     """
-    cmd = ['curl', '-k', '-s', '--max-time', str(timeout)]
+    cmd = ['curl', '-s', '--max-time', str(timeout)]
+
+    # Skip SSL verification for internal servers (common for Jenkins)
+    if not verify_ssl:
+        cmd.append('-k')
 
     if username and token:
         cmd.extend(['-u', f'{username}:{token}'])
@@ -254,7 +381,7 @@ def get_auth_header() -> Optional[str]:
 TEST_FILE_PATTERNS = [
     '/tests/', '/test/', '/spec/', '/specs/',
     '_test.', '.test.', '_spec.', '.spec.',
-    'test_', 'spec_',
+    'test_', 'spec_', '.cy.',
 ]
 
 # Common framework/library patterns
@@ -262,6 +389,13 @@ FRAMEWORK_FILE_PATTERNS = [
     'node_modules/', 'cypress_runner', '/runner/',
     '/packages/cypress/', 'webpack://', 'internal/',
     'site-packages/', 'dist-packages/', '__pycache__/',
+    '__cypress', 'bluebird', 'promise',
+]
+
+# Common support/helper file patterns
+SUPPORT_FILE_PATTERNS = [
+    '/support/', '/commands', '/helpers/', '/utils/',
+    '/views/', '/pages/', '/fixtures/',
 ]
 
 
@@ -291,6 +425,20 @@ def is_framework_file(file_path: str) -> bool:
     """
     path_lower = file_path.lower()
     return any(pattern in path_lower for pattern in FRAMEWORK_FILE_PATTERNS)
+
+
+def is_support_file(file_path: str) -> bool:
+    """
+    Check if a file path is a support/helper file.
+
+    Args:
+        file_path: File path to check
+
+    Returns:
+        True if support file
+    """
+    path_lower = file_path.lower()
+    return any(pattern in path_lower for pattern in SUPPORT_FILE_PATTERNS)
 
 
 def detect_test_framework(file_path: str) -> Optional[str]:

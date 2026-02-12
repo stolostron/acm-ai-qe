@@ -1,12 +1,35 @@
 """
-Z-Stream Analysis Services Module
-Core services for Jenkins pipeline failure analysis.
+Z-Stream Analysis Services Module (v2.5)
+
+Core services for Jenkins pipeline failure data gathering.
+
+Architecture Note (v2.5):
+- Classification services removed - AI now performs all classification
+- Repos cloned to run directory for AI full access
+- Services provide FACTUAL DATA only
+- Native Claude Code MCP integration for Phase 2 analysis
+
+MCP Note:
+- Phase 2 (AI Analysis) uses Claude Code's native MCP integration
+- Python MCP clients provide fallback for Phase 1 data gathering
 """
 
-from .jenkins_mcp_client import (
-    JenkinsMCPClient,
-    get_mcp_client,
-    is_mcp_available
+# Jenkins API Client
+from .jenkins_api_client import (
+    JenkinsAPIClient,
+    get_jenkins_api_client,
+    is_jenkins_available,
+)
+
+
+from .acm_ui_mcp_client import (
+    ACMUIMCPClient,
+    ElementInfo,
+    SearchResult,
+    CNVVersionInfo,
+    FleetVirtSelectors,
+    get_acm_ui_mcp_client,
+    is_acm_ui_mcp_available
 )
 from .jenkins_intelligence_service import (
     JenkinsIntelligenceService,
@@ -27,16 +50,7 @@ from .repository_analysis_service import (
     DependencyInfo,
     SelectorHistory
 )
-from .two_agent_intelligence_framework import (
-    TwoAgentIntelligenceFramework,
-    InvestigationIntelligenceAgent,
-    SolutionIntelligenceAgent,
-    ComprehensiveAnalysis,
-    InvestigationResult,
-    SolutionResult
-)
-from .evidence_validation_engine import EvidenceValidationEngine
-from .report_generator import ReportGenerator
+
 from .schema_validation_service import (
     SchemaValidationService,
     ValidationResult,
@@ -44,53 +58,14 @@ from .schema_validation_service import (
     ValidationSeverity
 )
 
-# New services for Approach 3: Hybrid AI + Script
+# Factual data services (no classification)
 from .stack_trace_parser import (
     StackTraceParser,
     StackFrame,
     ParsedStackTrace,
     parse_stack_trace
 )
-from .classification_decision_matrix import (
-    ClassificationDecisionMatrix,
-    Classification,
-    FailureType,
-    ClassificationScores,
-    ClassificationResult,
-    classify_failure
-)
-from .confidence_calculator import (
-    ConfidenceCalculator,
-    EvidenceCompleteness,
-    SourceConsistency,
-    ConfidenceBreakdown,
-    calculate_confidence
-)
-from .cross_reference_validator import (
-    CrossReferenceValidator,
-    ValidationAction,
-    ValidationResult as CrossValidationResult,
-    CrossValidationReport,
-    validate_classification
-)
-from .evidence_package_builder import (
-    EvidencePackageBuilder,
-    EvidencePackage,
-    TestFailureEvidencePackage,
-    FailureEvidence,
-    RepositoryEvidence,
-    EnvironmentEvidence,
-    ConsoleEvidence,
-    SelectorEvidence,
-    build_evidence_package
-)
-from .ast_integration_service import (
-    ASTIntegrationService,
-    ResolvedSelector,
-    ImportTrace,
-    ASTAnalysisResult,
-    create_ast_service
-)
+
 from .timeline_comparison_service import (
     TimelineComparisonService,
     TimelineComparisonResult,
@@ -98,9 +73,30 @@ from .timeline_comparison_service import (
     SelectorTimeline,
     TimeoutPatternResult
 )
+from .acm_console_knowledge import ACMConsoleKnowledge
+
+# Component extraction and Knowledge Graph (optional RHACM integration)
+from .component_extractor import (
+    ComponentExtractor,
+    ExtractedComponent
+)
+from .knowledge_graph_client import (
+    KnowledgeGraphClient,
+    ComponentInfo,
+    DependencyChain,
+    get_knowledge_graph_client,
+    is_knowledge_graph_available
+)
 
 # Shared utilities
 from .shared_utils import (
+    # Configuration classes
+    TimeoutConfig,
+    RepositoryConfig,
+    ThresholdConfig,
+    TIMEOUTS,
+    REPOS,
+    THRESHOLDS,
     # Subprocess utilities
     run_subprocess,
     build_curl_command,
@@ -114,8 +110,12 @@ from .shared_utils import (
     decode_basic_auth,
     get_auth_header,
     # File detection utilities
+    TEST_FILE_PATTERNS,
+    FRAMEWORK_FILE_PATTERNS,
+    SUPPORT_FILE_PATTERNS,
     is_test_file,
     is_framework_file,
+    is_support_file,
     detect_test_framework,
     # Dataclass utilities
     dataclass_to_dict,
@@ -127,10 +127,18 @@ from .shared_utils import (
 )
 
 __all__ = [
-    # Jenkins MCP Client
-    'JenkinsMCPClient',
-    'get_mcp_client',
-    'is_mcp_available',
+    # Jenkins API Client
+    'JenkinsAPIClient',
+    'get_jenkins_api_client',
+    'is_jenkins_available',
+    # ACM UI MCP Client
+    'ACMUIMCPClient',
+    'ElementInfo',
+    'SearchResult',
+    'CNVVersionInfo',
+    'FleetVirtSelectors',
+    'get_acm_ui_mcp_client',
+    'is_acm_ui_mcp_available',
     # Jenkins Service
     'JenkinsIntelligenceService',
     'JenkinsIntelligence',
@@ -147,67 +155,39 @@ __all__ = [
     'TestFileInfo',
     'DependencyInfo',
     'SelectorHistory',
-    # Framework
-    'TwoAgentIntelligenceFramework',
-    'InvestigationIntelligenceAgent',
-    'SolutionIntelligenceAgent',
-    'ComprehensiveAnalysis',
-    'InvestigationResult',
-    'SolutionResult',
-    # Validation & Reporting
-    'EvidenceValidationEngine',
-    'ReportGenerator',
     # Schema Validation
     'SchemaValidationService',
     'ValidationResult',
     'ValidationIssue',
     'ValidationSeverity',
-    # Stack Trace Parser
+    # Stack Trace Parser (factual data)
     'StackTraceParser',
     'StackFrame',
     'ParsedStackTrace',
     'parse_stack_trace',
-    # Classification Decision Matrix
-    'ClassificationDecisionMatrix',
-    'Classification',
-    'FailureType',
-    'ClassificationScores',
-    'ClassificationResult',
-    'classify_failure',
-    # Confidence Calculator
-    'ConfidenceCalculator',
-    'EvidenceCompleteness',
-    'SourceConsistency',
-    'ConfidenceBreakdown',
-    'calculate_confidence',
-    # Cross-Reference Validator
-    'CrossReferenceValidator',
-    'ValidationAction',
-    'CrossValidationResult',
-    'CrossValidationReport',
-    'validate_classification',
-    # Evidence Package Builder
-    'EvidencePackageBuilder',
-    'EvidencePackage',
-    'TestFailureEvidencePackage',
-    'FailureEvidence',
-    'RepositoryEvidence',
-    'EnvironmentEvidence',
-    'ConsoleEvidence',
-    'SelectorEvidence',
-    'build_evidence_package',
-    # AST Integration Service
-    'ASTIntegrationService',
-    'ResolvedSelector',
-    'ImportTrace',
-    'ASTAnalysisResult',
-    'create_ast_service',
-    # Timeline Comparison Service
+    # Timeline Comparison Service (factual data, no classification)
     'TimelineComparisonService',
     'TimelineComparisonResult',
     'ElementTimeline',
     'SelectorTimeline',
     'TimeoutPatternResult',
+    # ACM Console Knowledge
+    'ACMConsoleKnowledge',
+    # Component Extraction and Knowledge Graph
+    'ComponentExtractor',
+    'ExtractedComponent',
+    'KnowledgeGraphClient',
+    'ComponentInfo',
+    'DependencyChain',
+    'get_knowledge_graph_client',
+    'is_knowledge_graph_available',
+    # Configuration Classes
+    'TimeoutConfig',
+    'RepositoryConfig',
+    'ThresholdConfig',
+    'TIMEOUTS',
+    'REPOS',
+    'THRESHOLDS',
     # Shared Utilities
     'run_subprocess',
     'build_curl_command',
@@ -218,8 +198,12 @@ __all__ = [
     'encode_basic_auth',
     'decode_basic_auth',
     'get_auth_header',
+    'TEST_FILE_PATTERNS',
+    'FRAMEWORK_FILE_PATTERNS',
+    'SUPPORT_FILE_PATTERNS',
     'is_test_file',
     'is_framework_file',
+    'is_support_file',
     'detect_test_framework',
     'dataclass_to_dict',
     'ServiceBase',

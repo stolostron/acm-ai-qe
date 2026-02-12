@@ -1,7 +1,47 @@
 {
-  "inherits_from": "/Users/ashafi/Documents/work/.claude/settings.json",
-  "anti_simulation": {
-    "inherited": true,
-    "enforce_workspace_policy": true
+  "permissions": {
+    "allow": [
+      "Read",
+      "Edit",
+      "Write",
+      "WebSearch",
+      "mcp__acm-ui__list_repos",
+      "mcp__acm-ui__get_current_version",
+      "mcp__acm-ui__get_fleet_virt_selectors",
+      "mcp__acm-ui__search_component",
+      "mcp__acm-ui__find_test_ids",
+      "mcp__acm-ui__search_code",
+      "mcp__acm-ui__get_route_component",
+      "mcp__acm-ui__get_component_source",
+      "mcp__acm-ui__detect_cnv_version",
+      "mcp__acm-ui__list_versions",
+      "mcp__acm-ui__set_acm_version",
+      "mcp__acm-ui__set_cnv_version",
+      "mcp__acm-ui__get_acm_selectors",
+      "mcp__acm-ui__search_translations",
+      "mcp__acm-ui__get_routes",
+      "mcp__acm-ui__get_patternfly_selectors",
+      "mcp__acm-ui__get_cluster_virt_info",
+      "mcp__acm-ui__get_component_types",
+      "mcp__acm-ui__get_wizard_steps",
+      "mcp__jira__search_issues",
+      "mcp__jira__get_issue",
+      "mcp__jira__list_teams",
+      "mcp__jira__list_component_aliases",
+      "Bash(python -m src.scripts.gather:*)",
+      "Bash(python -m src.scripts.report:*)",
+      "Bash(python -m pytest:*)",
+      "Bash(pytest:*)",
+      "Bash(python:*)",
+      "Bash(python3:*)",
+      "Bash(git:*)",
+      "Bash(ls:*)",
+      "Bash(gh:*)",
+      "Bash(oc whoami:*)",
+      "Bash(oc get:*)",
+      "Bash(oc login:*)",
+      "Bash(curl:*)"
+    ],
+    "deny": []
   }
 }

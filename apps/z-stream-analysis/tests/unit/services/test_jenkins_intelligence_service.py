@@ -18,9 +18,11 @@ from typing import Dict, Any, Optional
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'src'))
 
 from services.jenkins_intelligence_service import (
-    JenkinsIntelligenceService, 
-    JenkinsMetadata, 
-    JenkinsIntelligence
+    JenkinsIntelligenceService,
+    JenkinsMetadata,
+    JenkinsIntelligence,
+    TestReport,
+    TestCaseFailure
 )
 
 
@@ -91,17 +93,27 @@ class TestJenkinsIntelligenceService(unittest.TestCase):
                     "BRANCH": "release-2.9",
                     "TEST_SUITE": "clc-e2e"
                 },
-                "artifacts": ["test-results.xml", "screenshots.zip"]
+                "artifacts": [
+                    {"fileName": "test-results.xml"},
+                    {"fileName": "screenshots.zip"}
+                ]
             },
             "failed_build": {
-                "result": "FAILURE", 
+                "result": "FAILURE",
                 "timestamp": "2024-08-17T14:03:00Z",
-                "parameters": {
-                    "environment": "staging-cluster",
-                    "git_branch": "origin/release-2.11",
-                    "SUITE": "alc_e2e_tests"
-                },
-                "artifacts": ["console.log", "cypress-results.json"]
+                "actions": [
+                    {
+                        "parameters": [
+                            {"name": "environment", "value": "staging-cluster"},
+                            {"name": "git_branch", "value": "origin/release-2.11"},
+                            {"name": "SUITE", "value": "alc_e2e_tests"}
+                        ]
+                    }
+                ],
+                "artifacts": [
+                    {"fileName": "console.log"},
+                    {"fileName": "cypress-results.json"}
+                ]
             },
             "minimal_build": {
                 "result": "UNKNOWN",
@@ -338,6 +350,26 @@ class TestJenkinsIntelligenceService(unittest.TestCase):
         """
         CRITICAL: Test confidence score calculation accuracy
         """
+        # Create complete test report with factual data (failure_type and stack_trace)
+        complete_test_report = TestReport(
+            total_tests=5,
+            passed_count=0,
+            failed_count=5,
+            skipped_count=0,
+            pass_rate=0.0,
+            failed_tests=[
+                TestCaseFailure(
+                    test_name="test_example",
+                    class_name="TestClass",
+                    status="FAILED",
+                    duration=10.0,
+                    failure_type="element_not_found",
+                    stack_trace="at test.js:10"
+                )
+            ],
+            duration=50.0
+        )
+
         test_cases = [
             {
                 "name": "Complete Information",
@@ -354,6 +386,7 @@ class TestJenkinsIntelligenceService(unittest.TestCase):
                     commit_sha="abc123"
                 ),
                 "failure_analysis": {"total_failures": 5},
+                "test_report": complete_test_report,
                 "expected_min": 0.9
             },
             {
@@ -376,8 +409,9 @@ class TestJenkinsIntelligenceService(unittest.TestCase):
         for case in test_cases:
             with self.subTest(case=case["name"]):
                 score = self.service._calculate_confidence_score(
-                    case["metadata"], 
-                    case["failure_analysis"]
+                    case["metadata"],
+                    case["failure_analysis"],
+                    case.get("test_report")  # Pass test_report if available
                 )
                 
                 self.assertIsInstance(score, float)

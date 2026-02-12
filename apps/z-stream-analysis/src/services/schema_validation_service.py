@@ -51,7 +51,7 @@ class SchemaValidationService:
 
     # Valid classification values
     VALID_CLASSIFICATIONS = [
-        'PRODUCT_BUG', 'AUTOMATION_BUG', 'INFRASTRUCTURE',
+        'PRODUCT_BUG', 'AUTOMATION_BUG', 'INFRASTRUCTURE', 'MIXED',
         'UNKNOWN', 'NO_BUG', 'FLAKY', 'REQUIRES_INVESTIGATION'
     ]
 
@@ -59,7 +59,8 @@ class SchemaValidationService:
 
     VALID_OWNERS = [
         'Product Team', 'Automation Team', 'Platform Team',
-        'Infrastructure Team', 'Platform/Infrastructure Team'
+        'Infrastructure Team', 'Platform/Infrastructure Team',
+        'Multiple Teams', 'Product Team + Automation Team'
     ]
 
     def __init__(self, schema_path: Optional[Path] = None):
@@ -206,14 +207,14 @@ class SchemaValidationService:
                     path=f'{path_prefix}.classification',
                     message="Missing required field 'classification'",
                     severity=ValidationSeverity.ERROR,
-                    suggestion=f"Add classification: PRODUCT_BUG, AUTOMATION_BUG, or INFRASTRUCTURE"
+                    suggestion=f"Add classification: PRODUCT_BUG, AUTOMATION_BUG, INFRASTRUCTURE, or MIXED"
                 ))
             elif test['classification'] not in self.VALID_CLASSIFICATIONS:
                 issues.append(ValidationIssue(
                     path=f'{path_prefix}.classification',
                     message=f"Invalid classification: '{test['classification']}'",
                     severity=ValidationSeverity.ERROR,
-                    suggestion=f"Use: PRODUCT_BUG, AUTOMATION_BUG, or INFRASTRUCTURE"
+                    suggestion=f"Use: PRODUCT_BUG, AUTOMATION_BUG, INFRASTRUCTURE, or MIXED"
                 ))
             else:
                 validated.append(f'{path_prefix}.classification')
@@ -327,7 +328,7 @@ class SchemaValidationService:
                 path='summary.overall_classification',
                 message=f"Invalid overall_classification: '{summary['overall_classification']}'",
                 severity=ValidationSeverity.WARNING,
-                suggestion="Use: PRODUCT_BUG, AUTOMATION_BUG, or INFRASTRUCTURE"
+                suggestion="Use: PRODUCT_BUG, AUTOMATION_BUG, INFRASTRUCTURE, or MIXED"
             ))
         else:
             validated.append('summary.overall_classification')

@@ -26,6 +26,7 @@ Note:
 import argparse
 import json
 import logging
+import shutil
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -75,9 +76,11 @@ class ReportFormatter:
         if not self.raw_data:
             raise FileNotFoundError(f"No data files found in {run_dir}")
 
-        # Validate schema if analysis results exist
-        if validate_schema and self.analysis_results:
-            self._validate_analysis_results()
+        # Validate schema if analysis-results.json file exists — fail hard on errors.
+        # Use 'is not None' (not truthiness) because {} is falsy but means the file
+        # exists with an empty object, which is still a schema error.
+        if validate_schema and self.analysis_results is not None:
+            self._validate_analysis_results(strict=True)
 
     def _load_core_data(self) -> Optional[Dict[str, Any]]:
         """
@@ -126,8 +129,15 @@ class ReportFormatter:
 
         return None
 
-    def _validate_analysis_results(self):
-        """Validate analysis-results.json against schema."""
+    def _validate_analysis_results(self, strict: bool = True):
+        """
+        Validate analysis-results.json against schema.
+
+        Args:
+            strict: If True, raise on validation errors instead of logging warnings.
+                    This prevents silent generation of empty reports when field names
+                    don't match what the report formatter expects.
+        """
         try:
             from src.services.schema_validation_service import SchemaValidationService
 
@@ -135,10 +145,17 @@ class ReportFormatter:
             result = validator.validate(self.analysis_results)
 
             if not result.is_valid:
-                self.logger.warning(
-                    f"Schema validation issues in analysis-results.json:\n"
-                    f"{validator.format_issues(result)}"
+                message = (
+                    f"analysis-results.json has schema errors:\n"
+                    f"{validator.format_issues(result)}\n\n"
+                    f"See schema: src/schemas/analysis_results_schema.json\n"
+                    f"See output example: .claude/agents/z-stream-analysis.md (lines 970-1079)\n\n"
+                    f"Fix analysis-results.json and re-run: python -m src.scripts.report {self.run_dir}"
                 )
+                if strict:
+                    raise ValueError(message)
+                else:
+                    self.logger.warning(message)
             elif result.warnings_count > 0:
                 self.logger.info(
                     f"Schema validation passed with {result.warnings_count} warnings"
@@ -148,6 +165,8 @@ class ReportFormatter:
 
         except ImportError:
             self.logger.debug("Schema validation service not available, skipping validation")
+        except ValueError:
+            raise  # Re-raise validation errors
         except Exception as e:
             self.logger.warning(f"Schema validation error: {e}")
         
@@ -267,12 +286,22 @@ class ReportFormatter:
             lines.extend(["", ""])
         
         # Per-Test Analysis (from AI)
-        if self.analysis_results:
+        if self.analysis_results is not None:
             per_test = self.analysis_results.get('per_test_analysis', [])
             if per_test:
                 lines.extend(self._format_per_test_section(per_test))
+            else:
+                # analysis-results.json exists but per_test_analysis is missing/empty.
+                # This means field names don't match — fail instead of silently dropping all analysis.
+                raise ValueError(
+                    "analysis-results.json exists but 'per_test_analysis' is missing or empty.\n"
+                    "The report would be generated without any test classifications.\n\n"
+                    "Common mistake: using 'failed_tests' instead of 'per_test_analysis'.\n"
+                    "See schema: src/schemas/analysis_results_schema.json\n"
+                    f"Fix analysis-results.json and re-run: python -m src.scripts.report {self.run_dir}"
+                )
         else:
-            # Fallback: use raw data
+            # No analysis-results.json file — show raw data as placeholder
             failed_tests = test_report.get('failed_tests', [])
             if failed_tests:
                 lines.extend(self._format_per_test_from_raw(failed_tests))
@@ -636,18 +665,28 @@ class ReportFormatter:
         return summary_path
 
 
-def format_reports(run_dir: str) -> Dict[str, str]:
+def format_reports(run_dir: str, cleanup_repos: bool = False) -> Dict[str, str]:
     """
     Convenience function to format all reports.
-    
+
     Args:
         run_dir: Path to run directory
-        
+        cleanup_repos: If True, delete repos/ directory after report generation
+
     Returns:
         Dictionary of report type to file path
     """
     formatter = ReportFormatter(Path(run_dir))
-    return formatter.format_all()
+    reports = formatter.format_all()
+
+    # Optional cleanup of repos to save disk space
+    if cleanup_repos:
+        repos_path = Path(run_dir) / 'repos'
+        if repos_path.exists():
+            shutil.rmtree(repos_path)
+            print(f"Cleaned up repos directory to save disk space: {repos_path}")
+
+    return reports
 
 
 def main():
@@ -672,41 +711,62 @@ Output Files:
 Examples:
   python -m src.scripts.report ./runs/job_20260113_153000
   python -m src.scripts.report --run-dir ./runs/job_20260113_153000
+  python -m src.scripts.report ./runs/job_20260113_153000 --keep-repos
         """
     )
-    
+
     parser.add_argument('run_dir', nargs='?', help='Path to run directory')
     parser.add_argument('--run-dir', '-r', dest='run_dir_flag', help='Path to run directory (alternative)')
-    
+    parser.add_argument('--keep-repos', '-k', action='store_true',
+                        help='Keep repos/ directory after report generation (default: cleanup to save disk space)')
+
     args = parser.parse_args()
-    
+
     run_dir = args.run_dir or args.run_dir_flag
-    
+
     if not run_dir:
         parser.print_help()
         print("\nError: Run directory is required", file=sys.stderr)
         sys.exit(1)
-    
+
     run_path = Path(run_dir)
     if not run_path.exists():
         print(f"Error: Directory not found: {run_dir}", file=sys.stderr)
         sys.exit(1)
-    
+
     try:
+        print("\n" + "=" * 60)
+        print("STAGE 3: REPORT GENERATION")
+        print("=" * 60)
+
+        print("\n[1/3] Loading analysis results...", flush=True)
         formatter = ReportFormatter(run_path)
+
+        print("[2/3] Generating reports...", flush=True)
         reports = formatter.format_all()
-        
+
+        print("[3/3] Finalizing...", flush=True)
+
         print("\n" + "=" * 60)
         print("REPORTS GENERATED")
         print("=" * 60)
-        
+
         for report_type, path in reports.items():
             print(f"  {report_type}: {path}")
-        
+
+        # Cleanup repos by default to save disk space (skip if --keep-repos)
+        repos_path = run_path / 'repos'
+        if repos_path.exists():
+            if args.keep_repos:
+                print(f"\nRepos preserved at: {repos_path}")
+            else:
+                shutil.rmtree(repos_path)
+                print(f"\nCleaned up repos/ to save disk space (use --keep-repos to preserve)")
+
         print("\n" + "=" * 60 + "\n")
-        
+
         sys.exit(0)
-        
+
     except FileNotFoundError as e:
         print(f"Error: {str(e)}", file=sys.stderr)
         sys.exit(1)

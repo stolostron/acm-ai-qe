@@ -28,6 +28,8 @@ import subprocess
 import tempfile
 import time
 from dataclasses import dataclass, asdict
+
+from .shared_utils import TIMEOUTS
 from typing import Dict, Any, List, Optional, Tuple
 
 
@@ -111,7 +113,7 @@ class EnvironmentValidationService:
                 ['which', 'oc'],
                 capture_output=True,
                 text=True,
-                timeout=5
+                timeout=TIMEOUTS.CLI_WHICH_CHECK
             )
             if result.returncode == 0:
                 return 'oc'
@@ -124,7 +126,7 @@ class EnvironmentValidationService:
                 ['which', 'kubectl'],
                 capture_output=True,
                 text=True,
-                timeout=5
+                timeout=TIMEOUTS.CLI_WHICH_CHECK
             )
             if result.returncode == 0:
                 return 'kubectl'
@@ -273,7 +275,7 @@ class EnvironmentValidationService:
                 login_cmd,
                 capture_output=True,
                 text=True,
-                timeout=30
+                timeout=TIMEOUTS.CLUSTER_COMMAND
             )
 
             if result.returncode == 0:

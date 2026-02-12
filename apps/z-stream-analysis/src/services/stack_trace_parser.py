@@ -15,8 +15,14 @@ Handles various stack trace formats:
 import logging
 import re
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import List, Optional, Tuple
+
+# Import shared utilities to avoid code duplication
+from .shared_utils import (
+    is_test_file as _is_test_file,
+    is_framework_file as _is_framework_file,
+    is_support_file as _is_support_file,
+)
 
 
 @dataclass
@@ -32,29 +38,11 @@ class StackFrame:
     raw_line: str = ""
 
     def __post_init__(self):
-        """Determine file type after initialization."""
-        path_lower = self.file_path.lower()
-
-        # Test file patterns
-        test_patterns = [
-            '/tests/', '/test/', '/spec/', '/specs/',
-            '.spec.', '.test.', '.cy.', '_spec.', '_test.'
-        ]
-        self.is_test_file = any(p in path_lower for p in test_patterns)
-
-        # Framework file patterns (node_modules, cypress internals)
-        framework_patterns = [
-            'node_modules/', 'cypress_runner', '__cypress',
-            '/runner/', 'bluebird', 'promise'
-        ]
-        self.is_framework_file = any(p in path_lower for p in framework_patterns)
-
-        # Support file patterns (commands, helpers, utilities)
-        support_patterns = [
-            '/support/', '/commands', '/helpers/', '/utils/',
-            '/views/', '/pages/', '/fixtures/'
-        ]
-        self.is_support_file = any(p in path_lower for p in support_patterns)
+        """Determine file type after initialization using shared utilities."""
+        # Use centralized pattern detection from shared_utils
+        self.is_test_file = _is_test_file(self.file_path)
+        self.is_framework_file = _is_framework_file(self.file_path)
+        self.is_support_file = _is_support_file(self.file_path)
 
 
 @dataclass
@@ -106,6 +94,11 @@ class StackTraceParser:
             r'at\s+(?P<file>/[^:]+):(?P<line>\d+)(?::(?P<col>\d+))?'
         ),
 
+        # Simple relative path format: at file.js:123:45 (no function, no leading /)
+        re.compile(
+            r'at\s+(?P<file>[a-zA-Z][a-zA-Z0-9_./\-]*\.[a-zA-Z]+):(?P<line>\d+)(?::(?P<col>\d+))?'
+        ),
+
         # Cypress-specific: From Your Spec Code: at Context.eval (webpack://...)
         re.compile(
             r'From Your Spec Code:.*?(?P<file>[^:]+):(?P<line>\d+)(?::(?P<col>\d+))?'
@@ -117,17 +110,17 @@ class StackTraceParser:
         ),
     ]
 
-    # Pattern to extract error type and message
+    # Pattern to extract error type and message (handles leading whitespace)
     ERROR_PATTERN = re.compile(
-        r'^(?P<type>[A-Za-z]+Error|Error):\s*(?P<message>.+?)(?:\n|$)',
+        r'^\s*(?P<type>[A-Za-z]+Error|Error):\s*(?P<message>.+?)(?:\n|$)',
         re.MULTILINE
     )
 
-    # Alternative error patterns
+    # Alternative error patterns (all handle leading whitespace)
     ALT_ERROR_PATTERNS = [
-        re.compile(r'^(?P<type>AssertionError):\s*(?P<message>.+)', re.MULTILINE),
-        re.compile(r'^(?P<type>CypressError):\s*(?P<message>.+)', re.MULTILINE),
-        re.compile(r'^(?P<type>TimeoutError):\s*(?P<message>.+)', re.MULTILINE),
+        re.compile(r'^\s*(?P<type>AssertionError):\s*(?P<message>.+)', re.MULTILINE),
+        re.compile(r'^\s*(?P<type>CypressError):\s*(?P<message>.+)', re.MULTILINE),
+        re.compile(r'^\s*(?P<type>TimeoutError):\s*(?P<message>.+)', re.MULTILINE),
         re.compile(r'(?P<type>expected)\s+(?P<message>.+?to\s+.+)', re.IGNORECASE),
     ]
 

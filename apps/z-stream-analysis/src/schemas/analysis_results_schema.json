@@ -1,10 +1,10 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://z-stream-analysis/schemas/analysis-results.schema.json",
-  "title": "Z-Stream Analysis Results",
-  "description": "Schema for analysis-results.json produced by AI analysis of Jenkins pipeline failures",
+  "title": "Z-Stream Analysis Results (v2.5)",
+  "description": "Schema for analysis-results.json produced by 5-phase systematic AI analysis of Jenkins pipeline failures",
   "type": "object",
-  "required": ["per_test_analysis", "summary"],
+  "required": ["per_test_analysis", "summary", "investigation_phases_completed"],
   "additionalProperties": true,
   "properties": {
     "analysis_metadata": {
@@ -14,11 +14,125 @@
         "jenkins_url": { "type": "string" },
         "analyzed_at": { "type": "string" },
         "analyzer": { "type": "string", "default": "z-stream-analysis" },
+        "analyzer_version": { "type": "string", "default": "2.5.0" },
+        "investigation_framework": {
+          "type": "string",
+          "enum": ["5-phase-systematic", "legacy"],
+          "default": "5-phase-systematic"
+        },
         "build_result": {
           "type": "string",
           "enum": ["SUCCESS", "UNSTABLE", "FAILURE", "ABORTED", "NOT_BUILT"]
         },
-        "branch": { "type": "string" }
+        "branch": { "type": "string" },
+        "run_directory": { "type": "string" }
+      }
+    },
+    "investigation_phases_completed": {
+      "type": "array",
+      "description": "List of investigation phases completed (A, B, C, D, E)",
+      "items": {
+        "type": "string",
+        "enum": ["A", "B", "C", "D", "E"]
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "mcp_queries_executed": {
+      "type": "array",
+      "description": "MCP tool queries executed during investigation",
+      "items": {
+        "type": "object",
+        "properties": {
+          "tool": {
+            "type": "string",
+            "description": "MCP tool name (e.g., mcp__acm-ui__set_acm_version)"
+          },
+          "query": {
+            "type": "string",
+            "description": "Query or parameters passed to the tool"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "Whether the query succeeded"
+          },
+          "result_summary": {
+            "type": "string",
+            "description": "Brief summary of the result"
+          }
+        },
+        "required": ["tool", "success"]
+      }
+    },
+    "cross_test_correlations": {
+      "type": "object",
+      "description": "Patterns detected across multiple failing tests",
+      "properties": {
+        "shared_selectors": {
+          "type": "object",
+          "description": "Selectors that appear in multiple failing tests",
+          "additionalProperties": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "shared_components": {
+          "type": "object",
+          "description": "Backend components that appear in multiple failures",
+          "additionalProperties": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "shared_feature_areas": {
+          "type": "object",
+          "description": "Feature areas with multiple failures",
+          "additionalProperties": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "pattern_type": {
+          "type": "string",
+          "enum": ["single_selector_failure", "single_component_failure", "feature_wide_issue", "infrastructure_wide", "no_pattern", "mixed_patterns"],
+          "description": "Dominant pattern type detected"
+        },
+        "root_cause_affects_count": {
+          "type": "integer",
+          "description": "Number of tests affected by the root cause"
+        }
+      }
+    },
+    "cascading_failure_analysis": {
+      "type": "object",
+      "description": "Analysis of cascading failures via Knowledge Graph",
+      "properties": {
+        "analysis_performed": {
+          "type": "boolean",
+          "description": "Whether cascading failure analysis was performed"
+        },
+        "root_cause_component": {
+          "type": "string",
+          "description": "The component identified as the root cause"
+        },
+        "root_cause_subsystem": {
+          "type": "string",
+          "description": "The subsystem of the root cause component"
+        },
+        "dependent_components": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Components that depend on the root cause"
+        },
+        "tests_affected_by_cascade": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Tests affected by the cascading failure"
+        },
+        "knowledge_graph_query": {
+          "type": "string",
+          "description": "The Cypher query used to detect cascading"
+        }
       }
     },
     "per_test_analysis": {
@@ -26,7 +140,7 @@
       "description": "Individual analysis for each failed test",
       "items": {
         "type": "object",
-        "required": ["test_name", "classification", "confidence"],
+        "required": ["test_name", "classification", "confidence", "evidence_sources"],
         "properties": {
           "test_name": {
             "type": "string",
@@ -43,7 +157,7 @@
           },
           "classification": {
             "type": "string",
-            "enum": ["PRODUCT_BUG", "AUTOMATION_BUG", "INFRASTRUCTURE", "UNKNOWN", "NO_BUG", "FLAKY"],
+            "enum": ["PRODUCT_BUG", "AUTOMATION_BUG", "INFRASTRUCTURE", "MIXED", "UNKNOWN", "NO_BUG", "FLAKY"],
             "description": "Definitive classification of the failure"
           },
           "confidence": {
@@ -51,6 +165,49 @@
             "minimum": 0,
             "maximum": 1,
             "description": "Confidence score (0.0 to 1.0)"
+          },
+          "evidence_sources": {
+            "type": "array",
+            "description": "Evidence sources supporting the classification (minimum 2 required)",
+            "minItems": 2,
+            "items": {
+              "type": "object",
+              "required": ["source", "finding"],
+              "properties": {
+                "source": {
+                  "type": "string",
+                  "description": "Source of evidence (e.g., console_search, timeline_evidence, console_log, mcp_query)"
+                },
+                "finding": {
+                  "type": "string",
+                  "description": "What was found from this source"
+                },
+                "tier": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 3,
+                  "description": "Evidence tier (1=definitive, 2=strong, 3=supportive)"
+                }
+              }
+            }
+          },
+          "ruled_out_alternatives": {
+            "type": "array",
+            "description": "Alternative classifications that were ruled out",
+            "items": {
+              "type": "object",
+              "required": ["classification", "reason"],
+              "properties": {
+                "classification": {
+                  "type": "string",
+                  "enum": ["PRODUCT_BUG", "AUTOMATION_BUG", "INFRASTRUCTURE", "MIXED", "FLAKY"]
+                },
+                "reason": {
+                  "type": "string",
+                  "description": "Why this classification was ruled out"
+                }
+              }
+            }
           },
           "reasoning": {
             "oneOf": [
@@ -72,7 +229,7 @@
           "evidence": {
             "type": "array",
             "items": { "type": "string" },
-            "description": "Supporting evidence for classification"
+            "description": "Supporting evidence for classification (legacy field)"
           },
           "root_cause": {
             "type": "string",
@@ -103,6 +260,26 @@
             ],
             "description": "Fix recommendation - can be string or structured object"
           },
+          "jira_correlation": {
+            "type": "object",
+            "description": "JIRA correlation results for this test",
+            "properties": {
+              "search_performed": {
+                "type": "boolean",
+                "description": "Whether JIRA search was performed"
+              },
+              "related_issues": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Related JIRA issue keys"
+              },
+              "match_confidence": {
+                "type": "string",
+                "enum": ["high", "medium", "low", "none"],
+                "description": "Confidence of JIRA match"
+              }
+            }
+          },
           "owner": {
             "type": "string",
             "description": "Team responsible for the fix"
@@ -119,6 +296,26 @@
             "type": "array",
             "items": { "type": "string" },
             "description": "Related files for investigation"
+          },
+          "mixed_components": {
+            "type": "array",
+            "description": "For MIXED classification: breakdown of individual issues",
+            "items": {
+              "type": "object",
+              "properties": {
+                "classification": {
+                  "type": "string",
+                  "enum": ["PRODUCT_BUG", "AUTOMATION_BUG", "INFRASTRUCTURE"]
+                },
+                "issue": { "type": "string" },
+                "evidence": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                },
+                "owner": { "type": "string" }
+              },
+              "required": ["classification", "issue"]
+            }
           }
         }
       }
@@ -144,6 +341,7 @@
             "PRODUCT_BUG": { "type": "integer", "minimum": 0 },
             "AUTOMATION_BUG": { "type": "integer", "minimum": 0 },
             "INFRASTRUCTURE": { "type": "integer", "minimum": 0 },
+            "MIXED": { "type": "integer", "minimum": 0 },
             "UNKNOWN": { "type": "integer", "minimum": 0 },
             "NO_BUG": { "type": "integer", "minimum": 0 },
             "FLAKY": { "type": "integer", "minimum": 0 }
@@ -152,7 +350,7 @@
         },
         "overall_classification": {
           "type": "string",
-          "enum": ["PRODUCT_BUG", "AUTOMATION_BUG", "INFRASTRUCTURE", "UNKNOWN", "NO_BUG", "FLAKY", "REQUIRES_INVESTIGATION"]
+          "enum": ["PRODUCT_BUG", "AUTOMATION_BUG", "INFRASTRUCTURE", "MIXED", "UNKNOWN", "NO_BUG", "FLAKY", "REQUIRES_INVESTIGATION"]
         },
         "overall_confidence": {
           "type": "number",
@@ -168,6 +366,40 @@
               "priority": { "type": "string" },
               "reason": { "type": "string" },
               "classification": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "jira_correlation": {
+      "type": "object",
+      "description": "Overall JIRA correlation results",
+      "required": ["search_performed"],
+      "properties": {
+        "search_performed": {
+          "type": "boolean",
+          "description": "Whether JIRA search was performed"
+        },
+        "queries_executed": {
+          "type": "integer",
+          "description": "Number of JIRA queries executed"
+        },
+        "related_issues_found": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "All related JIRA issues found"
+        },
+        "known_issue_matches": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "jira_key": { "type": "string" },
+              "test_name": { "type": "string" },
+              "match_type": {
+                "type": "string",
+                "enum": ["exact", "component", "feature", "keyword"]
+              }
             }
           }
         }
@@ -215,7 +447,8 @@
           "action": { "type": "string" },
           "owner": { "type": "string" },
           "type": { "type": "string" },
-          "details": { "type": "string" }
+          "details": { "type": "string" },
+          "jira_reference": { "type": "string" }
         }
       }
     },

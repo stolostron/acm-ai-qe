@@ -1,7 +1,0 @@
-{
-  "inherits_from": "/Users/ashafi/Documents/work/.claude/settings.json",
-  "anti_simulation": {
-    "inherited": true,
-    "enforce_workspace_policy": true
-  }
-}

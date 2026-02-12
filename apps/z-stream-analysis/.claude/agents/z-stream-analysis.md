@@ -69,6 +69,7 @@ Require **multi-source validation** (2+ evidence sources) for every classificati
 | **INFRASTRUCTURE** | Platform Team | Cluster, network, or environment issues |
 | **MIXED** | Multiple Teams | Multiple root causes requiring different fixes |
 | **FLAKY** | Automation Team | Intermittent failures with no consistent root cause |
+| **NO_BUG** | — | Failure expected given intentional product changes |
 | **UNKNOWN** | Requires Triage | Insufficient evidence to classify definitively |
 
 ---
@@ -150,9 +151,11 @@ cat runs/<dir>/core-data.json | jq '.environment'
 
 | Condition | Classification | Skip Individual Analysis? |
 |-----------|----------------|---------------------------|
-| `cluster_accessible == false` | ALL → INFRASTRUCTURE | Yes (confidence: 0.90) |
+| `cluster_connectivity == false` | ALL → INFRASTRUCTURE | Yes (confidence: 0.90) |
 | `environment_score < 0.3` | ALL → INFRASTRUCTURE | Yes (confidence: 0.85) |
 | Network errors + >50% timeouts | ALL → INFRASTRUCTURE | Yes (confidence: 0.80) |
+
+**When Phase A short-circuits**, set `investigation_phases_completed: ["A"]` and skip Phases B-E. All tests receive the same INFRASTRUCTURE classification with the same confidence score.
 
 ### Step A2: Failure Pattern Detection
 
@@ -294,11 +297,11 @@ mcp__acm-ui__detect_cnv_version()
 | **Verify UI text** | `mcp__acm-ui__search_translations` | `search_translations('Create cluster')` |
 | **Understand wizard flow** | `mcp__acm-ui__get_wizard_steps` | `get_wizard_steps('path/wizard.tsx', 'acm')` |
 | **PatternFly fallback** | `mcp__acm-ui__get_patternfly_selectors` | `get_patternfly_selectors('button')` |
-| **Component in error** | `mcp__user-neo4j-rhacm__read_neo4j_cypher` | Cypher query for deps (if available) |
+| **Component in error** | `mcp__neo4j-rhacm__read_neo4j_cypher` | Cypher query for deps (if available) |
 | **Path B2: Polarion ID found** | `mcp__jira__search_issues` | `search_issues(jql="summary ~ 'RHACM4K-XXXX' OR description ~ 'RHACM4K-XXXX'")` |
 | **Path B2: Feature story found** | `mcp__jira__get_issue` | `get_issue('ACM-22079')` — read story, acceptance criteria, linked PRs |
-| **Phase E: detected_components available** | `mcp__user-neo4j-rhacm__read_neo4j_cypher` | Component info + subsystem query |
-| **Phase E: subsystem identified** | `mcp__user-neo4j-rhacm__read_neo4j_cypher` | Get all components in subsystem |
+| **Phase E: detected_components available** | `mcp__neo4j-rhacm__read_neo4j_cypher` | Component info + subsystem query |
+| **Phase E: subsystem identified** | `mcp__neo4j-rhacm__read_neo4j_cypher` | Get all components in subsystem |
 | **Phase E: subsystem or component known** | `mcp__jira__search_issues` | JQL for feature stories by component/subsystem |
 | **Phase E: feature story found** | `mcp__jira__get_issue` | Read story + acceptance criteria + linked PRs |
 | **Phase E: POR or Epic linked** | `mcp__jira__get_issue` | Read POR for planned behavior |
@@ -345,7 +348,7 @@ RETURN DISTINCT dep.label as dependent, dep.subsystem as subsystem
 ```
 
 ```
-mcp__user-neo4j-rhacm__read_neo4j_cypher({
+mcp__neo4j-rhacm__read_neo4j_cypher({
   "query": "MATCH (dep)-[:DEPENDS_ON]->(c:RHACMComponent) WHERE c.label =~ '(?i).*search-api.*' RETURN dep.label"
 })
 ```
@@ -396,6 +399,8 @@ grep -rn "element-name" runs/<dir>/repos/kubevirt-plugin/src/
 | **Tier 3 (Supportive)** | Similar selectors, timing issues | Low |
 
 **Minimum requirement:** 1 Tier 1 + 1 Tier 2, OR 2 Tier 1, OR 3 Tier 2
+
+**Always attempt to gather Tier 1 evidence before accepting Tier 2/3 combinations.** If Tier 1 evidence is available but not gathered, the classification may be incorrect.
 
 ### Step C2: Cascading Failure Detection
 
@@ -482,7 +487,7 @@ Determine which path to follow based on failure characteristics:
 ```json
 {
   "recommended_fix": {
-    "action": "CHECK AND CONFIRM: Update selector in automation",
+    "action": "Update selector in automation",
     "steps": [
       "Verify selector '#old-btn' was renamed to '#new-btn' in console repo",
       "Update cypress/views/<file>.js line <N>",
@@ -493,7 +498,7 @@ Determine which path to follow based on failure characteristics:
 }
 ```
 
-The "CHECK AND CONFIRM" prefix signals that the selector change should be verified before applying the fix.
+All recommended fixes should be verified before applying.
 
 **Output fields:**
 ```json
@@ -581,12 +586,21 @@ Read: summary, description, acceptance criteria, linked PRs, fix versions.
 | Linked PR introduced breaking change | PRODUCT_BUG |
 | No JIRA context found, 500 errors present | PRODUCT_BUG (fallback) |
 | No JIRA context found, no 500 errors | UNKNOWN (insufficient evidence) |
+| Test passes on retry, no code changes explain failure | FLAKY |
+| Failure expected given intentional product change (story/PR confirms) | NO_BUG |
 
-**Confidence:** 0.70 - 0.95
+**Confidence:** 0.75 - 0.95
 - 0.95 if JIRA story clearly contradicts product behavior + 500 errors
 - 0.85-0.90 if JIRA story provides clear context for classification
 - 0.75-0.80 if JIRA found but context is ambiguous
-- 0.70 if no JIRA found, classifying on error evidence alone
+- 0.80 if no JIRA found but strong error evidence (500 errors, assertion failures with clear backend cause)
+- 0.75 if no JIRA found and error evidence is ambiguous
+- 0.80 for FLAKY if retry data available and test passes on rerun
+- 0.70 for FLAKY if no retry data but failure is intermittent/timing-based
+- 0.85 for NO_BUG if JIRA story or linked PR confirms intentional behavior change
+- 0.75 for NO_BUG if product change likely but no JIRA confirmation
+
+**Without JIRA:** Classify using console log + error patterns directly. 500 errors from backend components → PRODUCT_BUG at 0.80. Do not default to UNKNOWN solely because JIRA is unavailable.
 
 **Output fields:**
 ```json
@@ -594,12 +608,10 @@ Read: summary, description, acceptance criteria, linked PRs, fix versions.
   "classification": "PRODUCT_BUG",
   "classification_path": "B2",
   "confidence": 0.88,
-  "jira_investigation": {
-    "polarion_id": "RHACM4K-3046",
-    "feature_story": "ACM-22079",
-    "feature_description": "ClusterCurator digest-based upgrades",
+  "jira_correlation": {
+    "search_performed": true,
     "related_issues": ["ACM-22079", "ACM-22080"],
-    "investigation_performed": true
+    "match_confidence": "high"
   }
 }
 ```
@@ -627,6 +639,8 @@ After routing through the appropriate path, validate:
 - Cross-test pattern match: +0.05
 - Conflicting evidence unresolved: -0.15
 ```
+
+**Cap final confidence at 1.0 after applying all modifiers.** The schema enforces `maximum: 1`.
 
 **Rule out alternatives (MANDATORY):**
 
@@ -670,7 +684,7 @@ RETURN dep.label as dependency, dep.subsystem as dep_subsystem
 ```
 
 ```
-mcp__user-neo4j-rhacm__read_neo4j_cypher({
+mcp__neo4j-rhacm__read_neo4j_cypher({
   "query": "MATCH (c:RHACMComponent) WHERE c.label =~ '(?i).*search-api.*' RETURN c.label, c.subsystem, c.type"
 })
 ```
@@ -681,10 +695,9 @@ mcp__user-neo4j-rhacm__read_neo4j_cypher({
 
 ### Step E1: Carry Forward Path B2 Findings
 
-If `classification_path == "B2"`, reuse the `jira_investigation` output from Phase D:
-- `polarion_id` — already extracted from test name
-- `feature_story` — already found via JIRA search
-- `feature_description` — already read from story
+If `classification_path == "B2"`, reuse the `jira_correlation` output from Phase D:
+- `related_issues` — already found via JIRA search
+- `match_confidence` — already assessed during classification
 
 Skip to Step E4 (bug search) since feature context was already gathered during Path B2 classification.
 
@@ -930,7 +943,7 @@ ACM and CNV versions are **independent** - set each to match your target environ
 
 ## Knowledge Graph MCP Reference (Optional)
 
-**Tool:** `mcp__user-neo4j-rhacm__read_neo4j_cypher` — may not be connected in all environments. Skip gracefully if unavailable.
+**Tool:** `mcp__neo4j-rhacm__read_neo4j_cypher` — may not be connected in all environments. Skip gracefully if unavailable.
 
 ### Available Queries
 
@@ -991,7 +1004,9 @@ RETURN c.label
     "root_cause_affects_count": 3
   },
   "cascading_failure_analysis": {
+    "analysis_performed": true,
     "root_cause_component": "search-api",
+    "root_cause_subsystem": "Search",
     "dependent_components": ["console", "observability-dashboard"],
     "tests_affected_by_cascade": ["test3", "test4"]
   },

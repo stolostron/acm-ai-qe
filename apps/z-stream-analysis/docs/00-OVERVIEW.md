@@ -116,7 +116,7 @@ runs/<job>_<timestamp>/
 | `failure_type = element_not_found` | A | AUTOMATION_BUG |
 | Timeout waiting for missing selector | A | AUTOMATION_BUG |
 | Timeout (non-selector) | B1 | INFRASTRUCTURE |
-| `environment.cluster_accessible = false` | B1 | INFRASTRUCTURE |
+| `environment.cluster_connectivity = false` | B1 | INFRASTRUCTURE |
 | Multiple unrelated tests timeout | B1 | INFRASTRUCTURE |
 | 500 errors in console log | B2 | PRODUCT_BUG |
 | Feature story contradicts product behavior | B2/E | PRODUCT_BUG |

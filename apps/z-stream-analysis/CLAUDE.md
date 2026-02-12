@@ -17,7 +17,7 @@ python -m src.scripts.report runs/<dir>
 
 ## MANDATORY: Read Schema Before Writing analysis-results.json
 
-Before writing analysis-results.json, ALWAYS read `src/schemas/analysis_results_schema.json` and the output example in `.claude/agents/z-stream-analysis.md` (lines 970-1079). The report generator (`report.py`) will reject the file if required fields are missing or named incorrectly. Key fields that must be exact:
+Before writing analysis-results.json, ALWAYS read `src/schemas/analysis_results_schema.json` and the output example in `.claude/agents/z-stream-analysis.md` (lines 984-1096). The report generator (`report.py`) will reject the file if required fields are missing or named incorrectly. Key fields that must be exact:
 - `per_test_analysis` (NOT `failed_tests`)
 - `summary.by_classification` (NOT `classification_breakdown`)
 - `investigation_phases_completed` (required array)
@@ -34,75 +34,30 @@ See `docs/00-OVERVIEW.md` for detailed diagrams.
 
 ## Run Directory
 
-```
-runs/<job>_<timestamp>/
-├── core-data.json          ← Primary data for AI
-├── run-metadata.json       ← Run metadata (timing, version)
-├── element-inventory.json  ← MCP data (if available)
-├── repos/                  ← Cloned repos (fallback)
-├── analysis-results.json   ← AI output
-├── Detailed-Analysis.md    ← Final report
-├── per-test-breakdown.json ← Structured data for tooling
-└── SUMMARY.txt             ← Brief summary
-```
+See `docs/00-OVERVIEW.md` for full run directory structure. Key files: `core-data.json` (primary AI input), `analysis-results.json` (AI output), `Detailed-Analysis.md` (final report).
 
 ## Classification Guide
 
-### PRODUCT_BUG (Owner: Product Team)
-- 500/502/503 server errors
-- Backend API failures
-- UI feature broken (element exists but doesn't render)
+7 classification categories: PRODUCT_BUG, AUTOMATION_BUG, INFRASTRUCTURE, MIXED, UNKNOWN, FLAKY, NO_BUG.
 
-### AUTOMATION_BUG (Owner: Automation Team)
-- Element not found + selector not in product code
-- Selector changed in product, test not updated
-- Test expects outdated response format
-
-### INFRASTRUCTURE (Owner: Platform Team)
-- Cluster not accessible
-- Network/DNS failures
-- Multiple unrelated tests failing
-
-### MIXED
-- Multiple distinct root causes identified
-- Provide breakdown per cause
-
-### UNKNOWN
-- Insufficient evidence (confidence < 0.50)
-- Needs manual investigation
-
-### FLAKY
-- Test passes on retry without code changes
-- Intermittent timing-dependent failure
-- No product or automation code change explains failure
-
-### NO_BUG
-- Test failure is expected given recent intentional changes
-- Test validates deprecated behavior that was removed by design
+See `docs/00-OVERVIEW.md` for full classification definitions with owners and triggers.
 
 ## Decision Quick Reference (3-Path Routing)
 
-| Evidence | Path | Classification |
-|----------|------|----------------|
-| `console_search.found = false` | A | AUTOMATION_BUG |
-| `element_removed = true` in timeline | A | AUTOMATION_BUG |
-| `failure_type = element_not_found` | A | AUTOMATION_BUG |
-| Timeout waiting for missing selector | A | AUTOMATION_BUG |
-| Timeout (non-selector) | B1 | INFRASTRUCTURE |
-| `environment.cluster_accessible = false` | B1 | INFRASTRUCTURE |
-| Multiple unrelated tests timeout | B1 | INFRASTRUCTURE |
-| 500 errors in console log | B2 | → JIRA investigation → PRODUCT_BUG |
-| Assertion failure / unexpected response | B2 | → JIRA investigation → PRODUCT_BUG or AUTOMATION_BUG |
-| Auth errors / feature broken | B2 | → JIRA investigation → PRODUCT_BUG or AUTOMATION_BUG |
-| Feature story contradicts product behavior | B2/E | PRODUCT_BUG |
-| Acceptance criteria changed, test unchanged | E | AUTOMATION_BUG |
-| Linked PR regression + test failure | E | PRODUCT_BUG |
-| Test passes on retry, no code changes | Any | FLAKY |
-| Failure matches intentional product change | E | NO_BUG |
+See `docs/00-OVERVIEW.md` for the full decision routing table. Summary:
+- **Path A** (selector mismatch) → AUTOMATION_BUG
+- **Path B1** (non-selector timeout) → INFRASTRUCTURE
+- **Path B2** (everything else) → JIRA-informed investigation → PRODUCT_BUG or AUTOMATION_BUG
 
 ## Multi-Evidence Requirement
 
-**Every classification needs 2+ evidence sources:**
+**Every classification needs all 5 criteria:**
+
+1. **Minimum 2 evidence sources** — single-source evidence is insufficient
+2. **Ruled out alternatives** — document why other classifications don't fit
+3. **MCP tools used** — leverage available MCP servers when trigger conditions met
+4. **Cross-test correlation** — check for patterns across all failures
+5. **JIRA correlation** — search for related bugs before finalizing
 
 ```json
 "evidence_sources": [
@@ -126,91 +81,13 @@ Use extracted_context first. Only access repos/ if insufficient.
 
 Three MCP servers provide tools during Stage 2 (AI Analysis). New users: run `bash mcp/setup.sh` from the repo root to configure all servers.
 
-### ACM-UI MCP (20 tools)
+| Server | Tools | Purpose |
+|--------|-------|---------|
+| ACM-UI | 20 | ACM Console + kubevirt-plugin source code search via GitHub |
+| JIRA | 24 | Issue search, creation, management for bug correlation |
+| Knowledge Graph (Neo4j RHACM) | 3 | Component dependency analysis via Cypher queries (optional) |
 
-Provides access to ACM Console and kubevirt-plugin source code via GitHub.
-
-**Version Management:**
-| Tool | Purpose |
-|------|---------|
-| `set_acm_version` | Set ACM Console branch (2.11-2.17, latest=2.16) |
-| `set_cnv_version` | Set kubevirt-plugin branch (4.14-4.22, latest=4.21) |
-| `detect_cnv_version` | Auto-detect CNV version from connected cluster |
-| `list_versions` | Show all supported version mappings |
-| `get_current_version` | Get active version for a repo |
-| `list_repos` | List repos with current settings |
-| `get_cluster_virt_info` | Cluster virtualization details |
-
-**Code Discovery:**
-| Tool | Purpose |
-|------|---------|
-| `search_code` | GitHub code search across repos |
-| `find_test_ids` | Find data-testid/aria-label attributes in a file |
-| `get_component_source` | Get raw source code for a file |
-| `search_component` | Search for component files by name |
-| `get_route_component` | Map URL path to source files |
-
-**Specialized:**
-| Tool | Purpose |
-|------|---------|
-| `get_acm_selectors` | QE-proven selectors from test repos (clc, search, app, grc) |
-| `get_fleet_virt_selectors` | Fleet Virt UI selectors from kubevirt-plugin |
-| `search_translations` | Find exact UI text (button labels, messages) |
-| `get_wizard_steps` | Extract wizard step structure and conditions |
-| `get_component_types` | Extract TypeScript type/interface definitions |
-| `get_routes` | All ACM Console navigation paths |
-| `get_patternfly_selectors` | PatternFly v6 CSS selector reference |
-
-### JIRA MCP (24 tools)
-
-Full JIRA integration for issue search, creation, and management.
-
-**Issue Operations:**
-| Tool | Purpose |
-|------|---------|
-| `search_issues` | JQL search for related bugs |
-| `get_issue` | Get full issue details |
-| `create_issue` | Create new bug/task |
-| `update_issue` | Update issue fields |
-| `transition_issue` | Move issue status (e.g., In Progress, Done) |
-| `add_comment` | Add comment to issue |
-| `log_time` | Log work time on issue |
-| `link_issue` | Create links between issues (Blocks, Relates, etc.) |
-| `search_users` | Search JIRA users by name, email, or username |
-
-**Project & Component:**
-| Tool | Purpose |
-|------|---------|
-| `get_projects` | List accessible projects |
-| `get_project_components` | List components in a project |
-| `get_link_types` | List available link types |
-| `debug_issue_fields` | Show all raw fields for an issue |
-
-**Team Management:**
-| Tool | Purpose |
-|------|---------|
-| `list_teams` | List configured teams |
-| `add_team` / `remove_team` | Manage team configurations |
-| `search_issues_by_team` | Find issues assigned to team members |
-| `assign_team_to_issue` | Add all team members as watchers |
-| `add_watcher_to_issue` / `remove_watcher_from_issue` | Manage watchers |
-| `get_issue_watchers` | List watchers on an issue |
-| `list_component_aliases` / `add_component_alias` / `remove_component_alias` | Manage component aliases |
-
-### Knowledge Graph MCP (Neo4j RHACM)
-
-Component dependency analysis and feature workflow context via Cypher queries. Optional - may not be connected.
-
-Based on [stolostron/knowledge-graph](https://github.com/stolostron/knowledge-graph/tree/main/acm/agentic-docs/dependency-analysis), forked with additional queries and MCP integration docs. 291 components across 7 subsystems, 419 relationships.
-
-**Usage in investigation:**
-- Phase B5: Component dependency analysis, cascading failure detection
-- Phase C2: Cascading failure validation
-- Phase E0: Subsystem context building and feature workflow understanding
-
-| Tool | Purpose |
-|------|---------|
-| `read_neo4j_cypher` | Execute Cypher queries against RHACM component graph |
+See `docs/05-MCP-INTEGRATION.md` for full tool reference, or `.claude/agents/z-stream-analysis.md` for the trigger matrix specifying when to use each tool.
 
 ## Key Principle
 
@@ -249,7 +126,7 @@ z-stream-analysis/
 ├── src/scripts/
 │   ├── gather.py          # Stage 1: Data collection
 │   └── report.py          # Stage 3: Report generation
-├── src/services/          # 12 Python services
+├── src/services/          # 13 Python service modules
 ├── src/schemas/           # JSON Schema validation
 ├── .claude/agents/
 │   └── z-stream-analysis.md  # Agent definition

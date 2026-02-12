@@ -69,7 +69,7 @@ from src.services.environment_validation_service import EnvironmentValidationSer
 from src.services.repository_analysis_service import RepositoryAnalysisService
 from src.services.timeline_comparison_service import TimelineComparisonService
 from src.services.stack_trace_parser import StackTraceParser
-from src.services.shared_utils import mask_sensitive_dict
+from src.services.shared_utils import mask_sensitive_dict, SENSITIVE_PATTERNS
 from src.services.acm_console_knowledge import ACMConsoleKnowledge
 from src.services.acm_ui_mcp_client import (
     ACMUIMCPClient,
@@ -97,12 +97,6 @@ class DataGatherer:
     - Investigation hints added for AI guidance
     - Repos NOT cleaned up (AI needs full access)
     """
-
-    # Sensitive parameter patterns to mask
-    SENSITIVE_PATTERNS = [
-        'password', 'token', 'secret', 'key', 'credential',
-        'api_token', 'apitoken', 'auth', 'bearer'
-    ]
 
     def __init__(self, output_dir: str = './runs', verbose: bool = False):
         """
@@ -164,7 +158,7 @@ class DataGatherer:
 
     def _mask_sensitive_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Mask sensitive data before saving."""
-        return mask_sensitive_dict(data, self.SENSITIVE_PATTERNS)
+        return mask_sensitive_dict(data, SENSITIVE_PATTERNS)
 
     def _print_step(self, step: int, total: int, message: str):
         """Print progress step to user."""
@@ -537,7 +531,7 @@ class DataGatherer:
             self.gathered_data['errors'].append(error_msg)
             self.gathered_data['environment'] = {
                 'error': error_msg,
-                'cluster_accessible': False
+                'cluster_connectivity': False
             }
 
     def _extract_repo_info_from_console(self, run_dir: Path) -> Tuple[Optional[str], Optional[str]]:
@@ -2002,7 +1996,7 @@ class DataGatherer:
                         'name': 'Initial Assessment',
                         'purpose': 'Detect global patterns before individual analysis',
                         'steps': [
-                            'A1. Check environment health (cluster_accessible, environment_score)',
+                            'A1. Check environment health (cluster_connectivity, environment_score)',
                             'A2. Detect failure patterns (mass timeouts, single selector, 500 errors)',
                             'A3. Scan cross-test correlations (shared selectors, components, feature areas)'
                         ]
@@ -2041,7 +2035,7 @@ class DataGatherer:
                         'name': 'Feature Context & JIRA Correlation',
                         'purpose': 'Build feature understanding via Knowledge Graph + JIRA, validate classification, search for existing bugs',
                         'steps': [
-                            'E0. Build subsystem context via Knowledge Graph (mcp__user-neo4j-rhacm__read_neo4j_cypher) - get component info, subsystem peers, dependencies',
+                            'E0. Build subsystem context via Knowledge Graph (mcp__neo4j-rhacm__read_neo4j_cypher) - get component info, subsystem peers, dependencies',
                             'E1. Carry forward Path B2 findings if classification_path == B2 (skip to E4)',
                             'E2. Search for feature stories and PORs via JIRA (mcp__jira__search_issues) - by Polarion ID, component, or keywords',
                             'E3. Read feature stories and acceptance criteria (mcp__jira__get_issue) - understand intended behavior, linked PRs',
@@ -2278,11 +2272,11 @@ class DataGatherer:
 
                 # Knowledge Graph MCP Server (Neo4j RHACM) - Component dependency analysis
                 'knowledge_graph': {
-                    'tool_prefix': 'mcp__user-neo4j-rhacm__',
-                    'tool_name': 'mcp__user-neo4j-rhacm__read_neo4j_cypher',
+                    'tool_prefix': 'mcp__neo4j-rhacm__',
+                    'tool_name': 'mcp__neo4j-rhacm__read_neo4j_cypher',
                     'description': 'Component dependency analysis and feature workflow context via Cypher queries against RHACM architecture graph',
                     'availability_note': 'Optional - may not be connected in all environments. Skip gracefully if tool call fails.',
-                    'call_format': "mcp__user-neo4j-rhacm__read_neo4j_cypher(query=\"MATCH (c:RHACMComponent) WHERE c.label =~ '(?i).*search-api.*' RETURN c.label, c.subsystem\")",
+                    'call_format': "mcp__neo4j-rhacm__read_neo4j_cypher(query=\"MATCH (c:RHACMComponent) WHERE c.label =~ '(?i).*search-api.*' RETURN c.label, c.subsystem\")",
                     'use_cases': {
                         'phase_B5': 'Component dependency analysis - find what depends on failing component',
                         'phase_C2': 'Cascading failure detection - find common dependency across multiple failing components',
@@ -2347,7 +2341,7 @@ class DataGatherer:
                         'condition': 'After confirming selector mismatch - get current correct selectors'
                     },
                     'component_in_error': {
-                        'tool': "mcp__user-neo4j-rhacm__read_neo4j_cypher(query='...')",
+                        'tool': "mcp__neo4j-rhacm__read_neo4j_cypher(query='...')",
                         'condition': 'detected_components present - query dependencies and subsystem'
                     },
                     'path_b2_investigation': {

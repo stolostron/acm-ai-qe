@@ -72,7 +72,7 @@ MCP tools are accessed differently depending on the stage:
 │  Tool call format:                                                   │
 │    mcp__acm-ui__search_code(query='create-btn', repo='acm')         │
 │    mcp__jira__search_issues(jql='project = ACM AND ...')             │
-│    mcp__user-neo4j-rhacm__read_neo4j_cypher(query='MATCH ...')      │
+│    mcp__neo4j-rhacm__read_neo4j_cypher(query='MATCH ...')      │
 │                                                                      │
 │  Purpose: Active investigation during 5-phase analysis               │
 └──────────────────────────────────────────────────────────────────────┘
@@ -480,7 +480,7 @@ Match: Test queries search-api and gets 500. Known issue ACM-12345.
 
 A Neo4j graph database containing the dependency relationships between all RHACM (Red Hat Advanced Cluster Management) components. The agent queries it using Cypher (Neo4j's query language) to understand which components depend on which, enabling cascading failure detection.
 
-**Tool:** `mcp__user-neo4j-rhacm__read_neo4j_cypher`
+**Tool:** `mcp__neo4j-rhacm__read_neo4j_cypher`
 
 **Status:** Optional — may not be connected in all environments. The agent degrades gracefully when unavailable.
 
@@ -516,7 +516,7 @@ The Knowledge Graph is queried in three phases:
 Phase B5: Backend Component Analysis
 │  "Test error mentions 'search-api'. What depends on search-api?"
 │
-│  mcp__user-neo4j-rhacm__read_neo4j_cypher(
+│  mcp__neo4j-rhacm__read_neo4j_cypher(
 │    query="MATCH (dep)-[:DEPENDS_ON]->(c:RHACMComponent)
 │           WHERE c.label =~ '(?i).*search-api.*'
 │           RETURN DISTINCT dep.label as dependent"
@@ -527,7 +527,7 @@ Phase B5: Backend Component Analysis
 Phase C2: Cascading Failure Detection
 │  "3 tests fail in different areas. Do they share a dependency?"
 │
-│  mcp__user-neo4j-rhacm__read_neo4j_cypher(
+│  mcp__neo4j-rhacm__read_neo4j_cypher(
 │    query="MATCH (c:RHACMComponent)-[:DEPENDS_ON]->(common:RHACMComponent)
 │           WHERE c.label IN ['search-api', 'console', 'observability-dashboard']
 │           WITH common, count(DISTINCT c) as cnt
@@ -540,14 +540,14 @@ Phase C2: Cascading Failure Detection
 Phase E0: Subsystem Context Building
 │  "search-api failed. What subsystem is it in? What else is in that subsystem?"
 │
-│  mcp__user-neo4j-rhacm__read_neo4j_cypher(
+│  mcp__neo4j-rhacm__read_neo4j_cypher(
 │    query="MATCH (c:RHACMComponent)
 │           WHERE c.label =~ '(?i).*search-api.*'
 │           RETURN c.label, c.subsystem, c.type"
 │  )
 │  → Result: subsystem='Search'
 │
-│  mcp__user-neo4j-rhacm__read_neo4j_cypher(
+│  mcp__neo4j-rhacm__read_neo4j_cypher(
 │    query="MATCH (c:RHACMComponent)
 │           WHERE c.subsystem = 'Search'
 │           RETURN c.label, c.type"
@@ -756,7 +756,7 @@ detected_components: [{name: "search-api", subsystem: "Search"}]
 ─── Phase B5: Knowledge Graph MCP ───────────────────────────
 
   3. What depends on search-api?
-     mcp__user-neo4j-rhacm__read_neo4j_cypher(
+     mcp__neo4j-rhacm__read_neo4j_cypher(
        query="MATCH (dep)-[:DEPENDS_ON]->(c:RHACMComponent)
               WHERE c.label =~ '(?i).*search-api.*'
               RETURN dep.label"
@@ -764,7 +764,7 @@ detected_components: [{name: "search-api", subsystem: "Search"}]
      → console, observability-dashboard depend on search-api
 
   4. What does search-api depend on?
-     mcp__user-neo4j-rhacm__read_neo4j_cypher(
+     mcp__neo4j-rhacm__read_neo4j_cypher(
        query="MATCH (c:RHACMComponent)-[:DEPENDS_ON]->(dep)
               WHERE c.label =~ '(?i).*search-api.*'
               RETURN dep.label"
@@ -822,8 +822,9 @@ detected_components: [{name: "search-api", subsystem: "Search"}]
       {"source": "knowledge_graph", "finding": "search-api dependency chain verified", "tier": 2}
     ],
     "jira_correlation": {
+      "search_performed": true,
       "related_issues": ["ACM-12345"],
-      "feature_story": "ACM-22079"
+      "match_confidence": "high"
     },
     "feature_context": {
       "subsystem": "Search",

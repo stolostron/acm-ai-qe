@@ -161,7 +161,7 @@ Provides access to ACM Console and kubevirt-plugin source code via GitHub.
 | `get_routes` | All ACM Console navigation paths |
 | `get_patternfly_selectors` | PatternFly v6 CSS selector reference |
 
-### JIRA MCP (23 tools)
+### JIRA MCP (24 tools)
 
 Full JIRA integration for issue search, creation, and management.
 
@@ -176,6 +176,7 @@ Full JIRA integration for issue search, creation, and management.
 | `add_comment` | Add comment to issue |
 | `log_time` | Log work time on issue |
 | `link_issue` | Create links between issues (Blocks, Relates, etc.) |
+| `search_users` | Search JIRA users by name, email, or username |
 
 **Project & Component:**
 | Tool | Purpose |

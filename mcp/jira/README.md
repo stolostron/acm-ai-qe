@@ -95,7 +95,7 @@ The `cwd` must be the absolute path to the directory where `jira-mcp-server` was
 
 For Cursor IDE, add to `~/.cursor/mcp.json` with the same format plus `"timeout": 60`.
 
-## Available Tools (23)
+## Available Tools (24)
 
 ### Issue Operations
 
@@ -109,6 +109,7 @@ For Cursor IDE, add to `~/.cursor/mcp.json` with the same format plus `"timeout"
 | `add_comment` | Add comment to issue |
 | `log_time` | Log work time on issue |
 | `link_issue` | Create links between issues (Blocks, Relates, etc.) |
+| `search_users` | Search JIRA users by name, email, or username |
 
 ### Project & Component
 

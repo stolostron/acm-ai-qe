@@ -2,6 +2,8 @@
 # Working Directory: apps/claude-test-generator/
 # Isolation Level: COMPLETE
 
+> **Status: NOT FUNCTIONAL** — This application is under development and not ready for use.
+
 ## Application Isolation
 
 - **Scope**: This configuration ONLY applies in `apps/claude-test-generator/`
@@ -10,9 +12,9 @@
 
 ---
 
-# AI Test Generator - Production Framework
+# AI Test Generator
 
-> **Evidence-Based Test Plan Generation for any JIRA ticket across any technology stack**
+> Test plan generation from JIRA tickets. Under development.
 
 ## Quick Start
 

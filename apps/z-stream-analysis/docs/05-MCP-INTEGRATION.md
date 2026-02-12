@@ -21,7 +21,7 @@ Z-Stream Analysis uses three MCP servers:
 │      ┌─────────┐          ┌─────────┐          ┌─────────┐          │
 │      │ ACM-UI  │          │  JIRA   │          │Knowledge│          │
 │      │   MCP   │          │   MCP   │          │  Graph  │          │
-│      │20 tools │          │23 tools │          │  MCP    │          │
+│      │20 tools │          │24 tools │          │  MCP    │          │
 │      └────┬────┘          └────┬────┘          └────┬────┘          │
 └───────────┼────────────────────┼────────────────────┼────────────────┘
             │                    │                    │
@@ -294,7 +294,7 @@ Product text: 'Create cluster'                ← lowercase c
 
 ---
 
-## MCP Server 2: JIRA (23 Tools)
+## MCP Server 2: JIRA (24 Tools)
 
 ### What It Is
 
@@ -454,6 +454,7 @@ Match: Test queries search-api and gets 500. Known issue ACM-12345.
 |----------|------|---------|---------------|
 | **Search** | `search_issues` | JQL search for bugs, stories, epics | D (B2), E2, E4 |
 | | `search_issues_by_team` | Find issues by team members | E4 |
+| | `search_users` | Search JIRA users by name, email, or username | As needed |
 | **Read** | `get_issue` | Full issue details (story, acceptance criteria, PRs) | D (B2), E3, E5 |
 | | `debug_issue_fields` | Raw field dump for debugging | As needed |
 | **Create** | `create_issue` | File new bug with evidence | E6 |

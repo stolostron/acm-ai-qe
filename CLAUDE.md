@@ -21,7 +21,15 @@ Test plan generation from JIRA tickets. Not currently functional — do not use.
 
 ## Running Z-Stream Analysis
 
-Z-stream can be run from this root directory. All commands must execute from the app directory:
+Open Claude Code in this repository (root or `apps/z-stream-analysis/`) and ask:
+
+```
+Analyze this run: <JENKINS_URL>
+```
+
+Claude Code handles the full pipeline automatically — gather, analyze, report.
+
+### Manual Pipeline (Advanced)
 
 ```bash
 cd apps/z-stream-analysis/
@@ -32,14 +40,12 @@ python -m src.scripts.gather "<JENKINS_URL>" --skip-env    # Skip cluster valida
 python -m src.scripts.gather "<JENKINS_URL>" --skip-repo   # Skip repo cloning
 
 # Stage 2: AI Analysis
-# Use the z-stream-analysis agent, or manually read core-data.json and write analysis-results.json
+# Read core-data.json, classify each failure using MCP tools
 # MUST read src/schemas/analysis_results_schema.json before writing analysis-results.json
 
 # Stage 3: Generate reports
 python -m src.scripts.report runs/<run_dir>
 ```
-
-The `z-stream-analysis` agent (`.claude/agents/z-stream-analysis.md`) handles the full pipeline when given a Jenkins URL.
 
 ## MCP Servers (`mcp/`)
 
@@ -48,7 +54,7 @@ Run `bash mcp/setup.sh` from repo root to configure all servers.
 | Server | Tools | Purpose |
 |--------|-------|---------|
 | ACM UI (`mcp/acm-ui/`) | 20 | ACM Console + kubevirt-plugin source code search via GitHub |
-| JIRA (`mcp/jira/`) | 23 | Issue search, creation, management for bug correlation |
+| JIRA (`mcp/jira/`) | 24 | Issue search, creation, management for bug correlation |
 | Neo4j RHACM (`mcp/neo4j-rhacm/`) | 3 | Component dependency analysis via Cypher queries (optional) |
 | Polarion (`mcp/polarion/`) | 17 | Polarion test case access (optional) |
 

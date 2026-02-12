@@ -107,7 +107,7 @@ Can auto-detect CNV version from a connected OpenShift cluster.
 ### jira (`mcp/jira/`)
 
 External repo ([stolostron/jira-mcp-server](https://github.com/stolostron/jira-mcp-server)),
-cloned by setup.sh into `mcp/jira/jira-mcp-server/` (gitignored). 23 tools for JIRA
+cloned by setup.sh into `mcp/jira/jira-mcp-server/` (gitignored). 24 tools for JIRA
 issue search, creation, team management, and component aliases.
 
 **Detailed docs:** [mcp/jira/README.md](jira/README.md)
@@ -145,7 +145,7 @@ mcp/
 │   ├── pyproject.toml
 │   ├── acm_ui_mcp_server/       ← Python package (4 modules, ~1,670 lines)
 │   └── docs/                     ← Full reference documentation
-├── jira/                         ← JIRA integration (23 tools)
+├── jira/                         ← JIRA integration (24 tools)
 │   ├── README.md
 │   └── jira-mcp-server/         ← Cloned by setup.sh (gitignored)
 ├── neo4j-rhacm/                  ← RHACM dependency graph (3 tools)

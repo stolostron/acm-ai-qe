@@ -18,7 +18,7 @@ core-data.json ──► AI Agent ──► analysis-results.json
           ┌───────────┼───────────┐
           ▼           ▼           ▼
       ACM-UI MCP   JIRA MCP   Knowledge
-      (20 tools)   (23 tools)  Graph MCP
+      (20 tools)   (24 tools)  Graph MCP
 ```
 
 ---

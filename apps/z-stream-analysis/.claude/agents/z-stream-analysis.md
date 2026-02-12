@@ -890,7 +890,7 @@ ACM and CNV versions are **independent** - set each to match your target environ
 
 ---
 
-## JIRA MCP Server Reference (23 Tools)
+## JIRA MCP Server Reference (24 Tools)
 
 ### Issue Operations
 
@@ -905,6 +905,7 @@ ACM and CNV versions are **independent** - set each to match your target environ
 | `add_comment` | Comment on issue | `add_comment(issue_key="ACM-12345", comment="...")` |
 | `log_time` | Log work hours | `log_time(issue_key="ACM-12345", time_spent="1h")` |
 | `link_issue` | Link two issues | `link_issue(link_type="Relates", ...)` |
+| `search_users` | Search users by name/email | `search_users(query="jsmith")` |
 
 ### Project & Metadata
 

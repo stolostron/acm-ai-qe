@@ -158,7 +158,7 @@ Three MCP servers provide tools during Stage 2 (AI Analysis):
 
 ```
 ┌─────────────────────┐  ┌─────────────────────┐  ┌─────────────────────┐
-│   ACM-UI MCP (20)   │  │  Knowledge Graph    │  │   JIRA MCP (23)     │
+│   ACM-UI MCP (20)   │  │  Knowledge Graph    │  │   JIRA MCP (24)     │
 │  ─────────────────  │  │  ─────────────────  │  │  ─────────────────  │
 │  Code search        │  │  Component deps     │  │  Search issues      │
 │  Find selectors     │  │  Cascading failure  │  │  Get/create/update  │

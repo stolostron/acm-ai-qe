@@ -1,6 +1,6 @@
 # Z-Stream Pipeline Analysis (v2.5)
 
-> **Enterprise Jenkins Pipeline Failure Analysis with 5-Phase Investigation Framework and 286 Unit Tests**
+> **Enterprise Jenkins Pipeline Failure Analysis with 5-Phase Investigation Framework and 279 Unit Tests**
 
 ## What This Does
 
@@ -99,7 +99,7 @@ runs/<job>_<timestamp>/
 └── SUMMARY.txt                 ← Report (created by report.py)
 ```
 
-## Services Layer (12 Python Services)
+## Services Layer (13 Python Service Modules)
 
 | Service | Purpose |
 |---------|---------|
@@ -118,7 +118,7 @@ runs/<job>_<timestamp>/
 
 ## Test Coverage
 
-- **286 unit tests** across 9 test files
+- **279 unit tests** across 8 test files
 - **100% pass rate** with comprehensive edge case coverage
 
 ```bash

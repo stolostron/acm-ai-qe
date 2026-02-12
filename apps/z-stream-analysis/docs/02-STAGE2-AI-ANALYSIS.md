@@ -48,7 +48,7 @@ The agent reads `core-data.json` which contains:
 core-data.json
       │
       ├── A1: Environment health check
-      │   environment.cluster_accessible == false?  → ALL TESTS = INFRASTRUCTURE
+      │   environment.cluster_connectivity == false?  → ALL TESTS = INFRASTRUCTURE
       │   environment.environment_score < 0.3?      → ALL TESTS = INFRASTRUCTURE
       │
       ├── A2: Failure pattern detection
@@ -61,7 +61,7 @@ core-data.json
           Same component in multiple errors? → cascading failure candidate
 ```
 
-**Example:** If `environment.environment_score = 0.15` and `cluster_accessible = false`, Phase A short-circuits: all tests classified as INFRASTRUCTURE with confidence 0.95.
+**Example:** If `environment.environment_score = 0.15` and `cluster_connectivity = false`, Phase A short-circuits: all tests classified as INFRASTRUCTURE with confidence 0.95.
 
 ---
 
@@ -180,7 +180,7 @@ C3: Pattern correlation with Phase A
 | Evidence | Classification | Confidence |
 |----------|---------------|------------|
 | >50% tests timeout + env unhealthy | INFRASTRUCTURE | 0.80 |
-| `cluster_accessible=false` | INFRASTRUCTURE | 0.95 |
+| `cluster_connectivity=false` | INFRASTRUCTURE | 0.95 |
 | Multiple unrelated tests timeout | INFRASTRUCTURE | 0.75 |
 
 ### Path B2 — Everything Else (JIRA Investigation)
@@ -277,11 +277,13 @@ E6: Create/link issues (optional)
     "analyzed_at": "2026-02-05T12:30:00Z",
     "analyzer_version": "2.5.0"
   },
+  "investigation_phases_completed": ["A", "B", "C", "D", "E"],
   "per_test_analysis": [
     {
       "test_name": "should create cluster successfully",
       "test_file": "cypress/e2e/cluster/create.cy.ts",
       "classification": "AUTOMATION_BUG",
+      "classification_path": "A",
       "confidence": 0.92,
       "error": {
         "message": "Timed out: Expected to find '#create-btn'",
@@ -320,7 +322,7 @@ E6: Create/link issues (optional)
       "jira_correlation": {
         "search_performed": true,
         "related_issues": [],
-        "feature_story": null
+        "match_confidence": "none"
       }
     }
   ],
@@ -335,7 +337,6 @@ E6: Create/link issues (optional)
       "AUTOMATION_BUG": 2,
       "PRODUCT_BUG": 1
     },
-    "investigation_phases_completed": ["A", "B", "C", "D", "E"],
     "priority_order": [
       {
         "test": "should create cluster successfully",

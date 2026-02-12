@@ -264,7 +264,6 @@ Stage 2 ───── SchemaValidationService ─────── JSON Schem
 | `find_common_dependency(components)` | Find shared dependency root |
 | `get_subsystem_components(subsystem)` | All components in a subsystem |
 | `analyze_failure_impact(components)` | Cascading failure analysis |
-| `build_query_for_phase2(components)` | Generate Cypher queries for Stage 2 |
 
 ---
 

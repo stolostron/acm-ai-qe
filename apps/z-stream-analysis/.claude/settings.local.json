@@ -77,7 +77,8 @@
       "mcp__jira__get_issue_watchers",
       "mcp__jira__list_component_aliases",
       "mcp__jira__add_component_alias",
-      "mcp__jira__remove_component_alias"
+      "mcp__jira__remove_component_alias",
+      "Bash(grep:*)"
     ],
     "deny": []
   }

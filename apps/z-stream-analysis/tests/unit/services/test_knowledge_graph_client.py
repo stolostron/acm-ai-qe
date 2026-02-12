@@ -23,7 +23,7 @@ class TestKnowledgeGraphClientInitialization:
         """Test that client initializes without errors."""
         client = KnowledgeGraphClient()
         assert client is not None
-        assert client._mcp_tool_name == 'mcp__user-neo4j-rhacm__read_neo4j_cypher'
+        assert client._mcp_tool_name == 'mcp__neo4j-rhacm__read_neo4j_cypher'
 
     def test_availability_check_caching(self):
         """Test that availability is cached after first check."""
@@ -171,45 +171,6 @@ class TestFailureImpactAnalysis:
         assert len(result['recommendations']) > 0
 
 
-class TestQueryBuilding:
-    """Test Cypher query building for Phase 2."""
-
-    def setup_method(self):
-        """Set up test fixtures."""
-        self.client = KnowledgeGraphClient()
-
-    def test_build_query_for_phase2_single_component(self):
-        """Test building queries for a single component."""
-        queries = self.client.build_query_for_phase2(['search-api'])
-
-        assert 'dependents_search-api' in queries
-        assert 'info_search-api' in queries
-        assert 'DEPENDS_ON' in queries['dependents_search-api']
-        assert 'search-api' in queries['dependents_search-api']
-
-    def test_build_query_for_phase2_multiple_components(self):
-        """Test building queries for multiple components."""
-        queries = self.client.build_query_for_phase2(['search-api', 'console'])
-
-        assert 'dependents_search-api' in queries
-        assert 'dependents_console' in queries
-        assert 'common_dependency' in queries
-
-    def test_build_query_for_phase2_limits_to_five(self):
-        """Test that query building limits to 5 components."""
-        components = [f'comp-{i}' for i in range(10)]
-        queries = self.client.build_query_for_phase2(components)
-
-        # Should have queries for first 5 components only
-        dependents_keys = [k for k in queries.keys() if k.startswith('dependents_')]
-        assert len(dependents_keys) <= 5
-
-    def test_build_query_for_phase2_empty_list(self):
-        """Test building queries with empty list."""
-        queries = self.client.build_query_for_phase2([])
-        assert queries == {}
-
-
 class TestCacheManagement:
     """Test cache management functionality."""
 
@@ -276,72 +237,24 @@ class TestDataClasses:
         assert 'Console' in chain.subsystems_affected
 
 
-class TestCypherQueryGeneration:
-    """Test that generated Cypher queries are syntactically valid."""
-
-    def setup_method(self):
-        """Set up test fixtures."""
-        self.client = KnowledgeGraphClient()
-
-    def test_dependents_query_syntax(self):
-        """Test that dependents query has valid Cypher syntax."""
-        queries = self.client.build_query_for_phase2(['search-api'])
-        query = queries['dependents_search-api']
-
-        # Check for required Cypher elements
-        assert 'MATCH' in query
-        assert 'RETURN' in query
-        assert ':RHACMComponent' in query
-        assert ':DEPENDS_ON' in query
-        assert 'WHERE' in query
-
-    def test_info_query_syntax(self):
-        """Test that info query has valid Cypher syntax."""
-        queries = self.client.build_query_for_phase2(['search-api'])
-        query = queries['info_search-api']
-
-        assert 'MATCH' in query
-        assert 'RETURN' in query
-        assert 'LIMIT 1' in query
-
-    def test_common_dependency_query_syntax(self):
-        """Test that common dependency query has valid Cypher syntax."""
-        queries = self.client.build_query_for_phase2(['comp1', 'comp2'])
-        query = queries['common_dependency']
-
-        assert 'MATCH' in query
-        assert 'WITH' in query
-        assert 'count' in query.lower()
-        assert 'ORDER BY' in query
-
-
 class TestIntegrationWithComponentExtractor:
     """Test integration patterns with ComponentExtractor."""
 
-    def test_workflow_component_to_graph_query(self):
-        """Test the typical workflow from extraction to query building."""
+    def test_workflow_component_extraction(self):
+        """Test component extraction from error messages."""
         from src.services.component_extractor import ComponentExtractor
 
-        # Step 1: Extract components from error
         extractor = ComponentExtractor()
         error = "search-api returned 500, grc-policy-propagator timed out"
         components = extractor.extract_from_error(error)
 
         assert len(components) == 2
 
-        # Step 2: Build queries for Knowledge Graph
-        client = KnowledgeGraphClient()
-        queries = client.build_query_for_phase2(components)
-
-        # Should have queries for both components
-        assert len(queries) >= 4  # 2 components x 2 queries each + common_dependency
-
     def test_workflow_with_subsystem_context(self):
-        """Test adding subsystem context to query results."""
+        """Test adding subsystem context to extracted components."""
         from src.services.component_extractor import ComponentExtractor
 
         extractor = ComponentExtractor()
-        client = KnowledgeGraphClient()
 
         # Extract component
         components = extractor.extract_from_error("search-api error")
@@ -350,7 +263,3 @@ class TestIntegrationWithComponentExtractor:
         for comp in components:
             subsystem = extractor.get_subsystem(comp)
             assert subsystem == 'Search'
-
-        # Build queries
-        queries = client.build_query_for_phase2(components)
-        assert 'dependents_search-api' in queries

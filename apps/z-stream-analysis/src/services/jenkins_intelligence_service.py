@@ -68,10 +68,6 @@ class JenkinsTestCaseFailure:
     error_message: Optional[str] = None
     stack_trace: Optional[str] = None  # Full stack trace (no truncation)
     failure_type: Optional[str] = None  # timeout, element_not_found, network, assertion, etc.
-    classification: Optional[str] = None  # PRODUCT_BUG, AUTOMATION_BUG, INFRASTRUCTURE
-    classification_confidence: float = 0.0
-    classification_reasoning: Optional[str] = None
-    recommended_fix: Optional[str] = None
     # Parsed stack trace data
     parsed_stack_trace: Optional[Dict[str, Any]] = None
     root_cause_file: Optional[str] = None
@@ -79,7 +75,7 @@ class JenkinsTestCaseFailure:
     failing_selector: Optional[str] = None
 
 
-# Legacy alias for backward compatibility
+# Short alias used throughout codebase (avoids pytest collection warnings on 'Test' prefix)
 TestCaseFailure = JenkinsTestCaseFailure
 
 
@@ -100,7 +96,7 @@ class JenkinsTestReport:
     duration: float
 
 
-# Legacy alias for backward compatibility
+# Short alias used throughout codebase (avoids pytest collection warnings on 'Test' prefix)
 TestReport = JenkinsTestReport
 
 

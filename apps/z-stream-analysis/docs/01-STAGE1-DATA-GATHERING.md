@@ -535,7 +535,7 @@ All collected data is written to the run directory.
     ]
   },
   "environment": {
-    "cluster_accessible": true,
+    "cluster_connectivity": true,
     "environment_score": 0.95
   },
   "console_log": {

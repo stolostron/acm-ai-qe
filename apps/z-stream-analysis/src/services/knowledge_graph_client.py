@@ -9,7 +9,7 @@ When Neo4j is available, it enriches AI analysis with dependency insights.
 
 Prerequisites:
     - Neo4j database with RHACM data loaded
-    - MCP server registered: mcp__user-neo4j-rhacm__read_neo4j_cypher
+    - MCP server registered: mcp__neo4j-rhacm__read_neo4j_cypher
 
 Usage:
     client = KnowledgeGraphClient()
@@ -81,7 +81,7 @@ class KnowledgeGraphClient:
         """
         self.logger = logger or logging.getLogger(__name__)
         self._available: Optional[bool] = None
-        self._mcp_tool_name = 'mcp__user-neo4j-rhacm__read_neo4j_cypher'
+        self._mcp_tool_name = 'mcp__neo4j-rhacm__read_neo4j_cypher'
 
     @property
     def available(self) -> bool:
@@ -427,58 +427,6 @@ class KnowledgeGraphClient:
             )
 
         return analysis
-
-    def build_query_for_phase2(
-        self,
-        components: List[str]
-    ) -> Dict[str, str]:
-        """
-        Build Cypher queries for Phase 2 AI to execute.
-
-        Since Phase 1 cannot execute MCP queries directly, this method
-        prepares queries that the Claude Code agent can execute in Phase 2.
-
-        Args:
-            components: List of component names extracted from failures
-
-        Returns:
-            Dict mapping query name to Cypher query string
-        """
-        queries = {}
-
-        for component in components[:5]:  # Limit to 5 components
-            # Dependents query
-            queries[f'dependents_{component}'] = f"""
-            MATCH (dep:RHACMComponent)-[:DEPENDS_ON]->(c:RHACMComponent)
-            WHERE c.label =~ '(?i).*{component}.*'
-            RETURN DISTINCT dep.label as dependent, dep.subsystem as subsystem
-            ORDER BY dep.label
-            """
-
-            # Component info query
-            queries[f'info_{component}'] = f"""
-            MATCH (c:RHACMComponent)
-            WHERE c.label =~ '(?i).*{component}.*'
-            RETURN c.label as name, c.subsystem as subsystem, c.type as type
-            LIMIT 1
-            """
-
-        # Common dependency query if multiple components
-        if len(components) >= 2:
-            component_patterns = '|'.join(
-                f'(?i).*{c}.*' for c in components[:5]
-            )
-            queries['common_dependency'] = f"""
-            MATCH (c:RHACMComponent)-[:DEPENDS_ON]->(common:RHACMComponent)
-            WHERE c.label =~ '{component_patterns}'
-            WITH common, count(DISTINCT c) as component_count
-            WHERE component_count >= 2
-            RETURN common.label as common_dependency, component_count
-            ORDER BY component_count DESC
-            LIMIT 5
-            """
-
-        return queries
 
     def clear_cache(self):
         """Clear all cached data."""

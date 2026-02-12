@@ -585,7 +585,7 @@ class ServiceBase:
 
 SENSITIVE_PATTERNS = [
     'password', 'token', 'secret', 'key', 'credential',
-    'api_key', 'apikey', 'auth', 'bearer',
+    'api_key', 'apikey', 'api_token', 'apitoken', 'auth', 'bearer',
 ]
 
 

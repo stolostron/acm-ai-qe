@@ -18,10 +18,9 @@ Analyze this run: https://jenkins-csb-rhacm-tests.dno.corp.redhat.com/job/qe-acm
 
 That's it. Claude Code handles the full pipeline automatically:
 
-1. Gathers data from Jenkins (build info, test reports, console logs)
-2. Investigates each failure using a 5-phase framework with MCP tool queries
-3. Classifies every failed test with multi-evidence validation
-4. Generates a detailed report with prioritized action items
+1. **Gather** -- Fetches build info, test reports, and console logs from Jenkins
+2. **Analyze** -- For each failed test, reads the error message, searches the product source code and test code for root cause, checks JIRA for known bugs, and determines whether the failure is a product bug, automation bug, infra issue, etc.
+3. **Report** -- Generates a detailed report with per-test breakdown and prioritized action items
 
 ### Example Output
 
@@ -71,7 +70,7 @@ The analysis runs in three stages:
 | Stage | What | How |
 |-------|------|-----|
 | **1. Gather** | Fetch Jenkins data | `gather.py` pulls build info, test reports, console logs, and clones test repos |
-| **2. Analyze** | Classify each failure | AI runs 5 investigation phases (A-E) using MCP tools to search product code, translations, and JIRA |
+| **2. Analyze** | Classify each failure | For each failed test, AI reads the error, searches product and test source code for the root cause, checks JIRA for known bugs, and classifies the failure |
 | **3. Report** | Generate deliverables | `report.py` produces markdown report, JSON breakdown, and summary |
 
 ### Classification Guide

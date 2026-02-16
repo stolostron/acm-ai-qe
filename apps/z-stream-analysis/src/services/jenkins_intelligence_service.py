@@ -13,24 +13,19 @@ Uses JenkinsAPIClient for all Jenkins REST API interactions.
 
 import json
 import logging
-import os
 import re
 import subprocess
-import time
-from dataclasses import dataclass, asdict, field
+from dataclasses import dataclass, asdict
 from typing import Callable, Dict, Any, List, Optional, Tuple
 from urllib.parse import urlparse
 
 # Import stack trace parser
-from .stack_trace_parser import StackTraceParser, ParsedStackTrace
+from .stack_trace_parser import StackTraceParser
 
 # Import shared utilities (replaces duplicate functions)
 from .shared_utils import (
     get_jenkins_credentials,
-    get_auth_header,
-    run_subprocess,
     build_curl_command,
-    parse_json_response,
     TIMEOUTS,
 )
 
@@ -631,20 +626,23 @@ class JenkinsIntelligenceService:
         not the bug classification (PRODUCT_BUG, AUTOMATION_BUG, INFRASTRUCTURE).
         Bug classification is performed by the AI during analysis.
         """
-        # Check for specific patterns
-        if any(p in error_text for p in ['timeout', 'timed out', 'exceeded']):
+        # Check for specific patterns (order matters — more specific checks first)
+        error_lower = error_text.lower()
+        if any(p in error_lower for p in ['timeout', 'timed out', 'exceeded']):
             return 'timeout'
-        elif any(p in error_text for p in ['element', 'not found', 'selector', 'nosuchelement']):
+        elif any(p in error_lower for p in ['element not found', 'element: not found',
+                                             'expected to find element', 'nosuchelementexception',
+                                             'elementnotinteractableexception', 'selector not found']):
             return 'element_not_found'
-        elif any(p in error_text for p in ['connection', 'network', 'refused', 'dns']):
+        elif any(p in error_lower for p in ['connection', 'network', 'refused', 'dns']):
             return 'network'
-        elif any(p in error_text for p in ['assert', 'expect', 'should', 'equal', 'match']):
+        elif any(p in error_lower for p in ['assert', 'expect', 'should', 'equal', 'match']):
             return 'assertion'
-        elif any(p in error_text for p in ['500', '502', '503', 'internal server', 'bad gateway']):
+        elif any(p in error_lower for p in ['500', '502', '503', 'internal server', 'bad gateway']):
             return 'server_error'
-        elif any(p in error_text for p in ['401', '403', 'unauthorized', 'forbidden', 'permission']):
+        elif any(p in error_lower for p in ['401', '403', 'unauthorized', 'forbidden', 'permission']):
             return 'auth_error'
-        elif any(p in error_text for p in ['404', 'not found', 'no such']):
+        elif any(p in error_lower for p in ['404', 'not found', 'no such']):
             return 'not_found'
         else:
             return 'unknown'

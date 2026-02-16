@@ -512,17 +512,26 @@ class EnvironmentValidationService:
                 pass
         
         # For OpenShift, check cluster operators
+        # Output format: NAME VERSION AVAILABLE PROGRESSING DEGRADED
+        # Healthy: True False False (AVAILABLE=True, PROGRESSING=False, DEGRADED=False)
         if self.cli == 'oc':
             success, stdout, _ = self._run_command(['get', 'clusteroperators', '--no-headers'])
             if success:
-                # Check if any operators are degraded
                 lines = stdout.strip().split('\n')
                 all_healthy = True
                 for line in lines:
-                    if 'Degraded' in line or 'False' in line:
+                    parts = line.split()
+                    if len(parts) >= 5:
+                        available = parts[2]
+                        degraded = parts[4]
+                        if available != 'True' or degraded == 'True':
+                            all_healthy = False
+                            break
+                    elif line.strip():
+                        # Unexpected format — can't determine health
                         all_healthy = False
                         break
-                
+
                 if all_healthy:
                     health['etcd'] = True
                     health['scheduler'] = True

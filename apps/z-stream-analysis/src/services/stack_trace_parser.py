@@ -75,13 +75,9 @@ class StackTraceParser:
         ),
 
         # Standard Node.js: at functionName (/path/to/file.js:123:45)
+        # Also matches anonymous functions: at Object.<anonymous> (file.js:10:5)
         re.compile(
             r'at\s+(?P<func>[^\s(]+)\s+\((?P<file>[^:]+):(?P<line>\d+)(?::(?P<col>\d+))?\)'
-        ),
-
-        # Anonymous functions: at Object.<anonymous> (file.js:10:5)
-        re.compile(
-            r'at\s+(?P<func>Object\.<anonymous>|<anonymous>)\s+\((?P<file>[^:]+):(?P<line>\d+)(?::(?P<col>\d+))?\)'
         ),
 
         # Async functions: at async Context.eval (file.ts:50:3)

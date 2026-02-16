@@ -21,6 +21,88 @@ core-data.json ──► AI Agent ──► analysis-results.json
       (20 tools)   (24 tools)  Graph MCP
 ```
 
+### Full Investigation Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  PHASE A: Initial Assessment                                        │
+│                                                                     │
+│  A0: Feature area grounding (read feature_grounding)                │
+│  A1: Environment health check                                      │
+│      └── env_score < 0.3? ──YES──► ALL TESTS = INFRASTRUCTURE      │
+│                │                   (skip Phases B-D)                │
+│               NO                                                    │
+│                ▼                                                    │
+│  A1b: Cluster landscape check (degraded operators?)                 │
+│  A2: Failure pattern detection (mass timeout? same selector?)       │
+│  A3: Cross-test correlation scan                                    │
+│  A3b: Batch KG subsystem context (if KG available)                  │
+└─────────────────────────┬───────────────────────────────────────────┘
+                          │
+┌─────────────────────────▼───────────────────────────────────────────┐
+│  PHASE B: Deep Investigation (per test)                             │
+│                                                                     │
+│  B1: Check extracted_context (test code, page objects, selectors)   │
+│  B2: Check timeline_evidence (element_removed? stale_test_signal?) │
+│  B3: Check console_log (500s? network errors? auth errors?)        │
+│  B4: Query MCP tools (ACM-UI search, JIRA, Knowledge Graph)        │
+│  B5: Backend component analysis (detected_components → KG)          │
+│  B5b: Targeted pod investigation [conditional]                      │
+│        └── Trigger: 500 errors OR ambiguous classification          │
+│  B6: Repository deep dive [if extracted_context insufficient]       │
+│  B7: Backend cross-check [conditional]                              │
+│        └── UI failure + backend component crash?                    │
+│            └── YES → set backend_caused_ui_failure = true           │
+└─────────────────────────┬───────────────────────────────────────────┘
+                          │
+┌─────────────────────────▼───────────────────────────────────────────┐
+│  PHASE C: Cross-Reference Validation                                │
+│                                                                     │
+│  C1: Multi-evidence check (2+ sources per test? REQUIRED)           │
+│  C2: Cascading failure detection (shared dependency via KG?)        │
+│  C3: Pattern correlation with Phase A                               │
+└─────────────────────────┬───────────────────────────────────────────┘
+                          │
+┌─────────────────────────▼───────────────────────────────────────────┐
+│  PHASE D: 3-Path Classification Routing                             │
+│                                                                     │
+│  D0: Backend cross-check override                                   │
+│      └── backend_caused_ui_failure? ──YES──► Path B2                │
+│                │                                                    │
+│               NO                                                    │
+│                ▼                                                    │
+│  ┌──────────────────┬──────────────────┬──────────────────┐         │
+│  │    Path A        │    Path B1       │    Path B2       │         │
+│  │ Selector         │ Timeout          │ Everything else  │         │
+│  │ mismatch         │ (non-selector)   │ + backend        │         │
+│  │                  │                  │   override       │         │
+│  │ → AUTOMATION_BUG │ → INFRASTRUCTURE │ → JIRA lookup    │         │
+│  │                  │                  │   → PRODUCT_BUG  │         │
+│  │                  │                  │   → AUTO_BUG     │         │
+│  │                  │                  │   → MIXED/FLAKY/ │         │
+│  │                  │                  │     NO_BUG/      │         │
+│  │                  │                  │     UNKNOWN      │         │
+│  └──────────────────┴──────────────────┴──────────────────┘         │
+│                                                                     │
+│  D4: Final validation (confirm classification, calc confidence)     │
+└─────────────────────────┬───────────────────────────────────────────┘
+                          │
+┌─────────────────────────▼───────────────────────────────────────────┐
+│  PHASE E: Feature Context & JIRA Correlation                        │
+│                                                                     │
+│  E0: Build subsystem context (incremental from A3b)                 │
+│  E1: Carry forward Path B2 findings                                 │
+│  E2: Search JIRA for feature stories / PORs                         │
+│  E3: Read acceptance criteria, linked PRs                           │
+│  E4: Search JIRA for related bugs                                   │
+│  E5: Known issue matching + feature-informed validation             │
+│  E6: Create/link JIRA issues (optional)                             │
+└─────────────────────────┬───────────────────────────────────────────┘
+                          │
+                          ▼
+              analysis-results.json
+```
+
 ---
 
 ## Input Data
@@ -34,7 +116,11 @@ The agent reads `core-data.json` which contains:
 | `test_report.summary` | Total/passed/failed counts, pass rate | Phase A |
 | `test_report.failed_tests[]` | Per-test: error, stack trace, extracted_context, detected_components | Phase B |
 | `environment` | Cluster health, environment_score, API status | Phase A |
+| `cluster_landscape` | Managed clusters, operators, MCH status, `mch_enabled_components`, resource pressure | Phase A, B |
 | `console_log` | Error patterns (has_500_errors, has_network_errors, etc.), key_errors | Phase A, B |
+| `feature_grounding` | Tests grouped by feature area with subsystem/component context | Phase A |
+| `feature_knowledge` | Playbook readiness, prerequisites, failure paths, KG dependency context, KG status | Phase A, B, D |
+| `cluster_access` | API URL, username, password for re-authentication | Phase A (cluster login) |
 | `investigation_hints.timeline_evidence` | Element history, modification dates | Phase B |
 | `investigation_hints.failed_test_locations` | File paths for failed tests | Phase B |
 
@@ -42,24 +128,62 @@ The agent reads `core-data.json` which contains:
 
 ## Phase A: Initial Assessment
 
-**Purpose:** Look at the big picture before analyzing individual tests.
+**Purpose:** Ground analysis in feature areas, detect global patterns, check cluster health before analyzing individual tests.
 
 ```
 core-data.json
       │
+      ├── A-1: Cluster re-authentication (v3.1)
+      │   Read cluster_access from core-data.json
+      │   Run: oc login <api_url> --username <user> --password <password>
+      │   Verify: oc whoami
+      │   If fails: proceed with snapshot data only, reduce confidence by 0.15
+      │
+      ├── A0: Feature area grounding (v3.0)
+      │   Read feature_grounding → map tests to subsystems/components
+      │
+      ├── A0b: Review feature knowledge (v3.1)
+      │   Read feature_knowledge → architecture, prerequisites, pre-matched failure paths
+      │   Review KG dependency context per feature area
+      │
+      ├── A0c: Run Tier 0 health snapshot (v3.1)
+      │   Live commands: oc get mch, managedclusters, clusteroperators, adm top, non-healthy pods
+      │   Compare live state against cluster_landscape snapshot from Stage 1
+      │
       ├── A1: Environment health check
       │   environment.cluster_connectivity == false?  → ALL TESTS = INFRASTRUCTURE
       │   environment.environment_score < 0.3?      → ALL TESTS = INFRASTRUCTURE
+      │
+      ├── A1b: Cluster landscape check (v3.0)
+      │   Read cluster_landscape → check degraded operators, resource pressure
+      │   Degraded operator matching feature area? → backend may cause UI failures
       │
       ├── A2: Failure pattern detection
       │   console_log.has_network_errors + majority timeout? → INFRASTRUCTURE
       │   All tests fail with same selector? → single root cause
       │   Mass timeouts (>50% of failures)? → likely INFRASTRUCTURE
       │
-      └── A3: Cross-test correlation scan
-          Shared selectors across tests? → group analysis
-          Same component in multiple errors? → cascading failure candidate
+      ├── A3: Cross-test correlation scan
+      │   Shared selectors across tests? → group analysis
+      │   Same component in multiple errors? → cascading failure candidate
+      │
+      └── A3b: Subsystem context building via KG (v3.0)
+          Batch-query Knowledge Graph for all unique subsystems
+          Store subsystem_context for use throughout Phases B-E
+          (Replaces per-test KG queries; makes Phase E0 incremental)
 ```
+
+### A0: Feature Area Grounding (v3.0)
+
+Read `feature_grounding` from core-data.json. This tells you WHAT feature each test validates before analyzing WHY it failed. Use this to focus investigation on relevant subsystem components, know which namespaces to check for pod health, and understand investigation focus per feature area.
+
+### A1b: Cluster Landscape Check (v3.0)
+
+Read `cluster_landscape` from core-data.json. Check for degraded operators overlapping with feature area components, resource pressure (CPU/memory), MCH status, and managed cluster readiness. A degraded operator matching a feature area component signals that backend issues may be causing UI failures.
+
+### A3b: Subsystem Context Building (v3.0)
+
+If Knowledge Graph is available AND `feature_grounding` identifies components, batch-query subsystem context for all unique subsystems. This stores context for use throughout Phases B-E and makes Phase E0 incremental rather than building context from scratch.
 
 **Example:** If `environment.environment_score = 0.15` and `cluster_connectivity = false`, Phase A short-circuits: all tests classified as INFRASTRUCTURE with confidence 0.95.
 
@@ -67,7 +191,7 @@ core-data.json
 
 ## Phase B: Deep Investigation (Per Test)
 
-**Purpose:** Investigate each failed test individually. All 6 sub-steps are mandatory.
+**Purpose:** Investigate each failed test individually. All sub-steps are mandatory (B5b and B7 are conditional).
 
 ```
 For each test in test_report.failed_tests[]:
@@ -97,10 +221,40 @@ For each test in test_report.failed_tests[]:
       ├── Cascading failure detection
       └── Subsystem context building
 
+  B5b: Targeted pod investigation (v3.0, conditional)
+      ├── Trigger: 500 errors detected OR ambiguous classification
+      ├── Check pod status for feature area's key_components
+      ├── CrashLoopBackOff → PRODUCT_BUG signal
+      └── Pod Pending (resource issues) → INFRASTRUCTURE signal
+
   B6: Repository deep dive (when extracted_context insufficient)
       ├── Read additional files from repos/
       ├── Check git history
       └── Trace import chains
+
+  B7: Backend cross-check (v3.0)
+      ├── For element_not_found / timeout failures:
+      │   Check console log for 500s from feature area components
+      │   Check cluster_landscape for non-Ready components
+      │   Check B5b pod diagnostics for crashes
+      ├── If backend caused UI failure:
+      │   Set backend_caused_ui_failure = true
+      └── → Overrides Path A routing in Phase D (routes to Path B2)
+
+  B8: Tiered playbook investigation (v3.1)
+      ├── Check prerequisites with live oc commands
+      ├── Execute failure path investigation steps from matched playbook paths
+      └── Compare results against expected outcomes
+
+  B8b: If Tier 2 confirms a failure path (v3.1)
+      └── Query KG for upstream dependencies of confirmed failing component
+          └── If upstream also failing → root cause is upstream
+
+  B8c: If Tier 1-2 don't explain → run Tier 3 data flow tracing (v3.1)
+      └── Use KG dependency context + playbook architecture.data_flow
+
+  B8d: If Tier 1-3 don't explain OR multiple areas failing → run Tier 4 (v3.1)
+      └── Cross-namespace event scan, network checks, KG cascading analysis
 ```
 
 **Example:** Test `should create cluster` has `extracted_context.console_search.found = false` and `timeline_evidence.element_removed = true`. Two Tier 1 evidence sources pointing to AUTOMATION_BUG.
@@ -142,28 +296,44 @@ C3: Pattern correlation with Phase A
 
 **Purpose:** Route each test to the correct classification path based on evidence.
 
+### D-1: Feature Knowledge Override (v3.1)
+
+**Check feature knowledge FIRST.** If a prerequisite is unmet AND Tier 2 playbook investigation confirmed it with live `oc` commands, use the playbook's suggested classification at 0.95 confidence. If a failure path was confirmed, use the path's classification and confidence. If cluster login failed (`cluster_access_available=false`), reduce confidence by 0.15 on all classifications.
+
+### D0: Backend Cross-Check Override (v3.0)
+
+**Check backend cross-check SECOND before 3-path routing.** If Phase B7 determined `backend_caused_ui_failure == true`, route directly to Path B2 regardless of whether the failure looks like a selector mismatch. This prevents misclassifying UI failures caused by backend component crashes (e.g., element not found BECAUSE the backend broke, not because the selector changed).
+
 ```
                     Start Classification
                            │
-              ┌────────────┼────────────┐
-              ▼            ▼            ▼
-         ┌─────────┐ ┌──────────┐ ┌──────────┐
-         │ PATH A  │ │ PATH B1  │ │ PATH B2  │
-         │Selector │ │ Timeout  │ │Everything│
-         │mismatch │ │(non-sel) │ │  else    │
-         └────┬────┘ └────┬─────┘ └────┬─────┘
-              │           │            │
-              ▼           ▼            ▼
-         AUTOMATION   INFRA-       JIRA
-         _BUG         STRUCTURE    Investigation
-                                       │
-                              ┌────────┼────────┐
-                              ▼        ▼        ▼
-                         PRODUCT   AUTOMATION  OTHER
-                         _BUG      _BUG        (MIXED,
-                                               FLAKY,
-                                               NO_BUG,
-                                               UNKNOWN)
+                    ┌──────┴──────┐
+                    │ D0: Backend │
+                    │ cross-check │
+                    │ override?   │
+                    └──────┬──────┘
+                           │
+              ┌── YES ─────┴───── NO ──┐
+              │                        │
+              │           ┌────────────┼────────────┐
+              │           ▼            ▼            ▼
+              │      ┌─────────┐ ┌──────────┐ ┌──────────┐
+              │      │ PATH A  │ │ PATH B1  │ │ PATH B2  │
+              │      │Selector │ │ Timeout  │ │Everything│
+              │      │mismatch │ │(non-sel) │ │  else    │
+              │      └────┬────┘ └────┬─────┘ └────┬─────┘
+              │           │           │            │
+              ▼           ▼           ▼            ▼
+           PATH B2   AUTOMATION   INFRA-       JIRA
+           (backend  _BUG         STRUCTURE    Investigation
+            caused)                                │
+                                          ┌────────┼────────┐
+                                          ▼        ▼        ▼
+                                     PRODUCT   AUTOMATION  OTHER
+                                     _BUG      _BUG        (MIXED,
+                                                           FLAKY,
+                                                           NO_BUG,
+                                                           UNKNOWN)
 ```
 
 ### Path A — Selector Mismatch
@@ -211,7 +381,8 @@ For each test, the agent:
 **Purpose:** Understand what the feature should do, find related issues, validate classification against feature intent.
 
 ```
-E0: Build subsystem context (Knowledge Graph)
+E0: Build subsystem context (Knowledge Graph) — incremental in v3.0
+    Uses pre-built context from Phase A3b; only queries for new components
     detected_components → Knowledge Graph → subsystem + related components
 
 E1: Carry forward Path B2 findings
@@ -275,7 +446,7 @@ E6: Create/link issues (optional)
   "analysis_metadata": {
     "jenkins_url": "https://jenkins.example.com/job/acm-e2e/123/",
     "analyzed_at": "2026-02-05T12:30:00Z",
-    "analyzer_version": "2.5.0"
+    "analyzer_version": "3.1.0"
   },
   "investigation_phases_completed": ["A", "B", "C", "D", "E"],
   "per_test_analysis": [

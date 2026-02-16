@@ -63,22 +63,9 @@ class SchemaValidationService:
         'Multiple Teams', 'Product Team + Automation Team'
     ]
 
-    def __init__(self, schema_path: Optional[Path] = None):
-        """
-        Initialize the validation service.
-
-        Args:
-            schema_path: Path to JSON Schema file (optional, uses built-in rules)
-        """
+    def __init__(self):
+        """Initialize the validation service."""
         self.logger = logging.getLogger(__name__)
-        self.schema = self._load_schema(schema_path)
-
-    def _load_schema(self, schema_path: Optional[Path]) -> Optional[Dict[str, Any]]:
-        """Load JSON Schema from file if provided."""
-        if schema_path and schema_path.exists():
-            with open(schema_path) as f:
-                return json.load(f)
-        return None
 
     def validate(self, data: Dict[str, Any]) -> ValidationResult:
         """

@@ -16,41 +16,50 @@ python -m src.scripts.gather "<JENKINS_URL>"
 **Output:** A run directory with all collected data
 
 ```
-                        Jenkins URL
-                             │
- ┌───────────────────────────┼───────────────────────────┐
- │                           ▼                           │
- │  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐ │
- │  │ Step 1  │→ │ Step 2  │→ │ Step 3  │→ │ Step 4  │ │
- │  │ Jenkins │  │ Console │  │  Test   │  │  Env    │ │
- │  │  Info   │  │   Log   │  │ Report  │  │ Check   │ │
- │  └─────────┘  └─────────┘  └─────────┘  └─────────┘ │
- │                           │                           │
- │                    ┌──────┴──────┐                    │
- │                    │   Step 5    │                    │
- │                    │ Clone Repos │                    │
- │                    └──────┬──────┘                    │
- │                           │                           │
- │                    ┌──────┴──────┐                    │
- │                    │   Step 6    │                    │
- │                    │  Extract    │                    │
- │                    │  Context    │                    │
- │                    └──────┬──────┘                    │
- │                           │                           │
- │                    ┌──────┴──────┐                    │
- │                    │   Step 7    │                    │
- │                    │  Element    │                    │
- │                    │ Inventory   │                    │
- │                    └──────┬──────┘                    │
- │                           │                           │
- │                    ┌──────┴──────┐                    │
- │                    │   Step 8    │                    │
- │                    │Investigation│                    │
- │                    │   Hints     │                    │
- │                    └─────────────┘                    │
- └───────────────────────────┼───────────────────────────┘
-                             ▼
-                   runs/<job>_<timestamp>/
+                          Jenkins URL
+                               │
+    ┌──────────────────────────┼──────────────────────────┐
+    │                          ▼                          │
+    │   Step 1: Jenkins Info ──► Step 2: Console Log      │
+    │                              │                      │
+    │                              ▼                      │
+    │                          Step 3: Test Report         │
+    │                              │                      │
+    │               ┌──────────────┼──────────────┐       │
+    │               ▼                             ▼       │
+    │   ┌───────────────────┐        ┌────────────────┐   │
+    │   │ Step 4: Env Check │        │ Step 4b: (v3.0)│   │
+    │   │ (skip: --skip-env)│        │ Cluster        │   │
+    │   │                   │        │ Landscape      │   │
+    │   └───────────────────┘        │ (skip:         │   │
+    │               │                │  --skip-env)   │   │
+    │               │                └────────────────┘   │
+    │               ▼                                     │
+    │   ┌───────────────────┐                             │
+    │   │ Step 5: Clone     │                             │
+    │   │ Repos             │                             │
+    │   │ (skip: --skip-repo│                             │
+    │   └─────────┬─────────┘                             │
+    │             │                                       │
+    │   ┌─────────┼──────────────────────┐                │
+    │   ▼         ▼                      ▼                │
+    │ Step 6:   Step 6b: (v3.0)  Step 6c: (v3.1)  Step 7: │
+    │ Extract   Feature         Feature          Element │
+    │ Context   Grounding       Knowledge        Inv.   │
+    │ (skip:    (always)        + KG Context     (skip: │
+    │  --skip-                  (always)          --skip-│
+    │  repo)                                      repo) │
+    │   └─────────┬──────────────────────────────┘       │
+    │             ▼                                       │
+    │   ┌───────────────────┐                             │
+    │   │ Step 8: Hints     │ ◄── always runs             │
+    │   │ + Step 8b:        │                             │
+    │   │ Temporal Summaries│                             │
+    │   └───────────────────┘                             │
+    │             │                                       │
+    └─────────────┼───────────────────────────────────────┘
+                  ▼
+        runs/<job>_<timestamp>/core-data.json
 ```
 
 ---
@@ -132,19 +141,22 @@ network_patterns = [
 
 ```python
 def _classify_failure_type(self, error_text: str) -> str:
-    if any(p in error_text for p in ['timeout', 'timed out', 'exceeded']):
+    error_lower = error_text.lower()
+    if any(p in error_lower for p in ['timeout', 'timed out', 'exceeded']):
         return 'timeout'
-    elif any(p in error_text for p in ['element', 'not found', 'selector', 'nosuchelement']):
+    elif any(p in error_lower for p in ['element not found', 'element: not found',
+                                         'expected to find element', 'nosuchelementexception',
+                                         'elementnotinteractableexception', 'selector not found']):
         return 'element_not_found'
-    elif any(p in error_text for p in ['connection', 'network', 'refused', 'dns']):
+    elif any(p in error_lower for p in ['connection', 'network', 'refused', 'dns']):
         return 'network'
-    elif any(p in error_text for p in ['assert', 'expect', 'should', 'equal', 'match']):
+    elif any(p in error_lower for p in ['assert', 'expect', 'should', 'equal', 'match']):
         return 'assertion'
-    elif any(p in error_text for p in ['500', '502', '503', 'internal server', 'bad gateway']):
+    elif any(p in error_lower for p in ['500', '502', '503', 'internal server', 'bad gateway']):
         return 'server_error'
-    elif any(p in error_text for p in ['401', '403', 'unauthorized', 'forbidden', 'permission']):
+    elif any(p in error_lower for p in ['401', '403', 'unauthorized', 'forbidden', 'permission']):
         return 'auth_error'
-    elif any(p in error_text for p in ['404', 'not found', 'no such']):
+    elif any(p in error_lower for p in ['404', 'not found', 'no such']):
         return 'not_found'
     else:
         return 'unknown'
@@ -281,6 +293,42 @@ If no namespaces are available to check, partial credit of 0.1 is given.
 | `kubectl get`, `kubectl describe` | Any write operation |
 
 **Output file:** `environment-status.json`
+
+---
+
+## Step 4b: Cluster Landscape (v3.0)
+
+**Service:** `ClusterInvestigationService.get_cluster_landscape()`
+
+**Method:** `DataGatherer._gather_cluster_landscape()`
+
+Collects a cluster-wide health snapshot beyond what Step 4's environment score provides. This data feeds Phase A1b (cluster landscape check) and Phase B5b (targeted pod investigation) during Stage 2 analysis.
+
+Shares the kubeconfig and CLI from `EnvironmentValidationService` so both services query the same cluster. Skipped when `--skip-env` is used (sets `cluster_landscape: {skipped: true}`).
+
+**Commands:** Same READ-ONLY `oc`/`kubectl` commands as Step 4.
+
+### Data Collected
+
+| Field | Command | Example |
+|-------|---------|---------|
+| `managed_cluster_count` | `oc get managedclusters -o json` | `3` |
+| `managed_cluster_statuses` | (parsed from above) | `{"Ready": 3}` |
+| `operator_statuses` | `oc get clusterserviceversions -A -o json` | `{"all_available": true}` |
+| `degraded_operators` | (filtered from above) | `[]` or `["search-operator"]` |
+| `resource_pressure` | `oc get nodes -o json` (conditions) | `{"cpu": false, "memory": false, "disk": false, "pid": false}` |
+| `policy_count` | `oc get policies -A --no-headers` | `9` |
+| `multiclusterhub_status` | `oc get multiclusterhub -A -o json` | `"Running"` |
+| `mch_enabled_components` | (from MCH spec.overrides.components) | `{"search": true, "grc": true}` |
+| `mch_version` | (from MCH status.currentVersion) | `"2.16.1"` |
+
+### How It's Used in Stage 2
+
+- **Phase A1b:** Degraded operator overlapping a feature area component signals backend may cause UI failures
+- **Phase B5b:** When 500 errors or ambiguous classification detected, targeted pod investigation queries pods in the namespaces identified here
+- **Phase B7:** Backend cross-check uses landscape data to determine if backend issues caused UI failures
+
+**Output:** Stored in `core-data.json` under `cluster_landscape` key.
 
 ---
 
@@ -462,6 +510,170 @@ Adds human-readable temporal summaries to each test's timeline evidence for AI c
 
 ---
 
+## Step 6b: Feature Area Grounding (v3.0)
+
+**Service:** `FeatureAreaService.group_tests_by_feature()`
+
+**Method:** `DataGatherer._ground_feature_areas()`
+
+Groups all failed tests by feature area (CLC, Search, GRC, etc.) and attaches subsystem context. This runs **always** — it does not require cloned repos (unlike Step 6) because it uses test names, file paths, and detected components rather than file content.
+
+### Identification Priority
+
+`FeatureAreaService.identify_feature_area()` maps each test using these signals (in order of reliability):
+
+1. **Test file path** — e.g., `cypress/e2e/cluster/` → CLC
+2. **Test name patterns** — e.g., `RHACM4K-*` prefix, keyword matching
+3. **Detected components** — from error messages (e.g., `search-api` → Search)
+4. **Error message content** — fallback keyword matching
+
+Tests that don't match any pattern are grouped under `Unknown`.
+
+### Output Structure
+
+Stored in `core-data.json` under `feature_grounding`:
+
+```json
+{
+  "feature_grounding": {
+    "groups": {
+      "CLC": {
+        "subsystem": "Cluster Lifecycle",
+        "key_components": ["cluster-curator", "managedcluster-import-controller"],
+        "key_namespaces": ["open-cluster-management"],
+        "investigation_focus": "Cluster creation, import, upgrade workflows",
+        "tests": ["RHACM4K-51364", "RHACM4K-3046"],
+        "test_count": 2
+      },
+      "Search": {
+        "subsystem": "Search",
+        "key_components": ["search-api", "search-collector"],
+        "key_namespaces": ["open-cluster-management"],
+        "investigation_focus": "Search indexing, query, and result display",
+        "tests": ["RHACM4K-52779"],
+        "test_count": 1
+      }
+    },
+    "feature_areas_found": ["CLC", "Search"],
+    "total_groups": 2
+  }
+}
+```
+
+### How It's Used in Stage 2
+
+- **Phase A0:** Read feature grounding to know WHAT each test validates before analyzing WHY it failed
+- **Phase A1b:** Cross-reference feature areas with degraded operators from `cluster_landscape`
+- **Phase A3b:** Batch-query Knowledge Graph for all unique subsystems identified here
+- **Phase B5b:** Use `key_components` and `key_namespaces` to target pod investigation
+
+---
+
+## Step 6c: Feature Knowledge Playbooks (v3.1)
+
+**Service:** `FeatureKnowledgeService.load_playbooks()`, `FeatureKnowledgeService.get_feature_readiness()`
+
+**Method:** `DataGatherer._check_feature_knowledge()`
+
+Loads YAML investigation playbooks from `src/data/feature_playbooks/`, checks MCH prerequisites against cluster state, pre-matches test error messages against known failure paths, and queries the Knowledge Graph for per-area dependency context. Runs after Step 6b (requires detected feature areas).
+
+### Data Sources
+
+- `src/data/feature_playbooks/base.yaml` — stable profiles (Search, GRC, CLC, Application, Console, Infrastructure)
+- `src/data/feature_playbooks/acm-{version}.yaml` — version-specific profiles (RBAC, Virtualization, CrossClusterMigration)
+- `cluster_landscape.mch_enabled_components` — for MCH prerequisite checks
+- Knowledge Graph (if available) — for dependency context
+
+### ACM Version Detection
+
+The ACM version is detected in this priority:
+1. Jenkins parameter `DOWNSTREAM_RELEASE`
+2. MCH `status.currentVersion` (major.minor from `cluster_landscape.mch_version`)
+
+### Output Structure
+
+Stored in `core-data.json` under `feature_knowledge`:
+
+```json
+{
+  "feature_knowledge": {
+    "acm_version": "2.16",
+    "profiles_loaded": ["CLC", "Search", "Infrastructure"],
+    "feature_readiness": {
+      "CLC": {
+        "feature_area": "CLC",
+        "architecture_summary": "Three flows: Create, Import, Upgrade...",
+        "key_insight": "CLC spans multiple operators...",
+        "all_prerequisites_met": true,
+        "prerequisite_checks": [
+          {"id": "clc-mch-component", "type": "mch_component", "met": true, "detail": "cluster-lifecycle=enabled in MCH"}
+        ],
+        "unmet_prerequisites": [],
+        "failure_paths": [...],
+        "pre_matched_paths": []
+      }
+    },
+    "investigation_playbooks": {
+      "CLC": {
+        "display_name": "Cluster Lifecycle",
+        "architecture": {...},
+        "prerequisites": [...],
+        "dependencies": ["Infrastructure"],
+        "failure_paths": [...]
+      }
+    },
+    "kg_dependency_context": {
+      "CLC": {
+        "internal_data_flow": ["cluster-curator --DEPENDS_ON--> cluster-manager"],
+        "cross_subsystem_dependencies": [...],
+        "components_in_subsystem": [...]
+      }
+    },
+    "kg_status": {
+      "available": false,
+      "error": "Knowledge Graph (Neo4j RHACM) is not connected",
+      "impact": "Tier 3-4 investigation will lack dependency graphs...",
+      "remediation": "Run: bash mcp/setup.sh from the ai_systems_v2 repo root..."
+    }
+  }
+}
+```
+
+### How It's Used in Stage 2
+
+- **Phase A0b:** Review feature knowledge — architecture summaries, key insights, prerequisite status
+- **Phase B8:** Tiered playbook investigation — check prerequisites with live `oc` commands, execute failure path investigation steps
+- **Phase B8b-d:** If playbook confirms a failure path, query KG for upstream dependencies; escalate to Tier 3-4 if needed
+- **Phase D-1:** Feature knowledge override — if prerequisite unmet AND confirmed with live commands, use playbook classification at 0.95 confidence
+
+**Output:** Stored in `core-data.json` under `feature_knowledge` key.
+
+---
+
+## Step 6d: Cluster Access Persistence (v3.1)
+
+**Method:** Part of `DataGatherer._gather_environment_status()`
+
+Persists cluster credentials (API URL, username, masked password) in `core-data.json` under `cluster_access` so the AI agent can re-authenticate to the cluster during Stage 2 for live investigation.
+
+### Output Structure
+
+```json
+{
+  "cluster_access": {
+    "api_url": "https://api.cluster.example.com:6443",
+    "username": "kubeadmin",
+    "has_credentials": true,
+    "password": "****masked****",
+    "note": "Re-authenticate in Stage 2: oc login <api_url> --username <user> --password <password>"
+  }
+}
+```
+
+**Output:** Stored in `core-data.json` under `cluster_access` key.
+
+---
+
 ## Step 7: Build Element Inventory
 
 **Method:** `DataGatherer._gather_element_inventory()`
@@ -509,7 +721,7 @@ All collected data is written to the run directory.
   "metadata": {
     "jenkins_url": "https://jenkins.../job/acm-e2e/123/",
     "gathered_at": "2026-02-04T15:30:00Z",
-    "gatherer_version": "2.5.0"
+    "gatherer_version": "3.1.0"
   },
   "jenkins": {
     "job_name": "acm-qe-e2e-nightly",
@@ -538,6 +750,12 @@ All collected data is written to the run directory.
     "cluster_connectivity": true,
     "environment_score": 0.95
   },
+  "cluster_landscape": {
+    "managed_clusters": [...],
+    "operators": [...],
+    "resource_pressure": {...},
+    "mch_status": "Running"
+  },
   "console_log": {
     "error_patterns": { ... },
     "key_errors": [...]
@@ -545,6 +763,26 @@ All collected data is written to the run directory.
   "investigation_hints": {
     "timeline_evidence": { ... },
     "failed_test_locations": [...]
+  },
+  "feature_grounding": {
+    "groups": {
+      "CLC": { "subsystem": "Cluster", "test_count": 3, "key_components": [...] },
+      "Search": { "subsystem": "Search", "test_count": 2, "key_components": [...] }
+    }
+  },
+  "feature_knowledge": {
+    "acm_version": "2.16",
+    "profiles_loaded": ["CLC", "Search"],
+    "feature_readiness": { ... },
+    "investigation_playbooks": { ... },
+    "kg_dependency_context": { ... },
+    "kg_status": { "available": false, "remediation": "..." }
+  },
+  "cluster_access": {
+    "api_url": "https://api.cluster.example.com:6443",
+    "username": "kubeadmin",
+    "has_credentials": true,
+    "password": "****masked****"
   },
   "ai_instructions": { ... }
 }
@@ -560,10 +798,13 @@ All collected data is written to the run directory.
 | `JenkinsIntelligenceService` | 1-3 | Build info, console parsing, test report |
 | `StackTraceParser` | 3 | JS/TS stack trace → file:line |
 | `EnvironmentValidationService` | 4 | Cluster health checks |
-| `RepositoryAnalysisService` | 5-7 | Git clone, file indexing |
+| `ClusterInvestigationService` | 4b | Cluster landscape snapshot (v3.0) |
+| `RepositoryAnalysisService` | 5 | Git clone, repo inference |
 | `TimelineComparisonService` | 6 | Git date comparison |
 | `ComponentExtractor` | 6 | Error → component names |
 | `ACMConsoleKnowledge` | 6-7 | Directory structure mapping |
+| `FeatureAreaService` | 6b | Test-to-feature-area mapping (v3.0) |
+| `FeatureKnowledgeService` | 6c | Playbook loading, prerequisite checks, symptom matching (v3.1) |
 | `ACMUIMCPClient` | 5, 7 | CNV detection (Step 5), element inventory (Step 7) |
 | `shared_utils` | All | Config, subprocess, credentials |
 

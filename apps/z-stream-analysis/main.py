@@ -45,15 +45,15 @@ def validate_jenkins_url(url: str) -> bool:
 def main():
     """Main entry point for the CLI."""
     parser = argparse.ArgumentParser(
-        description='Z-Stream Analysis - Jenkins Pipeline Failure Analyzer (v2.0)',
+        description='Z-Stream Analysis - Jenkins Pipeline Failure Analyzer (v3.1)',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Architecture (v2.0):
-  Phase 1: Data Gathering - Collects factual data, clones repos
-  Phase 2: AI Analysis   - Agent reads repos, investigates, classifies
-  Phase 3: Report Gen    - Formats AI output into reports
+Architecture (v3.1):
+  Stage 1: Data Gathering - Collects factual data, clones repos
+  Stage 2: AI Analysis    - Agent reads repos, investigates, classifies
+  Stage 3: Report Gen     - Formats AI output into reports
 
-This script runs Phase 1 (data gathering).
+This script runs Stage 1 (data gathering).
 AI analysis happens via the z-stream-analysis agent.
 Report generation: python -m src.scripts.report <run_dir>
 
@@ -127,7 +127,7 @@ Examples:
 
         # Print summary
         print("\n" + "=" * 60)
-        print("PHASE 1 COMPLETE: Data Gathering")
+        print("STAGE 1 COMPLETE: Data Gathering")
         print("=" * 60)
         print(f"\nRun directory: {run_dir}")
 

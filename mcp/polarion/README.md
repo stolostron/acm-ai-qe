@@ -1,12 +1,11 @@
 # Polarion MCP Server
 
-Read-only access to Polarion test cases and work items via the Model Context Protocol (MCP).
+Read and write access to Polarion test cases, test runs, plans, and work items via the Model Context Protocol (MCP).
 
-Part of the [AI Systems Suite](../../README.md). Provides access to RHACM4K test case content for reference during test plan generation and pipeline failure analysis.
-
+**MCP Server Name (in Cursor):** `polarion` (appears as `user-polarion` in tool names)
+**Primary Project:** `RHACM4K` (Red Hat Advanced Cluster Management for Kubernetes)
 **Base Package:** [`polarion-mcp`](https://pypi.org/project/polarion-mcp/) (via `uvx`)
 **Wrapper Script:** `polarion-mcp-wrapper.py` (this directory)
-**Primary Project:** `RHACM4K` (Red Hat Advanced Cluster Management for Kubernetes)
 
 ---
 
@@ -15,13 +14,13 @@ Part of the [AI Systems Suite](../../README.md). Provides access to RHACM4K test
 The Polarion MCP runs as a wrapper around the base `polarion-mcp` package:
 
 ```
-AI Agent (Claude Code / Cursor)
+Cursor IDE
   └─ MCP protocol (stdio)
        └─ uvx (runs polarion-mcp in isolated env)
             └─ polarion-mcp-wrapper.py
                  ├─ Patches SSL verification (Red Hat internal CA)
                  ├─ Patches request timeouts (30s vs 8s default)
-                 ├─ Registers 3 enhanced tools
+                 ├─ Registers 11 enhanced tools (3 original + 8 new)
                  └─ Delegates to polarion_mcp.server.run()
                       └─ Base polarion-mcp tools (14 tools)
 ```
@@ -30,83 +29,36 @@ The wrapper exists because Red Hat's internal Polarion instance uses certificate
 
 ---
 
-## Prerequisites
-
-- Python 3.10+
-- `uvx` (from `uv` package)
-- Network access to Red Hat internal Polarion instance (VPN)
-- Polarion JWT Personal Access Token
-
-## New User Setup
-
-### Step 1: Install `uv` (provides `uvx`)
-
-```bash
-# macOS / Linux
-pip install uv
-
-# Or via pipx
-pipx install uv
-
-# Verify
-uvx --version
-```
-
-`uvx` runs Python packages in isolated environments without permanent installation.
-
-### Step 2: Generate a Polarion Personal Access Token (PAT)
-
-1. Log in to Polarion at https://polarion.engineering.redhat.com/polarion
-2. Click your user icon (top-right) > **My Account**
-3. Go to the **Personal Access Tokens** tab
-4. Click **Create Token**
-5. Set a description (e.g., "MCP Server") and expiration date
-6. Copy the generated JWT token (you won't be able to see it again)
-
-**Note:** You must be on the Red Hat VPN to access Polarion.
-
-### Step 3: Configure MCP
-
-Add to your project's `.mcp.json` or `~/.cursor/mcp.json`:
+## mcp.json Configuration
 
 ```json
 {
-  "mcpServers": {
-    "polarion": {
-      "command": "uvx",
-      "args": ["--with", "polarion-mcp", "python",
-               "/absolute/path/to/ai_systems_v2/mcp/polarion/polarion-mcp-wrapper.py"],
-      "env": {
-        "POLARION_BASE_URL": "https://polarion.engineering.redhat.com/polarion",
-        "POLARION_PAT": "your-jwt-token-here"
-      },
-      "timeout": 90
-    }
+  "polarion": {
+    "command": "uvx",
+    "args": ["--with", "polarion-mcp", "python",
+             "/Users/ashafi/Documents/work/ai/tools/mcp/polarion/polarion-mcp-wrapper.py"],
+    "cwd": "/Users/ashafi",
+    "env": {
+      "POLARION_BASE_URL": "https://polarion.engineering.redhat.com/polarion",
+      "POLARION_PAT": "<JWT token -- set via env or set_polarion_token tool>"
+    },
+    "timeout": 90
   }
 }
 ```
 
-Replace `/absolute/path/to/ai_systems_v2` with the actual path on your machine.
-
 **Key points:**
 - `uvx` creates an isolated Python environment with `polarion-mcp` installed
-- The wrapper script patches SSL verification for Red Hat's internal CA
-- `POLARION_PAT` can also be set at runtime via the `set_polarion_token` tool
+- The wrapper script is passed as the Python entry point
+- `POLARION_BASE_URL` points to Red Hat's internal Polarion
+- `POLARION_PAT` is the JWT Personal Access Token (can also be set at runtime via `set_polarion_token`)
 - Timeout is 90s (higher than other MCPs due to Polarion's slower API)
-
-### Step 4: Verify the connection
-
-After restarting your MCP client (Claude Code, Cursor), run:
-- `check_polarion_status` — should show authenticated
-- `get_polarion_project(project_id="RHACM4K")` — should return project details
-
-If you get a 401 error, your token may be expired. Generate a new one (Step 2) and update your config or call `set_polarion_token`.
 
 ---
 
 ## Tools Reference
 
-### Working Tools (17 total)
+### Total: 25 tools (14 base + 11 enhanced)
 
 #### Base Tools (from polarion-mcp package)
 
@@ -127,15 +79,26 @@ If you get a 401 error, your token may be expired. Generate a new one (Step 2) a
 | `create_polarion_work_item` | Create new work item (needs passcode) | `passcode`, `project_id`, `work_item_type`, `title`, ... |
 | `polarion_github_requirements_coverage` | Requirements coverage analysis | `project_id`, `topic` |
 
-#### Enhanced Tools (added by wrapper)
+#### Enhanced Read Tools (added by wrapper)
 
-| Tool | Purpose | Parameters |
-|------|---------|------------|
-| `get_polarion_test_steps` | Fetch test step content (step HTML + expected results) | `project_id`, `work_item_id` |
-| `get_polarion_test_case_summary` | Quick overview: title, setup status, step count, step titles | `project_id`, `work_item_id` |
-| `get_polarion_setup_html` | Get raw Setup section HTML | `project_id`, `work_item_id` |
+| Tool | Purpose | Parameters | Status |
+|------|---------|------------|--------|
+| `get_polarion_test_steps` | Fetch test step content (step HTML + expected results) | `project_id`, `work_item_id` | Tested |
+| `get_polarion_test_case_summary` | Quick overview: title, setup status, step count, step titles | `project_id`, `work_item_id` | Tested |
+| `get_polarion_setup_html` | Get raw Setup section HTML | `project_id`, `work_item_id` | Tested |
+| `list_polarion_test_runs` | List/filter test runs by query, status, plan | `project_id`, `query`, `limit`, `page_number` | Tested |
+| `get_polarion_test_run_info` | Get test run details + pass/fail/blocked statistics | `project_id`, `test_run_id`, `include_records` | Tested |
+| `list_polarion_plans` | List/search test plans | `project_id`, `query`, `status`, `limit`, `page_number` | Tested |
 
-Enhanced tools use the Polarion REST API `/teststeps` endpoint directly and have 30s timeout (vs base 8s).
+#### Enhanced Write Tools (added by wrapper)
+
+| Tool | Purpose | Parameters | Status |
+|------|---------|------------|--------|
+| `update_polarion_work_item` | Update any work item field (title, description, status, setup, custom) | `project_id`, `work_item_id`, `title`, `description_html`, `status`, `setup_html`, `custom_fields_json` | Tested |
+| `update_polarion_setup` | Push setup section HTML to a test case | `project_id`, `work_item_id`, `setup_html` | Tested |
+| `update_polarion_test_steps` | Create or update test steps (PATCH in-place or bulk POST) | `project_id`, `work_item_id`, `steps_json` | Tested |
+| `create_polarion_test_run` | Create test run + associate with a plan | `project_id`, `test_run_id`, `title`, `plan_id`, `custom_fields_json` | Tested |
+| `upload_polarion_test_results` | Upload test results to a test run | `project_id`, `test_run_id`, `results_json` | Tested |
 
 ### Tools with Known Issues
 
@@ -149,11 +112,59 @@ Enhanced tools use the Polarion REST API `/teststeps` endpoint directly and have
 
 ---
 
+## Write Tool Behavior Details
+
+### `update_polarion_test_steps` - Step Update Logic
+
+The Polarion test steps API has specific constraints:
+- **POST** only works when a work item has NO existing steps (initial bulk creation)
+- **PATCH** updates individual steps in-place (steps are **1-indexed**, not 0-indexed)
+- **DELETE** returns 403 for our PAT (not permitted)
+
+**Behavior:**
+1. **No steps exist:** Creates all steps via POST (bulk creation with `keys` + `values`)
+2. **Steps already exist, same count:** PATCHes each step in-place
+3. **Steps already exist, new > existing:** Updates existing steps, reports extras couldn't be added
+4. **Steps already exist, new < existing:** Updates provided steps, extra existing steps remain unchanged
+
+### `create_polarion_test_run` - Plan Association
+
+Plan association uses a two-step process (as documented in the `acm-workflows` repo):
+1. **POST** creates the test run
+2. **PATCH** sets the `plannedin` attribute to associate with a plan
+
+### `upload_polarion_test_results` - Test Record Format
+
+Test records use a **relationship** to reference the test case (not an attribute):
+```json
+{
+  "data": [{
+    "type": "testrecords",
+    "attributes": {
+      "result": "passed",
+      "executed": "2026-02-15T22:39:28.000Z"
+    },
+    "relationships": {
+      "testCase": {
+        "data": {
+          "type": "workitems",
+          "id": "RHACM4K/RHACM4K-61726"
+        }
+      }
+    }
+  }]
+}
+```
+
+Valid `result` values: `"passed"`, `"failed"`, `"blocked"`
+
+---
+
 ## Query Syntax
 
-`get_polarion_work_items` uses Lucene query syntax.
+`get_polarion_work_items` uses Lucene query syntax. `list_polarion_test_runs` and `list_polarion_plans` also support Lucene queries.
 
-### Verified Searchable Fields
+### Verified Searchable Fields (Work Items)
 
 | UI Label | Query Field | Example Values |
 |----------|-------------|----------------|
@@ -173,23 +184,33 @@ Enhanced tools use the Polarion REST API `/teststeps` endpoint directly and have
 
 **Fields that do NOT work:** `subcomponent`, `tags`
 
-### Query Examples
+### Test Run Queries
+
+```
+status:finished                        # By status
+title:ServerFoundation                 # By title keyword
+plannedin.KEY:ACM_2_16                # By plan association
+```
+
+### Plan Queries
+
+```
+ACM_2_16                              # Free-text search (matches name and ID)
+id:ACM_2_16                           # Exact ID match
+status:open                           # By status
+```
+
+### Work Item Query Examples
 
 ```lucene
 # Find proposed virtualization test cases by author
 type:testcase AND author.id:ashafi AND casecomponent:virtualization AND status:proposed
-
-# Find not-yet-automated test cases
-type:testcase AND author.id:ashafi AND caseautomation:notautomated
 
 # Find RBAC UI test cases by title pattern
 type:testcase AND title:"[FG-RBAC-2.16]"
 
 # Find ACM 2.16 test cases
 type:testcase AND product:rhacm2-16
-
-# Combine multiple filters
-type:testcase AND casecomponent:virtualization AND status:proposed AND caseautomation:notautomated
 ```
 
 ---
@@ -197,7 +218,9 @@ type:testcase AND casecomponent:virtualization AND status:proposed AND caseautom
 ## Authentication
 
 - **Token Type:** JWT (Personal Access Token)
-- **Storage:** Set at runtime via `set_polarion_token` tool, or via `POLARION_PAT` env var in MCP config
+- **Current Expiration:** Jan 31, 2027
+- **Subject:** `ashafi`
+- **Storage:** Set at runtime via `set_polarion_token` tool, or via `POLARION_PAT` env var in `mcp.json`
 
 ### Token Refresh Procedure
 
@@ -211,19 +234,26 @@ type:testcase AND casecomponent:virtualization AND status:proposed AND caseautom
 ## Permission Model
 
 ```
-ALLOWED (Read-Only Access to RHACM4K):
-  - View project details
-  - Search work items (test cases, requirements)
-  - Read work item content (description, setup, steps)
-  - View work item revisions
-  - View work item attachments list
-  - View linked work items
+ALLOWED (Read + Write on RHACM4K):
+  READ:
+    - View project details
+    - Search work items (test cases, requirements)
+    - Read work item content (description, setup, steps)
+    - View work item revisions, attachments, linked items
+    - List test runs, test plans
+    - Get test run info and statistics
+  WRITE:
+    - Update work item fields (title, description, status, setup, custom fields)
+    - Update test step content (PATCH in-place)
+    - Create test runs
+    - Upload test results to test runs
+    - Associate test runs with plans
 
 NOT ALLOWED:
   - List all Polarion projects (403 Forbidden)
-  - Create/update work items (read-only access)
-  - Delete work items
-  - Modify test case content
+  - Delete work items or test runs (403 Forbidden)
+  - Delete individual test steps (403 Forbidden)
+  - Create test steps on a work item that already has steps (POST blocked)
 
 LIMITATION:
   - Can only access project: RHACM4K
@@ -236,10 +266,13 @@ LIMITATION:
 
 | Limitation | Workaround |
 |------------|------------|
-| Read-only access | Use Polarion web UI for modifications |
 | `get_polarion_projects` returns 403 | Always use `project_id="RHACM4K"` directly |
 | Single project access (RHACM4K) | Request additional project access if needed |
-| `get_polarion_document` needs space_id (not discoverable) | Ask user for space name or use work item search |
+| Can't DELETE test steps (403) | Use PATCH to update in-place; step count must match |
+| Can't DELETE test runs (403) | Mark as `invalid` status via PATCH |
+| Can't POST steps when steps exist | PATCH existing steps in-place; POST only works on empty |
+| Test records page size max 100 | Tool handles pagination automatically |
+| `get_polarion_document` needs space_id | Ask user for space name or use work item search |
 | `get_polarion_work_item_text` returns empty | Use `get_polarion_work_item` with `fields="@all"` |
 | `work_item_ids` parameter format | Must be comma-separated string, NOT an array |
 
@@ -251,9 +284,11 @@ LIMITATION:
 |-------|-------|-----|
 | 401 Unauthorized | Token expired | Regenerate PAT and call `set_polarion_token` |
 | 403 on `get_polarion_projects` | Normal -- user lacks list-all permission | Use specific `project_id` instead |
+| 403 on DELETE | DELETE not permitted for this PAT | Use PATCH to update status instead |
 | 403 on work item | User lacks project permission | Verify project access |
+| 400 on POST teststeps | Work item already has steps | Use PATCH on individual steps instead |
 | Empty response | Wrong fields param | Try `fields="@all"` or use different tool |
-| SSL certificate error | Wrapper not loaded | Verify wrapper script path in MCP config |
+| SSL certificate error | Wrapper not loaded | Verify wrapper script path in `mcp.json` |
 | Timeout | Polarion slow response | Timeout is 90s in config; wrapper sets 30s per request |
 
 ---
@@ -262,19 +297,37 @@ LIMITATION:
 
 Used by the wrapper's enhanced tools:
 
-| Endpoint | Tool |
-|----------|------|
-| `/rest/v1/projects/{pid}/workitems/{wid}` | `get_polarion_work_item`, `get_polarion_setup_html`, `get_polarion_test_case_summary` |
-| `/rest/v1/projects/{pid}/workitems/{wid}/teststeps` | `get_polarion_test_steps`, `get_polarion_test_case_summary` |
+| Endpoint | Tools |
+|----------|-------|
+| `GET /projects/{pid}/workitems/{wid}` | `get_polarion_work_item`, `get_polarion_setup_html`, `get_polarion_test_case_summary` |
+| `PATCH /projects/{pid}/workitems/{wid}` | `update_polarion_work_item`, `update_polarion_setup` |
+| `GET /projects/{pid}/workitems/{wid}/teststeps` | `get_polarion_test_steps`, `get_polarion_test_case_summary`, `update_polarion_test_steps` |
+| `POST /projects/{pid}/workitems/{wid}/teststeps` | `update_polarion_test_steps` (when empty) |
+| `PATCH /projects/{pid}/workitems/{wid}/teststeps/{idx}` | `update_polarion_test_steps` (1-indexed) |
+| `GET /projects/{pid}/testruns` | `list_polarion_test_runs` |
+| `GET /projects/{pid}/testruns/{rid}` | `get_polarion_test_run_info` |
+| `POST /projects/{pid}/testruns` | `create_polarion_test_run` |
+| `PATCH /projects/{pid}/testruns/{rid}` | `create_polarion_test_run` (plan association) |
+| `GET /projects/{pid}/testruns/{rid}/testrecords` | `get_polarion_test_run_info` |
+| `POST /projects/{pid}/testruns/{rid}/testrecords` | `upload_polarion_test_results` |
+| `GET /projects/{pid}/plans` | `list_polarion_plans` |
 
 Base URL: `https://polarion.engineering.redhat.com/polarion`
 
 ---
 
-## File Structure
+## Inspiration
 
-```
-mcp/polarion/
-├── README.md                    ← This file
-└── polarion-mcp-wrapper.py      ← Custom wrapper (SSL patches + 3 enhanced tools)
-```
+The test run read/write tools were inspired by the [`stolostron/acm-workflows`](https://github.com/stolostron/acm-workflows/tree/main/Claude/plugins/polarion-tools) Claude plugin (maintainer: hchenxa, ACM QE Team), which provides CLI-based test run management. This MCP integrates those capabilities directly into the Cursor MCP protocol alongside work item management.
+
+---
+
+## Related Files
+
+| File | Purpose |
+|------|---------|
+| `~/.cursor/mcp.json` | MCP server configuration (path to wrapper) |
+| `/Users/ashafi/Documents/work/automation/.cursorrules` | AI rules referencing Polarion MCP (query syntax, defaults, behaviors) |
+| `~/.cursor/skills/write-testcase-console/SKILL.md` | Test case writing skill (uses Polarion MCP) |
+| `~/.cursor/skills/active-sprint-tasks/SKILL.md` | Sprint tasks skill (uses Polarion MCP) |
+| `/Users/ashafi/Documents/work/automation/tools/polarion/` | Older standalone CLI tool (not this MCP) |

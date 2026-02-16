@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://z-stream-analysis/schemas/analysis-results.schema.json",
-  "title": "Z-Stream Analysis Results (v2.5)",
-  "description": "Schema for analysis-results.json produced by 5-phase systematic AI analysis of Jenkins pipeline failures",
+  "title": "Z-Stream Analysis Results (v3.1)",
+  "description": "Schema for analysis-results.json produced by systematic AI analysis of Jenkins pipeline failures with cluster investigation and feature grounding",
   "type": "object",
   "required": ["per_test_analysis", "summary", "investigation_phases_completed"],
   "additionalProperties": true,
@@ -14,7 +14,7 @@
         "jenkins_url": { "type": "string" },
         "analyzed_at": { "type": "string" },
         "analyzer": { "type": "string", "default": "z-stream-analysis" },
-        "analyzer_version": { "type": "string", "default": "2.5.0" },
+        "analyzer_version": { "type": "string", "default": "3.0.0" },
         "investigation_framework": {
           "type": "string",
           "enum": ["5-phase-systematic", "legacy"],
@@ -100,6 +100,120 @@
         "root_cause_affects_count": {
           "type": "integer",
           "description": "Number of tests affected by the root cause"
+        }
+      }
+    },
+    "cluster_investigation": {
+      "type": "object",
+      "description": "Cluster investigation results from targeted component diagnostics (v3.0)",
+      "properties": {
+        "landscape": {
+          "type": "object",
+          "description": "High-level cluster state snapshot",
+          "properties": {
+            "managed_cluster_count": { "type": "integer" },
+            "managed_cluster_statuses": { "type": "object" },
+            "operator_statuses": { "type": "object" },
+            "degraded_operators": { "type": "array", "items": { "type": "string" } },
+            "resource_pressure": { "type": "object" },
+            "multiclusterhub_status": { "type": "string" }
+          }
+        },
+        "component_diagnostics": {
+          "type": "array",
+          "description": "Targeted diagnostics for specific components",
+          "items": {
+            "type": "object",
+            "properties": {
+              "component_name": { "type": "string" },
+              "subsystem": { "type": "string" },
+              "deployment_status": { "type": "string", "enum": ["Available", "Degraded", "Unavailable", "Missing"] },
+              "desired_replicas": { "type": "integer" },
+              "ready_replicas": { "type": "integer" },
+              "pods": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": { "type": "string" },
+                    "status": { "type": "string" },
+                    "restart_count": { "type": "integer" },
+                    "ready": { "type": "boolean" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "infrastructure_signals": {
+          "type": "array",
+          "description": "Infrastructure issues detected during cluster investigation",
+          "items": { "type": "string" }
+        },
+        "backend_failure_signals": {
+          "type": "array",
+          "description": "Backend component failures that may cause UI test failures",
+          "items": {
+            "type": "object",
+            "properties": {
+              "component": { "type": "string" },
+              "issue": { "type": "string" },
+              "affected_feature_area": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "cluster_investigation_summary": {
+      "type": "object",
+      "description": "Summary of cluster re-authentication and tiered investigation results",
+      "properties": {
+        "cluster_reauth_status": {
+          "type": "string",
+          "enum": ["authenticated", "failed", "skipped"],
+          "description": "Whether cluster re-authentication succeeded in Stage 2"
+        },
+        "investigation_mode": {
+          "type": "string",
+          "enum": ["live", "snapshot_only"],
+          "description": "Whether investigation used live cluster access or snapshot data only"
+        },
+        "tier_0_health": {
+          "type": "object",
+          "description": "Tier 0 health snapshot results",
+          "properties": {
+            "mch_status": { "type": "string" },
+            "degraded_operators": { "type": "array", "items": { "type": "string" } },
+            "resource_pressure": { "type": "object" },
+            "non_healthy_pods_count": { "type": "integer" }
+          }
+        },
+        "component_health_overview": {
+          "type": "array",
+          "description": "Per-feature-area component health from Tier 1",
+          "items": {
+            "type": "object",
+            "properties": {
+              "feature_area": { "type": "string" },
+              "component": { "type": "string" },
+              "status": { "type": "string" },
+              "restart_count": { "type": "integer" },
+              "key_finding": { "type": "string" }
+            }
+          }
+        },
+        "prerequisite_summary": {
+          "type": "array",
+          "description": "Prerequisite check results across all feature areas",
+          "items": {
+            "type": "object",
+            "properties": {
+              "feature_area": { "type": "string" },
+              "prerequisite": { "type": "string" },
+              "met": { "type": ["boolean", "null"] },
+              "tests_affected": { "type": "integer" }
+            }
+          }
         }
       }
     },
@@ -315,6 +429,102 @@
                 "owner": { "type": "string" }
               },
               "required": ["classification", "issue"]
+            }
+          },
+          "feature_area": {
+            "type": "string",
+            "description": "Feature area under test (e.g., GRC, Search, CLC, Observability, Virtualization)"
+          },
+          "backend_cross_check": {
+            "type": "object",
+            "description": "Backend cross-check results (Phase B7) - detects UI failures caused by backend problems",
+            "properties": {
+              "performed": { "type": "boolean" },
+              "backend_caused_ui_failure": { "type": "boolean" },
+              "failing_components": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Backend components that are failing"
+              },
+              "evidence": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Evidence of backend causing UI failure"
+              },
+              "overrides_path_a": {
+                "type": "boolean",
+                "description": "If true, routes to Path B2 instead of Path A"
+              }
+            }
+          },
+          "prerequisite_analysis": {
+            "type": "object",
+            "description": "Prerequisite analysis from feature playbooks (Phase B8)",
+            "properties": {
+              "feature_area": { "type": "string" },
+              "all_prerequisites_met": { "type": ["boolean", "null"] },
+              "unmet_prerequisites": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "matched_failure_mode": {
+                "type": "object",
+                "properties": {
+                  "path_id": { "type": "string" },
+                  "description": { "type": "string" },
+                  "suggested_classification": { "type": "string" },
+                  "confidence": { "type": "number" }
+                }
+              }
+            }
+          },
+          "playbook_investigation": {
+            "type": "object",
+            "description": "Playbook failure path investigation results (Phase B8)",
+            "properties": {
+              "failure_path_id": { "type": "string" },
+              "failure_path_description": { "type": "string" },
+              "steps_executed": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "step": { "type": "string" },
+                    "command": { "type": "string" },
+                    "result": { "type": "string" },
+                    "matched_expectation": { "type": "boolean" }
+                  }
+                }
+              },
+              "path_confirmed": { "type": "boolean" },
+              "suggested_classification": { "type": "string" },
+              "confidence": { "type": "number" }
+            }
+          },
+          "cluster_investigation_detail": {
+            "type": "object",
+            "description": "Per-test cluster investigation details (tiered investigation)",
+            "properties": {
+              "tier_reached": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4,
+                "description": "Highest investigation tier reached (0-4)"
+              },
+              "key_findings": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "commands_run": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "command": { "type": "string" },
+                    "output_summary": { "type": "string" }
+                  }
+                }
+              }
             }
           },
           "feature_context": {

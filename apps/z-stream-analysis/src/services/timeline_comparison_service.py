@@ -195,67 +195,6 @@ class TimelineComparisonService:
         self.automation_path: Optional[Path] = None
         self.kubevirt_path: Optional[Path] = None
 
-    def clone_console_repo(self, branch: str = "main") -> Tuple[Optional[Path], Optional[str]]:
-        """
-        Clone the stolostron/console repository.
-
-        Args:
-            branch: Branch to checkout (should match automation branch, e.g., release-2.15)
-
-        Returns:
-            Tuple of (clone_path, error_message)
-        """
-        timestamp = int(time.time())
-        clone_dir = self.base_path / f"console_{timestamp}"
-
-        try:
-            cmd = [
-                'git', 'clone',
-                '--branch', branch,
-                '--depth', str(THRESHOLDS.GIT_SHALLOW_CLONE_DEPTH),  # Shallow clone with enough history
-                self.CONSOLE_REPO_URL,
-                str(clone_dir)
-            ]
-
-            self.logger.info(f"Cloning console repo at branch {branch}")
-
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=TIMEOUTS.GIT_CLONE
-            )
-
-            if result.returncode != 0:
-                # Try with main if branch doesn't exist
-                if "not find remote branch" in result.stderr or "not found" in result.stderr.lower():
-                    self.logger.warning(f"Branch {branch} not found in console, trying main")
-                    cmd[3] = "main"
-                    result = subprocess.run(
-                        cmd,
-                        capture_output=True,
-                        text=True,
-                        timeout=TIMEOUTS.GIT_CLONE
-                    )
-
-                if result.returncode != 0:
-                    error = f"Git clone failed: {result.stderr}"
-                    self.logger.error(error)
-                    return None, error
-
-            self.console_path = clone_dir
-            self.logger.info(f"Console repo cloned to: {clone_dir}")
-            return clone_dir, None
-
-        except subprocess.TimeoutExpired:
-            error = "Git clone timed out after 180s"
-            self.logger.error(error)
-            return None, error
-        except Exception as e:
-            error = f"Git clone error: {str(e)}"
-            self.logger.error(error)
-            return None, error
-
     def set_automation_path(self, path: Path):
         """Set the path to the automation repository."""
         self.automation_path = path
@@ -522,7 +461,8 @@ class TimelineComparisonService:
             result.console_changed_after_automation = console_date > auto_date
 
             # Fact 3: Stale test signal — product changed after test AND test not updated since
-            result.stale_test_signal = console_date > auto_date
+            # True only when console changed AFTER automation AND automation was not updated afterward
+            result.stale_test_signal = (console_date > auto_date) and (result.days_difference > 1)
 
         # Fact 4: Classify the product commit message type
         if console and console.last_commit_message:

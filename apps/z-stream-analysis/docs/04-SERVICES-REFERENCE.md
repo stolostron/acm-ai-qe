@@ -1,12 +1,12 @@
 # Services Reference
 
-One-stop reference for all 13 Python services and the `ReportFormatter` class.
+One-stop reference for all Python services and the `ReportFormatter` class.
 
 ---
 
 ## Overview
 
-Z-Stream Analysis uses 13 service modules (12 in `src/services/`, plus `ReportFormatter` in `src/scripts/report.py`). Services provide **factual data only** — all classification is performed by the AI agent in Stage 2.
+Z-Stream Analysis uses 16 service modules in `src/services/`, plus `ReportFormatter` in `src/scripts/report.py`. Services provide **factual data only** — all classification is performed by the AI agent in Stage 2.
 
 ```
 gather.py ──┬── JenkinsAPIClient ──────────── Jenkins REST API
@@ -18,9 +18,14 @@ gather.py ──┬── JenkinsAPIClient ──────────── 
             ├── ComponentExtractor ─────────── Error → component names
             ├── ACMConsoleKnowledge ─────────── Directory structure mapping
             ├── ACMUIMCPClient ─────────────── MCP fallback for Stage 1
+            ├── ClusterInvestigationService ── Cluster landscape + pod diagnostics (v3.0)
+            ├── FeatureAreaService ────────── Test-to-feature-area mapping (v3.0)
+            ├── FeatureKnowledgeService ──── Playbook loading + symptom matching (v3.1)
             └── shared_utils ──────────────── Config, subprocess, credentials
 
 report.py ── ReportFormatter ─────────────── Markdown/JSON/text output
+
+feedback.py  FeedbackService ─────────────── Classification accuracy tracking (v3.0)
 
 Stage 2 ───── SchemaValidationService ─────── JSON Schema validation
               KnowledgeGraphClient ─────────── Neo4j RHACM queries (optional)
@@ -34,7 +39,7 @@ Stage 2 ───── SchemaValidationService ─────── JSON Schem
 
 | Property | Value |
 |----------|-------|
-| **File** | `src/services/jenkins_intelligence_service.py` (900 lines) |
+| **File** | `src/services/jenkins_intelligence_service.py` (894 lines) |
 | **Purpose** | Extracts build info, console log patterns, and test report from Jenkins |
 | **Used by** | Stage 1, Steps 1-3 |
 
@@ -55,7 +60,7 @@ Stage 2 ───── SchemaValidationService ─────── JSON Schem
 
 | Property | Value |
 |----------|-------|
-| **File** | `src/services/jenkins_api_client.py` (449 lines) |
+| **File** | `src/services/jenkins_api_client.py` (391 lines) |
 | **Purpose** | Authenticated Jenkins REST API access via curl |
 | **Used by** | Stage 1, Steps 1-3 (via JenkinsIntelligenceService) |
 
@@ -68,9 +73,7 @@ Stage 2 ───── SchemaValidationService ─────── JSON Schem
 | `get_build_info(url)` | GET `<url>/api/json` |
 | `get_console_output(url)` | GET `<url>/consoleText` |
 | `get_test_report(url)` | GET `<url>/testReport/api/json` |
-| `get_build_parameters(url)` | Extract build parameters |
 | `parse_build_url(url)` | Parse Jenkins URL into components |
-| `verify_connection()` | Test Jenkins connectivity |
 
 **Credential priority:** constructor args > environment variables > config file
 
@@ -80,7 +83,7 @@ Stage 2 ───── SchemaValidationService ─────── JSON Schem
 
 | Property | Value |
 |----------|-------|
-| **File** | `src/services/environment_validation_service.py` (615 lines) |
+| **File** | `src/services/environment_validation_service.py` (624 lines) |
 | **Purpose** | Cluster health checks using READ-ONLY oc/kubectl commands |
 | **Used by** | Stage 1, Step 4 |
 
@@ -104,21 +107,19 @@ Stage 2 ───── SchemaValidationService ─────── JSON Schem
 
 | Property | Value |
 |----------|-------|
-| **File** | `src/services/repository_analysis_service.py` (437 lines) |
-| **Purpose** | Git clone and repository file analysis |
-| **Used by** | Stage 1, Steps 5-7 |
+| **File** | `src/services/repository_analysis_service.py` (162 lines) |
+| **Purpose** | Git clone and repository inference |
+| **Used by** | Stage 1, Step 5 |
 
-**Key exports:** `RepositoryAnalysisService`, `RepositoryAnalysisResult`, `TestFileInfo`, `DependencyInfo`, `SelectorHistory`
+**Key exports:** `RepositoryAnalysisService`, `SelectorHistory`
 
 **Key methods:**
 
 | Method | Description |
 |--------|-------------|
 | `clone_to(repo_url, branch, target_path)` | Clone repository to specific path |
-| `get_selector_history(repo_path, selector, file_path)` | Git history for a selector |
-| `get_file_content_around_line(repo_path, file_path, line, context)` | Read file with context lines |
-| `resolve_imports(repo_path, file_path)` | Resolve import paths in test files |
-| `get_targeted_evidence(repo_path, file, line, selector)` | Gather evidence for a failure |
+| `_infer_repo_from_job(job_name)` | Map job name to automation repo URL |
+| `_get_head_commit(repo_path)` | Get HEAD commit hash from cloned repo |
 
 ---
 
@@ -126,7 +127,7 @@ Stage 2 ───── SchemaValidationService ─────── JSON Schem
 
 | Property | Value |
 |----------|-------|
-| **File** | `src/services/stack_trace_parser.py` (378 lines) |
+| **File** | `src/services/stack_trace_parser.py` (374 lines) |
 | **Purpose** | Parses JS/TS stack traces to extract file:line, error type, and failing selector |
 | **Used by** | Stage 1, Step 3 |
 
@@ -148,7 +149,7 @@ Stage 2 ───── SchemaValidationService ─────── JSON Schem
 
 | Property | Value |
 |----------|-------|
-| **File** | `src/services/timeline_comparison_service.py` (881 lines) |
+| **File** | `src/services/timeline_comparison_service.py` (821 lines) |
 | **Purpose** | Compares git modification dates between automation and product repos |
 | **Used by** | Stage 1, Step 6 (timeline evidence) |
 
@@ -247,7 +248,7 @@ Stage 2 ───── SchemaValidationService ─────── JSON Schem
 
 | Property | Value |
 |----------|-------|
-| **File** | `src/services/knowledge_graph_client.py` (513 lines) |
+| **File** | `src/services/knowledge_graph_client.py` (456 lines) |
 | **Purpose** | Optional Neo4j client for RHACM component dependency analysis |
 | **Used by** | Stage 2, Phases B5/C2/E0 (via MCP or direct) |
 
@@ -271,7 +272,7 @@ Stage 2 ───── SchemaValidationService ─────── JSON Schem
 
 | Property | Value |
 |----------|-------|
-| **File** | `src/services/schema_validation_service.py` (461 lines) |
+| **File** | `src/services/schema_validation_service.py` (448 lines) |
 | **Purpose** | Validates analysis-results.json against JSON Schema |
 | **Used by** | Stage 3 (report.py validates input) |
 
@@ -294,7 +295,7 @@ Stage 2 ───── SchemaValidationService ─────── JSON Schem
 
 | Property | Value |
 |----------|-------|
-| **File** | `src/services/shared_utils.py` (645 lines) |
+| **File** | `src/services/shared_utils.py` (482 lines) |
 | **Purpose** | Common configuration, subprocess wrappers, credential handling, file detection |
 | **Used by** | All services |
 
@@ -306,8 +307,7 @@ Stage 2 ───── SchemaValidationService ─────── JSON Schem
 | **Subprocess** | `run_subprocess`, `build_curl_command`, `execute_curl` |
 | **JSON** | `parse_json_response`, `safe_json_loads` |
 | **Credentials** | `get_jenkins_credentials`, `encode_basic_auth`, `get_auth_header`, `mask_sensitive_value`, `mask_sensitive_dict` |
-| **File detection** | `is_test_file`, `is_framework_file`, `is_support_file`, `detect_test_framework` |
-| **Base class** | `ServiceBase` |
+| **File detection** | `is_test_file`, `is_framework_file`, `is_support_file` |
 
 ---
 
@@ -315,7 +315,7 @@ Stage 2 ───── SchemaValidationService ─────── JSON Schem
 
 | Property | Value |
 |----------|-------|
-| **File** | `src/scripts/report.py` (752 lines) |
+| **File** | `src/scripts/report.py` (899 lines) |
 | **Purpose** | Formats AI analysis results into Markdown, JSON, and text reports |
 | **Used by** | Stage 3 |
 
@@ -334,6 +334,98 @@ See [03-STAGE3-REPORT-GENERATION.md](03-STAGE3-REPORT-GENERATION.md) for details
 
 ---
 
+### 14. ClusterInvestigationService (v3.0)
+
+| Property | Value |
+|----------|-------|
+| **File** | `src/services/cluster_investigation_service.py` (523 lines) |
+| **Purpose** | Cluster landscape snapshot + targeted pod-level diagnostics |
+| **Used by** | Stage 1, Step 4b (landscape); Stage 2, Phase B5b (pod investigation) |
+
+**Key exports:** `ClusterInvestigationService`, `ClusterLandscape`, `PodDiagnostics`, `ComponentDiagnostics`
+
+**Key methods:**
+
+| Method | Description |
+|--------|-------------|
+| `get_cluster_landscape()` | Managed clusters, operators, resource pressure, MCH status |
+| `diagnose_component(component, namespace)` | Pod status, restart counts, events, log tails |
+| `diagnose_subsystem(subsystem)` | Diagnose all components in a subsystem |
+| `get_resource_pressure()` | Check CPU/memory/disk/PID pressure on nodes |
+| `to_dict(obj)` | Convert result to dictionary |
+
+**Safety:** READ-ONLY operations only (same as EnvironmentValidationService). Validates all commands against a whitelist.
+
+---
+
+### 15. FeatureAreaService (v3.0)
+
+| Property | Value |
+|----------|-------|
+| **File** | `src/services/feature_area_service.py` (374 lines) |
+| **Purpose** | Maps failed tests to feature areas (CLC, Search, GRC, etc.) with subsystem context |
+| **Used by** | Stage 1, Step 6 (feature grounding in core-data.json) |
+
+**Key exports:** `FeatureAreaService`, `FeatureGrounding`, `FeatureMapping`
+
+**Key methods:**
+
+| Method | Description |
+|--------|-------------|
+| `identify_feature_area(test_name)` | Map test name to feature area |
+| `group_tests_by_feature(failed_tests)` | Group all failed tests by feature area |
+| `get_grounding(feature_area)` | Get subsystem, key components, namespaces, investigation focus |
+| `to_dict(obj)` | Convert result to dictionary |
+
+---
+
+### 16. FeatureKnowledgeService (v3.1)
+
+| Property | Value |
+|----------|-------|
+| **File** | `src/services/feature_knowledge_service.py` (355 lines) |
+| **Purpose** | Loads feature investigation playbooks (YAML), checks prerequisites against cluster state, matches error symptoms to known failure paths |
+| **Used by** | Stage 1, Step 6c (feature knowledge in core-data.json) |
+
+**Key exports:** `FeatureKnowledgeService`, `FeatureReadiness`, `PrerequisiteCheck`, `MatchedFailurePath`
+
+**Key methods:**
+
+| Method | Description |
+|--------|-------------|
+| `load_playbooks(acm_version, feature_areas)` | Load base.yaml + version overlay, filter to requested feature areas |
+| `check_prerequisites(feature_area, mch_components, cluster_landscape)` | Check each prerequisite against cluster state (MCH components auto-checked, others flagged for AI) |
+| `match_symptoms(feature_area, error_messages)` | Match error messages against failure path symptom regexes |
+| `get_feature_readiness(feature_area, mch_components, cluster_landscape, error_messages)` | Combined prerequisite check + symptom matching into a readiness assessment |
+| `get_investigation_playbook(feature_area)` | Return full playbook (architecture + failure_paths) for core-data.json injection |
+
+**Playbook location:** `src/data/feature_playbooks/` (base.yaml, acm-2.16.yaml)
+
+---
+
+### 17. FeedbackService (v3.0)
+
+| Property | Value |
+|----------|-------|
+| **File** | `src/services/feedback_service.py` (328 lines) |
+| **Purpose** | Collects tester feedback on classification accuracy for tracking and improvement |
+| **Used by** | `feedback.py` CLI (post-analysis feedback loop) |
+
+**Key exports:** `FeedbackService`, `ClassificationFeedback`, `RunFeedback`
+
+**Key methods:**
+
+| Method | Description |
+|--------|-------------|
+| `submit_feedback(run_id, test_name, is_correct, correct_classification)` | Submit feedback for a single test |
+| `submit_run_feedback(run_id, feedbacks)` | Submit feedback for multiple tests in a run |
+| `get_accuracy_stats()` | Global accuracy statistics across all runs |
+| `get_misclassification_patterns()` | Identify common misclassification patterns |
+
+**Storage:** Per-run feedback in `<run_dir>/feedback.json`, global index in `runs/feedback-index.json`.
+
+---
+
 ## Service-to-Stage Mapping
 
 | Service | Stage 1 | Stage 2 | Stage 3 |
@@ -348,9 +440,13 @@ See [03-STAGE3-REPORT-GENERATION.md](03-STAGE3-REPORT-GENERATION.md) for details
 | ACMUIMCPClient | Steps 5, 7 | | |
 | ComponentExtractor | Step 6 | | |
 | KnowledgeGraphClient | | Phases B5, C2, E0 | |
+| ClusterInvestigationService | Step 4b | Phase B5b | |
+| FeatureAreaService | Step 6 | | |
+| FeatureKnowledgeService | Step 6c | | |
 | SchemaValidationService | | | Input validation |
 | shared_utils | All steps | | |
 | ReportFormatter | | | All output |
+| FeedbackService | | | Feedback CLI |
 
 ---
 
@@ -358,8 +454,8 @@ See [03-STAGE3-REPORT-GENERATION.md](03-STAGE3-REPORT-GENERATION.md) for details
 
 | Metric | Value |
 |--------|-------|
-| Total service lines | ~6,900 |
-| Service files | 12 |
+| Total service lines | ~8,400 |
+| Service files | 16 (+ReportFormatter) |
 | Data classes | 24+ |
 | Public methods | ~150 |
 | Configuration | Centralized in shared_utils |

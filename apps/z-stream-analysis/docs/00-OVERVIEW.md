@@ -1,4 +1,4 @@
-# Z-Stream Analysis Overview (v2.5)
+# Z-Stream Analysis Overview (v3.1)
 
 Jenkins pipeline failure analysis with definitive classification of each test failure.
 
@@ -109,20 +109,9 @@ runs/<job>_<timestamp>/
 
 ### Decision Quick Reference (3-Path Routing in Phase D)
 
-| Evidence | Path | Classification |
-|----------|------|----------------|
-| `console_search.found = false` | A | AUTOMATION_BUG |
-| `element_removed = true` in timeline | A | AUTOMATION_BUG |
-| `failure_type = element_not_found` | A | AUTOMATION_BUG |
-| Timeout waiting for missing selector | A | AUTOMATION_BUG |
-| Timeout (non-selector) | B1 | INFRASTRUCTURE |
-| `environment.cluster_connectivity = false` | B1 | INFRASTRUCTURE |
-| Multiple unrelated tests timeout | B1 | INFRASTRUCTURE |
-| 500 errors in console log | B2 | PRODUCT_BUG |
-| Feature story contradicts product behavior | B2/E | PRODUCT_BUG |
-| Assertion failure + test logic wrong | B2 | AUTOMATION_BUG |
-| Test passes on retry, no code changes | Any | FLAKY |
-| Failure matches intentional product change | E | NO_BUG |
+Three classification paths: **Path A** (selector mismatch → AUTOMATION_BUG), **Path B1** (non-selector timeout → INFRASTRUCTURE), **Path B2** (everything else → JIRA-informed investigation). **D-1** checks feature knowledge override first (unmet prerequisites, playbook-confirmed failure paths). **D0** checks backend cross-check — if a backend issue caused the UI failure, routes to Path B2 regardless.
+
+See [02-STAGE2-AI-ANALYSIS.md](02-STAGE2-AI-ANALYSIS.md) Phase D for the full decision routing with evidence tables and confidence scores.
 
 ---
 
@@ -210,10 +199,10 @@ python -m src.scripts.report <dir> --keep-repos    # Don't delete repos/
 
 | Phase | Purpose | Key Question |
 |-------|---------|--------------|
-| A | Initial Assessment | What's the big picture? |
-| B | Deep Investigation | What went wrong in each test? |
+| A | Initial Assessment + Feature Knowledge | What's the big picture? What do playbooks say? |
+| B | Deep Investigation + Tiered Cluster Checks | What went wrong in each test? What do pods show? |
 | C | Cross-Reference Validation | Do I have enough evidence? |
-| D | 3-Path Classification Routing | Selector (A), timeout (B1), or JIRA-informed (B2)? |
+| D | Classification (Feature Override → Backend → 3-Path) | Prerequisite unmet? Backend caused it? Selector (A), timeout (B1), or JIRA-informed (B2)? |
 | E | Feature Context & JIRA Correlation | What should this feature do? Are there known issues? |
 
 ---
@@ -234,6 +223,8 @@ python -m src.scripts.report <dir> --keep-repos    # Don't delete repos/
 
 | Version | Changes |
 |---------|---------|
+| v3.1 | Feature investigation playbooks (YAML), FeatureKnowledgeService, MCH component extraction (`mch_enabled_components`, `mch_version`), cluster credential persistence (`cluster_access`), tiered investigation (Tiers 0-4), `feature_knowledge` in core-data.json, new schema fields (`prerequisite_analysis`, `playbook_investigation`, `cluster_investigation_detail`, `cluster_investigation_summary`), feedback CLI |
+| v3.0 | Cluster investigation, feature area grounding, backend cross-check (B7/D0), targeted pod investigation (B5b) |
 | v2.5 | 5-Phase Systematic Investigation Framework, multi-evidence requirement |
 | v2.4 | Complete Context Upfront, extracted_context per test |
 | v2.3 | Knowledge Graph integration, component extraction |

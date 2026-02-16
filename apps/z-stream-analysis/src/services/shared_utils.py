@@ -10,7 +10,7 @@ import json
 import logging
 import os
 import subprocess
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 
@@ -335,31 +335,6 @@ def encode_basic_auth(username: str, password: str) -> str:
     return f"Basic {encoded}"
 
 
-def decode_basic_auth(auth_header: str) -> Tuple[Optional[str], Optional[str]]:
-    """
-    Decode Basic auth header to username and password.
-
-    Args:
-        auth_header: Full auth header (e.g., "Basic base64encoded...")
-
-    Returns:
-        Tuple of (username, password) or (None, None) on failure
-    """
-    if not auth_header or not auth_header.startswith('Basic '):
-        return None, None
-
-    try:
-        encoded = auth_header.split(' ', 1)[1]
-        decoded = base64.b64decode(encoded).decode('utf-8')
-        if ':' in decoded:
-            username, password = decoded.split(':', 1)
-            return username, password
-    except (IndexError, ValueError, UnicodeDecodeError):
-        pass
-
-    return None, None
-
-
 def get_auth_header() -> Optional[str]:
     """
     Get Basic auth header from environment credentials.
@@ -439,144 +414,6 @@ def is_support_file(file_path: str) -> bool:
     """
     path_lower = file_path.lower()
     return any(pattern in path_lower for pattern in SUPPORT_FILE_PATTERNS)
-
-
-def detect_test_framework(file_path: str) -> Optional[str]:
-    """
-    Detect the test framework from a file path.
-
-    Args:
-        file_path: File path to analyze
-
-    Returns:
-        Framework name or None
-    """
-    path_lower = file_path.lower()
-
-    # Cypress patterns
-    if '.cy.' in path_lower or 'cypress/' in path_lower:
-        return 'cypress'
-
-    # Jest patterns
-    if '.test.' in path_lower or '__tests__' in path_lower:
-        return 'jest'
-
-    # Pytest patterns
-    if path_lower.endswith('.py') and ('test_' in path_lower or '_test.' in path_lower):
-        return 'pytest'
-
-    # Mocha patterns
-    if '.spec.' in path_lower:
-        return 'mocha'
-
-    return None
-
-
-# =============================================================================
-# DATACLASS UTILITIES
-# =============================================================================
-
-def dataclass_to_dict(obj: Any, exclude_none: bool = False) -> Dict[str, Any]:
-    """
-    Convert a dataclass to dictionary with optional None exclusion.
-
-    Args:
-        obj: Dataclass instance
-        exclude_none: If True, exclude None values
-
-    Returns:
-        Dictionary representation
-    """
-    if hasattr(obj, '__dataclass_fields__'):
-        result = asdict(obj)
-        if exclude_none:
-            result = {k: v for k, v in result.items() if v is not None}
-        return result
-    elif hasattr(obj, 'to_dict'):
-        return obj.to_dict()
-    else:
-        return dict(obj) if hasattr(obj, '__iter__') else {}
-
-
-# =============================================================================
-# SERVICE BASE CLASS
-# =============================================================================
-
-class ServiceBase:
-    """
-    Base class for services with common functionality.
-
-    Provides:
-    - Standardized logging setup
-    - Common utility method access
-    - Subprocess execution helpers
-    """
-
-    def __init__(self, logger_name: Optional[str] = None):
-        """
-        Initialize service with logger.
-
-        Args:
-            logger_name: Custom logger name (defaults to module name)
-        """
-        self.logger = logging.getLogger(logger_name or self.__class__.__name__)
-
-    def _run_command(
-        self,
-        cmd: List[str],
-        timeout: int = 60,
-        cwd: Optional[str] = None,
-    ) -> Tuple[bool, str, str]:
-        """
-        Run a subprocess command.
-
-        Args:
-            cmd: Command and arguments
-            timeout: Timeout in seconds
-            cwd: Working directory
-
-        Returns:
-            Tuple of (success, stdout, stderr)
-        """
-        return run_subprocess(cmd, timeout, cwd)
-
-    def _curl(
-        self,
-        url: str,
-        username: Optional[str] = None,
-        token: Optional[str] = None,
-        timeout: int = 30,
-    ) -> Tuple[bool, str]:
-        """
-        Execute a curl request.
-
-        Args:
-            url: Target URL
-            username: Optional username
-            token: Optional token
-            timeout: Timeout in seconds
-
-        Returns:
-            Tuple of (success, response_body)
-        """
-        return execute_curl(url, username, token, timeout)
-
-    def _parse_json(
-        self,
-        response: str,
-        default: Optional[Any] = None,
-    ) -> Any:
-        """
-        Parse JSON response safely.
-
-        Args:
-            response: Raw response
-            default: Default value on failure
-
-        Returns:
-            Parsed data or default
-        """
-        return safe_json_loads(response, default)
 
 
 # =============================================================================

@@ -78,7 +78,12 @@
       "mcp__jira__list_component_aliases",
       "mcp__jira__add_component_alias",
       "mcp__jira__remove_component_alias",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(export:*)",
+      "Bash(oc logout:*)",
+      "mcp__neo4j-rhacm__read_neo4j_cypher",
+      "Bash(xargs:*)",
+      "mcp__neo4j-rhacm__get_neo4j_schema"
     ],
     "deny": []
   }

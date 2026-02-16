@@ -82,6 +82,9 @@ from src.services.knowledge_graph_client import (
     get_knowledge_graph_client,
     is_knowledge_graph_available
 )
+from src.services.cluster_investigation_service import ClusterInvestigationService
+from src.services.feature_area_service import FeatureAreaService
+from src.services.feature_knowledge_service import FeatureKnowledgeService
 
 
 class DataGatherer:
@@ -128,6 +131,15 @@ class DataGatherer:
 
         # Component extractor for Knowledge Graph integration
         self.component_extractor = ComponentExtractor()
+
+        # Cluster investigation for targeted component diagnostics (v3.0)
+        self.cluster_investigation_service = ClusterInvestigationService()
+
+        # Feature area grounding (v3.0)
+        self.feature_area_service = FeatureAreaService()
+
+        # Feature knowledge playbooks (v3.0)
+        self.feature_knowledge_service = FeatureKnowledgeService()
 
         # Knowledge Graph client (optional - for dependency queries in Phase 2)
         self.knowledge_graph_client: Optional[KnowledgeGraphClient] = None
@@ -198,10 +210,10 @@ class DataGatherer:
             'metadata': {
                 'jenkins_url': jenkins_url,
                 'gathered_at': datetime.now().isoformat(),
-                'gatherer_version': '2.4.0',
+                'gatherer_version': '3.1.0',
                 'jenkins_api_available': is_jenkins_available(),
-                'acm_ui_mcp_available': True,
-                'knowledge_graph_available': True,
+                'acm_ui_mcp_available': True,  # Always available to Claude Code agent via native MCP
+                'knowledge_graph_available': None,  # Updated after _check_feature_knowledge()
                 'run_directory': str(run_dir)
             },
             'jenkins': {},
@@ -213,7 +225,7 @@ class DataGatherer:
             'errors': []
         }
 
-        total_steps = 8
+        total_steps = 10
 
         # Step 1: Gather Jenkins build info
         self._print_step(1, total_steps, "Fetching Jenkins build info...")
@@ -234,6 +246,13 @@ class DataGatherer:
         else:
             self._print_step(4, total_steps, "Skipping environment check (--skip-env)")
 
+        # Step 4b: Gather cluster landscape (v3.0)
+        if not skip_environment:
+            self._print_step(4, total_steps, "Gathering cluster landscape...")
+            self._gather_cluster_landscape()
+        else:
+            self.gathered_data['cluster_landscape'] = {'skipped': True}
+
         # Step 5: Clone repositories to run directory (optional)
         if not skip_repository:
             self._print_step(5, total_steps, "Cloning repositories...")
@@ -249,20 +268,32 @@ class DataGatherer:
         else:
             self._print_step(6, total_steps, "Skipping context extraction (no repos)")
 
+        # Step 6b: Ground feature areas (v3.0)
+        self._print_step(7, total_steps, "Grounding feature areas...")
+        self._ground_feature_areas()
+
+        # Step 6c: Feature knowledge playbooks + KG dependency context (v3.0)
+        self._print_step(8, total_steps, "Loading feature knowledge...")
+        self._check_feature_knowledge()
+
         # Step 7: Build element inventory from cloned repos (optional)
         if not skip_repository:
-            self._print_step(7, total_steps, "Building element inventory...")
+            self._print_step(9, total_steps, "Building element inventory...")
             self._gather_element_inventory(run_dir)
         else:
-            self._print_step(7, total_steps, "Skipping element inventory (no repos)")
+            self._print_step(9, total_steps, "Skipping element inventory (no repos)")
 
         # Step 8: Build investigation hints for AI
-        self._print_step(8, total_steps, "Building investigation hints...")
+        self._print_step(10, total_steps, "Building investigation hints...")
         self._build_investigation_hints(run_dir)
 
         # Step 8b: Inject per-test temporal_summary into extracted_context
         # (runs after timeline evidence is collected in step 8)
         self._inject_temporal_summaries()
+
+        # Finalize MCP availability based on actual check results
+        kg_status = self.gathered_data.get('feature_knowledge', {}).get('kg_status', {})
+        self.gathered_data['metadata']['knowledge_graph_available'] = kg_status.get('available', False)
 
         # Calculate gathering time
         gathering_time = time.time() - start_time
@@ -501,6 +532,15 @@ class DataGatherer:
         try:
             api_url, username, password = self._extract_cluster_credentials()
 
+            # Persist cluster access info for Stage 2 re-authentication
+            self.gathered_data['cluster_access'] = {
+                'api_url': api_url,
+                'username': username,
+                'has_credentials': bool(api_url and username and password),
+                'password': password,
+                'note': 'Credentials from Jenkins parameters. Used by AI agent for Stage 2 cluster investigation.',
+            }
+
             if api_url and username and password:
                 self.logger.info(f"Validating TARGET cluster: {api_url}")
             else:
@@ -533,6 +573,323 @@ class DataGatherer:
                 'error': error_msg,
                 'cluster_connectivity': False
             }
+
+    def _gather_cluster_landscape(self):
+        """
+        Step 4b: Gather cluster landscape snapshot (v3.0).
+
+        Collects managed clusters, operator statuses, resource pressure,
+        policies, and MCH status into core-data.json under 'cluster_landscape'.
+
+        Uses the kubeconfig and CLI from the environment validation service
+        to ensure both services query the same cluster.
+        """
+        self.logger.info("Gathering cluster landscape...")
+
+        try:
+            # Share kubeconfig and CLI from env service so both query the same cluster
+            env_kubeconfig = self.env_service._temp_kubeconfig or self.env_service.kubeconfig
+            if env_kubeconfig:
+                self.cluster_investigation_service.kubeconfig = env_kubeconfig
+            self.cluster_investigation_service.cli = self.env_service.cli
+
+            landscape = self.cluster_investigation_service.get_cluster_landscape()
+            landscape_data = self.cluster_investigation_service.to_dict(landscape)
+            self.gathered_data['cluster_landscape'] = landscape_data
+
+            # Log key findings
+            if landscape.degraded_operators:
+                self.logger.warning(
+                    f"Degraded operators: {', '.join(landscape.degraded_operators)}"
+                )
+            if any(landscape.resource_pressure.values()):
+                pressures = [k for k, v in landscape.resource_pressure.items() if v]
+                self.logger.warning(f"Resource pressure: {', '.join(pressures)}")
+
+            self.logger.info(
+                f"Cluster landscape: {landscape.managed_cluster_count} managed clusters, "
+                f"{len(landscape.degraded_operators)} degraded operators"
+            )
+
+        except Exception as e:
+            error_msg = f"Failed to gather cluster landscape: {str(e)}"
+            self.logger.warning(error_msg)
+            self.gathered_data['cluster_landscape'] = {'error': error_msg}
+
+    def _ground_feature_areas(self):
+        """
+        Step 6b: Ground feature areas for all failed tests (v3.0).
+
+        Groups tests by feature area and adds grounding context
+        (subsystem, key components, namespaces) to core-data.json.
+        """
+        self.logger.info("Grounding feature areas...")
+
+        test_report = self.gathered_data.get('test_report', {})
+        failed_tests = test_report.get('failed_tests', [])
+
+        if not failed_tests:
+            self.gathered_data['feature_grounding'] = {
+                'groups': {},
+                'note': 'No failed tests to ground',
+            }
+            return
+
+        try:
+            groups = self.feature_area_service.group_tests_by_feature(failed_tests)
+
+            # Serialize for core-data.json
+            grounding_data = {
+                'groups': {},
+                'feature_areas_found': list(groups.keys()),
+                'total_groups': len(groups),
+            }
+
+            for area, group in groups.items():
+                grounding_data['groups'][area] = {
+                    'subsystem': group.grounding.subsystem,
+                    'key_components': group.grounding.key_components,
+                    'key_namespaces': group.grounding.key_namespaces,
+                    'investigation_focus': group.grounding.investigation_focus,
+                    'tests': group.tests,
+                    'test_count': group.test_count,
+                }
+
+            self.gathered_data['feature_grounding'] = grounding_data
+
+            # Log summary
+            for area, group in groups.items():
+                self.logger.info(
+                    f"  {area} ({group.grounding.subsystem}): "
+                    f"{group.test_count} test(s)"
+                )
+
+        except Exception as e:
+            error_msg = f"Failed to ground feature areas: {str(e)}"
+            self.logger.warning(error_msg)
+            self.gathered_data['feature_grounding'] = {'error': error_msg}
+
+    def _check_feature_knowledge(self):
+        """
+        Step 6c: Load feature investigation playbooks, check MCH prerequisites,
+        pre-match test error messages against known failure paths, and query
+        Knowledge Graph for dependency context.
+
+        Populates gathered_data['feature_knowledge'] with:
+        - acm_version: detected ACM version
+        - profiles_loaded: list of loaded feature area names
+        - feature_readiness: per-area readiness assessment
+        - investigation_playbooks: full playbook content per area
+        - kg_dependency_context: per-area KG dependency graph (if available)
+        """
+        self.logger.info("Loading feature knowledge playbooks...")
+
+        try:
+            # Detect ACM version from Jenkins params or MCH
+            jenkins_data = self.gathered_data.get('jenkins', {})
+            params = jenkins_data.get('parameters', {})
+            acm_version = params.get('DOWNSTREAM_RELEASE')
+            if not acm_version:
+                landscape = self.gathered_data.get('cluster_landscape', {})
+                mch_ver = landscape.get('mch_version', '')
+                if mch_ver:
+                    # Extract major.minor from version like "2.16.1"
+                    parts = mch_ver.split('.')
+                    if len(parts) >= 2:
+                        acm_version = f"{parts[0]}.{parts[1]}"
+
+            # Get detected feature areas from Step 6b
+            grounding = self.gathered_data.get('feature_grounding', {})
+            feature_areas = grounding.get('feature_areas_found', [])
+
+            if not feature_areas:
+                self.gathered_data['feature_knowledge'] = {
+                    'note': 'No feature areas detected — skipping playbook loading',
+                }
+                return
+
+            # Load playbooks
+            profiles = self.feature_knowledge_service.load_playbooks(
+                acm_version=acm_version,
+                feature_areas=feature_areas,
+            )
+
+            # Get MCH component states from cluster landscape
+            landscape = self.gathered_data.get('cluster_landscape', {})
+            mch_components = landscape.get('mch_enabled_components', {})
+
+            # Get error messages per feature area for symptom matching
+            groups = grounding.get('groups', {})
+            test_report = self.gathered_data.get('test_report', {})
+            failed_tests = test_report.get('failed_tests', [])
+            test_errors = {}
+            for test in failed_tests:
+                test_name = test.get('test_name', '')
+                error_msg = test.get('error_message', '')
+                if error_msg:
+                    test_errors[test_name] = error_msg
+
+            # Build readiness and playbooks per feature area
+            feature_readiness = {}
+            investigation_playbooks = {}
+            for area in profiles:
+                # Collect error messages for tests in this feature area
+                area_group = groups.get(area, {})
+                area_tests = area_group.get('tests', [])
+                area_errors = [
+                    test_errors[t] for t in area_tests if t in test_errors
+                ]
+
+                # Get readiness
+                readiness = self.feature_knowledge_service.get_feature_readiness(
+                    area,
+                    mch_components=mch_components,
+                    cluster_landscape=landscape,
+                    error_messages=area_errors,
+                )
+                feature_readiness[area] = self.feature_knowledge_service.to_dict(readiness)
+
+                # Get full playbook
+                playbook = self.feature_knowledge_service.get_investigation_playbook(area)
+                if playbook:
+                    investigation_playbooks[area] = playbook
+
+            # Query Knowledge Graph for dependency context
+            kg_dependency_context = {}
+            kg_status = {}
+            if not self.knowledge_graph_client or not self.knowledge_graph_client.available:
+                # KG unavailable — warn explicitly
+                kg_status = {
+                    'available': False,
+                    'error': 'Knowledge Graph (Neo4j RHACM) is not connected',
+                    'impact': (
+                        'Tier 3-4 investigation will lack dependency graphs, '
+                        'cascading failure analysis, and cross-subsystem tracing. '
+                        'Playbook prerequisites and failure paths still work.'
+                    ),
+                    'remediation': (
+                        'Run: bash mcp/setup.sh from the ai_systems_v2 repo root '
+                        'to configure the Neo4j RHACM MCP server. Ensure the Neo4j '
+                        'database is running and populated with RHACM component data.'
+                    ),
+                }
+                self.logger.warning(
+                    "Knowledge Graph UNAVAILABLE — dependency context will be missing. "
+                    "Run 'bash mcp/setup.sh' to configure. "
+                    "Tier 3-4 investigation degraded."
+                )
+                self.gathered_data['errors'].append(
+                    "Knowledge Graph unavailable: Tier 3-4 cluster investigation "
+                    "will lack dependency analysis. Run 'bash mcp/setup.sh' to fix."
+                )
+            else:
+                kg_status = {'available': True}
+                for area in profiles:
+                    area_group = groups.get(area, {})
+                    subsystem = area_group.get('subsystem', area)
+                    try:
+                        kg_context = self._query_kg_dependency_context(subsystem)
+                        if kg_context:
+                            kg_dependency_context[area] = kg_context
+                    except Exception as e:
+                        kg_error = f"KG query failed for {area}/{subsystem}: {e}"
+                        self.logger.warning(kg_error)
+                        self.gathered_data['errors'].append(kg_error)
+
+            # Build feature_knowledge section
+            self.gathered_data['feature_knowledge'] = {
+                'acm_version': acm_version,
+                'profiles_loaded': list(profiles.keys()),
+                'feature_readiness': feature_readiness,
+                'investigation_playbooks': investigation_playbooks,
+                'kg_dependency_context': kg_dependency_context,
+                'kg_status': kg_status,
+            }
+
+            # Log summary
+            self.logger.info(
+                f"Loaded {len(profiles)} playbooks for: "
+                f"{', '.join(profiles.keys())}"
+            )
+            for area, readiness_data in feature_readiness.items():
+                unmet = readiness_data.get('unmet_prerequisites', [])
+                matched = readiness_data.get('pre_matched_paths', [])
+                if unmet:
+                    self.logger.warning(
+                        f"  {area}: {len(unmet)} unmet prerequisite(s)"
+                    )
+                if matched:
+                    self.logger.info(
+                        f"  {area}: {len(matched)} failure path(s) pre-matched"
+                    )
+
+        except Exception as e:
+            error_msg = f"Failed to load feature knowledge: {str(e)}"
+            self.logger.warning(error_msg)
+            self.gathered_data['feature_knowledge'] = {'error': error_msg}
+
+    def _query_kg_dependency_context(self, subsystem: str) -> Optional[dict]:
+        """
+        Query Knowledge Graph for a subsystem's internal data flow and
+        cross-subsystem dependencies.
+
+        Returns dict with internal_data_flow, cross_subsystem_dependencies,
+        and components_in_subsystem, or None if KG unavailable.
+        """
+        if not self.knowledge_graph_client or not self.knowledge_graph_client.available:
+            return None
+
+        try:
+            # Get internal relationships within subsystem
+            internal_query = f"""
+            MATCH (c:RHACMComponent)-[r]->(dep:RHACMComponent)
+            WHERE c.subsystem =~ '(?i).*{subsystem}.*'
+              AND dep.subsystem =~ '(?i).*{subsystem}.*'
+            RETURN DISTINCT c.label as source, type(r) as relationship, dep.label as target
+            ORDER BY c.label
+            LIMIT 50
+            """
+            internal_result = self.knowledge_graph_client._execute_cypher(internal_query)
+            internal_data_flow = []
+            if internal_result:
+                for row in internal_result:
+                    src = row.get('source', '')
+                    rel = row.get('relationship', '')
+                    tgt = row.get('target', '')
+                    internal_data_flow.append(f"{src} --{rel}--> {tgt}")
+
+            # Get cross-subsystem dependencies
+            cross_query = f"""
+            MATCH (c:RHACMComponent)-[r]->(dep:RHACMComponent)
+            WHERE c.subsystem =~ '(?i).*{subsystem}.*'
+              AND NOT dep.subsystem =~ '(?i).*{subsystem}.*'
+            RETURN DISTINCT c.subsystem as source_subsystem, type(r) as relationship,
+                   dep.label as target, dep.subsystem as target_subsystem
+            ORDER BY dep.subsystem
+            LIMIT 30
+            """
+            cross_result = self.knowledge_graph_client._execute_cypher(cross_query)
+            cross_deps = []
+            if cross_result:
+                for row in cross_result:
+                    src_sub = row.get('source_subsystem', '')
+                    rel = row.get('relationship', '')
+                    tgt = row.get('target', '')
+                    tgt_sub = row.get('target_subsystem', '')
+                    cross_deps.append(f"{src_sub} --{rel}--> {tgt} ({tgt_sub})")
+
+            # Get component count
+            components = self.knowledge_graph_client.get_subsystem_components(subsystem)
+
+            return {
+                'internal_data_flow': internal_data_flow,
+                'cross_subsystem_dependencies': cross_deps,
+                'components_in_subsystem': len(components),
+            }
+
+        except Exception as e:
+            self.logger.debug(f"KG dependency query failed for {subsystem}: {e}")
+            return None
 
     def _extract_repo_info_from_console(self, run_dir: Path) -> Tuple[Optional[str], Optional[str]]:
         """Extract repository URL and branch from console log."""
@@ -1899,7 +2256,7 @@ class DataGatherer:
 
         # Finalize metadata
         self.gathered_data['metadata']['status'] = 'complete'
-        self.gathered_data['metadata']['data_version'] = '2.4.0'
+        self.gathered_data['metadata']['data_version'] = '3.0.0'
 
         # Mask sensitive data
         masked_data = self._mask_sensitive_data(self.gathered_data)
@@ -1913,6 +2270,10 @@ class DataGatherer:
             'environment': masked_data.get('environment', {}),
             'repositories': masked_data.get('repositories', {}),
             'investigation_hints': masked_data.get('investigation_hints', {}),
+            'cluster_landscape': masked_data.get('cluster_landscape', {}),
+            'feature_grounding': masked_data.get('feature_grounding', {}),
+            'feature_knowledge': masked_data.get('feature_knowledge', {}),
+            'cluster_access': masked_data.get('cluster_access', {}),
             'errors': masked_data.get('errors', []),
             'ai_instructions': self._build_ai_instructions()
         }
@@ -1932,10 +2293,10 @@ class DataGatherer:
     def _build_manifest(self, run_dir: Path) -> Dict[str, Any]:
         """Build manifest.json index file."""
         manifest = {
-            'version': '2.4.0',
+            'version': '3.1.0',
             'file_structure': 'multi-file-with-repos',
             'created_at': datetime.now().isoformat(),
-            'acm_ui_mcp_available': True,
+            'acm_ui_mcp_available': True,  # Always available via Claude Code native MCP
             'files': {
                 'core-data.json': {
                     'description': 'Primary analysis data (metadata, jenkins, test_report, console_log, environment, investigation_hints)',
@@ -1984,33 +2345,116 @@ class DataGatherer:
     def _build_ai_instructions(self) -> Dict[str, Any]:
         """Build AI instructions for 5-phase systematic investigation framework."""
         return {
-            'version': '2.5.0',
-            'architecture': '5-phase-systematic-investigation',
-            'purpose': 'Systematic deep investigation through 5 mandatory phases for 100% classification accuracy',
+            'version': '3.1.0',
+            'architecture': '5-phase-systematic-investigation-with-playbooks',
+            'purpose': 'Systematic deep investigation through 5 mandatory phases with feature playbooks, tiered cluster investigation, and KG dependency analysis',
+
+            # Cluster Re-Authentication
+            'cluster_access': {
+                'description': 'Re-authenticate to the cluster at the start of Stage 2 for live investigation',
+                'steps': [
+                    'A-1a. Read cluster_access from core-data.json (api_url, username, password)',
+                    'A-1b. Run: oc login <api_url> --username <user> --password <password> --insecure-skip-tls-verify=true',
+                    'A-1c. Verify: oc whoami → confirms authentication',
+                    'A-1d. If login fails: log warning, set cluster_access_available=false, proceed with snapshot data only (reduce confidence by 0.15 on all classifications)',
+                ],
+            },
+
+            # Tiered Cluster Investigation Methodology
+            'tiered_investigation': {
+                'description': 'Systematic cluster investigation following SRE debugging methodology. Always do Tier 0-2, go deeper based on findings.',
+                'tier_0_health_snapshot': {
+                    'purpose': 'Verify Stage 1 snapshot is still current. Run ONCE at start of Stage 2.',
+                    'commands': [
+                        "oc get mch -A -o yaml  # MCH phase, version, spec.overrides.components",
+                        "oc get managedclusters  # cluster health summary",
+                        "oc get clusteroperators | grep -v 'True.*False.*False'  # degraded operators only",
+                        "oc adm top nodes  # resource pressure",
+                        "oc get pods -A | grep -Ev 'Running|Completed'  # non-healthy pods",
+                    ],
+                },
+                'tier_1_component_health': {
+                    'purpose': 'Check health of every backend component the feature depends on. Run per feature area with failures.',
+                    'per_component_steps': [
+                        "oc get pods -n <namespace> -l app=<component>  # Running? Ready? Restart count?",
+                        "If not Running/Ready: oc describe pod <pod> -n <ns>  # Events, conditions",
+                        "If not Running/Ready: oc logs <pod> -n <ns> --tail=100  # Error messages",
+                        "If restart count > 3: oc logs <pod> -n <ns> --previous --tail=50  # Previous crash reason",
+                        "oc get events -n <ns> --sort-by=.lastTimestamp | tail -10  # Recent events",
+                    ],
+                },
+                'tier_2_playbook_investigation': {
+                    'purpose': 'Verify prerequisites and investigate known failure paths from playbooks. Run when playbook loaded.',
+                    'prerequisite_checks': {
+                        'mch_component': "oc get mch -A -o jsonpath='{.items[0].spec.overrides.components}'",
+                        'addon': "oc get managedclusteraddon <addon> -n <cluster>",
+                        'operator': "oc get csv -n <namespace> | grep <operator>",
+                        'crd': "oc get crd <crd-name>",
+                    },
+                    'failure_path_steps': 'Match test error against symptom regexes, execute investigation steps, compare against expected results',
+                },
+                'tier_3_data_flow': {
+                    'purpose': 'Trace feature data flow to find where things break. Run when Tier 1-2 dont explain the failure.',
+                    'triggers': [
+                        'All components healthy but tests still fail',
+                        'Feature involves spoke clusters (cross-cluster data flow)',
+                        'Error suggests data not flowing (empty results, stale data)',
+                        'KG shows cross-subsystem dependencies',
+                    ],
+                },
+                'tier_4_deep_investigation': {
+                    'purpose': 'Cast a wider net for root causes. Run when Tier 1-3 dont explain, or multiple feature areas failing.',
+                    'triggers': [
+                        'Tier 1-3 dont explain the failure',
+                        'Multiple feature areas failing simultaneously',
+                        'Suspected infrastructure-wide issue',
+                        'KG common dependency analysis finds shared root cause',
+                    ],
+                    'includes': [
+                        'Cross-namespace event scan',
+                        'Network connectivity checks',
+                        'Resource deep-dive (node pressure, memory-heavy pods)',
+                        'KG cascading failure analysis (find_common_dependency)',
+                        'Recent changes (recently created pods, image pulls)',
+                    ],
+                },
+            },
 
             # 5-Phase Framework Overview
             'investigation_framework': {
-                'description': 'Every analysis MUST complete all 5 phases in order',
+                'description': 'Every analysis MUST complete all 5 phases in order. Use tiered_investigation within phases.',
                 'phases': {
                     'A': {
                         'name': 'Initial Assessment',
-                        'purpose': 'Detect global patterns before individual analysis',
+                        'purpose': 'Re-authenticate cluster, review feature knowledge, detect global patterns',
                         'steps': [
+                            'A-1. Cluster re-authentication: Read cluster_access from core-data.json, run oc login, verify with oc whoami. If fails, proceed in degraded mode (snapshot only, reduced confidence).',
+                            'A0. Read feature_grounding from core-data.json - note subsystem and key components per test group',
+                            'A0b. Read feature_knowledge from core-data.json - review architecture summaries, key insights, prerequisite status, pre-matched failure paths, and KG dependency context for each feature area',
+                            'A0c. Run Tier 0 health snapshot (tiered_investigation.tier_0_health_snapshot) - compare live state against cluster_landscape snapshot',
                             'A1. Check environment health (cluster_connectivity, environment_score)',
+                            'A1b. Read cluster_landscape from core-data.json - check for degraded operators overlapping feature components',
                             'A2. Detect failure patterns (mass timeouts, single selector, 500 errors)',
-                            'A3. Scan cross-test correlations (shared selectors, components, feature areas)'
+                            'A3. Scan cross-test correlations (shared selectors, components, feature areas)',
+                            'A3b. If multiple feature areas have failures, query KG find_common_dependency across failing subsystems. If common dependency found, flag as investigation priority for Tier 4.'
                         ]
                     },
                     'B': {
                         'name': 'Deep Investigation',
-                        'purpose': 'Systematically gather ALL evidence for each test',
+                        'purpose': 'Systematically gather ALL evidence for each test using tiered investigation',
                         'steps': [
                             'B1. Analyze extracted_context (test_file, page_objects, console_search)',
                             'B2. Check timeline_evidence (element removed? changed?)',
                             'B3. Review console_log evidence (500 errors, network errors)',
                             'B4. Execute MCP queries (ACM-UI, Knowledge Graph)',
                             'B5. Analyze detected_components (backend component names)',
-                            'B6. Deep dive repos/ when extracted_context insufficient'
+                            'B5b. Run Tier 1 component health check for the feature area key_components (always when cluster access available)',
+                            'B6. Deep dive repos/ when extracted_context insufficient',
+                            'B7. Backend cross-check - for element_not_found/timeout failures, check if backend components are failing (CrashLoopBackOff, 500s, degraded). If yes, set backend_caused_ui_failure=true and route to Path B2 in Phase D',
+                            'B8. Run Tier 2 playbook investigation - check prerequisites with live oc commands, execute failure path investigation steps from matched playbook paths',
+                            'B8b. If Tier 2 confirms a failure path, query KG for upstream dependencies of confirmed failing component. If upstream also failing, root cause is upstream.',
+                            'B8c. If Tier 1-2 dont explain failure, run Tier 3 data flow tracing using KG dependency context + playbook architecture.data_flow',
+                            'B8d. If Tier 1-3 dont explain OR multiple areas failing, run Tier 4 deep investigation',
                         ]
                     },
                     'C': {
@@ -2024,10 +2468,13 @@ class DataGatherer:
                     },
                     'D': {
                         'name': 'Classification',
-                        'purpose': 'Apply classification with evidence matrix',
+                        'purpose': 'Apply classification with evidence matrix (check feature knowledge FIRST, then backend cross-check)',
                         'steps': [
+                            'D-1. Feature Knowledge Override: If prerequisite unmet AND Tier 2 confirmed with live oc commands, use playbook suggested classification at 0.95 confidence. If Tier 2 confirmed failure path, use path classification and confidence. If Tier 3 found data flow break, classify based on break point. If Tier 4 KG found cascading failure, classify based on upstream root cause.',
+                            'D-1b. If cluster_access_available=false (login failed): reduce confidence by 0.15 on all classifications.',
+                            'D0. Check backend cross-check override - if backend_caused_ui_failure=true, route to Path B2 NOT Path A',
                             'D1. Check evidence sufficiency (2+ sources, no conflicts)',
-                            'D2. Calculate confidence score',
+                            'D2. Calculate confidence score (Tier 2 confirmed with live commands > Tier 2 snapshot-only > standard B1-B7 evidence)',
                             'D3. Rule out alternatives (document why others dont fit)'
                         ]
                     },
@@ -2276,50 +2723,115 @@ class DataGatherer:
                     'tool_name': 'mcp__neo4j-rhacm__read_neo4j_cypher',
                     'description': 'Component dependency analysis and feature workflow context via Cypher queries against RHACM architecture graph',
                     'availability_note': 'Optional - may not be connected in all environments. Skip gracefully if tool call fails.',
-                    'call_format': "mcp__neo4j-rhacm__read_neo4j_cypher(query=\"MATCH (c:RHACMComponent) WHERE c.label =~ '(?i).*search-api.*' RETURN c.label, c.subsystem\")",
+                    'call_format': "mcp__neo4j-rhacm__read_neo4j_cypher(query=\"MATCH (c:RHACMComponent) WHERE c.subsystem = 'Search' RETURN c.label, c.type\")",
                     'use_cases': {
                         'phase_B5': 'Component dependency analysis - find what depends on failing component',
                         'phase_C2': 'Cascading failure detection - find common dependency across multiple failing components',
                         'phase_E0': 'Subsystem context building - get all components in a subsystem, understand component relationships'
                     },
+                    'label_mapping_note': (
+                        'KG uses descriptive labels (e.g., "API Gateway Controller"), NOT '
+                        'pod/deployment names (e.g., "search-api"). When querying by component, '
+                        'use get_subsystem_components FIRST to discover the actual KG labels, '
+                        'then use those labels in subsequent queries. The pod_to_kg_label map '
+                        'provides known translations. For unmapped components, query by subsystem.'
+                    ),
+                    'pod_to_kg_label': {
+                        'search-api': 'API Gateway Controller',
+                        'search-collector': 'Collection Agent',
+                        'search-indexer': 'Resource Indexer',
+                        'search-redisgraph': 'ElasticSearch Integration',
+                        'grc-policy-propagator': 'Policy Propagator Controller',
+                        'config-policy-controller': 'Config Policy Controller',
+                        'governance-policy-framework': 'Governance Policy Framework',
+                        'cluster-curator': 'Cluster Curator',
+                        'managedcluster-import-controller': 'ManagedCluster Import Controller',
+                        'hive-controllers': 'Hive Controllers',
+                        'console-api': 'Console API Server',
+                        'acm-console': 'Web Console',
+                        'thanos-query': 'Thanos Query',
+                        'thanos-receive': 'Thanos Receive',
+                        'grafana': 'Grafana',
+                    },
+                    'query_strategy': [
+                        '1. ALWAYS start with get_subsystem_components to discover actual KG labels for the subsystem',
+                        '2. Use the returned labels (not pod names) in get_dependents/get_dependencies queries',
+                        '3. If a pod name is in pod_to_kg_label, use the mapped label directly',
+                        '4. For internal data flow: query relationships within the subsystem',
+                        '5. For cross-subsystem: query relationships leaving the subsystem',
+                    ],
                     'query_templates': {
-                        'get_component_info': {
-                            'query': "MATCH (c:RHACMComponent) WHERE c.label =~ '(?i).*{component}.*' RETURN c.label, c.subsystem, c.type",
-                            'when': 'First query for any detected component - get subsystem and type',
-                            'example': "MATCH (c:RHACMComponent) WHERE c.label =~ '(?i).*search-api.*' RETURN c.label, c.subsystem, c.type"
-                        },
-                        'get_dependents': {
-                            'query': "MATCH (dep:RHACMComponent)-[:DEPENDS_ON]->(c:RHACMComponent) WHERE c.label =~ '(?i).*{component}.*' RETURN DISTINCT dep.label as dependent, dep.subsystem as subsystem",
-                            'when': 'Find what breaks when this component fails (cascading impact)',
-                            'example': "MATCH (dep:RHACMComponent)-[:DEPENDS_ON]->(c:RHACMComponent) WHERE c.label =~ '(?i).*search-api.*' RETURN DISTINCT dep.label, dep.subsystem"
-                        },
-                        'get_dependencies': {
-                            'query': "MATCH (c:RHACMComponent)-[:DEPENDS_ON]->(dep:RHACMComponent) WHERE c.label =~ '(?i).*{component}.*' RETURN dep.label as dependency, dep.subsystem as dep_subsystem",
-                            'when': 'Find what this component depends on (root cause may be upstream)',
-                            'example': "MATCH (c:RHACMComponent)-[:DEPENDS_ON]->(dep:RHACMComponent) WHERE c.label =~ '(?i).*search-api.*' RETURN dep.label, dep.subsystem"
-                        },
                         'get_subsystem_components': {
                             'query': "MATCH (c:RHACMComponent) WHERE c.subsystem = '{subsystem}' RETURN c.label, c.type",
-                            'when': 'Get all components in a subsystem for comprehensive search',
+                            'when': 'FIRST query for any subsystem — discover actual KG labels before other queries',
                             'example': "MATCH (c:RHACMComponent) WHERE c.subsystem = 'Search' RETURN c.label, c.type"
                         },
+                        'get_component_info': {
+                            'query': "MATCH (c:RHACMComponent) WHERE c.label =~ '(?i).*{kg_label}.*' RETURN c.label, c.subsystem, c.type",
+                            'when': 'Get subsystem and type for a component. Use KG label from pod_to_kg_label or get_subsystem_components, NOT pod name.',
+                            'example': "MATCH (c:RHACMComponent) WHERE c.label =~ '(?i).*API Gateway Controller.*' RETURN c.label, c.subsystem, c.type"
+                        },
+                        'get_dependents': {
+                            'query': "MATCH (dep:RHACMComponent)-[:DEPENDS_ON]->(c:RHACMComponent) WHERE c.label =~ '(?i).*{kg_label}.*' RETURN DISTINCT dep.label as dependent, dep.subsystem as subsystem",
+                            'when': 'Find what breaks when this component fails (cascading impact). Use KG label.',
+                            'example': "MATCH (dep:RHACMComponent)-[:DEPENDS_ON]->(c:RHACMComponent) WHERE c.label =~ '(?i).*Web Console.*' RETURN DISTINCT dep.label, dep.subsystem"
+                        },
+                        'get_dependencies': {
+                            'query': "MATCH (c:RHACMComponent)-[:DEPENDS_ON]->(dep:RHACMComponent) WHERE c.label =~ '(?i).*{kg_label}.*' RETURN dep.label as dependency, dep.subsystem as dep_subsystem",
+                            'when': 'Find what this component depends on (root cause may be upstream). Use KG label.',
+                            'example': "MATCH (c:RHACMComponent)-[:DEPENDS_ON]->(dep:RHACMComponent) WHERE c.label =~ '(?i).*API Gateway Controller.*' RETURN dep.label, dep.subsystem"
+                        },
+                        'get_internal_data_flow': {
+                            'query': "MATCH (c:RHACMComponent)-[r]->(dep:RHACMComponent) WHERE c.subsystem = '{subsystem}' AND dep.subsystem = '{subsystem}' RETURN DISTINCT c.label as source, type(r) as relationship, dep.label as target ORDER BY c.label",
+                            'when': 'Trace internal data flow within a subsystem',
+                            'example': "MATCH (c:RHACMComponent)-[r]->(dep:RHACMComponent) WHERE c.subsystem = 'Search' AND dep.subsystem = 'Search' RETURN DISTINCT c.label as source, type(r) as relationship, dep.label as target ORDER BY c.label"
+                        },
+                        'get_cross_subsystem_deps': {
+                            'query': "MATCH (c:RHACMComponent)-[r]->(dep:RHACMComponent) WHERE c.subsystem = '{subsystem}' AND NOT dep.subsystem = '{subsystem}' RETURN DISTINCT dep.label as target, dep.subsystem as target_subsystem, type(r) as relationship",
+                            'when': 'Find external dependencies of a subsystem (cross-cutting issues)',
+                            'example': "MATCH (c:RHACMComponent)-[r]->(dep:RHACMComponent) WHERE c.subsystem = 'Search' AND NOT dep.subsystem = 'Search' RETURN DISTINCT dep.label, dep.subsystem, type(r)"
+                        },
                         'find_common_dependency': {
-                            'query': "MATCH (c:RHACMComponent)-[:DEPENDS_ON]->(common:RHACMComponent) WHERE c.label IN ['{comp1}', '{comp2}'] WITH common, count(DISTINCT c) as cnt WHERE cnt >= 2 RETURN common.label as shared_dependency",
-                            'when': 'Multiple failing components - check if they share a root cause dependency',
-                            'example': "MATCH (c:RHACMComponent)-[:DEPENDS_ON]->(common:RHACMComponent) WHERE c.label IN ['console', 'search-api'] WITH common, count(DISTINCT c) as cnt WHERE cnt >= 2 RETURN common.label"
+                            'query': "MATCH (c:RHACMComponent)-[:DEPENDS_ON]->(common:RHACMComponent) WHERE c.label IN ['{kg_label1}', '{kg_label2}'] WITH common, count(DISTINCT c) as cnt WHERE cnt >= 2 RETURN common.label as shared_dependency",
+                            'when': 'Multiple failing components — check if they share a root cause dependency. Use KG labels.',
+                            'example': "MATCH (c:RHACMComponent)-[:DEPENDS_ON]->(common:RHACMComponent) WHERE c.label IN ['Web Console', 'API Gateway Controller'] WITH common, count(DISTINCT c) as cnt WHERE cnt >= 2 RETURN common.label"
                         }
                     },
                     'subsystem_reference': {
-                        'Governance': ['grc-policy-propagator', 'config-policy-controller', 'governance-policy-framework'],
-                        'Search': ['search-api', 'search-collector', 'search-indexer'],
-                        'Cluster': ['cluster-curator', 'managedcluster-import-controller', 'cluster-lifecycle'],
-                        'Provisioning': ['hive', 'hypershift', 'assisted-service'],
-                        'Observability': ['thanos-query', 'thanos-receive', 'metrics-collector'],
-                        'Virtualization': ['kubevirt-operator', 'virt-api', 'virt-controller'],
-                        'Console': ['console', 'console-api', 'acm-console'],
-                        'Infrastructure': ['klusterlet', 'multicluster-engine', 'foundation']
+                        'Governance': {
+                            'pod_names': ['grc-policy-propagator', 'config-policy-controller', 'governance-policy-framework'],
+                            'kg_labels': ['Policy Propagator Controller', 'Config Policy Controller', 'Governance Policy Framework'],
+                        },
+                        'Search': {
+                            'pod_names': ['search-api', 'search-collector', 'search-indexer'],
+                            'kg_labels': ['API Gateway Controller', 'Collection Agent', 'Resource Indexer'],
+                        },
+                        'Cluster': {
+                            'pod_names': ['cluster-curator', 'managedcluster-import-controller', 'cluster-lifecycle'],
+                            'kg_labels': ['Cluster Curator', 'ManagedCluster Import Controller'],
+                        },
+                        'Provisioning': {
+                            'pod_names': ['hive', 'hypershift', 'assisted-service'],
+                            'kg_labels': ['Hive Controllers'],
+                        },
+                        'Observability': {
+                            'pod_names': ['thanos-query', 'thanos-receive', 'metrics-collector'],
+                            'kg_labels': ['Thanos Query', 'Thanos Receive'],
+                        },
+                        'Virtualization': {
+                            'pod_names': ['kubevirt-operator', 'virt-api', 'virt-controller'],
+                            'kg_labels': [],
+                        },
+                        'Console': {
+                            'pod_names': ['console', 'console-api', 'acm-console'],
+                            'kg_labels': ['Console API Server', 'Web Console'],
+                        },
+                        'Infrastructure': {
+                            'pod_names': ['klusterlet', 'multicluster-engine', 'foundation'],
+                            'kg_labels': [],
+                        },
                     },
-                    'fallback_when_unavailable': 'Use the subsystem field from detected_components entries. This provides the subsystem name without the full component list or dependency chain.'
+                    'when_unavailable': 'Check feature_knowledge.kg_status.available in core-data.json. If false, report to user: KG is not connected, Tier 3-4 investigation degraded, include kg_status.remediation in the analysis report. Do NOT silently skip KG queries — flag the gap explicitly in analysis_results.'
                 },
 
                 # Trigger matrix: when to call which MCP tool
@@ -2368,7 +2880,12 @@ class DataGatherer:
                     'extracted_context.console_search': 'Whether selector exists in console repo',
                     'parsed_stack_trace': 'Pre-parsed stack with root_cause_file, failing_selector',
                     'timeline_evidence': 'Git history for failing selectors',
-                    'detected_components': 'Backend component names for Knowledge Graph'
+                    'detected_components': 'Backend component names for Knowledge Graph',
+                    'feature_knowledge.feature_readiness': 'Per-area prerequisite checks, unmet prereqs, pre-matched failure paths',
+                    'feature_knowledge.investigation_playbooks': 'Architecture, prerequisites, failure paths per feature area',
+                    'feature_knowledge.kg_dependency_context': 'Internal data flow and cross-subsystem dependencies per feature area (from KG)',
+                    'feature_knowledge.kg_status': 'KG availability status. If available=false, warn user about degraded Tier 3-4 analysis and include remediation instructions in report.',
+                    'cluster_access': 'API URL, username, password for Stage 2 re-authentication',
                 },
                 'fallback_to_repo_when': [
                     'test_file.truncated=true AND failing line beyond 200',
@@ -2382,7 +2899,9 @@ class DataGatherer:
             'classification_guide': {
                 'PRODUCT_BUG': 'Backend 500 errors, API broken, feature not working (needs 2+ sources)',
                 'AUTOMATION_BUG': 'Selector not found, timeout on wait, test logic wrong (needs 2+ sources)',
-                'INFRASTRUCTURE': 'Cluster down, network errors, provisioning failed (needs 2+ sources)'
+                'INFRASTRUCTURE': 'Cluster down, network errors, provisioning failed (needs 2+ sources)',
+                'NO_BUG': 'Feature prerequisite disabled (MCH component off) — test expects feature that is intentionally not enabled',
+                'FLAKY': 'Test passes on retry, intermittent timing issue, no consistent root cause',
             },
 
             # Ruled Out Alternatives

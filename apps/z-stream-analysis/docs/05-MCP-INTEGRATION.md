@@ -58,7 +58,7 @@ MCP tools are accessed differently depending on the stage:
 │                                                                      │
 │  Files:                                                              │
 │    src/services/acm_ui_mcp_client.py (293 lines)                     │
-│    src/services/knowledge_graph_client.py (513 lines)                │
+│    src/services/knowledge_graph_client.py (456 lines)                │
 │                                                                      │
 │  Purpose: CNV version detection, element inventory pre-computation   │
 └──────────────────────────────────────────────────────────────────────┘

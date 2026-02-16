@@ -6,11 +6,11 @@ Multi-app repository for Jenkins pipeline analysis and test generation tools.
 
 ### Z-Stream Analysis (`apps/z-stream-analysis/`) — Active
 
-Jenkins pipeline failure analysis with classification: PRODUCT_BUG | AUTOMATION_BUG | INFRASTRUCTURE | FLAKY | NO_BUG | MIXED | UNKNOWN.
+Jenkins pipeline failure analysis (v3.1) with classification: PRODUCT_BUG | AUTOMATION_BUG | INFRASTRUCTURE | FLAKY | NO_BUG | MIXED | UNKNOWN. Includes feature investigation playbooks, tiered cluster investigation, MCH component extraction, credential persistence, and classification feedback.
 
 Three-stage pipeline:
-1. **gather.py** — Extracts test data from Jenkins (builds `core-data.json`)
-2. **AI Analysis** — 5-phase investigation producing `analysis-results.json`
+1. **gather.py** — Extracts test data from Jenkins (builds `core-data.json` with cluster landscape + feature grounding)
+2. **AI Analysis** — 5-phase investigation with backend cross-check producing `analysis-results.json`
 3. **report.py** — Generates `Detailed-Analysis.md` from analysis results
 
 See `apps/z-stream-analysis/CLAUDE.md` for schema requirements, classification guide, and MCP tool reference.
@@ -76,5 +76,11 @@ ai_systems_v2/
 
 ```bash
 # Z-stream analysis tests (from app directory)
-cd apps/z-stream-analysis/ && python -m pytest tests/ -q
+cd apps/z-stream-analysis/
+
+# Fast — unit + regression (419 tests, no external deps):
+python -m pytest tests/unit/ tests/regression/ -q
+
+# Full suite (469 tests, requires Jenkins VPN for integration):
+python -m pytest tests/ -q --timeout=300
 ```

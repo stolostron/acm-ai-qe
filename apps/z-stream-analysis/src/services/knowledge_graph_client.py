@@ -18,13 +18,9 @@ Usage:
         # Returns: ['console', 'observability-operator', ...]
 """
 
-import json
 import logging
-import subprocess
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Any, Tuple
-
-from .shared_utils import run_subprocess, TIMEOUTS
+from typing import Dict, List, Optional, Any
 
 
 @dataclass
@@ -69,10 +65,6 @@ class KnowledgeGraphClient:
             common = client.find_common_dependency(['search-api', 'console'])
     """
 
-    # Cache for expensive queries
-    _component_cache: Dict[str, ComponentInfo] = {}
-    _dependency_cache: Dict[str, List[str]] = {}
-
     def __init__(self, logger: Optional[logging.Logger] = None):
         """
         Initialize the Knowledge Graph client.
@@ -82,6 +74,9 @@ class KnowledgeGraphClient:
         self.logger = logger or logging.getLogger(__name__)
         self._available: Optional[bool] = None
         self._mcp_tool_name = 'mcp__neo4j-rhacm__read_neo4j_cypher'
+        # Cache for expensive queries (instance-level to avoid shared mutable state)
+        self._component_cache: Dict[str, ComponentInfo] = {}
+        self._dependency_cache: Dict[str, List[str]] = {}
 
     @property
     def available(self) -> bool:
@@ -311,9 +306,9 @@ class KnowledgeGraphClient:
             return None
 
         # Build a query to find intersection of dependencies
-        component_patterns = '|'.join(
-            f'(?i).*{c}.*' for c in components
-        )
+        # Wrap alternation in a group so the regex is valid: (?i)(.*comp1.*|.*comp2.*)
+        inner_patterns = '|'.join(f'.*{c}.*' for c in components)
+        component_patterns = f'(?i)({inner_patterns})'
 
         query = f"""
         MATCH (c:RHACMComponent)-[:DEPENDS_ON]->(common:RHACMComponent)

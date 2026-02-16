@@ -21,7 +21,7 @@ import logging
 import os
 import subprocess
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, Optional, Tuple
 from urllib.parse import urlparse
 
 from .shared_utils import TIMEOUTS, build_curl_command
@@ -372,64 +372,6 @@ class JenkinsAPIClient:
         api_url = f"{base_url}/job/{job_path}/{build_num}/testReport/api/json"
 
         return self._make_request(api_url, timeout=TIMEOUTS.TEST_REPORT_FETCH)
-
-    def get_build_parameters(self, jenkins_url: str) -> Tuple[bool, Optional[Dict[str, str]], Optional[str]]:
-        """
-        Extract build parameters from a Jenkins build.
-
-        Args:
-            jenkins_url: Full Jenkins build URL
-
-        Returns:
-            Tuple of (success, parameters_dict, error_message)
-        """
-        success, build_info, error = self.get_build_info(jenkins_url)
-
-        if not success:
-            return False, None, error
-
-        # Extract parameters from actions
-        params = {}
-        for action in build_info.get('actions', []):
-            if action.get('_class', '').endswith('ParametersAction'):
-                for param in action.get('parameters', []):
-                    name = param.get('name', '')
-                    value = param.get('value', '')
-                    if name:
-                        params[name] = str(value) if value is not None else ''
-
-        return True, params, None
-
-    def get_job_info(self, job_url: str) -> Tuple[bool, Optional[Dict[str, Any]], Optional[str]]:
-        """
-        Get job configuration and recent builds.
-
-        Args:
-            job_url: Jenkins job URL
-
-        Returns:
-            Tuple of (success, job_info_dict, error_message)
-        """
-        api_url = job_url.rstrip('/') + '/api/json'
-        return self._make_request(api_url)
-
-    def verify_connection(self) -> Tuple[bool, Optional[str], Optional[str]]:
-        """
-        Verify Jenkins connection and authentication.
-
-        Returns:
-            Tuple of (success, username, error_message)
-        """
-        if not self._base_url:
-            return False, None, "No base URL configured"
-
-        api_url = f"{self._base_url}/me/api/json"
-        success, data, error = self._make_request(api_url)
-
-        if success and data:
-            return True, data.get('fullName', data.get('id', 'unknown')), None
-
-        return False, None, error
 
 
 # Singleton instance

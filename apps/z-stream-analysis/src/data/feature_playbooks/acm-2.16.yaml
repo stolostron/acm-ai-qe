@@ -1,0 +1,152 @@
+# Feature Investigation Playbooks — ACM 2.16 version-specific overrides
+# Only includes features that are NEW in 2.16 or have 2.16-specific behavior
+# changes. Base profiles for RBAC, Virtualization, and Observability are in
+# base.yaml. Version overlays here override/extend those base profiles.
+#
+# Note: The merge uses dict.update(), so a profile here REPLACES the entire
+# base profile for that feature area. To add a 2.16 override, copy the full
+# base profile and modify the version-specific parts.
+
+profiles:
+
+  # CrossClusterMigration is a 2.16-only feature (new, not in base.yaml)
+  CrossClusterMigration:
+    display_name: Cross-Cluster VM Migration
+    docs_ref: rhacm-docs/virtualization/migration
+
+    architecture:
+      summary: |
+        VM migration across clusters using MTV (Migration Toolkit for
+        Virtualization). Requires: CNV on source + target clusters, MTV operator,
+        Submariner for cross-cluster networking, RWX-capable storage for VM disk
+        transfer.
+      data_flow:
+        - "Migration plan created on hub"
+        - "MTV operator orchestrates migration"
+        - "Submariner provides cross-cluster networking"
+        - "VM disks transferred via RWX storage"
+        - "VM started on target cluster"
+      key_insight: >
+        This feature has the most prerequisites of any feature (5+). Most test
+        failures are missing prerequisites, not actual bugs.
+      key_components:
+        - name: forklift-controller
+          role: MTV migration controller
+          type: operator
+          namespace: openshift-mtv
+          pod_label: app=forklift-controller
+        - name: submariner-gateway
+          role: Cross-cluster networking gateway
+          type: daemonset
+          namespace: submariner-operator
+          pod_label: app=submariner-gateway
+
+    prerequisites:
+      - id: ccm-mch-component
+        type: mch_component
+        check_spec:
+          component_name: cnv-mtv-integrations-preview
+        default_enabled: false
+        description: cnv-mtv-integrations-preview MCH component enabled
+      - id: cnv-source-cluster
+        type: operator
+        check_spec:
+          operator_name: kubevirt-hyperconverged
+          namespace: openshift-cnv
+        default_enabled: false
+        description: CNV operator on source cluster
+      - id: cnv-target-cluster
+        type: operator
+        check_spec:
+          operator_name: kubevirt-hyperconverged
+          namespace: openshift-cnv
+        default_enabled: false
+        description: CNV operator on target cluster
+      - id: mtv-operator
+        type: operator
+        check_spec:
+          operator_name: mtv-operator
+          namespace: openshift-mtv
+        default_enabled: false
+        description: MTV (Migration Toolkit for Virtualization) operator installed
+      - id: submariner-addon
+        type: addon
+        check_spec:
+          addon_name: submariner
+        default_enabled: false
+        description: Submariner addon for cross-cluster networking
+      - id: rwx-storage
+        type: informational
+        check_spec: {}
+        default_enabled: false
+        description: RWX-capable storage class available for VM disk transfer
+    dependencies:
+      - Virtualization
+      - Infrastructure
+
+    failure_paths:
+      - id: migration-prereqs-missing
+        description: Any of 5+ prerequisites missing
+        category: prerequisite
+        symptoms:
+          - "(?i)migration.*fail"
+          - "(?i)migration.*not.*available"
+          - "(?i)cross.*cluster.*error"
+          - "(?i)mtv.*not.*found"
+        investigation:
+          - step: Check MCH flag
+            command: "oc get mch -A -o jsonpath='{.items[0].spec.overrides.components}'"
+            expect: "cnv-mtv-integrations-preview with enabled=true"
+            if_not: "Migration feature flag disabled"
+          - step: Check MTV operator
+            command: "oc get csv -n openshift-mtv"
+            expect: "mtv-operator CSV with Succeeded phase"
+            if_not: "MTV operator not installed"
+          - step: Check Submariner
+            command: "oc get managedclusteraddon submariner -A"
+            expect: "Submariner addon available on relevant clusters"
+            if_not: "Submariner not deployed — cross-cluster networking unavailable"
+        classification: INFRASTRUCTURE
+        confidence: 0.90
+        explanation: One or more migration prerequisites are missing.
+
+      - id: submariner-connectivity
+        description: Submariner tunnel down — cross-cluster network fails
+        category: connectivity
+        symptoms:
+          - "(?i)submariner.*error"
+          - "(?i)tunnel.*down"
+          - "(?i)cross.*cluster.*timeout"
+          - "(?i)connection.*cluster.*fail"
+        investigation:
+          - step: Check Submariner gateway
+            command: "oc get pods -n submariner-operator -l app=submariner-gateway"
+            expect: "Running"
+            if_not: "Submariner gateway is down — cross-cluster networking unavailable"
+          - step: Check connection status
+            command: "oc get gateways.submariner.io -A"
+            expect: "Connected status"
+            if_not: "Submariner tunnels not established"
+        classification: INFRASTRUCTURE
+        confidence: 0.90
+        explanation: Submariner tunnel is down. Cross-cluster networking unavailable for migration.
+
+      - id: migration-plan-stuck
+        description: Migration plan not progressing — MTV controller issue
+        category: data_flow
+        symptoms:
+          - "(?i)migration.*plan.*stuck"
+          - "(?i)migration.*not.*progress"
+          - "(?i)migration.*timeout"
+        investigation:
+          - step: Check MTV controller
+            command: "oc get pods -n openshift-mtv -l app=forklift-controller"
+            expect: "Running"
+            if_not: "MTV controller is not healthy"
+          - step: Check migration plan status
+            command: "oc get migrations -A"
+            expect: "Migration progressing or completed"
+            if_not: "Migration plan is stuck — controller issue"
+        classification: PRODUCT_BUG
+        confidence: 0.75
+        explanation: Migration plan not progressing. MTV controller may have an issue.

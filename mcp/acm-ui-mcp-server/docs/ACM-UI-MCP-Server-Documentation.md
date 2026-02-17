@@ -2,7 +2,7 @@
 
 ## Overview
 
-The ACM UI MCP Server is a Model Context Protocol (MCP) server designed to provide AI coding assistants (like those in Cursor IDE or Claude Code) with deep, real-time knowledge of the Advanced Cluster Management (ACM) and Fleet Virtualization user interface codebases. It bridges the gap between AI assistants and the complex, multi-repository UI source code that powers Red Hat's ACM and OpenShift Virtualization console experiences.
+The ACM UI MCP Server is a Model Context Protocol (MCP) server designed to provide AI coding assistants (like those in Cursor IDE) with deep, real-time knowledge of the Advanced Cluster Management (ACM) and Fleet Virtualization user interface codebases. It bridges the gap between AI assistants and the complex, multi-repository UI source code that powers Red Hat's ACM and OpenShift Virtualization console experiences.
 
 ---
 
@@ -26,9 +26,9 @@ When working on ACM UI automation (e.g., Cypress tests), developers and AI assis
 
 ```
 +------------------------------------------------------------------+
-|                        AI Assistant                                |
+|                        Cursor IDE                                 |
 |  +------------------------------------------------------------+  |
-|  |                    Claude Code / Cursor                      |  |
+|  |                    AI Assistant                             |  |
 |  |  "Find the selector for the VM search bar"                  |  |
 |  +----------------------------+-------------------------------+  |
 |                               | MCP Protocol                      |
@@ -89,15 +89,23 @@ When working on ACM UI automation (e.g., Cypress tests), developers and AI assis
 
 When a user navigates to Fleet Virtualization in ACM, they're using components from `kubevirt-plugin` rendered within the ACM/OpenShift Console framework. The QE automation repos provide curated, tested selectors that can be more reliable than extracting raw selectors from source.
 
+### Other ACM Repos (Reference - Not Integrated)
+
+| Component | Repository | Description |
+|-----------|------------|-------------|
+| Server Foundation | [stolostron/acmqe-foundation-test](https://github.com/stolostron/acmqe-foundation-test) | Foundation/core functionality tests (backend-focused) |
+| Observability | [stolostron/multicluster-observability-operator](https://github.com/stolostron/multicluster-observability-operator) | Observability operator and tests |
+| Install | [stolostron/acmqe-autotest](https://github.com/stolostron/acmqe-autotest) | Installation automation tests |
+
 ---
 
 ## Available Tools (20 Total)
 
-### 1. Version Management Tools
+### 1. Version Management Tools (NEW - v2.0)
 
 **Key Concept**: ACM and CNV versions are **INDEPENDENT**:
-- **ACM version** -> which `stolostron/console` branch to use
-- **CNV version** -> which `kubevirt-ui/kubevirt-plugin` branch to use
+- **ACM version** → which `stolostron/console` branch to use
+- **CNV version** → which `kubevirt-ui/kubevirt-plugin` branch to use
 
 ACM 2.16 can manage clusters running CNV 4.18, 4.19, 4.20, or 4.21.
 
@@ -206,6 +214,15 @@ set_cnv_version('4.20')   # Match CNV 4.20 on your spoke cluster
 set_cnv_version('latest') # Use latest GA CNV version
 ```
 
+**Example output**:
+```
+Fleet Virt UI set to CNV 4.20
+  -> kubevirt-ui/kubevirt-plugin @ release-4.20
+
+Note: ACM Console unchanged (2.16).
+      Use set_acm_version() to change ACM Console version.
+```
+
 ---
 
 #### `set_version(version, repo)` (Legacy)
@@ -243,7 +260,7 @@ CNV: 4.20 -> release-4.20
 **How it works**:
 1. Runs: `oc get hyperconverged kubevirt-hyperconverged -n openshift-cnv`
 2. Extracts the operator version (e.g., `4.20.3`)
-3. Maps to branch: `4.20.3` -> `release-4.20`
+3. Maps to branch: `4.20.3` → `release-4.20`
 4. Validates branch exists in GitHub
 5. Sets the kubevirt repo to that branch
 
@@ -253,7 +270,7 @@ CNV Version Detected: 4.20.3
 Mapped to kubevirt-plugin branch: release-4.20
 
 Fleet Virt UI now set to: CNV 4.20 -> release-4.20
-You can now use find_test_ids(), get_component_source() with repo='kubevirt'
+You can now use find_test_ids(), get_component_source() with repo='kubevirt' 
 to get selectors matching your cluster's CNV version.
 
 Note: ACM Console unchanged (2.16). Use set_acm_version() to change.
@@ -273,6 +290,21 @@ Note: ACM Console unchanged (2.16). Use set_acm_version() to change.
 - List of console plugins (highlights virt and ACM plugins)
 - Fleet Virtualization availability status
 - ACM Hub installation status
+
+**Example output**:
+```
+=== Cluster Virtualization Info ===
+
+CNV/OpenShift Virtualization: 4.20.3
+  -> kubevirt-plugin branch: release-4.20
+
+Console Plugins: 7
+  - acm (ACM)
+  - kubevirt-plugin (virtualization)
+
+Fleet Virtualization: ENABLED (kubevirt-plugin console plugin found)
+ACM Hub: INSTALLED
+```
 
 ---
 
@@ -317,6 +349,11 @@ Found 5 attributes in kubevirt-ui/kubevirt-plugin/src/views/search/components/Se
 
 **Use case**: When you need to understand component structure beyond just selectors.
 
+**Example**:
+```python
+get_component_source("src/multicluster/components/CrossClusterMigration/CrossClusterMigration.tsx", "kubevirt")
+```
+
 ---
 
 #### `search_component(query, repo)`
@@ -330,6 +367,19 @@ Found 5 attributes in kubevirt-ui/kubevirt-plugin/src/views/search/components/Se
 | `acm` | `frontend/src/components`, `frontend/src/routes`, `frontend/src/ui-components`, `frontend/packages/multicluster-sdk/src/components` |
 | `kubevirt` | `src/views/virtualmachines`, `src/views/search`, `src/multicluster/components`, `src/utils/components`, `cypress/views` |
 
+**Example**:
+```python
+search_component("Migration", "kubevirt")
+```
+
+**Example output**:
+```
+Found components in kubevirt-ui/kubevirt-plugin:
+src/multicluster/components/CrossClusterMigration/CrossClusterMigration.tsx
+src/multicluster/components/CrossClusterMigration/CrossClusterMigrationWizard.tsx
+src/views/virtualmachines/actions/MigrateAction.tsx
+```
+
 ---
 
 #### `search_code(query, repo)`
@@ -337,6 +387,20 @@ Found 5 attributes in kubevirt-ui/kubevirt-plugin/src/views/search/components/Se
 **Purpose**: Uses GitHub code search to find any code containing the query.
 
 **Use case**: Finding where a specific selector, function, or pattern is used.
+
+**Example**:
+```python
+search_code("vm-search-input", "kubevirt")
+```
+
+**Example output**:
+```
+Found 3 files matching 'vm-search-input' in kubevirt-ui/kubevirt-plugin:
+  - src/views/search/components/SearchBar.tsx
+    URL: https://github.com/kubevirt-ui/kubevirt-plugin/blob/main/src/views/search/components/SearchBar.tsx
+  - cypress/views/selector.ts
+    URL: https://github.com/kubevirt-ui/kubevirt-plugin/blob/main/cypress/views/selector.ts
+```
 
 ---
 
@@ -353,6 +417,11 @@ Found 5 attributes in kubevirt-ui/kubevirt-plugin/src/views/search/components/Se
 | `/k8s/all-clusters/.../VirtualMachine` | KubeVirt: `src/views/virtualmachines/navigator/VirtualMachineNavigator.tsx` |
 | `/search` | KubeVirt: `src/views/search/VirtualMachineSearchResults.tsx` |
 
+**Example**:
+```python
+get_route_component("/k8s/all-clusters/all-namespaces/kubevirt.io~v1~VirtualMachine")
+```
+
 ---
 
 ### 4. Fleet Virtualization Tools
@@ -366,9 +435,23 @@ Found 5 attributes in kubevirt-ui/kubevirt-plugin/src/views/search/components/Se
 - `cypress/views/selector-common.ts`
 - `cypress/views/actions.ts`
 
+**Example output**:
+```
+Fleet Virtualization UI Selectors (kubevirt-plugin):
+
+=== cypress/views/selector.ts ===
+export const vmSearchInput = '[data-test="vm-search-input"]';
+export const vmAdvancedSearch = '[data-test="vm-advanced-search"]';
+export const searchResults = '[data-test="search-results"]';
+export const vmTreeView = '[data-test="vm-tree-view"]';
+...
+
+Source: https://github.com/kubevirt-ui/kubevirt-plugin/tree/release-4.20/cypress/views
+```
+
 ---
 
-### 5. Translation & UI Text Tools
+### 5. Translation & UI Text Tools (NEW - v2.1)
 
 #### `search_translations(query, exact)`
 
@@ -378,6 +461,28 @@ Found 5 attributes in kubevirt-ui/kubevirt-plugin/src/views/search/components/Se
 - `query`: Text to search for (e.g., `'Create role assignment'`, `'error'`)
 - `exact`: If `True`, only return exact matches. Default `False` for partial matches.
 
+**Example**:
+```python
+search_translations('Create role assignment')  # Find button text
+search_translations('validate')                # Find all validation messages
+search_translations('error')                   # Find all error-related strings
+```
+
+**Example output**:
+```
+Found 2 translation(s) matching 'Create role assignment':
+
+Key: Create role assignment
+Value: Create role assignment
+---
+Key: Create role assignment for {{preselected}}
+Value: Create role assignment for {{preselected}}
+---
+
+Source: stolostron/console @ release-2.16
+File: frontend/public/locales/en/translation.json
+```
+
 ---
 
 #### `get_acm_selectors(source, component)`
@@ -385,28 +490,210 @@ Found 5 attributes in kubevirt-ui/kubevirt-plugin/src/views/search/components/Se
 **Purpose**: Returns ACM Console UI selectors for test automation. Supports multiple QE repos organized by component.
 
 **Parameters**:
-- `source`: `'catalog'` | `'source'` | `'both'` (default)
-- `component`: `'all'` | `'clc'` | `'search'` | `'app'` | `'grc'`
+- `source`: Where to get selectors from:
+  - `'catalog'`: Curated selectors from QE repos (organized, proven)
+  - `'source'`: Extract from stolostron/console source files (complete, raw)
+  - `'both'`: Return both (default)
+- `component`: Filter by ACM component (default `'all'`):
+  - `'all'`: All components
+  - `'clc'`: Cluster Lifecycle + RBAC (clc-ui-e2e)
+  - `'search'`: Search component (search-e2e-test)
+  - `'app'`: Applications/ALC (application-ui-test)
+  - `'grc'`: Governance/GRC (acmqe-grc-test)
+
+**Examples**:
+```python
+get_acm_selectors()                    # Get all selectors from all components
+get_acm_selectors('catalog')           # Get curated selectors only (all components)
+get_acm_selectors('catalog', 'search') # Get Search component selectors only
+get_acm_selectors('catalog', 'grc')    # Get GRC selectors only
+get_acm_selectors('catalog', 'app')    # Get Applications selectors only
+```
+
+**Example output**:
+```
+=== ACM Console Selectors ===
+
+## Curated Selectors (from QE automation repos)
+Proven selectors used in ACM component automation:
+
+### Cluster Lifecycle + RBAC (acm-e2e)
+
+#### cypress/views/common/commonSelectors.js
+  actionHostButton: '.pf-v6-c-table__action > button[aria-label="Kebab toggle"]'
+  hostClusterTdId: 'td[data-testid="cluster"]'
+  pageSearch: 'input[aria-label="Search input"]'
+
+Source: stolostron/clc-ui-e2e @ main
+
+### Search (search-e2e)
+
+#### tests/cypress/views/search.js
+  '.pf-v5-c-text-input-group__text-input'
+  '#run-search-button'
+
+Source: stolostron/search-e2e-test @ main
+
+---
+Available components: all, clc, search, app, grc
+```
 
 ---
 
-### 6. Type & Structure Analysis Tools
+### 6. Type & Structure Analysis Tools (NEW - v2.1)
 
 #### `get_component_types(path, repo)`
 
-**Purpose**: Extracts TypeScript type and interface definitions from a source file.
+**Purpose**: Extracts TypeScript type and interface definitions from a source file. Useful for understanding data models, props, and state structures.
+
+**Parameters**:
+- `path`: Path to the TypeScript file in the repository
+- `repo`: `'acm'` or `'kubevirt'`
+
+**Example**:
+```python
+get_component_types('frontend/src/routes/UserManagement/RoleAssignments/model/role-assignment-preselected.ts', 'acm')
+```
+
+**Example output**:
+```
+Found 1 type/interface definition(s):
+
+### RoleAssignmentPreselected (Line 4)
+type RoleAssignmentPreselected = {
+  subject?: { kind: UserKindType | GroupKindType | ServiceAccountKindType; value?: string }
+  roles?: string[]
+  clusterNames?: string[]
+  clusterSetNames?: string[]
+  namespaces?: string[]
+  context?: 'role' | 'cluster' | 'clusterSets' | 'identity'
+}
+Fields:
+  - subject?: { kind: UserKindType | GroupKindType | ServiceAccountKindType
+  - roles?: string[]
+  - clusterNames?: string[]
+  ...
+```
+
+---
 
 #### `get_wizard_steps(path, repo)`
 
-**Purpose**: Analyzes a wizard component to extract step structure and visibility conditions.
+**Purpose**: Analyzes a wizard component to extract step structure and visibility conditions. Essential for understanding wizard flow and writing test cases for wizard-based features.
+
+**Parameters**:
+- `path`: Path to the wizard component file
+- `repo`: `'acm'` or `'kubevirt'`
+
+**Example**:
+```python
+get_wizard_steps('frontend/src/wizards/RoleAssignment/RoleAssignmentWizardModal.tsx', 'acm')
+```
+
+**Example output**:
+```
+Found 7 wizard step(s):
+
+## Wizard Flow
+Step 1: Select scope (id: scope-selection)
+  └─ isHidden: (['cluster', 'clusterSets'] as ...).includes(preselected?.context)
+Step 2: Define cluster set granularity (id: scope-cluster-set-granularity)
+  └─ isHidden: formData.scopeType !== 'Select cluster sets' || hasNoClusterSets
+Step 3: Define cluster granularity (id: scope-cluster-granularity)
+  └─ isHidden: formData.scopeType !== 'Select clusters' || hasNoClusters
+Step 4: Identities (id: identities)
+Step 5: Scope (id: scope)
+Step 6: Roles (id: role)
+Step 7: Review (id: review)
+
+## Visibility Conditions
+- **Select scope**: Hidden when entering from Clusters or Cluster Sets page
+- **Define cluster set granularity**: Hidden unless cluster sets scope selected
+- **Define cluster granularity**: Hidden unless clusters scope selected
+```
+
+---
 
 #### `get_routes(repo)`
 
-**Purpose**: Extracts navigation paths and route definitions from ACM Console.
+**Purpose**: Extracts navigation paths and route definitions from ACM Console. Useful for understanding the full navigation structure of the UI.
+
+**Parameters**:
+- `repo`: Currently only `'acm'` is supported
+
+**Example**:
+```python
+get_routes()  # Get all ACM Console navigation paths
+```
+
+**Example output**:
+```
+Found 112 navigation path(s) in ACM Console:
+
+## Applications
+  applications: /multicloud/applications
+  createApplicationArgo: /multicloud/applications/create/argo
+  applicationDetails: /multicloud/applications/details/:namespace/:name
+  ...
+
+## Infrastructure
+  clusters: /multicloud/infrastructure/clusters
+  clusterDetails: /multicloud/infrastructure/clusters/details/:namespace/:name
+  clusterRoleAssignments: /multicloud/infrastructure/clusters/details/:namespace/:name/role-assignments
+  ...
+
+## User-Management
+  identities: /multicloud/user-management/identities
+  roles: /multicloud/user-management/roles
+  ...
+
+Source: stolostron/console @ release-2.16
+```
+
+---
 
 #### `get_patternfly_selectors(component)`
 
 **Purpose**: Returns common PatternFly v6 CSS selectors for test automation. Useful as fallback when data-testid attributes are not available.
+
+**Parameters**:
+- `component`: Optional - filter by component type (e.g., `'button'`, `'modal'`, `'table'`, `'wizard'`)
+  - Leave empty to get all selectors
+
+**Example**:
+```python
+get_patternfly_selectors()          # Get all PatternFly selectors
+get_patternfly_selectors('button')  # Get button selectors only
+get_patternfly_selectors('wizard')  # Get wizard selectors only
+```
+
+**Example output**:
+```
+=== PatternFly v6 Selector Reference ===
+
+## Button
+  primary: .pf-v6-c-button.pf-m-primary
+  secondary: .pf-v6-c-button.pf-m-secondary
+  link: .pf-v6-c-button.pf-m-link
+  danger: .pf-v6-c-button.pf-m-danger
+
+## Modal
+  modal: .pf-v6-c-modal-box
+  header: .pf-v6-c-modal-box__header
+  body: .pf-v6-c-modal-box__body
+  footer: .pf-v6-c-modal-box__footer
+
+## Wizard
+  wizard: .pf-v6-c-wizard
+  nav: .pf-v6-c-wizard__nav
+  navItem: .pf-v6-c-wizard__nav-item
+
+Usage in Cypress:
+  cy.get('.pf-v6-c-button.pf-m-primary').click()
+  cy.get('.pf-v6-c-modal-box').should('be.visible')
+
+Note: Prefer data-testid selectors when available for stability.
+```
 
 ---
 
@@ -463,6 +750,22 @@ Step 3: Extract selectors
 -----------------------------------------
 AI calls: find_test_ids("frontend/src/ui-components/AcmTable/AcmTableToolbar.tsx", "acm")
 Result: data-testid="bulk-select", id="acm-table-toolbar", etc.
+```
+
+### Scenario: Cross-version comparison
+
+```
+Step 1: Check feature in ACM 2.15
+-----------------------------------------
+AI calls: set_acm_version('2.15')
+AI calls: search_code("FeatureName", "acm")
+Result: File paths in release-2.15
+
+Step 2: Check same feature in ACM 2.16
+-----------------------------------------
+AI calls: set_acm_version('2.16')
+AI calls: search_code("FeatureName", "acm")
+Result: File paths in release-2.16 (may differ)
 ```
 
 ---
@@ -551,6 +854,21 @@ LATEST_CNV_GA = "4.21"       # Latest GA version
 
 ## Configuration
 
+### Cursor MCP Settings
+
+Add to your Cursor MCP configuration:
+
+```json
+{
+  "mcpServers": {
+    "acm-ui": {
+      "command": "/path/to/python",
+      "args": ["-m", "acm_ui_mcp_server.main"]
+    }
+  }
+}
+```
+
 ### Environment Variables
 
 | Variable | Default | Description |
@@ -558,7 +876,7 @@ LATEST_CNV_GA = "4.21"       # Latest GA version
 | `DEFAULT_ACM_VERSION` | `2.16` | Default ACM version (semantic, e.g., `2.16`) |
 | `DEFAULT_CNV_VERSION` | `4.21` | Default CNV version (semantic, e.g., `4.21`) |
 
-**Note**: These are semantic versions, not branch names. The server automatically maps to the correct branch.
+**Note**: These are now semantic versions, not branch names. The server automatically maps to the correct branch.
 
 ---
 
@@ -597,10 +915,10 @@ LATEST_CNV_GA = "4.21"       # Latest GA version
 ## Installation
 
 ```bash
-# From the repository root
-pip install -e mcp/acm-ui/
+# Clone or navigate to the MCP server directory
+cd /path/to/acm-ui-mcp-server
 
-# Or from within the mcp/acm-ui/ directory
+# Install in development mode
 pip install -e .
 
 # Verify installation
@@ -652,6 +970,8 @@ gh api repos/kubevirt-ui/kubevirt-plugin/branches --jq '.[].name'
   - Special keywords: `'latest'`, `'main'` for both repos
   - ACM supports: 2.11-2.17 (2.17 = main/dev)
   - CNV supports: 4.14-4.22 (4.22 = main/dev)
+  - Updated `list_repos()` with clear version status
+  - Enhanced `get_current_version()` with semantic info
 - **v2.1**: Translation, Selectors, Types, Wizard, and Routes tools (6 new tools, total 20)
   - `search_translations()`: Search UI text from translation files
   - `get_acm_selectors()`: Hybrid catalog+source ACM Console selectors
@@ -665,7 +985,10 @@ gh api repos/kubevirt-ui/kubevirt-plugin/branches --jq '.[].name'
   - Added `app-e2e` repo (`stolostron/application-ui-test`) for Applications selectors
   - Added `grc-e2e` repo (`stolostron/acmqe-grc-test`) for Governance/GRC selectors
   - Enhanced `get_acm_selectors()` with `component` parameter for filtered queries
+  - Refactored selector catalog to support scalable multi-repo architecture
   - Now supports 6 repositories total (2 source + 4 QE automation)
+  - Fixed: QE repos now correctly use `main` branch (not ACM release branch)
+  - All tools (`search_code`, `get_component_source`, `find_test_ids`) work with QE repos
 
 ---
 

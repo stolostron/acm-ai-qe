@@ -1,0 +1,28 @@
+# Gemini PR Review Configuration
+review:
+  # Maximum diff size to process (in characters)
+  max_diff_size: 50000
+  
+  # File patterns to exclude from review
+  exclude_patterns:
+    - "*.min.js"
+    - "*.bundle.js"
+    - "package-lock.json"
+    - "yarn.lock"
+    - "*.generated.*"
+    - "dist/*"
+    - "build/*"
+  
+  # Custom review prompt additions
+  focus_areas:
+    - "Security vulnerabilities"
+    - "Performance implications"
+    - "Error handling"
+    - "Code maintainability"
+    - "Test coverage"
+  
+  # Gemini model configuration
+  model:
+    name: "gemini-1.5-flash"
+    temperature: 0.1
+    max_output_tokens: 2048

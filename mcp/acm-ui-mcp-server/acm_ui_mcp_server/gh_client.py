@@ -92,7 +92,7 @@ class GitHubClient:
         endpoint = f"repos/{repo}/contents/{path}?ref={ref}"
         try:
             content = self._run_gh_command([
-                "api",
+                "api", 
                 endpoint,
                 "-H", "Accept: application/vnd.github.v3.raw"
             ])

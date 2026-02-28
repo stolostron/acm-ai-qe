@@ -210,7 +210,7 @@ class DataGatherer:
             'metadata': {
                 'jenkins_url': jenkins_url,
                 'gathered_at': datetime.now().isoformat(),
-                'gatherer_version': '3.1.0',
+                'gatherer_version': '3.2.0',
                 'jenkins_api_available': is_jenkins_available(),
                 'acm_ui_mcp_available': True,  # Always available to Claude Code agent via native MCP
                 'knowledge_graph_available': None,  # Updated after _check_feature_knowledge()
@@ -2293,7 +2293,7 @@ class DataGatherer:
     def _build_manifest(self, run_dir: Path) -> Dict[str, Any]:
         """Build manifest.json index file."""
         manifest = {
-            'version': '3.1.0',
+            'version': '3.2.0',
             'file_structure': 'multi-file-with-repos',
             'created_at': datetime.now().isoformat(),
             'acm_ui_mcp_available': True,  # Always available via Claude Code native MCP
@@ -2345,7 +2345,7 @@ class DataGatherer:
     def _build_ai_instructions(self) -> Dict[str, Any]:
         """Build AI instructions for 5-phase systematic investigation framework."""
         return {
-            'version': '3.1.0',
+            'version': '3.2.0',
             'architecture': '5-phase-systematic-investigation-with-playbooks',
             'purpose': 'Systematic deep investigation through 5 mandatory phases with feature playbooks, tiered cluster investigation, and KG dependency analysis',
 
@@ -2470,8 +2470,8 @@ class DataGatherer:
                         'name': 'Classification',
                         'purpose': 'Apply classification with evidence matrix (check feature knowledge FIRST, then backend cross-check)',
                         'steps': [
-                            'D-1. Feature Knowledge Override: If prerequisite unmet AND Tier 2 confirmed with live oc commands, use playbook suggested classification at 0.95 confidence. If Tier 2 confirmed failure path, use path classification and confidence. If Tier 3 found data flow break, classify based on break point. If Tier 4 KG found cascading failure, classify based on upstream root cause.',
-                            'D-1b. If cluster_access_available=false (login failed): reduce confidence by 0.15 on all classifications.',
+                            'PR-4. Feature Knowledge Override: If prerequisite unmet AND Tier 2 confirmed with live oc commands, use playbook suggested classification at 0.95 confidence. If Tier 2 confirmed failure path, use path classification and confidence. If Tier 3 found data flow break, classify based on break point. If Tier 4 KG found cascading failure, classify based on upstream root cause.',
+                            'PR-4b. If cluster_access_available=false (login failed): reduce confidence by 0.15 on all classifications.',
                             'D0. Check backend cross-check override - if backend_caused_ui_failure=true, route to Path B2 NOT Path A',
                             'D1. Check evidence sufficiency (2+ sources, no conflicts)',
                             'D2. Calculate confidence score (Tier 2 confirmed with live commands > Tier 2 snapshot-only > standard B1-B7 evidence)',

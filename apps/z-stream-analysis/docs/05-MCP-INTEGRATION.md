@@ -482,7 +482,7 @@ A Neo4j graph database containing the dependency relationships between all RHACM
 
 **Tool:** `mcp__neo4j-rhacm__read_neo4j_cypher`
 
-**Status:** Optional — may not be connected in all environments. The agent degrades gracefully when unavailable.
+**Status:** Available when Neo4j containers are running (`podman start neo4j-rhacm neo4j-mcp`). The agent degrades gracefully when unavailable.
 
 ### Why It Matters
 
@@ -500,13 +500,18 @@ With Knowledge Graph:
 
 ### How It Is Used: Stage 1
 
-In `gather.py`, the Python `KnowledgeGraphClient` checks if the Knowledge Graph is available and flags it in `core-data.json`. No queries are executed during Stage 1 — the client just records availability for the AI agent.
+In `gather.py`, the `KnowledgeGraphClient` queries Neo4j directly via HTTP API (`http://localhost:7474/db/neo4j/query/v2`) to:
+1. Check availability (records `kg_status.available` in core-data.json)
+2. Query dependency context per feature area (populates `kg_dependency_context`)
 
 ```python
 # In gather.py initialization
 if is_knowledge_graph_available():
     self.knowledge_graph_client = get_knowledge_graph_client()
+    # Client queries Neo4j via HTTP — no MCP needed
 ```
+
+Connection settings can be overridden via environment variables: `NEO4J_HTTP_URL` (default: `http://localhost:7474`), `NEO4J_USER` (default: `neo4j`), `NEO4J_PASSWORD` (default: `rhacmgraph`).
 
 ### How It Is Used: Stage 2
 

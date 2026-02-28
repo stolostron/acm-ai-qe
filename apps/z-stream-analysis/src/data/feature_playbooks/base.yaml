@@ -169,6 +169,47 @@ profiles:
         confidence: 0.75
         explanation: Search indexer has lag. Recently created resources are not yet indexed.
 
+      - id: search-query-regression
+        description: Search query returns wrong results — API healthy but logic incorrect
+        category: data_flow
+        symptoms:
+          - "(?i)expected.*result.*not.*match"
+          - "(?i)search.*returned.*wrong"
+          - "(?i)assert.*search.*result"
+          - "(?i)unexpected.*search.*response"
+        investigation:
+          - step: Check search-api health
+            command: "oc get pods -n open-cluster-management -l app=search-api"
+            expect: "Running, 0 restarts"
+            if_not: "search-api is not healthy — route to search-api-down"
+          - step: Verify search-api responds to queries
+            command: "oc logs -n open-cluster-management -l app=search-api --tail=50"
+            expect: "No error responses, query processing normal"
+            if_not: "search-api is returning errors"
+        classification: PRODUCT_BUG
+        confidence: 0.80
+        explanation: Search API is healthy but returns incorrect results. Likely a query processing regression.
+
+      - id: search-selector-stale
+        description: Test selector for search UI element no longer matches product
+        category: configuration
+        symptoms:
+          - "(?i)element.*not found.*search"
+          - "(?i)search.*selector.*not found"
+          - "(?i)Expected to find element.*search"
+        investigation:
+          - step: Check search-api is healthy
+            command: "oc get pods -n open-cluster-management -l app=search-api"
+            expect: "Running, 0 restarts"
+            if_not: "search-api is not healthy — route to search-api-down"
+          - step: Verify search page loads content
+            command: "echo 'Manual check: verify /multicloud/search renders search bar and results'"
+            expect: "Search page renders with content"
+            if_not: "Search page is blank — different failure mode"
+        classification: AUTOMATION_BUG
+        confidence: 0.85
+        explanation: Search backend is healthy. The test selector does not match the current product UI.
+
   GRC:
     display_name: Governance, Risk & Compliance
     docs_ref: rhacm-docs/governance
@@ -344,6 +385,47 @@ profiles:
         classification: PRODUCT_BUG
         confidence: 0.80
         explanation: Policy template has errors. Policy was rejected before it could be propagated.
+
+      - id: policy-ui-render-error
+        description: Policy page shows wrong data — propagator healthy but UI data incorrect
+        category: data_flow
+        symptoms:
+          - "(?i)policy.*wrong.*data"
+          - "(?i)governance.*display.*incorrect"
+          - "(?i)assert.*policy.*status"
+          - "(?i)expected.*compliant.*got"
+        investigation:
+          - step: Check propagator health
+            command: "oc get pods -n open-cluster-management -l app=grc-policy-propagator"
+            expect: "Running, 0 restarts"
+            if_not: "propagator is not healthy — route to propagator-down"
+          - step: Verify policy status in backend
+            command: "oc get policies -A -o jsonpath='{range .items[*]}{.metadata.name}: {.status.compliant}{\"\\n\"}{end}'"
+            expect: "Status matches what test expects"
+            if_not: "Backend status differs — product rendering issue"
+        classification: PRODUCT_BUG
+        confidence: 0.80
+        explanation: Policy propagator is healthy but UI displays incorrect policy data. Likely a rendering regression.
+
+      - id: grc-selector-stale
+        description: Test selector for governance UI element no longer matches product
+        category: configuration
+        symptoms:
+          - "(?i)element.*not found.*governance"
+          - "(?i)element.*not found.*policy"
+          - "(?i)Expected to find element.*grc"
+        investigation:
+          - step: Check propagator is healthy
+            command: "oc get pods -n open-cluster-management -l app=grc-policy-propagator"
+            expect: "Running, 0 restarts"
+            if_not: "propagator is not healthy — route to propagator-down"
+          - step: Verify governance page loads content
+            command: "echo 'Manual check: verify /multicloud/governance renders policy list'"
+            expect: "Governance page renders with content"
+            if_not: "Governance page is blank — different failure mode"
+        classification: AUTOMATION_BUG
+        confidence: 0.85
+        explanation: GRC backend is healthy. The test selector does not match the current governance UI.
 
   CLC:
     display_name: Cluster Lifecycle
@@ -535,6 +617,70 @@ profiles:
         confidence: 0.90
         explanation: Spoke cluster is unreachable. Import and upgrade operations cannot proceed.
 
+      - id: cluster-create-api-regression
+        description: Cluster creation API rejects valid request — backend regression
+        category: data_flow
+        symptoms:
+          - "(?i)cluster.*create.*fail"
+          - "(?i)cluster.*create.*reject"
+          - "(?i)400.*clusterdeployment"
+          - "(?i)422.*cluster"
+          - "(?i)validation.*fail.*cluster"
+        investigation:
+          - step: Check hive-controllers health
+            command: "oc get pods -n hive -l app=hive-controllers"
+            expect: "Running, 0 restarts"
+            if_not: "hive-controllers is not healthy — route to hive-controllers-down"
+          - step: Check hive-controllers logs for validation errors
+            command: "oc logs -n hive -l app=hive-controllers --tail=50"
+            expect: "No validation rejection messages"
+            if_not: "hive-controllers is rejecting valid cluster creation requests"
+        classification: PRODUCT_BUG
+        confidence: 0.80
+        explanation: Cluster creation API rejects a valid request. Backend validation regression.
+
+      - id: clc-test-setup-error
+        description: CLC test setup fails — wrong fixture, missing secret, or bad config
+        category: configuration
+        symptoms:
+          - "(?i)before.*hook.*fail"
+          - "(?i)setup.*fail.*cluster"
+          - "(?i)secret.*not found"
+          - "(?i)fixture.*error"
+          - "(?i)cloud.*credential.*missing"
+        investigation:
+          - step: Check test error is in setup phase
+            command: "echo 'Verify error occurs in before/beforeAll hook, not in test body'"
+            expect: "Error is in test setup, not product interaction"
+            if_not: "Error is in test body — classify as PRODUCT_BUG or INFRASTRUCTURE"
+          - step: Check for missing test prerequisites
+            command: "oc get secrets -n open-cluster-management | grep -i credential"
+            expect: "Required cloud credential secrets exist"
+            if_not: "Test prerequisites (secrets/fixtures) are missing"
+        classification: AUTOMATION_BUG
+        confidence: 0.80
+        explanation: Test setup fails due to missing fixture, secret, or configuration. Automation issue.
+
+      - id: clc-selector-stale
+        description: Test selector for cluster UI element no longer matches product
+        category: configuration
+        symptoms:
+          - "(?i)element.*not found.*cluster"
+          - "(?i)Expected to find element.*cluster"
+          - "(?i)element.*not found.*infrastructure"
+        investigation:
+          - step: Check cluster management backend is healthy
+            command: "oc get pods -n open-cluster-management -l app=cluster-manager"
+            expect: "Running, 0 restarts"
+            if_not: "cluster-manager is not healthy — investigate backend"
+          - step: Verify clusters page loads content
+            command: "echo 'Manual check: verify /multicloud/infrastructure/clusters renders cluster list'"
+            expect: "Clusters page renders with content"
+            if_not: "Clusters page is blank — different failure mode"
+        classification: AUTOMATION_BUG
+        confidence: 0.85
+        explanation: CLC backend is healthy. The test selector does not match the current cluster UI.
+
   Application:
     display_name: Application Lifecycle
     docs_ref: rhacm-docs/applications
@@ -677,6 +823,47 @@ profiles:
         confidence: 0.65
         explanation: PlacementRule selects no clusters. May be a test setup issue or a product behavior change.
 
+      - id: subscription-reconcile-error
+        description: Subscription never reconciles — controller healthy but reconciliation fails
+        category: data_flow
+        symptoms:
+          - "(?i)subscription.*propagat.*fail"
+          - "(?i)subscription.*status.*fail"
+          - "(?i)assert.*subscription.*status"
+          - "(?i)subscription.*phase.*not.*propagated"
+        investigation:
+          - step: Check subscription-controller health
+            command: "oc get pods -n open-cluster-management -l app=subscription-controller"
+            expect: "Running, 0 restarts"
+            if_not: "subscription-controller not healthy — route to subscription-controller-down"
+          - step: Check subscription status
+            command: "oc get subscriptions.apps.open-cluster-management.io -A -o jsonpath='{range .items[*]}{.metadata.name}: {.status.phase}{\"\\n\"}{end}'"
+            expect: "Subscriptions show Propagated phase"
+            if_not: "Subscriptions not reconciling despite healthy controller"
+        classification: PRODUCT_BUG
+        confidence: 0.80
+        explanation: Subscription controller is healthy but subscriptions fail to reconcile. Likely a reconciliation regression.
+
+      - id: app-selector-stale
+        description: Test selector for application UI element no longer matches product
+        category: configuration
+        symptoms:
+          - "(?i)element.*not found.*application"
+          - "(?i)Expected to find element.*app"
+          - "(?i)element.*not found.*subscription"
+        investigation:
+          - step: Check application backend is healthy
+            command: "oc get pods -n open-cluster-management -l app=subscription-controller"
+            expect: "Running, 0 restarts"
+            if_not: "subscription-controller not healthy — investigate backend"
+          - step: Verify applications page loads content
+            command: "echo 'Manual check: verify /multicloud/applications renders application list'"
+            expect: "Applications page renders with content"
+            if_not: "Applications page is blank — different failure mode"
+        classification: AUTOMATION_BUG
+        confidence: 0.85
+        explanation: Application backend is healthy. The test selector does not match the current application UI.
+
   Console:
     display_name: ACM Console
     docs_ref: rhacm-docs/web_console
@@ -816,6 +1003,49 @@ profiles:
         classification: INFRASTRUCTURE
         confidence: 0.85
         explanation: OAuth proxy error. Login is in a redirect loop or failing.
+
+      - id: console-render-regression
+        description: Page loads but renders incorrectly — console-api healthy but data wrong
+        category: data_flow
+        symptoms:
+          - "(?i)render.*incorrect"
+          - "(?i)page.*display.*wrong"
+          - "(?i)assert.*content.*mismatch"
+          - "(?i)expected.*text.*got"
+          - "(?i)visual.*regression"
+        investigation:
+          - step: Check console-api health
+            command: "oc get pods -n open-cluster-management -l app=console-api"
+            expect: "Running, 0 restarts"
+            if_not: "console-api is not healthy — route to console-api-down"
+          - step: Check console plugin pods
+            command: "oc get pods -n open-cluster-management -l app=acm-console"
+            expect: "Running, 0 restarts"
+            if_not: "ACM console plugin pod is not healthy"
+        classification: PRODUCT_BUG
+        confidence: 0.80
+        explanation: Console loads but renders incorrectly. Backend is healthy — likely a frontend rendering regression.
+
+      - id: console-selector-stale
+        description: Test selector for console UI element no longer matches product
+        category: configuration
+        symptoms:
+          - "(?i)element.*not found.*console"
+          - "(?i)element.*not found.*overview"
+          - "(?i)Expected to find element.*welcome"
+          - "(?i)Expected to find element.*credential"
+        investigation:
+          - step: Check console-api is healthy
+            command: "oc get pods -n open-cluster-management -l app=console-api"
+            expect: "Running, 0 restarts"
+            if_not: "console-api is not healthy — route to console-api-down"
+          - step: Verify console page loads content
+            command: "echo 'Manual check: verify /multicloud/home/overview renders dashboard'"
+            expect: "Console page renders with content"
+            if_not: "Console page is blank — different failure mode"
+        classification: AUTOMATION_BUG
+        confidence: 0.85
+        explanation: Console backend is healthy. The test selector does not match the current console UI.
 
   Infrastructure:
     display_name: Infrastructure Foundation
@@ -1211,6 +1441,120 @@ profiles:
         classification: INFRASTRUCTURE
         confidence: 0.80
         explanation: kubevirt-plugin console plugin not registered. VM tab absent.
+
+  Automation:
+    display_name: Ansible Automation Platform Integration
+    docs_ref: rhacm-docs/clusters/automations
+
+    architecture:
+      summary: |
+        ACM integrates with Ansible Automation Platform (AAP) for cluster lifecycle
+        automation templates. Requires AAP operator installed separately (not part of
+        ACM/MCE). The Automation page in ACM Console renders only when AAP is detected.
+        ClusterCurator uses AnsibleJob CRDs to trigger pre/post-upgrade hooks via AAP.
+      data_flow:
+        - "AAP operator installed in dedicated namespace (aap, ansible-automation-platform, or tower)"
+        - "ACM Console detects AAP via ClusterServiceVersion (CSV) presence"
+        - "Automation page renders templates from AAP controller"
+        - "ClusterCurator creates AnsibleJob CRDs referencing AAP templates"
+        - "AAP controller executes automation jobs on target clusters"
+      key_insight: >
+        AAP is an external operator, not an ACM component. If AAP is not installed,
+        the entire Automation page will show a blank page (no-js / empty body). This
+        is NOT a selector issue — the page route exists but has nothing to render.
+      cross_subsystem_impact:
+        - "CLC: ClusterCurator depends on AAP for pre/post upgrade automation hooks"
+        - "Console: Automation page is a Console route that renders AAP templates"
+      ui_routes:
+        - "/multicloud/infrastructure/automations"
+      key_components:
+        - name: aap-controller
+          role: Ansible Automation Platform controller
+          type: operator
+          namespace: aap
+          pod_label: app=automation-controller
+
+    prerequisites:
+      - id: aap-operator-installed
+        type: operator
+        check_spec:
+          operator_name: aap-operator
+          namespace: aap
+        default_enabled: false
+        description: >
+          Ansible Automation Platform operator installed. Namespace varies by
+          installation (aap, ansible-automation-platform, or tower).
+    dependencies:
+      - Console
+      - Infrastructure
+
+    failure_paths:
+      - id: aap-not-installed
+        description: AAP operator not installed — Automation page blank
+        category: prerequisite
+        symptoms:
+          - "(?i)no-js"
+          - "(?i)blank.*page"
+          - "(?i)automation.*not found"
+          - "(?i)automation.*timeout"
+          - "(?i)template.*not found"
+          - "(?i)ansible.*not found"
+        prerequisite_id: aap-operator-installed
+        investigation:
+          - step: Check for AAP operator CSV in common namespaces
+            command: "oc get csv -A 2>/dev/null | grep -i 'aap\\|ansible\\|automation-platform\\|tower'"
+            expect: "At least one AAP-related CSV in Succeeded phase"
+            if_not: "AAP operator is not installed — Automation page has nothing to render"
+          - step: Check for AAP subscription
+            command: "oc get subscription -A 2>/dev/null | grep -i 'aap\\|ansible\\|automation-platform'"
+            expect: "AAP subscription exists"
+            if_not: "No AAP subscription found — operator was never installed"
+        classification: INFRASTRUCTURE
+        confidence: 0.90
+        explanation: >
+          AAP operator is not installed on the cluster. The Automation page route
+          exists in ACM Console but has no content to render, resulting in a blank
+          page. This is an environment prerequisite issue, not a test code problem.
+
+      - id: aap-operator-degraded
+        description: AAP operator installed but degraded
+        category: component_health
+        symptoms:
+          - "(?i)automation.*error"
+          - "(?i)automation.*500"
+          - "(?i)template.*fail"
+          - "(?i)ansible.*connection"
+        investigation:
+          - step: Check AAP operator status
+            command: "oc get csv -A 2>/dev/null | grep -i 'aap\\|ansible\\|automation-platform'"
+            expect: "CSV in Succeeded phase"
+            if_not: "AAP operator is installed but not in Succeeded phase"
+          - step: Check AAP controller pods
+            command: "oc get pods -A 2>/dev/null | grep -i 'automation-controller\\|aap-controller'"
+            expect: "Running pods"
+            if_not: "AAP controller pods are not healthy"
+        classification: INFRASTRUCTURE
+        confidence: 0.85
+        explanation: AAP operator is installed but degraded. Automation features will fail.
+
+      - id: aap-installed-automation-selector-issue
+        description: AAP installed and healthy but test selector doesn't match
+        category: configuration
+        symptoms:
+          - "(?i)element.*not found"
+          - "(?i)selector.*not found"
+        investigation:
+          - step: Confirm AAP is healthy
+            command: "oc get csv -A 2>/dev/null | grep -i 'aap\\|ansible\\|automation-platform'"
+            expect: "CSV in Succeeded phase"
+            if_not: "AAP is not healthy — route to aap-operator-degraded"
+          - step: Check that Automation page loads
+            command: "echo 'Manual check: verify /multicloud/infrastructure/automations renders content'"
+            expect: "Page renders with AAP templates"
+            if_not: "Page loads but selector doesn't match — automation test code issue"
+        classification: AUTOMATION_BUG
+        confidence: 0.85
+        explanation: AAP is installed and healthy. The test selector doesn't match the current UI.
 
   Observability:
     display_name: Observability

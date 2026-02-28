@@ -838,7 +838,7 @@ class JiraClient:
             # Sprint -- parse Java object string from customfield_12310940
             'sprint': self._parse_sprint_field(getattr(issue.fields, 'customfield_12310940', None)),
             # QA Contact
-            'qa_contact': getattr(issue.fields, 'customfield_12315948', None),
+            'qa_contact': getattr(getattr(issue.fields, 'customfield_12315948', None), 'name', None) or (str(getattr(issue.fields, 'customfield_12315948', None)) if getattr(issue.fields, 'customfield_12315948', None) else None),
             # Epic Link -- for ALL issue types
             'epic_link': getattr(issue.fields, 'customfield_12311140', None),
             # Severity
@@ -848,7 +848,7 @@ class JiraClient:
             # Acceptance Criteria
             'acceptance_criteria': getattr(issue.fields, 'customfield_12315940', None),
             # Reviewers
-            'reviewers': getattr(issue.fields, 'customfield_12315950', None) or [],
+            'reviewers': [getattr(r, 'name', str(r)) for r in (getattr(issue.fields, 'customfield_12315950', None) or [])],
             # Issue Links
             'issue_links': self._parse_issue_links(getattr(issue.fields, 'issuelinks', []) or []),
             # Attachments (filenames only)

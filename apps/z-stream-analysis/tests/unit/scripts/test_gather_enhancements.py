@@ -436,11 +436,11 @@ class TestAIInstructionsEnhancements:
             return gatherer
 
     def test_ai_instructions_version(self, gatherer):
-        """AI instructions should be version 3.1.0."""
+        """AI instructions should be version 3.2.0."""
         with patch('src.scripts.gather.is_acm_ui_mcp_available', return_value=False):
             with patch('src.scripts.gather.is_knowledge_graph_available', return_value=False):
                 instructions = gatherer._build_ai_instructions()
-                assert instructions['version'] == '3.1.0'
+                assert instructions['version'] == '3.2.0'
 
     def test_ai_instructions_include_investigation_framework(self, gatherer):
         """Should include 5-phase investigation framework."""

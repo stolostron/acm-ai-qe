@@ -1,6 +1,6 @@
-# Z-Stream Pipeline Analysis (v3.1)
+# Z-Stream Pipeline Analysis (v3.2)
 
-Enterprise Jenkins pipeline failure analysis with definitive PRODUCT BUG | AUTOMATION BUG | INFRASTRUCTURE classification. v3.1 adds feature investigation playbooks, tiered cluster investigation, MCH component extraction, cluster credential persistence, and classification feedback.
+Enterprise Jenkins pipeline failure analysis with definitive PRODUCT BUG | AUTOMATION BUG | INFRASTRUCTURE classification. v3.2 adds blank page pre-routing, hook failure deduplication, temporal evidence routing, Automation/AAP playbook, and a working Knowledge Graph client.
 
 ## Quick Start
 
@@ -42,10 +42,13 @@ See `docs/00-OVERVIEW.md` for full run directory structure. Key files: `core-dat
 
 See `docs/00-OVERVIEW.md` for full classification definitions with owners and triggers.
 
-## Decision Quick Reference (3-Path Routing with Feature Knowledge Override)
+## Decision Quick Reference (3-Path Routing with Pre-Checks)
 
 See `docs/00-OVERVIEW.md` for the full decision routing table. Summary:
-- **D-1** Check feature knowledge override FIRST — if tiered investigation confirmed a playbook failure path, use playbook classification (v3.1)
+- **PR-1** Blank page / no-js pre-check — if page is blank due to missing prerequisite (AAP, IDP, CNV), route to INFRASTRUCTURE (v3.2)
+- **PR-2** Hook failure dedup — if after-all hook cascades from prior failure, classify NO_BUG (v3.2)
+- **PR-3** Temporal evidence — if `stale_test_signal=true` with refactor/rename commit, signal PRODUCT_BUG (v3.2)
+- **PR-4** Check feature knowledge override FIRST — if tiered investigation confirmed a playbook failure path, use playbook classification (v3.1)
 - **D0** Check backend cross-check — if backend caused UI failure, route to Path B2
 - **Path A** (selector mismatch, no backend issue) → AUTOMATION_BUG
 - **Path B1** (non-selector timeout) → INFRASTRUCTURE
@@ -68,7 +71,22 @@ See `docs/00-OVERVIEW.md` for the full decision routing table. Summary:
 ]
 ```
 
-## New in v3.1
+## New in v3.2
+
+- **Blank page / no-js pre-routing** (Phase PR-1) — detects blank pages caused by missing prerequisites (AAP not installed, IDP not configured, CNV missing) and routes to INFRASTRUCTURE instead of misclassifying as AUTOMATION_BUG
+- **Hook failure deduplication** (Phase PR-2) — classifies `after all`/`after each` hook cascading failures as NO_BUG instead of counting them as independent bugs
+- **Temporal evidence routing** (Phase PR-3) — uses `stale_test_signal` data to detect PRODUCT_BUG when product files changed with refactor/rename/PF6 commits
+- **Automation/AAP playbook** — new feature area profile in `base.yaml` with AAP operator prerequisite checks and three failure paths
+- **Knowledge Graph client fix** — replaced stub `_execute_cypher()` with real Neo4j HTTP API queries; KG now works in both Stage 1 (gather.py) and Stage 2 (AI agent)
+- **New schema fields** — `is_cascading_hook_failure`, `blank_page_detected` per test; `cascading_hook_failures`, `blank_page_failures` in summary
+- **Automation feature area** — added to `feature_area_service.py` with patterns, components, and namespace mappings
+- **Counter-bias validation** (Phase D5) — self-check before finalizing any classification to counter routing bias
+- **Path A confidence rebalanced** — requires B7 backend health confirmation; range lowered from 0.85-0.95 to 0.75-0.90
+- **Regex injection fix** — `re.escape()` applied at 6 Cypher query injection points in `KnowledgeGraphClient`
+- **Shared utilities** — `dataclass_to_dict()` and `validate_command_readonly()` extracted to `shared_utils.py`; 4 services deduplicated
+- **11 new playbook failure paths** — 5 PRODUCT_BUG + 6 AUTOMATION_BUG paths added across Search, GRC, CLC, Application, Console profiles
+
+### From v3.1
 
 - **Feature investigation playbooks** (`src/data/feature_playbooks/`) — YAML playbooks with architecture, prerequisites, and known failure paths per feature area
 - **FeatureKnowledgeService** — loads playbooks, checks MCH prerequisites, matches error symptoms to known failure paths
@@ -106,6 +124,8 @@ Three MCP servers provide tools during Stage 2 (AI Analysis). New users: run `ba
 | ACM-UI | 20 | ACM Console + kubevirt-plugin source code search via GitHub |
 | JIRA | 24 | Issue search, creation, management for bug correlation |
 | Knowledge Graph (Neo4j RHACM) | 3 | Component dependency analysis via Cypher queries (optional) |
+
+**Knowledge Graph:** The KG client (`knowledge_graph_client.py`) queries Neo4j directly via HTTP API (`http://localhost:7474`). It works in both Stage 1 (gather.py populates `kg_dependency_context` in core-data.json) and Stage 2 (AI agent uses MCP tools for ad-hoc queries). Requires `podman start neo4j-rhacm neo4j-mcp`. Connection settings configurable via `NEO4J_HTTP_URL`, `NEO4J_USER`, `NEO4J_PASSWORD` env vars (defaults: `localhost:7474`, `neo4j`, `rhacmgraph`).
 
 **KG label mapping:** The Knowledge Graph uses descriptive labels (e.g., `"API Gateway Controller"`), not pod names (e.g., `"search-api"`). The AI instructions include a `pod_to_kg_label` map and a `query_strategy` that directs the AI to use `get_subsystem_components` first to discover actual KG labels before querying by component.
 
@@ -147,28 +167,28 @@ python -m src.scripts.feedback --stats           # View accuracy stats
 ## Tests
 
 ```bash
-# Regression tests (fast, no external deps — 40 tests):
+# Regression tests (fast, no external deps — 47 tests):
 python -m pytest tests/regression/ -v
 
-# Unit tests (379 tests):
+# Unit tests (382 tests):
 python -m pytest tests/unit/ -v
 
-# Unit + regression (419 tests):
+# Unit + regression (429 tests):
 python -m pytest tests/unit/ tests/regression/ -v
 
 # Integration tests (requires Jenkins VPN — 50 tests):
 python -m pytest tests/integration/ -v --timeout=300
 
-# All tests (469 total):
+# All tests (479 total):
 python -m pytest tests/ -v --timeout=300
 ```
 
 ### Test Structure
 
-- `tests/unit/` — 379 unit tests across 13 service/script files
-- `tests/regression/` — 40 regression tests for cross-module consistency, playbook quality, AI instructions, schema coverage
+- `tests/unit/` — 382 unit tests across 13 service/script files
+- `tests/regression/` — 47 regression tests for cross-module consistency, playbook quality, AI instructions, schema coverage
 - `tests/integration/` — 50 integration tests for Stage 1 gather, Stage 3 report, and cross-stage data contracts
-- `tests/fixtures/` — Synthetic analysis-results.json exercising all v3.1 schema fields
+- `tests/fixtures/` — Synthetic analysis-results.json exercising all v3.2 schema fields
 
 ## File Structure
 

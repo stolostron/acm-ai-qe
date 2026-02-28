@@ -17,7 +17,9 @@ IMPORTANT: All operations are READ-ONLY.
 import json
 import logging
 import subprocess
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
+
+from .shared_utils import dataclass_to_dict, validate_command_readonly
 from typing import Dict, Any, List, Optional, Tuple
 
 
@@ -118,6 +120,8 @@ COMPONENT_NAMESPACE_MAP = {
     # Cross-Cluster Migration (MTV + Submariner)
     'forklift-controller': ('openshift-mtv', 'deployment'),
     'submariner-gateway': ('submariner-operator', 'daemonset'),
+    # Automation (AAP)
+    'aap-controller': ('aap', 'deployment'),
     # Infrastructure
     'klusterlet': ('open-cluster-management-agent', 'deployment'),
     'klusterlet-agent': ('open-cluster-management-agent', 'deployment'),
@@ -195,14 +199,9 @@ class ClusterInvestigationService:
         return cmd
 
     def _validate_readonly(self, args: List[str]) -> bool:
-        if not args:
+        if not validate_command_readonly(args, self.ALLOWED_COMMANDS, "ClusterInvestigationService"):
             return False
         primary = args[0]
-        if primary not in self.ALLOWED_COMMANDS:
-            self.logger.warning(
-                f"READ-ONLY VIOLATION: '{primary}' not in allowed commands"
-            )
-            return False
         if primary == 'adm':
             if len(args) >= 2 and args[1] == 'top':
                 return True
@@ -255,8 +254,8 @@ class ClusterInvestigationService:
                             break
                     statuses[status] = statuses.get(status, 0) + 1
                 landscape.managed_cluster_statuses = statuses
-            except (json.JSONDecodeError, KeyError):
-                pass
+            except (json.JSONDecodeError, KeyError) as e:
+                self.logger.debug(f"Failed to parse managed clusters: {e}")
 
         # Cluster operators
         success, stdout, _ = self._run_command(
@@ -279,8 +278,8 @@ class ClusterInvestigationService:
                         status = 'Degraded'
                         landscape.degraded_operators.append(name)
                     landscape.operator_statuses[name] = status
-            except (json.JSONDecodeError, KeyError):
-                pass
+            except (json.JSONDecodeError, KeyError) as e:
+                self.logger.debug(f"Failed to parse cluster operators: {e}")
 
         # Resource pressure
         landscape.resource_pressure = self.get_resource_pressure()
@@ -320,8 +319,8 @@ class ClusterInvestigationService:
                         comp_enabled = comp.get('enabled', True)
                         if comp_name:
                             landscape.mch_enabled_components[comp_name] = comp_enabled
-            except (json.JSONDecodeError, KeyError):
-                pass
+            except (json.JSONDecodeError, KeyError) as e:
+                self.logger.debug(f"Failed to parse MultiClusterHub: {e}")
 
         return landscape
 
@@ -541,4 +540,4 @@ class ClusterInvestigationService:
 
     def to_dict(self, obj) -> Dict[str, Any]:
         """Convert dataclass to dict for serialization."""
-        return asdict(obj)
+        return dataclass_to_dict(obj)

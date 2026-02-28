@@ -13,7 +13,9 @@ and provide grounding context in core-data.json.
 
 import re
 import logging
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
+
+from .shared_utils import dataclass_to_dict
 from typing import Dict, Any, List, Optional
 
 
@@ -142,6 +144,13 @@ FEATURE_AREAS: Dict[str, FeatureGrounding] = {
         investigation_focus='Role assignments, user management, permissions, '
                           'cluster roles, namespace roles',
     ),
+    'Automation': FeatureGrounding(
+        subsystem='Automation',
+        key_components=['aap-controller'],
+        key_namespaces=['aap', 'ansible-automation-platform'],
+        investigation_focus='Ansible automation templates, ClusterCurator hooks, '
+                          'AAP integration, pre/post upgrade automation',
+    ),
 }
 
 # Test file path patterns for feature area identification
@@ -153,6 +162,7 @@ _PATH_PATTERNS: List[tuple] = [
     (r'virtual|vm|kubevirt|virt|fleet', 'Virtualization'),
     (r'app|application|subscription|channel|argo', 'Application'),
     (r'rbac|role|user.*management|permission', 'RBAC'),
+    (r'automat|ansible|aap|template.*automat', 'Automation'),
     (r'console|overview|welcome|header', 'Console'),
     (r'infra|klusterlet|addon|foundation|mce', 'Infrastructure'),
 ]
@@ -168,6 +178,7 @@ _NAME_PATTERNS: List[tuple] = [
      'Virtualization'),
     (r'application|subscription|channel|argo|deploy.*app', 'Application'),
     (r'rbac|role.assign|permission|user.manage', 'RBAC'),
+    (r'automat.*template|ansible.*automat|aap.*integrat', 'Automation'),
     (r'console.*nav|overview.*page|welcome|header', 'Console'),
     (r'addon|klusterlet|foundation|mce|infrastructure', 'Infrastructure'),
 ]
@@ -208,6 +219,7 @@ _COMPONENT_TO_FEATURE: Dict[str, str] = {
     'console-api': 'Console',
     'acm-console': 'Console',
     'mce-console': 'Console',
+    'aap-controller': 'Automation',
     'klusterlet': 'Infrastructure',
     'multicluster-engine': 'Infrastructure',
     'foundation-controller': 'Infrastructure',
@@ -371,4 +383,4 @@ class FeatureAreaService:
 
     def to_dict(self, obj) -> Dict[str, Any]:
         """Convert dataclass to dict for serialization."""
-        return asdict(obj)
+        return dataclass_to_dict(obj)

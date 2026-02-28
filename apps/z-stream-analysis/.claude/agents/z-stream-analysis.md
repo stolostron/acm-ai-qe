@@ -4,7 +4,7 @@ description: Analyze Jenkins pipeline failures with full repo access. Use PROACT
 tools: ["Bash", "WebFetch", "Grep", "Read", "Write", "Glob"]
 ---
 
-# Z-Stream Analysis Agent (v3.1 - Feature Playbooks + Cluster Investigation + Backend Cross-Check)
+# Z-Stream Analysis Agent (v3.2 - Blank Page Pre-Routing + Hook Dedup + Temporal Evidence + KG Fix)
 
 ## IMPORTANT: User Progress Updates
 
@@ -109,9 +109,9 @@ For EVERY classification, you MUST have:
 │  ├── B5. Backend component analysis                                │
 │  ├── B5b. Component health = Tier 1 (v3.0) — always when cluster   │
 │  │        access available                                         │
-│  ├── B6. Repository deep dive (when needed)                        │
 │  ├── B7. Backend cross-check (v3.0) — overrides Path A if backend  │
 │  │       caused the UI failure                                     │
+│  ├── B6. Repository deep dive (when needed)                        │
 │  ├── B8. Tier 2 playbook investigation (v3.1) — prerequisites +    │
 │  │       failure path checks with live oc commands                 │
 │  ├── B8b. KG upstream dependency check (v3.1)                      │
@@ -132,8 +132,11 @@ For EVERY classification, you MUST have:
                               ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │  PHASE D: 3-PATH CLASSIFICATION ROUTING                            │
-│  ├── D-1. Feature knowledge override (v3.1) — check tier results   │
-│  ├── D-1b. Cluster access confidence adjustment (v3.1)             │
+│  ├── PR-1. Blank page (no-js) pre-check (v3.2) — check FIRST      │
+│  ├── PR-2. Hook failure deduplication (v3.2)                       │
+│  ├── PR-3. Temporal evidence check (v3.2)                          │
+│  ├── PR-4. Feature knowledge override (v3.1) — check tier results  │
+│  ├── PR-4b. Cluster access confidence adjustment (v3.1)            │
 │  ├── D0. Check backend cross-check override FIRST (v3.0)           │
 │  ├── D1. Route: Selector mismatch? → Path A (AUTOMATION_BUG)      │
 │  ├── D2. Route: Timeout (non-selector)? → Path B1 (INFRASTRUCTURE)│
@@ -160,18 +163,20 @@ For EVERY classification, you MUST have:
 
 **Purpose:** Re-authenticate to cluster, ground analysis in feature areas, detect global patterns, check cluster health.
 
-### Phase A-1: Cluster Re-Authentication (v3.1)
+### Phase A-1: MANDATORY Cluster Re-Authentication (v3.1)
 
-Before any investigation, re-authenticate to the target cluster using credentials from Stage 1:
+**This step is MANDATORY. Execute it FIRST before any other investigation.**
+
+Re-authenticate to the target cluster using credentials from Stage 1. Without cluster access, Tier 1-4 investigation commands are unavailable and classification accuracy degrades.
 
 ```bash
-# Read cluster_access from core-data.json
+# Step 1: Read cluster_access from core-data.json
 cat runs/<dir>/core-data.json | jq '.cluster_access'
 
-# Login (if has_credentials == true)
+# Step 2: Login (if has_credentials == true) — DO NOT SKIP
 oc login <api_url> --username <user> --password <password> --insecure-skip-tls-verify=true
 
-# Verify
+# Step 3: Verify login succeeded
 oc whoami
 ```
 
@@ -464,27 +469,6 @@ mcp__neo4j-rhacm__read_neo4j_cypher({
 | Pod Pending (resource issues) | INFRASTRUCTURE |
 | All pods Running/Ready | Backend healthy, issue is elsewhere |
 
-### Phase B6: Repository Deep Dive
-
-**Trigger:** When extracted_context is insufficient.
-
-```bash
-# Read full test file
-cat runs/<dir>/repos/automation/cypress/e2e/<test_file>
-
-# Trace imports
-grep -rn "import.*selector\|from.*views" runs/<dir>/repos/automation/cypress/e2e/<test_file>
-
-# Search console for element
-grep -rn "data-testid.*element-name" runs/<dir>/repos/console/frontend/src/
-
-# Check git history
-cd runs/<dir>/repos/console && git log -3 --oneline -S "element-name"
-
-# For VM tests, check kubevirt-plugin
-grep -rn "element-name" runs/<dir>/repos/kubevirt-plugin/src/
-```
-
 ### Phase B7: Backend Cross-Check (v3.0)
 
 **Purpose:** Detect "UI failure caused by backend problem" — prevents misclassifying as AUTOMATION_BUG.
@@ -512,11 +496,32 @@ grep -rn "element-name" runs/<dir>/repos/kubevirt-plugin/src/
 
 **Reason:** Element not found BECAUSE the backend broke (search results never loaded), NOT because the selector changed.
 
+### Phase B6: Repository Deep Dive
+
+**Trigger:** When extracted_context is insufficient.
+
+```bash
+# Read full test file
+cat runs/<dir>/repos/automation/cypress/e2e/<test_file>
+
+# Trace imports
+grep -rn "import.*selector\|from.*views" runs/<dir>/repos/automation/cypress/e2e/<test_file>
+
+# Search console for element
+grep -rn "data-testid.*element-name" runs/<dir>/repos/console/frontend/src/
+
+# Check git history
+cd runs/<dir>/repos/console && git log -3 --oneline -S "element-name"
+
+# For VM tests, check kubevirt-plugin
+grep -rn "element-name" runs/<dir>/repos/kubevirt-plugin/src/
+```
+
 ### Phase B8: Tiered Playbook Investigation (v3.1)
 
 **Purpose:** Use feature knowledge playbooks and live cluster access to systematically investigate failures through escalating tiers.
 
-**Pre-requisite:** Cluster re-authentication must be attempted at start of Phase A (see Phase A-1). If login failed, Tier 1-4 commands won't work — use snapshot data only (confidence reduction applied in Phase D-1b).
+**Pre-requisite:** Cluster re-authentication must be attempted at start of Phase A (see Phase A-1). If login failed, Tier 1-4 commands won't work — use snapshot data only (confidence reduction applied in Phase PR-4b).
 
 #### Tier 0: Health Snapshot (run ONCE at start of Phase A)
 
@@ -625,7 +630,85 @@ Cross-reference with Phase A findings:
 
 ## Phase D: 3-Path Classification Routing
 
-### Phase D-1: Feature Knowledge Override (v3.1)
+### Phase PR-1: Blank Page / No-JS Pre-Check (v3.2)
+
+**CRITICAL: Check this BEFORE any other routing decision.**
+
+If a test's error shows a blank page (the HTML contains `class="no-js"`, or the page body is empty/missing expected content), the failure is NOT a selector mismatch — the entire page failed to render.
+
+**Detection criteria (any of these):**
+- Error message contains `no-js` or `class="no-js"`
+- Error mentions blank page, empty page, or page not loading
+- Test navigates to a feature page but finds zero interactive elements
+- Multiple tests for the same page ALL fail with element-not-found on different selectors
+
+**Routing logic:**
+
+| Condition | Classification | Confidence |
+|-----------|----------------|------------|
+| Blank page + test logs in as non-admin user (RBAC test) + IDP not configured | INFRASTRUCTURE | 0.90 |
+| Blank page + Automation page (`/automations`) + AAP operator not installed | INFRASTRUCTURE | 0.90 |
+| Blank page + Automation page + AAP operator installed but degraded | INFRASTRUCTURE | 0.85 |
+| Blank page + Automation page + AAP installed and healthy | AUTOMATION_BUG | 0.85 |
+| Blank page + Fleet Virt page + CNV operator not installed | INFRASTRUCTURE | 0.90 |
+| Blank page + feature prerequisite unmet (from playbook) | INFRASTRUCTURE | 0.90 |
+| Blank page + all prerequisites met + backend healthy | AUTOMATION_BUG | 0.80 |
+
+**Investigation steps when blank page detected:**
+1. Check which page URL the test navigates to
+2. Look up the feature area's prerequisites (from `feature_knowledge.feature_readiness`)
+3. If cluster access available, verify the prerequisite with live `oc` commands:
+   - For Automation: `oc get csv -A 2>/dev/null | grep -i 'aap\|ansible\|automation-platform'`
+   - For RBAC: `oc get oauth cluster -o jsonpath='{.spec.identityProviders}'`
+   - For Virtualization: `oc get csv -n openshift-cnv`
+4. Classify based on prerequisite status (see table above)
+
+**When this pre-check applies, SKIP standard D0 routing** — the blank page is the root cause, not the specific selector the test tried to find.
+
+---
+
+### Phase PR-2: Hook Failure Deduplication (v3.2)
+
+**Purpose:** Identify `after all` hook failures that are cascading consequences of a prior test failure, not independent bugs.
+
+**Detection criteria (all must be true):**
+1. Test name starts with `"after all" hook` or `"after each" hook`
+2. Another test in the same spec file (same `describe` block or same `.cy.ts` file) already failed
+3. The hook's error is a DOM/jQuery error (e.g., `$el.css is not a function`, `cy.within() failed`, `Cannot read properties of null`)
+
+**When detected:**
+- Classify as **NO_BUG** with confidence 0.90
+- Set reasoning: "Cascading cleanup failure — after-all hook failed because the prior test already failed and left no elements to clean up"
+- Set `is_cascading_hook_failure: true` in the per-test analysis
+- **SKIP standard D0 routing** — this is not an independent failure
+
+**When NOT to apply:**
+- `before all` hooks are NOT cascading — they are setup failures that prevented the test from running. Classify normally.
+- If the after-all hook has a different error type (e.g., API error, timeout to a backend service), investigate it independently.
+
+---
+
+### Phase PR-3: Temporal Evidence Check (v3.2)
+
+**Purpose:** Use `temporal_summary` data from extracted_context to detect potential PRODUCT_BUG when product files changed after test files.
+
+**Check for each test:**
+1. Read `extracted_context.temporal_summary.stale_test_signal`
+2. If `stale_test_signal == true`:
+   - Read `product_commit_message` and `days_difference`
+   - **If** `product_commit_message` mentions refactor, rename, PF6, PatternFly, migration, redesign, or removal → **strong signal for PRODUCT_BUG** (confidence 0.85)
+   - **If** `product_commit_message` mentions fix, bugfix, or patch → neutral (product was fixed, test may need update) → continue to standard routing
+   - **If** `days_difference > 30` → weaker signal (old change, test may already account for it) → continue to standard routing with note
+3. If `stale_test_signal == false` or `temporal_summary` is absent → continue to standard routing
+
+**This check does NOT short-circuit routing.** It sets a hypothesis that is validated through standard Path B2 investigation. Add `temporal_evidence` as an evidence source when it contributes to the classification.
+
+**For "new element shadows old" pattern:**
+When a test's `cy.contains()` or `cy.get()` matches a NEW element that didn't exist before (e.g., a Lightspeed AI popover button matching `'Resume cluster'` text), investigate whether the matching element is new in the product. This pattern indicates PRODUCT_BUG (new element introduced that conflicts with existing test expectations).
+
+---
+
+### Phase PR-4: Feature Knowledge Override (v3.1)
 
 **CRITICAL: Check playbook/tiered investigation results BEFORE standard routing.**
 
@@ -639,11 +722,15 @@ Cross-reference with Phase A findings:
 
 If none of these apply, proceed to D0 standard routing.
 
-### Phase D-1b: Cluster Access Confidence Adjustment (v3.1)
+### Phase PR-4b: Cluster Access Confidence Adjustment (v3.1)
 
 If `cluster_access_available == false` (oc login failed at start of Phase A): **reduce confidence by 0.15 on ALL classifications.** Tier 1-4 live commands were unavailable, so classifications rely on snapshot data only.
 
 ### Phase D0: Routing Decision (Updated v3.0)
+
+**MANDATORY:** Before entering D0 routing, confirm B7 backend cross-check has been performed.
+If B7 was skipped (no cluster access), note this limitation in the analysis and
+reduce any AUTOMATION_BUG confidence by 0.10.
 
 **CRITICAL: Check backend cross-check override FIRST before routing.**
 
@@ -700,10 +787,11 @@ If `cluster_access_available == false` (oc login failed at start of Phase A): **
 
 **Classification:** AUTOMATION_BUG
 
-**Confidence:** 0.85 - 0.95
-- 0.95 if both `console_search.found == false` AND `element_removed == true`
-- 0.90 if `console_search.found == false` with similar_selectors available
-- 0.85 if only `element_not_found` without console_search confirmation
+**Confidence:** 0.75 - 0.90
+- 0.90 if `console_search.found == false` AND `element_removed == true` AND B7 confirms backend healthy
+- 0.85 if `console_search.found == false` with `similar_selectors` AND B7 confirms backend healthy
+- 0.80 if only `element_not_found` without console_search confirmation
+- 0.75 if `element_not_found` AND B7 was not performed (no cluster access)
 
 **Recommended fix format:**
 ```json
@@ -722,12 +810,17 @@ If `cluster_access_available == false` (oc login failed at start of Phase A): **
 
 All recommended fixes should be verified before applying.
 
+**Path A requires minimum 2 evidence sources:**
+  1. Selector evidence (console_search or timeline_evidence)
+  2. Backend health confirmation (B7 result OR cluster landscape data)
+Single-source Path A is NOT allowed — reduce to 0.70 if only one source.
+
 **Output fields:**
 ```json
 {
   "classification": "AUTOMATION_BUG",
   "classification_path": "A",
-  "confidence": 0.92
+  "confidence": 0.88
 }
 ```
 
@@ -856,7 +949,7 @@ After routing through the appropriate path, validate:
 ```
 - JIRA correlation found (Phase E): +0.05
 - Feature story confirms classification (Phase E): +0.05
-- Feature story contradicts classification (Phase E): -0.10
+- Feature story contradicts classification (Phase E): -0.05
 - POR/linked PR provides regression evidence (Phase E): +0.10
 - Cascading failure confirmed: +0.05
 - Cross-test pattern match: +0.05
@@ -872,6 +965,14 @@ After routing through the appropriate path, validate:
 | PRODUCT_BUG | Selector mismatch, test logic error |
 | AUTOMATION_BUG | Backend 500 errors, environment issues |
 | INFRASTRUCTURE | Individual test bugs, product issues |
+
+### Phase D5: Counter-Bias Validation (v3.2)
+
+Before finalizing any classification:
+- If AUTOMATION_BUG: Was B7 performed? Could a backend failure explain the missing element?
+- If PRODUCT_BUG: Does the selector exist in console source?
+- If INFRASTRUCTURE: Is only one test affected? (suggests PRODUCT_BUG or AUTOMATION_BUG)
+- Self-check: "If the first routing signal pointed to a DIFFERENT classification, would I reach the same conclusion?"
 
 ---
 
@@ -1212,7 +1313,7 @@ RETURN c.label
     "jenkins_url": "<URL>",
     "analyzed_at": "2026-02-04T15:00:00Z",
     "run_directory": "runs/<dir>",
-    "analyzer": "z-stream-analysis-agent-v3.1",
+    "analyzer": "z-stream-analysis-agent-v3.2",
     "investigation_framework": "5-phase-systematic"
   },
   "investigation_phases_completed": ["A", "B", "C", "D", "E"],
@@ -1316,6 +1417,8 @@ RETURN c.label
           {"command": "oc get pods -n open-cluster-management -l app=cluster-curator", "output_summary": "1/1 Running"}
         ]
       },
+      "is_cascading_hook_failure": false,
+      "blank_page_detected": false,
       "owner": "Automation Team",
       "priority": "HIGH"
     }
@@ -1350,6 +1453,8 @@ RETURN c.label
       "AUTOMATION_BUG": 2,
       "INFRASTRUCTURE": 0
     },
+    "cascading_hook_failures": 0,
+    "blank_page_failures": 0,
     "overall_classification": "MIXED",
     "overall_confidence": 0.88
   },

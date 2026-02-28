@@ -25,7 +25,9 @@ Claude Code's native MCP implementation is more reliable and efficient.
 
 import logging
 import os
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
+
+from .shared_utils import dataclass_to_dict
 from typing import Dict, Any, List, Optional
 
 from .shared_utils import TIMEOUTS, run_subprocess
@@ -266,9 +268,9 @@ class ACMUIMCPClient:
 
     def to_dict(self, obj: Any) -> Dict[str, Any]:
         """Convert a dataclass to dictionary."""
-        if hasattr(obj, '__dataclass_fields__'):
-            return asdict(obj)
-        return {}
+        if not hasattr(obj, '__dataclass_fields__'):
+            return {}
+        return dataclass_to_dict(obj)
 
 
 # Singleton instance

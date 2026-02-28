@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://z-stream-analysis/schemas/analysis-results.schema.json",
-  "title": "Z-Stream Analysis Results (v3.1)",
+  "title": "Z-Stream Analysis Results (v3.2)",
   "description": "Schema for analysis-results.json produced by systematic AI analysis of Jenkins pipeline failures with cluster investigation and feature grounding",
   "type": "object",
   "required": ["per_test_analysis", "summary", "investigation_phases_completed"],
@@ -14,7 +14,7 @@
         "jenkins_url": { "type": "string" },
         "analyzed_at": { "type": "string" },
         "analyzer": { "type": "string", "default": "z-stream-analysis" },
-        "analyzer_version": { "type": "string", "default": "3.0.0" },
+        "analyzer_version": { "type": "string", "default": "3.2.0" },
         "investigation_framework": {
           "type": "string",
           "enum": ["5-phase-systematic", "legacy"],
@@ -433,7 +433,17 @@
           },
           "feature_area": {
             "type": "string",
-            "description": "Feature area under test (e.g., GRC, Search, CLC, Observability, Virtualization)"
+            "description": "Feature area under test (e.g., GRC, Search, CLC, Observability, Virtualization, Automation, Application, Console, Infrastructure, RBAC)"
+          },
+          "is_cascading_hook_failure": {
+            "type": "boolean",
+            "description": "True if this is an after-all/after-each hook that failed as a consequence of a prior test failure (v3.2)",
+            "default": false
+          },
+          "blank_page_detected": {
+            "type": "boolean",
+            "description": "True if the test failed because the page rendered blank (no-js / empty body) due to a missing prerequisite (v3.2)",
+            "default": false
           },
           "backend_cross_check": {
             "type": "object",
@@ -591,6 +601,16 @@
             "FLAKY": { "type": "integer", "minimum": 0 }
           },
           "additionalProperties": false
+        },
+        "cascading_hook_failures": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of after-all/after-each hook failures classified as NO_BUG due to cascading from prior test failures (v3.2)"
+        },
+        "blank_page_failures": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of tests that failed due to blank page (no-js) caused by missing prerequisites (v3.2)"
         },
         "overall_classification": {
           "type": "string",

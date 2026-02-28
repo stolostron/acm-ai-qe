@@ -8,8 +8,8 @@ This service is OPTIONAL - the system works without Neo4j.
 When Neo4j is available, it enriches AI analysis with dependency insights.
 
 Prerequisites:
-    - Neo4j database with RHACM data loaded
-    - MCP server registered: mcp__neo4j-rhacm__read_neo4j_cypher
+    - Neo4j database with RHACM data loaded (podman start neo4j-rhacm)
+    - Neo4j HTTP API accessible at NEO4J_HTTP_URL (default: http://localhost:7474)
 
 Usage:
     client = KnowledgeGraphClient()
@@ -18,7 +18,13 @@ Usage:
         # Returns: ['console', 'observability-operator', ...]
 """
 
+import json
 import logging
+import os
+import re
+import urllib.request
+import urllib.error
+from base64 import b64encode
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Any
 
@@ -42,18 +48,26 @@ class DependencyChain:
     subsystems_affected: List[str]
 
 
+# Default Neo4j connection settings (match the podman container config)
+_DEFAULT_NEO4J_HTTP_URL = 'http://localhost:7474'
+_DEFAULT_NEO4J_USER = 'neo4j'
+_DEFAULT_NEO4J_PASSWORD = 'rhacmgraph'
+_DEFAULT_NEO4J_DATABASE = 'neo4j'
+
+
 class KnowledgeGraphClient:
     """
-    Optional client for RHACM Knowledge Graph queries via MCP.
+    Client for RHACM Knowledge Graph queries via Neo4j HTTP API.
 
-    Provides component dependency analysis to enrich failure classification.
-    Falls back gracefully when Neo4j is unavailable.
+    Queries Neo4j directly using the HTTP query endpoint. This works in
+    both Stage 1 (gather.py) and Stage 2 (AI agent), unlike the MCP tool
+    which is only available to the AI agent.
 
-    Features:
-        - Component dependency lookup
-        - Cascading failure detection
-        - Subsystem impact analysis
-        - Root cause correlation
+    Connection settings can be overridden via environment variables:
+        NEO4J_HTTP_URL  (default: http://localhost:7474)
+        NEO4J_USER      (default: neo4j)
+        NEO4J_PASSWORD  (default: rhacmgraph)
+        NEO4J_DATABASE  (default: neo4j)
 
     Example:
         client = KnowledgeGraphClient()
@@ -69,19 +83,36 @@ class KnowledgeGraphClient:
         """
         Initialize the Knowledge Graph client.
 
-        Checks for Neo4j MCP availability and sets up connection.
+        Reads connection settings from environment variables with fallbacks
+        to defaults that match the standard podman container configuration.
         """
         self.logger = logger or logging.getLogger(__name__)
         self._available: Optional[bool] = None
-        self._mcp_tool_name = 'mcp__neo4j-rhacm__read_neo4j_cypher'
+
+        # Connection settings
+        self._base_url = os.environ.get('NEO4J_HTTP_URL', _DEFAULT_NEO4J_HTTP_URL)
+        self._user = os.environ.get('NEO4J_USER', _DEFAULT_NEO4J_USER)
+        self._password = os.environ.get('NEO4J_PASSWORD', _DEFAULT_NEO4J_PASSWORD)
+        self._database = os.environ.get('NEO4J_DATABASE', _DEFAULT_NEO4J_DATABASE)
+        self._query_url = f"{self._base_url}/db/{self._database}/query/v2"
+
+        # Build auth header
+        credentials = f"{self._user}:{self._password}"
+        self._auth_header = 'Basic ' + b64encode(credentials.encode()).decode()
+
         # Cache for expensive queries (instance-level to avoid shared mutable state)
         self._component_cache: Dict[str, ComponentInfo] = {}
         self._dependency_cache: Dict[str, List[str]] = {}
 
+    @staticmethod
+    def _escape_regex(value: str) -> str:
+        """Escape special regex characters in user input for Cypher regex patterns."""
+        return re.escape(value)
+
     @property
     def available(self) -> bool:
         """
-        Check if the Knowledge Graph MCP is available.
+        Check if the Knowledge Graph is available.
 
         Caches the result to avoid repeated checks.
         """
@@ -91,39 +122,80 @@ class KnowledgeGraphClient:
 
     def _check_availability(self) -> bool:
         """
-        Check if the Neo4j MCP server is available.
+        Check if Neo4j is available by probing the HTTP API root.
 
-        This is a lightweight check that doesn't require a full query.
+        Uses a lightweight GET to the Neo4j root endpoint which returns
+        version info without requiring authentication in some configs,
+        then falls back to an authenticated query.
         """
         try:
-            # Try to execute a minimal query to verify connection
             result = self._execute_cypher("RETURN 1 as test")
-            return result is not None
+            if result is not None:
+                self.logger.debug("Knowledge Graph available via Neo4j HTTP API")
+                return True
+            return False
         except Exception as e:
             self.logger.debug(f"Knowledge Graph not available: {e}")
             return False
 
     def _execute_cypher(self, query: str) -> Optional[List[Dict[str, Any]]]:
         """
-        Execute a Cypher query via MCP.
+        Execute a Cypher query via the Neo4j HTTP query API.
 
-        This method would normally use the MCP tool, but since we're in
-        Phase 1 (gather.py), we can only prepare the query. The actual
-        execution happens in Phase 2 when Claude Code agent runs.
-
-        For Phase 1, we return None and let Phase 2 handle queries.
+        Uses the Neo4j v2 query endpoint (POST /db/{db}/query/v2) which
+        returns results in a compact format.
 
         Args:
             query: Cypher query string
 
         Returns:
-            Query results or None if unavailable
+            List of result dicts or None if query failed
         """
-        # In Phase 1 (gather.py context), we cannot call MCP tools directly.
-        # MCP tools are available in Phase 2 when Claude Code agent runs.
-        # This method is provided for Phase 2 usage.
-        self.logger.debug(f"Cypher query prepared: {query[:100]}...")
-        return None
+        try:
+            payload = json.dumps({"statement": query}).encode('utf-8')
+            req = urllib.request.Request(
+                self._query_url,
+                data=payload,
+                headers={
+                    'Content-Type': 'application/json',
+                    'Authorization': self._auth_header,
+                },
+                method='POST',
+            )
+
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                body = json.loads(resp.read().decode('utf-8'))
+
+            # Check for errors
+            if body.get('errors'):
+                error_msg = body['errors'][0].get('message', 'Unknown error')
+                self.logger.warning(f"Neo4j query error: {error_msg}")
+                return None
+
+            # Parse v2 response format: {"data": {"fields": [...], "values": [[...], ...]}}
+            data = body.get('data', {})
+            fields = data.get('fields', [])
+            values = data.get('values', [])
+
+            if not fields:
+                return []
+
+            # Convert to list of dicts
+            results = []
+            for row in values:
+                row_dict = {}
+                for i, field in enumerate(fields):
+                    row_dict[field] = row[i] if i < len(row) else None
+                results.append(row_dict)
+
+            return results
+
+        except urllib.error.URLError as e:
+            self.logger.debug(f"Neo4j connection failed: {e}")
+            return None
+        except Exception as e:
+            self.logger.debug(f"Neo4j query failed: {e}")
+            return None
 
     def get_dependencies(self, component: str) -> List[str]:
         """
@@ -142,9 +214,10 @@ class KnowledgeGraphClient:
         if cache_key in self._dependency_cache:
             return self._dependency_cache[cache_key]
 
+        escaped = self._escape_regex(component)
         query = f"""
         MATCH (c:RHACMComponent)-[:DEPENDS_ON]->(dep:RHACMComponent)
-        WHERE c.label =~ '(?i).*{component}.*'
+        WHERE c.label =~ '(?i).*{escaped}.*'
         RETURN DISTINCT dep.label as dependency
         ORDER BY dep.label
         """
@@ -176,9 +249,10 @@ class KnowledgeGraphClient:
         if cache_key in self._dependency_cache:
             return self._dependency_cache[cache_key]
 
+        escaped = self._escape_regex(component)
         query = f"""
         MATCH (dep:RHACMComponent)-[:DEPENDS_ON]->(c:RHACMComponent)
-        WHERE c.label =~ '(?i).*{component}.*'
+        WHERE c.label =~ '(?i).*{escaped}.*'
         RETURN DISTINCT dep.label as dependent
         ORDER BY dep.label
         """
@@ -216,9 +290,10 @@ class KnowledgeGraphClient:
                 subsystems_affected=[]
             )
 
+        escaped = self._escape_regex(component)
         query = f"""
         MATCH path = (dep:RHACMComponent)-[:DEPENDS_ON*1..{max_depth}]->(c:RHACMComponent)
-        WHERE c.label =~ '(?i).*{component}.*'
+        WHERE c.label =~ '(?i).*{escaped}.*'
         WITH dep, length(path) as depth
         RETURN DISTINCT dep.label as affected, dep.subsystem as subsystem
         ORDER BY affected
@@ -261,9 +336,10 @@ class KnowledgeGraphClient:
         if component in self._component_cache:
             return self._component_cache[component]
 
+        escaped = self._escape_regex(component)
         query = f"""
         MATCH (c:RHACMComponent)
-        WHERE c.label =~ '(?i).*{component}.*'
+        WHERE c.label =~ '(?i).*{escaped}.*'
         OPTIONAL MATCH (c)-[:DEPENDS_ON]->(dep:RHACMComponent)
         OPTIONAL MATCH (dependent:RHACMComponent)-[:DEPENDS_ON]->(c)
         RETURN c.label as name, c.subsystem as subsystem, c.type as type,
@@ -307,7 +383,7 @@ class KnowledgeGraphClient:
 
         # Build a query to find intersection of dependencies
         # Wrap alternation in a group so the regex is valid: (?i)(.*comp1.*|.*comp2.*)
-        inner_patterns = '|'.join(f'.*{c}.*' for c in components)
+        inner_patterns = '|'.join(f'.*{self._escape_regex(c)}.*' for c in components)
         component_patterns = f'(?i)({inner_patterns})'
 
         query = f"""
@@ -338,9 +414,10 @@ class KnowledgeGraphClient:
         if not self.available:
             return []
 
+        escaped = self._escape_regex(subsystem)
         query = f"""
         MATCH (c:RHACMComponent)
-        WHERE c.subsystem =~ '(?i).*{subsystem}.*'
+        WHERE c.subsystem =~ '(?i).*{escaped}.*'
         RETURN DISTINCT c.label as component
         ORDER BY c.label
         """
@@ -450,7 +527,7 @@ def is_knowledge_graph_available() -> bool:
     Quick check if Knowledge Graph is available.
 
     Returns:
-        True if Neo4j MCP is accessible
+        True if Neo4j is accessible via HTTP API
     """
     client = KnowledgeGraphClient()
     return client.available

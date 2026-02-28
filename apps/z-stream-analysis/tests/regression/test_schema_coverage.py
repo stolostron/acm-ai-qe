@@ -194,3 +194,74 @@ class TestSchemaRejectsWrongFieldNames:
             "summary": {"by_classification": {}},
         }
         _expect_validation_failure(wrong, schema_data)
+
+
+class TestV32FieldsInSchema:
+    """v3.2 fields exist in schema per_test_analysis items and summary."""
+
+    def test_cascading_hook_failure_in_per_test(self, schema_data):
+        item_props = schema_data["properties"]["per_test_analysis"]["items"]["properties"]
+        assert "is_cascading_hook_failure" in item_props, (
+            "Missing is_cascading_hook_failure in per_test_analysis items"
+        )
+        assert item_props["is_cascading_hook_failure"]["type"] == "boolean"
+
+    def test_blank_page_detected_in_per_test(self, schema_data):
+        item_props = schema_data["properties"]["per_test_analysis"]["items"]["properties"]
+        assert "blank_page_detected" in item_props, (
+            "Missing blank_page_detected in per_test_analysis items"
+        )
+        assert item_props["blank_page_detected"]["type"] == "boolean"
+
+    def test_cascading_hook_failures_in_summary(self, schema_data):
+        summary_props = schema_data["properties"]["summary"]["properties"]
+        assert "cascading_hook_failures" in summary_props, (
+            "Missing cascading_hook_failures in summary"
+        )
+        assert summary_props["cascading_hook_failures"]["type"] == "integer"
+
+    def test_blank_page_failures_in_summary(self, schema_data):
+        summary_props = schema_data["properties"]["summary"]["properties"]
+        assert "blank_page_failures" in summary_props, (
+            "Missing blank_page_failures in summary"
+        )
+        assert summary_props["blank_page_failures"]["type"] == "integer"
+
+
+class TestV32FieldsInSyntheticFixture:
+    """v3.2 fields are exercised in the synthetic fixture."""
+
+    def test_fixture_has_cascading_hook_failure_entry(self, synthetic_analysis):
+        tests = synthetic_analysis["per_test_analysis"]
+        cascading = [t for t in tests if t.get("is_cascading_hook_failure")]
+        assert len(cascading) >= 1, (
+            "Synthetic fixture must have at least one cascading hook failure entry"
+        )
+        # Cascading hook failures should be classified NO_BUG
+        for t in cascading:
+            assert t["classification"] == "NO_BUG", (
+                f"Cascading hook failure {t['test_name']} should be NO_BUG"
+            )
+
+    def test_fixture_has_blank_page_entry(self, synthetic_analysis):
+        tests = synthetic_analysis["per_test_analysis"]
+        blank = [t for t in tests if t.get("blank_page_detected")]
+        assert len(blank) >= 1, (
+            "Synthetic fixture must have at least one blank page entry"
+        )
+        # Blank page failures should be classified INFRASTRUCTURE
+        for t in blank:
+            assert t["classification"] == "INFRASTRUCTURE", (
+                f"Blank page failure {t['test_name']} should be INFRASTRUCTURE"
+            )
+
+    def test_fixture_summary_has_v32_counts(self, synthetic_analysis):
+        summary = synthetic_analysis["summary"]
+        assert "cascading_hook_failures" in summary, (
+            "Synthetic fixture summary missing cascading_hook_failures"
+        )
+        assert "blank_page_failures" in summary, (
+            "Synthetic fixture summary missing blank_page_failures"
+        )
+        assert summary["cascading_hook_failures"] >= 1
+        assert summary["blank_page_failures"] >= 1

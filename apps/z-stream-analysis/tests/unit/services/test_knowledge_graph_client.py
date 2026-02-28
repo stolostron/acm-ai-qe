@@ -23,7 +23,7 @@ class TestKnowledgeGraphClientInitialization:
         """Test that client initializes without errors."""
         client = KnowledgeGraphClient()
         assert client is not None
-        assert client._mcp_tool_name == 'mcp__neo4j-rhacm__read_neo4j_cypher'
+        assert client._query_url.endswith('/db/neo4j/query/v2')
 
     def test_availability_check_caching(self):
         """Test that availability is cached after first check."""
@@ -263,3 +263,26 @@ class TestIntegrationWithComponentExtractor:
         for comp in components:
             subsystem = extractor.get_subsystem(comp)
             assert subsystem == 'Search'
+
+
+class TestRegexEscaping:
+    """Test regex escaping for Cypher query safety."""
+
+    def test_escape_regex_special_characters(self):
+        """Test that special regex characters are escaped."""
+        assert KnowledgeGraphClient._escape_regex("search-api") == "search\\-api"
+        assert KnowledgeGraphClient._escape_regex(".*") == "\\.\\*"
+
+    def test_escape_regex_preserves_plain_strings(self):
+        """Test that plain alphanumeric strings pass through unchanged."""
+        assert KnowledgeGraphClient._escape_regex("searchapi") == "searchapi"
+        assert KnowledgeGraphClient._escape_regex("console") == "console"
+
+    def test_escape_regex_handles_injection_attempt(self):
+        """Test that regex injection patterns are neutralized."""
+        # A malicious input like ".*' RETURN 1//" should be escaped
+        malicious = ".*' RETURN 1//"
+        escaped = KnowledgeGraphClient._escape_regex(malicious)
+        assert ".*" not in escaped  # .* should be escaped
+        assert "\\." in escaped
+        assert "\\*" in escaped

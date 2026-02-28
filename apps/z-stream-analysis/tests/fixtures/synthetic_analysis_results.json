@@ -3,7 +3,7 @@
     "jenkins_url": "https://jenkins-csb-rhacm-tests.dno.corp.redhat.com/job/qe-acm-automation-poc/job/clc-e2e-pipeline/3757/",
     "analyzed_at": "2026-02-15T12:00:00Z",
     "analyzer": "z-stream-analysis",
-    "analyzer_version": "3.1.0",
+    "analyzer_version": "3.2.0",
     "investigation_framework": "5-phase-systematic",
     "build_result": "UNSTABLE",
     "branch": "release-2.16",
@@ -170,6 +170,8 @@
       "priority": "HIGH",
       "jira_component": "Cluster Lifecycle",
       "feature_area": "CLC",
+      "is_cascading_hook_failure": false,
+      "blank_page_detected": false,
       "backend_cross_check": {
         "performed": true,
         "backend_caused_ui_failure": true,
@@ -272,7 +274,9 @@
       },
       "owner": "QE Automation",
       "priority": "MEDIUM",
-      "feature_area": "CLC"
+      "feature_area": "CLC",
+      "is_cascading_hook_failure": false,
+      "blank_page_detected": false
     },
     {
       "test_name": "test_cluster_import_detach",
@@ -339,6 +343,8 @@
       "owner": "Infrastructure",
       "priority": "HIGH",
       "feature_area": "CLC",
+      "is_cascading_hook_failure": false,
+      "blank_page_detected": false,
       "backend_cross_check": {
         "performed": true,
         "backend_caused_ui_failure": false,
@@ -371,23 +377,134 @@
           }
         ]
       }
+    },
+    {
+      "test_name": "test_cluster_import_detach > \"after all\" hook: cleanup clusters",
+      "test_file": "cypress/e2e/clc/cluster-import.cy.ts",
+      "class_name": "ClusterImport",
+      "classification": "NO_BUG",
+      "confidence": 0.95,
+      "evidence_sources": [
+        {
+          "source": "hook_analysis",
+          "finding": "after-all hook failed as cascade from test_cluster_import_detach failure",
+          "tier": 1
+        },
+        {
+          "source": "test_sequence",
+          "finding": "Parent test test_cluster_import_detach failed first; hook cleanup could not proceed",
+          "tier": 1
+        }
+      ],
+      "ruled_out_alternatives": [
+        {
+          "classification": "INFRASTRUCTURE",
+          "reason": "Hook failure is a consequence of prior test failure, not an independent infra issue"
+        },
+        {
+          "classification": "AUTOMATION_BUG",
+          "reason": "Hook logic is correct — it fails because the prior test left the cluster in a bad state"
+        }
+      ],
+      "reasoning": "After-all hook cascading failure from test_cluster_import_detach. The hook attempted cleanup but failed because the parent test had already failed, leaving the cluster in an inconsistent state.",
+      "root_cause": "Cascading failure from test_cluster_import_detach",
+      "error": {
+        "message": "Timed out waiting for cluster cleanup to complete",
+        "type": "TimeoutError"
+      },
+      "recommended_fix": "No fix needed — resolve the parent test failure (test_cluster_import_detach) and this hook will pass",
+      "owner": "N/A",
+      "priority": "LOW",
+      "feature_area": "CLC",
+      "is_cascading_hook_failure": true,
+      "blank_page_detected": false
+    },
+    {
+      "test_name": "test_aap_credential_creation",
+      "test_file": "cypress/e2e/automation/aap-credentials.cy.ts",
+      "class_name": "AAPCredentials",
+      "classification": "INFRASTRUCTURE",
+      "confidence": 0.92,
+      "evidence_sources": [
+        {
+          "source": "blank_page_detection",
+          "finding": "Page rendered blank — AAP operator not installed on cluster",
+          "tier": 1
+        },
+        {
+          "source": "prerequisite_check",
+          "finding": "AAP operator CRD (automationcontrollers.aap.example.com) not found on cluster",
+          "tier": 1
+        }
+      ],
+      "ruled_out_alternatives": [
+        {
+          "classification": "AUTOMATION_BUG",
+          "reason": "Test is correct — the page is blank because AAP is not installed, not because of a selector mismatch"
+        },
+        {
+          "classification": "PRODUCT_BUG",
+          "reason": "Console correctly shows blank/error when AAP prerequisite is missing"
+        }
+      ],
+      "reasoning": {
+        "summary": "Blank page detected — AAP operator prerequisite not met",
+        "evidence": [
+          "Page body is empty after navigation to AAP credentials page",
+          "AAP operator CRD not found on cluster",
+          "Playbook prerequisite check confirms AAP not installed"
+        ],
+        "conclusion": "Infrastructure prerequisite issue — AAP operator must be installed before running AAP tests"
+      },
+      "root_cause": "AAP operator not installed on test cluster",
+      "error": {
+        "message": "Expected to find element: #aap-credential-form, but the page rendered blank",
+        "type": "AssertionError"
+      },
+      "recommended_fix": {
+        "action": "Install AAP operator on test cluster before running Automation tests",
+        "steps": [
+          "Verify AAP operator is listed in OperatorHub",
+          "Install AAP operator via OLM",
+          "Verify AutomationController CRD is available"
+        ],
+        "owner": "Infrastructure team"
+      },
+      "owner": "Infrastructure",
+      "priority": "HIGH",
+      "feature_area": "Automation",
+      "is_cascading_hook_failure": false,
+      "blank_page_detected": true,
+      "prerequisite_analysis": {
+        "feature_area": "Automation",
+        "all_prerequisites_met": false,
+        "unmet_prerequisites": ["AAP operator installed"],
+        "matched_failure_mode": {
+          "path_id": "aap-not-installed",
+          "description": "AAP operator not installed on cluster",
+          "suggested_classification": "INFRASTRUCTURE",
+          "confidence": 0.92
+        }
+      }
     }
   ],
   "summary": {
     "total_tests": 45,
-    "passed_count": 42,
-    "failed_count": 3,
-    "total_failures": 3,
-    "pass_rate": 93.3,
+    "passed_count": 40,
+    "failed_count": 5,
+    "total_failures": 5,
+    "pass_rate": 88.9,
     "by_classification": {
       "PRODUCT_BUG": 1,
       "AUTOMATION_BUG": 1,
-      "INFRASTRUCTURE": 1,
+      "INFRASTRUCTURE": 2,
       "MIXED": 0,
       "UNKNOWN": 0,
-      "NO_BUG": 0,
+      "NO_BUG": 1,
       "FLAKY": 0
     },
+    "cascading_hook_failures": 1,
+    "blank_page_failures": 1,
     "overall_classification": "MIXED",
     "overall_confidence": 0.88,
     "priority_order": [

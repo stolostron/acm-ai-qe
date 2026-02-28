@@ -12,7 +12,9 @@ about feature architecture, prerequisites, and known failure patterns.
 import logging
 import os
 import re
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
+
+from .shared_utils import dataclass_to_dict
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
@@ -349,6 +351,4 @@ class FeatureKnowledgeService:
 
     def to_dict(self, obj) -> dict:
         """Convert dataclass to dict for serialization."""
-        if hasattr(obj, '__dataclass_fields__'):
-            return asdict(obj)
-        return obj
+        return dataclass_to_dict(obj)

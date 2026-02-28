@@ -1,4 +1,4 @@
-# Z-Stream Analysis Overview (v3.1)
+# Z-Stream Analysis Overview (v3.2)
 
 Jenkins pipeline failure analysis with definitive classification of each test failure.
 
@@ -107,9 +107,11 @@ runs/<job>_<timestamp>/
 | **FLAKY** | — | Passes on retry without code changes; intermittent timing failure |
 | **NO_BUG** | — | Failure expected given intentional product changes |
 
-### Decision Quick Reference (3-Path Routing in Phase D)
+### Decision Quick Reference (Pre-Routing + 3-Path Routing in Phase D)
 
-Three classification paths: **Path A** (selector mismatch → AUTOMATION_BUG), **Path B1** (non-selector timeout → INFRASTRUCTURE), **Path B2** (everything else → JIRA-informed investigation). **D-1** checks feature knowledge override first (unmet prerequisites, playbook-confirmed failure paths). **D0** checks backend cross-check — if a backend issue caused the UI failure, routes to Path B2 regardless.
+**Pre-routing checks (v3.2):** **PR-1** blank page / no-js detection (missing prerequisite → INFRASTRUCTURE), **PR-2** hook failure deduplication (cascading after-all hooks → NO_BUG), **PR-3** temporal evidence (stale_test_signal with refactor commit → signals PRODUCT_BUG).
+
+**3-path routing:** **Path A** (selector mismatch → AUTOMATION_BUG), **Path B1** (non-selector timeout → INFRASTRUCTURE), **Path B2** (everything else → JIRA-informed investigation). **PR-4** checks feature knowledge override first (unmet prerequisites, playbook-confirmed failure paths). **D0** checks backend cross-check — if a backend issue caused the UI failure, routes to Path B2 regardless.
 
 See [02-STAGE2-AI-ANALYSIS.md](02-STAGE2-AI-ANALYSIS.md) Phase D for the full decision routing with evidence tables and confidence scores.
 
@@ -143,7 +145,7 @@ Every classification requires 2+ evidence sources.
 
 ## MCP Servers
 
-Three MCP servers provide tools during Stage 2 (AI Analysis):
+Three MCP servers provide tools during Stage 2 (AI Analysis). The Knowledge Graph is also queried directly via HTTP API during Stage 1 (gather.py) for dependency context.
 
 ```
 ┌─────────────────────┐  ┌─────────────────────┐  ┌─────────────────────┐
@@ -154,7 +156,7 @@ Three MCP servers provide tools during Stage 2 (AI Analysis):
 │  Get source code    │  │  Subsystem context  │  │  Comments & time    │
 │  Version control    │  │  Feature workflow   │  │  Link issues        │
 │  Translations       │  │  Neo4j Cypher       │  │  Team management    │
-│  Wizard steps       │  │  (Optional)         │  │  Watchers           │
+│  Wizard steps       │  │  HTTP API + MCP     │  │  Watchers           │
 │                     │  │                     │  │  Transitions        │
 │  ACM: 2.11-2.17     │  │                     │  │                     │
 │  CNV: 4.14-4.22     │  │                     │  │                     │
@@ -202,7 +204,7 @@ python -m src.scripts.report <dir> --keep-repos    # Don't delete repos/
 | A | Initial Assessment + Feature Knowledge | What's the big picture? What do playbooks say? |
 | B | Deep Investigation + Tiered Cluster Checks | What went wrong in each test? What do pods show? |
 | C | Cross-Reference Validation | Do I have enough evidence? |
-| D | Classification (Feature Override → Backend → 3-Path) | Prerequisite unmet? Backend caused it? Selector (A), timeout (B1), or JIRA-informed (B2)? |
+| D | Pre-Routing + Classification (Blank Page → Hook Dedup → Temporal → Feature Override → Backend → 3-Path) | Blank page? Cascading hook? Stale test? Prerequisite unmet? Backend caused it? Selector (A), timeout (B1), or JIRA-informed (B2)? |
 | E | Feature Context & JIRA Correlation | What should this feature do? Are there known issues? |
 
 ---
@@ -223,6 +225,7 @@ python -m src.scripts.report <dir> --keep-repos    # Don't delete repos/
 
 | Version | Changes |
 |---------|---------|
+| v3.2 | Blank page / no-js pre-routing (PR-1), hook failure deduplication (PR-2), temporal evidence routing (PR-3), Automation/AAP playbook and feature area, KnowledgeGraphClient rewritten with direct Neo4j HTTP API (fixes always-unavailable bug), new schema fields (`is_cascading_hook_failure`, `blank_page_detected`, `cascading_hook_failures`, `blank_page_failures`), counter-bias validation (D5) |
 | v3.1 | Feature investigation playbooks (YAML), FeatureKnowledgeService, MCH component extraction (`mch_enabled_components`, `mch_version`), cluster credential persistence (`cluster_access`), tiered investigation (Tiers 0-4), `feature_knowledge` in core-data.json, new schema fields (`prerequisite_analysis`, `playbook_investigation`, `cluster_investigation_detail`, `cluster_investigation_summary`), feedback CLI |
 | v3.0 | Cluster investigation, feature area grounding, backend cross-check (B7/D0), targeted pod investigation (B5b) |
 | v2.5 | 5-Phase Systematic Investigation Framework, multi-evidence requirement |

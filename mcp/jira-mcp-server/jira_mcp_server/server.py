@@ -344,8 +344,8 @@ class JiraMCPServer:
             security_level: Optional[str] = "Red Hat Employee",
             target_start: Optional[str] = None,
             target_end: Optional[str] = None,
-            original_estimate: Optional[str] = "1h",
-            story_points: Optional[float] = 1,
+            original_estimate: Optional[str] = None,
+            story_points: Optional[float] = None,
             git_commit: Optional[str] = None,
             git_pull_requests: Optional[str] = None,
             parent: Optional[str] = None,
@@ -384,8 +384,8 @@ class JiraMCPServer:
                 target_start: Target start date in YYYY-MM-DD format
                 target_end: Target end date in YYYY-MM-DD format
                 components: List of component names (required)
-                original_estimate: Original time estimate (e.g., '1h 30m')
-                story_points: Story points value
+                original_estimate: Original time estimate (e.g., '1h 30m'). Defaults to None (no estimate). Only set if explicitly requested.
+                story_points: Story points value. Defaults to None (no points). Only set if explicitly requested.
                 git_commit: Git commit hash or reference
                 git_pull_requests: Git pull requests, comma separated list of pull requests URLs
                 parent: Parent issue key for sub-tasks (e.g., 'PROJ-123')

@@ -54,15 +54,19 @@ class TestPhaseStepsAreOrdered:
         for phase_key, phase_data in phases.items():
             steps = phase_data.get("steps", [])
             for step in steps:
-                # Extract step ID prefix (e.g., 'A0', 'B1', 'C-1', 'D0')
-                # Steps start with the phase letter
+                # Extract step ID prefix (e.g., 'A0', 'B1', 'C-1', 'D0', 'PR-1')
+                # Steps start with the phase letter, except PR-* steps
+                # which are pre-routing checks belonging to Phase D
                 step_prefix = step.split(".")[0].strip()
-                # Remove any dash suffix for steps like 'D-1'
-                phase_letter = step_prefix[0] if step_prefix else ""
+                if step_prefix.startswith("PR-"):
+                    # PR-* steps belong to Phase D (pre-routing checks)
+                    phase_letter = "D"
+                else:
+                    phase_letter = step_prefix[0] if step_prefix else ""
                 if phase_letter != phase_key:
                     issues.append(
                         f"Phase {phase_key} contains step "
-                        f"starting with '{phase_letter}': {step[:60]}"
+                        f"starting with '{step_prefix}': {step[:60]}"
                     )
 
         assert not issues, f"Steps in wrong phases: {issues}"
@@ -249,7 +253,7 @@ class TestVersionIsSemver:
 
 
 class TestNoContradictoryPhaseDInstructions:
-    """Phase D steps D-1 and D0 don't contradict — D-1 runs before D0."""
+    """Phase D pre-routing steps (PR-*) run before D0."""
 
     def test_no_contradictory_phase_d_instructions(self, ai_instructions):
         framework = ai_instructions.get("investigation_framework", {})
@@ -257,18 +261,19 @@ class TestNoContradictoryPhaseDInstructions:
         phase_d = phases.get("D", {})
         steps = phase_d.get("steps", [])
 
-        # Find D-1 and D0 steps
-        d_minus_1_idx = None
+        # Find PR-4 (feature knowledge override) and D0 steps
+        # PR-* steps are Phase D pre-routing checks that should come before D0
+        pr4_idx = None
         d0_idx = None
         for i, step in enumerate(steps):
-            if step.startswith("D-1"):
-                d_minus_1_idx = i
+            if step.startswith("PR-4.") or step.startswith("PR-4 "):
+                pr4_idx = i
             if step.startswith("D0"):
                 d0_idx = i
 
-        if d_minus_1_idx is not None and d0_idx is not None:
-            assert d_minus_1_idx < d0_idx, (
-                f"D-1 (feature knowledge override) must run before "
-                f"D0 (backend cross-check). Found D-1 at index "
-                f"{d_minus_1_idx}, D0 at {d0_idx}"
+        if pr4_idx is not None and d0_idx is not None:
+            assert pr4_idx < d0_idx, (
+                f"PR-4 (feature knowledge override) must run before "
+                f"D0 (backend cross-check). Found PR-4 at index "
+                f"{pr4_idx}, D0 at {d0_idx}"
             )

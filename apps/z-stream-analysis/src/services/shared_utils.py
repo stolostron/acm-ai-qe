@@ -10,8 +10,8 @@ import json
 import logging
 import os
 import subprocess
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from dataclasses import asdict, dataclass, field
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 
 # =============================================================================
@@ -301,6 +301,37 @@ def safe_json_loads(
     """
     success, data = parse_json_response(response, default)
     return data
+
+
+# =============================================================================
+# DATACLASS UTILITIES
+# =============================================================================
+
+def dataclass_to_dict(obj: Any) -> Any:
+    """Convert dataclass to dict. Returns obj unchanged if not a dataclass."""
+    if hasattr(obj, '__dataclass_fields__'):
+        return asdict(obj)
+    return obj
+
+
+# =============================================================================
+# COMMAND VALIDATION UTILITIES
+# =============================================================================
+
+def validate_command_readonly(
+    args: List[str],
+    allowed_commands: Set[str],
+    service_name: str = "service",
+) -> bool:
+    """Validate command is in the read-only allowed set. Returns True if allowed."""
+    if not args:
+        return False
+    if args[0] not in allowed_commands:
+        logging.getLogger(__name__).warning(
+            f"READ-ONLY VIOLATION in {service_name}: '{args[0]}' not in allowed commands"
+        )
+        return False
+    return True
 
 
 # =============================================================================

@@ -292,25 +292,56 @@ C3: Pattern correlation with Phase A
 
 ---
 
-## Phase D: 3-Path Classification Routing
+## Phase D: Pre-Routing + 3-Path Classification Routing
 
-**Purpose:** Route each test to the correct classification path based on evidence.
+**Purpose:** Apply pre-routing checks that can short-circuit classification, then route remaining tests through the 3-path routing based on evidence.
 
-### D-1: Feature Knowledge Override (v3.1)
+### PR-1: Blank Page / No-JS Pre-Check (v3.2)
 
-**Check feature knowledge FIRST.** If a prerequisite is unmet AND Tier 2 playbook investigation confirmed it with live `oc` commands, use the playbook's suggested classification at 0.95 confidence. If a failure path was confirmed, use the path's classification and confidence. If cluster login failed (`cluster_access_available=false`), reduce confidence by 0.15 on all classifications.
+**Check FIRST.** If a test's error shows a blank page (`class="no-js"`, empty body, zero interactive elements), the page failed to render — not a selector mismatch. Check the feature area's prerequisites (AAP operator for Automation, IDP for RBAC, CNV for Virtualization). If prerequisite missing → INFRASTRUCTURE (0.90). If all prerequisites met → AUTOMATION_BUG (0.80). **Short-circuits standard routing.**
+
+### PR-2: Hook Failure Deduplication (v3.2)
+
+If a test name starts with `"after all" hook` or `"after each" hook` AND a prior test in the same spec already failed AND the error is a DOM/jQuery error → classify as NO_BUG (0.90) with reasoning "cascading cleanup failure." **Short-circuits standard routing.** Does NOT apply to `before all` hooks (those are setup failures).
+
+### PR-3: Temporal Evidence Check (v3.2)
+
+If `extracted_context.temporal_summary.stale_test_signal == true` AND `product_commit_message` mentions refactor/rename/PF6/migration → strong signal for PRODUCT_BUG (0.85). This sets a hypothesis validated through Path B2 investigation. **Does NOT short-circuit** — adds evidence for standard routing.
+
+### PR-4: Feature Knowledge Override (v3.1)
+
+**Check feature knowledge.** If a prerequisite is unmet AND Tier 2 playbook investigation confirmed it with live `oc` commands, use the playbook's suggested classification at 0.95 confidence. If a failure path was confirmed, use the path's classification and confidence. If cluster login failed (`cluster_access_available=false`), reduce confidence by 0.15 on all classifications.
 
 ### D0: Backend Cross-Check Override (v3.0)
 
-**Check backend cross-check SECOND before 3-path routing.** If Phase B7 determined `backend_caused_ui_failure == true`, route directly to Path B2 regardless of whether the failure looks like a selector mismatch. This prevents misclassifying UI failures caused by backend component crashes (e.g., element not found BECAUSE the backend broke, not because the selector changed).
+**Check backend cross-check before 3-path routing.** If Phase B7 determined `backend_caused_ui_failure == true`, route directly to Path B2 regardless of whether the failure looks like a selector mismatch. This prevents misclassifying UI failures caused by backend component crashes (e.g., element not found BECAUSE the backend broke, not because the selector changed).
 
 ```
                     Start Classification
                            │
                     ┌──────┴──────┐
+                    │ PR-1: Blank │
+                    │ page check  │◄── Short-circuits if blank page + missing prereq
+                    └──────┬──────┘
+                           │
+                    ┌──────┴──────┐
+                    │ PR-2: Hook  │
+                    │ dedup check │◄── Short-circuits if cascading after-all hook
+                    └──────┬──────┘
+                           │
+                    ┌──────┴──────┐
+                    │PR-3:Temporal│
+                    │  evidence   │◄── Sets hypothesis, does NOT short-circuit
+                    └──────┬──────┘
+                           │
+                    ┌──────┴──────┐
+                    │PR-4:Feature │
+                    │ knowledge   │◄── Playbook override if confirmed
+                    └──────┬──────┘
+                           │
+                    ┌──────┴──────┐
                     │ D0: Backend │
                     │ cross-check │
-                    │ override?   │
                     └──────┬──────┘
                            │
               ┌── YES ─────┴───── NO ──┐
@@ -553,4 +584,4 @@ WHERE c.label =~ '(?i).*search-api.*'
 RETURN dep.label as dependency
 ```
 
-**Known subsystems:** Governance, Search, Cluster, Provisioning, Observability, Virtualization, Console, Infrastructure, Application
+**Known subsystems:** Governance, Search, Cluster, Provisioning, Observability, Virtualization, Console, Infrastructure, Application, Automation, RBAC

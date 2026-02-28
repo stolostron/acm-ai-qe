@@ -83,7 +83,10 @@
       "Bash(oc logout:*)",
       "mcp__neo4j-rhacm__read_neo4j_cypher",
       "Bash(xargs:*)",
-      "mcp__neo4j-rhacm__get_neo4j_schema"
+      "mcp__neo4j-rhacm__get_neo4j_schema",
+      "Bash(podman ps:*)",
+      "Bash(podman exec:*)",
+      "Bash(cat:*)"
     ],
     "deny": []
   }

@@ -27,8 +27,8 @@ report.py ── ReportFormatter ─────────────── M
 
 feedback.py  FeedbackService ─────────────── Classification accuracy tracking (v3.0)
 
-Stage 2 ───── SchemaValidationService ─────── JSON Schema validation
-              KnowledgeGraphClient ─────────── Neo4j RHACM queries (optional)
+Stage 1+2 ─── KnowledgeGraphClient ─────────── Neo4j RHACM queries via HTTP API
+              SchemaValidationService ─────── JSON Schema validation
 ```
 
 ---
@@ -248,9 +248,10 @@ Stage 2 ───── SchemaValidationService ─────── JSON Schem
 
 | Property | Value |
 |----------|-------|
-| **File** | `src/services/knowledge_graph_client.py` (456 lines) |
-| **Purpose** | Optional Neo4j client for RHACM component dependency analysis |
-| **Used by** | Stage 2, Phases B5/C2/E0 (via MCP or direct) |
+| **File** | `src/services/knowledge_graph_client.py` |
+| **Purpose** | Neo4j client for RHACM component dependency analysis via HTTP API |
+| **Used by** | Stage 1 (gather.py for kg_dependency_context) and Stage 2 (Phases B5/C2/E0 via MCP) |
+| **Connection** | Direct HTTP to Neo4j query API (`http://localhost:7474/db/neo4j/query/v2`). Configurable via `NEO4J_HTTP_URL`, `NEO4J_USER`, `NEO4J_PASSWORD` env vars. |
 
 **Key exports:** `KnowledgeGraphClient`, `ComponentInfo`, `DependencyChain`, `get_knowledge_graph_client`, `is_knowledge_graph_available`
 

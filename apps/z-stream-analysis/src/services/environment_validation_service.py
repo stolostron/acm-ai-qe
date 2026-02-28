@@ -29,7 +29,7 @@ import tempfile
 import time
 from dataclasses import dataclass, asdict
 
-from .shared_utils import TIMEOUTS
+from .shared_utils import TIMEOUTS, validate_command_readonly
 from typing import Dict, Any, List, Optional, Tuple
 
 
@@ -160,19 +160,11 @@ class EnvironmentValidationService:
         Returns:
             True if command is allowed, False otherwise
         """
-        if not args:
-            return False
-
-        # Get the primary command (first argument)
-        primary_cmd = args[0]
-
-        # Check if it's in the allowed list
-        if primary_cmd not in self.ALLOWED_COMMANDS:
-            self.logger.warning(f"READ-ONLY VIOLATION: Command '{primary_cmd}' not allowed. "
-                              f"Allowed: {self.ALLOWED_COMMANDS}")
+        if not validate_command_readonly(args, self.ALLOWED_COMMANDS, "EnvironmentValidationService"):
             return False
 
         # Additional checks for specific commands
+        primary_cmd = args[0]
         if primary_cmd == 'get' or primary_cmd == 'describe':
             # These are always read-only
             return True

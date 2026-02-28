@@ -135,6 +135,10 @@ from .shared_utils import (
     # JSON utilities
     parse_json_response,
     safe_json_loads,
+    # Dataclass utilities
+    dataclass_to_dict,
+    # Command validation utilities
+    validate_command_readonly,
     # Credential utilities
     get_jenkins_credentials,
     encode_basic_auth,
@@ -236,6 +240,8 @@ __all__ = [
     'execute_curl',
     'parse_json_response',
     'safe_json_loads',
+    'dataclass_to_dict',
+    'validate_command_readonly',
     'get_jenkins_credentials',
     'encode_basic_auth',
     'get_auth_header',

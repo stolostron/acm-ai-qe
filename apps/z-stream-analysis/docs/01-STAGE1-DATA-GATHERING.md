@@ -579,10 +579,10 @@ Loads YAML investigation playbooks from `src/data/feature_playbooks/`, checks MC
 
 ### Data Sources
 
-- `src/data/feature_playbooks/base.yaml` — stable profiles (Search, GRC, CLC, Application, Console, Infrastructure)
-- `src/data/feature_playbooks/acm-{version}.yaml` — version-specific profiles (RBAC, Virtualization, CrossClusterMigration)
+- `src/data/feature_playbooks/base.yaml` — stable profiles (Search, GRC, CLC, Application, Console, Infrastructure, Automation, RBAC, Observability)
+- `src/data/feature_playbooks/acm-{version}.yaml` — version-specific profiles (Virtualization, CrossClusterMigration)
 - `cluster_landscape.mch_enabled_components` — for MCH prerequisite checks
-- Knowledge Graph (if available) — for dependency context
+- Knowledge Graph (via direct HTTP API to Neo4j) — for dependency context
 
 ### ACM Version Detection
 
@@ -598,7 +598,7 @@ Stored in `core-data.json` under `feature_knowledge`:
 {
   "feature_knowledge": {
     "acm_version": "2.16",
-    "profiles_loaded": ["CLC", "Search", "Infrastructure"],
+    "profiles_loaded": ["CLC", "Search", "Infrastructure", "Automation"],
     "feature_readiness": {
       "CLC": {
         "feature_area": "CLC",
@@ -630,10 +630,7 @@ Stored in `core-data.json` under `feature_knowledge`:
       }
     },
     "kg_status": {
-      "available": false,
-      "error": "Knowledge Graph (Neo4j RHACM) is not connected",
-      "impact": "Tier 3-4 investigation will lack dependency graphs...",
-      "remediation": "Run: bash mcp/setup.sh from the ai_systems_v2 repo root..."
+      "available": true
     }
   }
 }
@@ -644,7 +641,7 @@ Stored in `core-data.json` under `feature_knowledge`:
 - **Phase A0b:** Review feature knowledge — architecture summaries, key insights, prerequisite status
 - **Phase B8:** Tiered playbook investigation — check prerequisites with live `oc` commands, execute failure path investigation steps
 - **Phase B8b-d:** If playbook confirms a failure path, query KG for upstream dependencies; escalate to Tier 3-4 if needed
-- **Phase D-1:** Feature knowledge override — if prerequisite unmet AND confirmed with live commands, use playbook classification at 0.95 confidence
+- **Phase PR-4:** Feature knowledge override — if prerequisite unmet AND confirmed with live commands, use playbook classification at 0.95 confidence
 
 **Output:** Stored in `core-data.json` under `feature_knowledge` key.
 
@@ -772,11 +769,11 @@ All collected data is written to the run directory.
   },
   "feature_knowledge": {
     "acm_version": "2.16",
-    "profiles_loaded": ["CLC", "Search"],
+    "profiles_loaded": ["CLC", "Search", "Automation"],
     "feature_readiness": { ... },
     "investigation_playbooks": { ... },
     "kg_dependency_context": { ... },
-    "kg_status": { "available": false, "remediation": "..." }
+    "kg_status": { "available": true }
   },
   "cluster_access": {
     "api_url": "https://api.cluster.example.com:6443",
@@ -805,6 +802,7 @@ All collected data is written to the run directory.
 | `ACMConsoleKnowledge` | 6-7 | Directory structure mapping |
 | `FeatureAreaService` | 6b | Test-to-feature-area mapping (v3.0) |
 | `FeatureKnowledgeService` | 6c | Playbook loading, prerequisite checks, symptom matching (v3.1) |
+| `KnowledgeGraphClient` | 6c | Neo4j dependency queries for kg_dependency_context (v3.2) |
 | `ACMUIMCPClient` | 5, 7 | CNV detection (Step 5), element inventory (Step 7) |
 | `shared_utils` | All | Config, subprocess, credentials |
 

@@ -6,7 +6,7 @@ Multi-app repository for Jenkins pipeline analysis and test generation tools, bu
 
 ## Z-Stream Analysis
 
-> Automated Jenkins pipeline failure analysis. Classifies each failed test as **PRODUCT_BUG**, **AUTOMATION_BUG**, **INFRASTRUCTURE**, **FLAKY**, **NO_BUG**, **MIXED**, or **UNKNOWN** — with evidence-backed reasoning and JIRA correlation.
+> Automated Jenkins pipeline failure analysis. Classifies each failed test as **PRODUCT_BUG**, **AUTOMATION_BUG**, **INFRASTRUCTURE**, **NO_BUG** — with evidence-backed reasoning and JIRA correlation.
 
 ### Quick Start
 

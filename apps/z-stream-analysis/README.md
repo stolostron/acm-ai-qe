@@ -71,15 +71,22 @@ Claude Code agent performs 5-phase investigation:
 
 ## Classification Types
 
+**Primary classifications (actively assigned):**
+
 | Classification | Owner | Description |
 |----------------|-------|-------------|
-| **PRODUCT_BUG** | Product Team | Backend 500 errors, API broken, feature not working |
-| **AUTOMATION_BUG** | Automation Team | Selector not found, timeout on wait, test logic wrong |
-| **INFRASTRUCTURE** | Platform Team | Cluster down, network errors, provisioning failed |
-| **MIXED** | Multiple | Multiple distinct root causes in same run |
-| **UNKNOWN** | TBD | Insufficient evidence, needs manual investigation |
-| **FLAKY** | Automation Team | Passes on retry, intermittent timing failure |
-| **NO_BUG** | N/A | Expected failure from intentional product change |
+| **PRODUCT_BUG** | Product Team | Backend 500 errors, API broken, feature not working, wrong data returned |
+| **AUTOMATION_BUG** | Automation Team | Stale selector, wrong assertion, test logic issue, missing wait condition |
+| **INFRASTRUCTURE** | Platform Team | Cluster down, VM scheduling failure, pod crashes, resource pressure |
+| **NO_BUG** | N/A | Cascading hook failure from a prior test failure -- not an independent issue |
+
+**Edge case classifications (rarely assigned):**
+
+| Classification | Description |
+|----------------|-------------|
+| **FLAKY** | Passes on retry, intermittent timing failure (requires historical data) |
+| **MIXED** | Multiple distinct root causes in same test |
+| **UNKNOWN** | Insufficient evidence, confidence below 0.50 |
 
 ## Feature Areas
 

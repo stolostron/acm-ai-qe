@@ -38,7 +38,7 @@ See `docs/00-OVERVIEW.md` for full run directory structure. Key files: `core-dat
 
 ## Classification Guide
 
-7 classification categories: PRODUCT_BUG, AUTOMATION_BUG, INFRASTRUCTURE, MIXED, UNKNOWN, FLAKY, NO_BUG.
+4 primary classifications: PRODUCT_BUG, AUTOMATION_BUG, INFRASTRUCTURE, NO_BUG. 3 edge-case classifications: MIXED, UNKNOWN, FLAKY (rarely assigned).
 
 See `docs/00-OVERVIEW.md` for full classification definitions with owners and triggers.
 

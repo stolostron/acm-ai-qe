@@ -32,15 +32,14 @@ That's it. Claude Code handles the full pipeline automatically:
 
 ### Classification Guide
 
-| Classification | Meaning | Example |
-|---------------|---------|---------|
-| **PRODUCT_BUG** | Product code is broken | 500 errors, feature doesn't render, API returns wrong data |
-| **AUTOMATION_BUG** | Test code is broken | Stale selector, wrong text case, missing fixture data |
-| **INFRASTRUCTURE** | Environment issue | Cluster unreachable, DNS failure, network timeout |
-| **FLAKY** | Intermittent failure | Passes on retry, timing-dependent |
-| **MIXED** | Multiple root causes | Product bug + automation bug in same test |
-| **NO_BUG** | Expected behavior | Test validates deprecated feature removed by design |
-| **UNKNOWN** | Insufficient evidence | Needs manual investigation |
+| Classification | Owner | Meaning | Example |
+|---------------|-------|---------|---------|
+| **PRODUCT_BUG** | Product Team | Product code is broken | 500 errors, feature doesn't render, API returns wrong data |
+| **AUTOMATION_BUG** | Automation Team | Test code is broken | Stale selector, wrong text case, missing fixture data |
+| **INFRASTRUCTURE** | Platform Team | Environment issue | Cluster unreachable, VM scheduling failure, pod crashes |
+| **NO_BUG** | N/A | Cascading failure from another test | After-all hook fails because the prior test already failed |
+
+Additional classifications available for edge cases: `FLAKY` (intermittent), `MIXED` (multiple root causes), `UNKNOWN` (insufficient evidence).
 
 ### Manual Pipeline (Advanced)
 

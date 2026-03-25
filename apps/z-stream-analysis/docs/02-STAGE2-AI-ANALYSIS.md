@@ -18,7 +18,7 @@ core-data.json ──► AI Agent ──► analysis-results.json
           ┌───────────┼───────────┐
           ▼           ▼           ▼
       ACM-UI MCP   JIRA MCP   Knowledge
-      (20 tools)   (24 tools)  Graph MCP
+      (19 tools)   (25 tools)  Graph MCP
 ```
 
 ### Full Investigation Flow
@@ -53,6 +53,8 @@ core-data.json ──► AI Agent ──► analysis-results.json
 │  B7: Backend cross-check [conditional]                              │
 │        └── UI failure + backend component crash?                    │
 │            └── YES → set backend_caused_ui_failure = true           │
+│  B7c: Backend probe analysis (v3.3) [if backend_probes present]     │
+│        └── response_valid=false → Tier 1 PRODUCT_BUG evidence       │
 └─────────────────────────┬───────────────────────────────────────────┘
                           │
 ┌─────────────────────────▼───────────────────────────────────────────┐
@@ -64,8 +66,9 @@ core-data.json ──► AI Agent ──► analysis-results.json
 └─────────────────────────┬───────────────────────────────────────────┘
                           │
 ┌─────────────────────────▼───────────────────────────────────────────┐
-│  PHASE D: 3-Path Classification Routing                             │
+│  PHASE D: Pre-Routing + 3-Path Classification Routing               │
 │                                                                     │
+│  PR-1→PR-2→PR-3→PR-5→PR-4 (pre-routing checks)                     │
 │  D0: Backend cross-check override                                   │
 │      └── backend_caused_ui_failure? ──YES──► Path B2                │
 │                │                                                    │
@@ -85,6 +88,11 @@ core-data.json ──► AI Agent ──► analysis-results.json
 │  └──────────────────┴──────────────────┴──────────────────┘         │
 │                                                                     │
 │  D4: Final validation (confirm classification, calc confidence)     │
+│  D4b: Causal link verification (v3.3)                               │
+│       └── Every test in dominant pattern must have causal mechanism  │
+│  D5: Counter-bias validation (v3.2, strengthened v3.3)              │
+│       └── 3-test threshold: if 3+ tests share root_cause,           │
+│           at least 1 must be independently re-investigated          │
 └─────────────────────────┬───────────────────────────────────────────┘
                           │
 ┌─────────────────────────▼───────────────────────────────────────────┐
@@ -114,13 +122,14 @@ The agent reads `core-data.json` which contains:
 | `metadata` | Jenkins URL, gathered timestamp, version | All phases |
 | `jenkins` | Job name, build number, result, parameters | Phase A |
 | `test_report.summary` | Total/passed/failed counts, pass rate | Phase A |
-| `test_report.failed_tests[]` | Per-test: error, stack trace, extracted_context, detected_components | Phase B |
+| `test_report.failed_tests[]` | Per-test: error, stack trace, extracted_context (incl. `assertion_analysis`, `failure_mode_category`), detected_components | Phase B, D |
 | `environment` | Cluster health, environment_score, API status | Phase A |
 | `cluster_landscape` | Managed clusters, operators, MCH status, `mch_enabled_components`, resource pressure | Phase A, B |
 | `console_log` | Error patterns (has_500_errors, has_network_errors, etc.), key_errors | Phase A, B |
 | `feature_grounding` | Tests grouped by feature area with subsystem/component context | Phase A |
 | `feature_knowledge` | Playbook readiness, prerequisites, failure paths, KG dependency context, KG status | Phase A, B, D |
 | `cluster_access` | API URL, username, password for re-authentication | Phase A (cluster login) |
+| `backend_probes` | Per-endpoint probe results: `response_valid`, `anomalies`, `error` | Phase B (B7c) |
 | `investigation_hints.timeline_evidence` | Element history, modification dates | Phase B |
 | `investigation_hints.failed_test_locations` | File paths for failed tests | Phase B |
 
@@ -204,7 +213,8 @@ For each test in test_report.failed_tests[]:
   B2: Check timeline_evidence
       ├── element_never_existed → AUTOMATION_BUG signal
       ├── element_removed → AUTOMATION_BUG signal
-      └── console_changed_after_automation → stale test signal
+      ├── console_changed_after_automation → stale test signal
+      └── recent_selector_changes → shows what replaced a removed selector
 
   B3: Check console_log evidence
       ├── 500/502/503 errors → PRODUCT_BUG signal
@@ -239,7 +249,15 @@ For each test in test_report.failed_tests[]:
       │   Check B5b pod diagnostics for crashes
       ├── If backend caused UI failure:
       │   Set backend_caused_ui_failure = true
-      └── → Overrides Path A routing in Phase D (routes to Path B2)
+      ├── → Overrides Path A routing in Phase D (routes to Path B2)
+      │
+      └── B7c: Backend probe analysis (v3.3)
+          ├── If core-data.json contains backend_probes:
+          │   Map feature area → probe endpoint (FEATURE_AREA_PROBE_MAP)
+          │   Automation→ansibletower, CLC→hub, RBAC→username,
+          │   Search→search, All→authenticated
+          ├── response_valid == false + anomalies → Tier 1 PRODUCT_BUG evidence
+          └── Probe timeout/error → potential INFRASTRUCTURE evidence
 
   B8: Tiered playbook investigation (v3.1)
       ├── Check prerequisites with live oc commands
@@ -284,7 +302,7 @@ C3: Pattern correlation with Phase A
 
 | Tier | Weight | Examples |
 |------|--------|----------|
-| 1 (Definitive) | 1.0 | 500 errors in log, element_removed=true, env_score<0.3 |
+| 1 (Definitive) | 1.0 | 500 errors in log, element_removed=true, env_score<0.3, probe response_valid=false |
 | 2 (Strong) | 0.8 | Selector mismatch, multiple tests same selector |
 | 3 (Supportive) | 0.5 | Similar selectors exist, timing issues |
 
@@ -307,6 +325,10 @@ If a test name starts with `"after all" hook` or `"after each" hook` AND a prior
 ### PR-3: Temporal Evidence Check (v3.2)
 
 If `extracted_context.temporal_summary.stale_test_signal == true` AND `product_commit_message` mentions refactor/rename/PF6/migration → strong signal for PRODUCT_BUG (0.85). This sets a hypothesis validated through Path B2 investigation. **Does NOT short-circuit** — adds evidence for standard routing.
+
+### PR-5: Data Assertion Pre-Check (v3.3)
+
+If `extracted_context.assertion_analysis.has_data_assertion == true` AND `extracted_context.failure_mode_category == "data_incorrect"`, the test failed because returned data did not match expected values — not because of a missing element or infrastructure issue. Sets a PRODUCT_BUG hypothesis with 0.80-0.85 confidence. **Does NOT short-circuit** — adds evidence for standard routing, validated through Path B2 investigation.
 
 ### PR-4: Feature Knowledge Override (v3.1)
 
@@ -332,6 +354,11 @@ If `extracted_context.temporal_summary.stale_test_signal == true` AND `product_c
                     ┌──────┴──────┐
                     │PR-3:Temporal│
                     │  evidence   │◄── Sets hypothesis, does NOT short-circuit
+                    └──────┬──────┘
+                           │
+                    ┌──────┴──────┐
+                    │PR-5: Data   │
+                    │ assertion   │◄── Sets PRODUCT_BUG hypothesis if data assertion
                     └──────┬──────┘
                            │
                     ┌──────┴──────┐
@@ -378,10 +405,16 @@ If `extracted_context.temporal_summary.stale_test_signal == true` AND `product_c
 
 ### Path B1 — Timeout (Non-Selector)
 
+Uses per-feature-area health scores from `ClusterInvestigationService.get_feature_area_health()` for graduated confidence (v3.3). Replaces the binary 0.5 infrastructure threshold.
+
 | Evidence | Classification | Confidence |
 |----------|---------------|------------|
-| >50% tests timeout + env unhealthy | INFRASTRUCTURE | 0.80 |
 | `cluster_connectivity=false` | INFRASTRUCTURE | 0.95 |
+| Feature area health < 0.3 (definitive) | INFRASTRUCTURE | 0.90 |
+| Feature area health 0.3-0.5 (strong) | INFRASTRUCTURE | 0.80 |
+| Feature area health 0.5-0.7 (moderate) | INFRASTRUCTURE | 0.70 |
+| Feature area health >= 0.7 (none) | Route to Path B2 | — |
+| >50% tests timeout + env unhealthy | INFRASTRUCTURE | 0.80 |
 | Multiple unrelated tests timeout | INFRASTRUCTURE | 0.75 |
 
 ### Path B2 — Everything Else (JIRA Investigation)
@@ -404,6 +437,23 @@ For each test, the agent:
 2. Calculates final confidence score
 3. Rules out alternative classifications with reasoning
 4. Documents why alternatives don't fit
+
+### D4b: Per-Test Causal Link Verification (v3.3)
+
+Every test attributed to a dominant pattern must have a documented causal mechanism linking the pattern to that specific test's failure. If a test's `failure_mode_category` is incompatible with the proposed root cause, it must be independently re-investigated rather than grouped.
+
+**Compatibility matrix (examples):**
+
+| Root Cause Pattern | Compatible `failure_mode_category` | Incompatible |
+|---|---|---|
+| Pod restarts / CrashLoopBackOff | `render_failure`, `timeout_general`, `server_error` | `data_incorrect` |
+| Selector removal | `element_missing`, `assertion_logic` | `data_incorrect`, `server_error` |
+| API data regression | `data_incorrect`, `assertion_logic` | `element_missing`, `render_failure` |
+| Network partition | `timeout_general`, `render_failure`, `server_error` | `data_incorrect` |
+
+### D5: Counter-Bias Validation (v3.2, strengthened v3.3)
+
+Self-check before finalizing any classification to counter routing bias. **3-test threshold rule (v3.3):** if 3 or more tests share the same `root_cause`, at least 1 must be independently re-investigated from scratch (ignoring the dominant pattern) to confirm the grouping is justified.
 
 ---
 
@@ -477,7 +527,7 @@ E6: Create/link issues (optional)
   "analysis_metadata": {
     "jenkins_url": "https://jenkins.example.com/job/acm-e2e/123/",
     "analyzed_at": "2026-02-05T12:30:00Z",
-    "analyzer_version": "3.1.0"
+    "analyzer_version": "3.3.0"
   },
   "investigation_phases_completed": ["A", "B", "C", "D", "E"],
   "per_test_analysis": [
@@ -487,6 +537,8 @@ E6: Create/link issues (optional)
       "classification": "AUTOMATION_BUG",
       "classification_path": "A",
       "confidence": 0.92,
+      "failure_mode_category": "element_missing",
+      "assertion_analysis": { "has_data_assertion": false },
       "error": {
         "message": "Timed out: Expected to find '#create-btn'",
         "type": "element_not_found"
@@ -539,6 +591,11 @@ E6: Create/link issues (optional)
       "AUTOMATION_BUG": 2,
       "PRODUCT_BUG": 1
     },
+    "data_assertion_failures": 0,
+    "feature_area_health": {
+      "CLC": 0.85,
+      "Search": 0.92
+    },
     "priority_order": [
       {
         "test": "should create cluster successfully",
@@ -584,4 +641,6 @@ WHERE c.label =~ '(?i).*search-api.*'
 RETURN dep.label as dependency
 ```
 
-**Known subsystems:** Governance, Search, Cluster, Provisioning, Observability, Virtualization, Console, Infrastructure, Application, Automation, RBAC
+**Known ComponentExtractor subsystems:** Governance, Search, Cluster, Provisioning, Observability, Virtualization, Console, Infrastructure, Application
+
+**Known FeatureAreaService feature areas:** GRC, Search, CLC, Observability, Virtualization, Application, Console, Infrastructure, RBAC, Automation

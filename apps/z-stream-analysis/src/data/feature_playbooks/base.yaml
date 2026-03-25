@@ -1189,19 +1189,19 @@ profiles:
     architecture:
       summary: |
         Fine-grained RBAC extends Kubernetes RBAC with ACM-specific roles.
-        Requires fine-grained-rbac-preview MCH component (default: disabled).
+        Requires fine-grained-rbac MCH component (default: disabled).
         User Management tab renders only when enabled. Depends on
         IDP (Identity Provider) configuration for user enumeration.
         MultiClusterRoleAssignment (MCRA) Operator handles role assignments.
       data_flow:
-        - "fine-grained-rbac-preview MCH component enables the feature"
+        - "fine-grained-rbac MCH component enables the feature"
         - "MultiClusterRoleAssignment Operator processes role assignments"
         - "console-api serves RBAC endpoints (/rbac/...)"
         - "RBAC Middleware in console authorizes REST API requests"
         - "RBAC UI (inside Access Management UI) renders User Management tab"
         - "IDP provides user enumeration for role assignment"
       key_insight: >
-        fine-grained-rbac-preview is disabled by default. If disabled, the User
+        fine-grained-rbac is disabled by default. If disabled, the User
         Management tab does not render. Tests looking for it will timeout with no
         error, just a missing element.
       cross_subsystem_impact:
@@ -1226,9 +1226,9 @@ profiles:
       - id: rbac-mch-component
         type: mch_component
         check_spec:
-          component_name: fine-grained-rbac-preview
+          component_name: fine-grained-rbac
         default_enabled: false
-        description: fine-grained-rbac-preview MCH component enabled (disabled by default)
+        description: fine-grained-rbac MCH component enabled (disabled by default)
       - id: idp-configured
         type: informational
         check_spec: {}
@@ -1250,14 +1250,14 @@ profiles:
           - "(?i)access.*control.*not found"
         prerequisite_id: rbac-mch-component
         investigation:
-          - step: Check MCH for fine-grained-rbac-preview
+          - step: Check MCH for fine-grained-rbac
             command: "oc get mch -A -o jsonpath='{.items[0].spec.overrides.components}'"
-            expect: "fine-grained-rbac-preview with enabled=true"
+            expect: "fine-grained-rbac with enabled=true"
             if_not: "RBAC feature flag is disabled — User Management tab will not render"
         classification: NO_BUG
         confidence: 0.95
         explanation: >
-          fine-grained-rbac-preview is disabled in MCH. The User Management tab
+          fine-grained-rbac is disabled in MCH. The User Management tab
           does not render. Tests expecting it will timeout.
 
       - id: idp-not-configured
@@ -1304,11 +1304,11 @@ profiles:
       summary: |
         Fleet Virtualization UI is a kubevirt-plugin console extension. Requires
         CNV (OpenShift Virtualization) operator on spoke clusters. Hub-side requires
-        cnv-mtv-integrations-preview MCH component for cross-cluster VM management.
+        cnv-mtv-integrations MCH component for cross-cluster VM management.
         VMs run on spoke clusters; UI on hub displays them via search index.
         MTV Integrations deploys CNV Addon and MTV Addon to managed clusters.
       data_flow:
-        - "cnv-mtv-integrations-preview MCH component enables fleet virt on hub"
+        - "cnv-mtv-integrations MCH component enables fleet virt on hub"
         - "MTV Integrations deploys CNV Addon and MTV Addon to managed clusters"
         - "HyperConverged Cluster Operator manages: KubeVirt Operator, CDI Operator, SSP Operator, Cluster Network Addons Operator"
         - "KubeVirt Operator provides KubeVirt API for VM operations on spoke"
@@ -1353,9 +1353,9 @@ profiles:
       - id: virt-mch-component
         type: mch_component
         check_spec:
-          component_name: cnv-mtv-integrations-preview
+          component_name: cnv-mtv-integrations
         default_enabled: false
-        description: cnv-mtv-integrations-preview MCH component enabled (disabled by default)
+        description: cnv-mtv-integrations MCH component enabled (disabled by default)
       - id: cnv-operator-spoke
         type: operator
         check_spec:
@@ -1386,13 +1386,13 @@ profiles:
           - "(?i)virtualization.*timeout"
         prerequisite_id: virt-mch-component
         investigation:
-          - step: Check MCH for cnv-mtv-integrations-preview
+          - step: Check MCH for cnv-mtv-integrations
             command: "oc get mch -A -o jsonpath='{.items[0].spec.overrides.components}'"
-            expect: "cnv-mtv-integrations-preview with enabled=true"
+            expect: "cnv-mtv-integrations with enabled=true"
             if_not: "Fleet Virtualization flag is disabled — VM tab will not render"
         classification: NO_BUG
         confidence: 0.95
-        explanation: cnv-mtv-integrations-preview is disabled. Fleet Virt tab will not render.
+        explanation: cnv-mtv-integrations is disabled. Fleet Virt tab will not render.
 
       - id: cnv-not-on-spoke
         description: CNV operator missing on spoke — no VMs exist

@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://z-stream-analysis/schemas/analysis-results.schema.json",
-  "title": "Z-Stream Analysis Results (v3.2)",
-  "description": "Schema for analysis-results.json produced by systematic AI analysis of Jenkins pipeline failures with cluster investigation and feature grounding",
+  "title": "Z-Stream Analysis Results (v3.3)",
+  "description": "Schema for analysis-results.json produced by systematic AI analysis of Jenkins pipeline failures with cluster investigation, feature grounding, assertion analysis, graduated infra scoring, and causal link verification",
   "type": "object",
   "required": ["per_test_analysis", "summary", "investigation_phases_completed"],
   "additionalProperties": true,
@@ -14,7 +14,7 @@
         "jenkins_url": { "type": "string" },
         "analyzed_at": { "type": "string" },
         "analyzer": { "type": "string", "default": "z-stream-analysis" },
-        "analyzer_version": { "type": "string", "default": "3.2.0" },
+        "analyzer_version": { "type": "string", "default": "3.3.0" },
         "investigation_framework": {
           "type": "string",
           "enum": ["5-phase-systematic", "legacy"],
@@ -445,6 +445,25 @@
             "description": "True if the test failed because the page rendered blank (no-js / empty body) due to a missing prerequisite (v3.2)",
             "default": false
           },
+          "failure_mode_category": {
+            "type": "string",
+            "enum": ["render_failure", "element_missing", "data_incorrect", "timeout_general", "assertion_logic", "server_error", "unknown"],
+            "description": "Categorized failure mode for causal link verification (v3.3). data_incorrect = page rendered but showed wrong data; element_missing = selector not found; render_failure = page didn't load"
+          },
+          "assertion_analysis": {
+            "type": "object",
+            "description": "Extracted assertion values from the error message (v3.3). Present when the error contains expected vs actual data comparisons.",
+            "properties": {
+              "has_data_assertion": { "type": "boolean" },
+              "assertion_type": {
+                "type": "string",
+                "enum": ["count_mismatch", "value_mismatch", "content_missing", "state_mismatch", "property_missing"]
+              },
+              "expected": { "type": ["string", "null"] },
+              "actual": { "type": ["string", "null"] },
+              "raw_assertion": { "type": "string" }
+            }
+          },
           "backend_cross_check": {
             "type": "object",
             "description": "Backend cross-check results (Phase B7) - detects UI failures caused by backend problems",
@@ -611,6 +630,30 @@
           "type": "integer",
           "minimum": 0,
           "description": "Number of tests that failed due to blank page (no-js) caused by missing prerequisites (v3.2)"
+        },
+        "data_assertion_failures": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of tests with failure_mode_category=data_incorrect — page rendered but showed wrong data (v3.3)"
+        },
+        "feature_area_health": {
+          "type": "object",
+          "description": "Per-feature-area health scores from graduated infrastructure analysis (v3.3)",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "health_score": { "type": "number", "minimum": 0, "maximum": 1 },
+              "infrastructure_signal": {
+                "type": "string",
+                "enum": ["definitive", "strong", "moderate", "none"]
+              },
+              "degraded_components": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "total_restart_count": { "type": "integer" }
+            }
+          }
         },
         "overall_classification": {
           "type": "string",

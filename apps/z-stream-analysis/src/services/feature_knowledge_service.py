@@ -5,7 +5,7 @@ Feature Knowledge Service
 Loads feature investigation playbooks (YAML), checks prerequisites against
 cluster state, and matches test error messages to known failure paths.
 
-Used in Stage 1 gather (Step 6c) to provide the AI with domain knowledge
+Used in Stage 1 gather (Step 8) to provide the AI with domain knowledge
 about feature architecture, prerequisites, and known failure patterns.
 """
 

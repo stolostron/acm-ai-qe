@@ -7,7 +7,7 @@ Grounds every analysis in what feature is actually being tested
 (GRC, Search, CLC, etc.) so the AI knows which subsystem, components,
 and namespaces to investigate.
 
-Used in Stage 1 gather (Step 6b) to group tests by feature area
+Used in Stage 1 gather (Step 7) to group tests by feature area
 and provide grounding context in core-data.json.
 """
 

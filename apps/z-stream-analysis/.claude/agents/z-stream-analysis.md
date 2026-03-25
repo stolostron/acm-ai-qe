@@ -4,7 +4,7 @@ description: Analyze Jenkins pipeline failures with full repo access. Use PROACT
 tools: ["Bash", "WebFetch", "Grep", "Read", "Write", "Glob"]
 ---
 
-# Z-Stream Analysis Agent (v3.2 - Blank Page Pre-Routing + Hook Dedup + Temporal Evidence + KG Fix)
+# Z-Stream Analysis Agent (v3.3 - Assertion Extraction + Graduated Infra + Causal Link Verification)
 
 ## IMPORTANT: User Progress Updates
 
@@ -135,6 +135,8 @@ For EVERY classification, you MUST have:
 │  ├── PR-1. Blank page (no-js) pre-check (v3.2) — check FIRST      │
 │  ├── PR-2. Hook failure deduplication (v3.2)                       │
 │  ├── PR-3. Temporal evidence check (v3.2)                          │
+│  ├── PR-5. Data assertion pre-check (v3.3)                         │
+│  ├── PR-6. Backend probe source-of-truth check (v3.4)              │
 │  ├── PR-4. Feature knowledge override (v3.1) — check tier results  │
 │  ├── PR-4b. Cluster access confidence adjustment (v3.1)            │
 │  ├── D0. Check backend cross-check override FIRST (v3.0)           │
@@ -332,6 +334,8 @@ Each failed test includes pre-computed `extracted_context`:
 - Is the failing selector defined correctly? (check `page_objects`)
 - Does the selector exist in the product? (`console_search.found`)
 - What similar selectors exist? (`console_search.similar_selectors`)
+- Is this a data-level failure? (check `assertion_analysis.has_data_assertion` and `failure_mode_category`)
+- If `failure_mode_category == 'data_incorrect'`: the page rendered but showed wrong data — focus investigation on the backend API data path, NOT selectors
 
 ### Phase B2: Timeline Evidence Analysis
 
@@ -495,6 +499,58 @@ mcp__neo4j-rhacm__read_neo4j_cypher({
 → Set `backend_caused_ui_failure = true` → Route to **Path B2** in Phase D instead of Path A.
 
 **Reason:** Element not found BECAUSE the backend broke (search results never loaded), NOT because the selector changed.
+
+### Phase B7c: Backend Probe Analysis with Source-of-Truth Validation (v3.4)
+
+**Trigger:** `core-data.json` contains `backend_probes` section (collected in Stage 1 Step 4c).
+
+If `backend_probes` is present, check for anomalies that match this test's feature area:
+
+```bash
+cat runs/<dir>/core-data.json | jq '.backend_probes'
+```
+
+**Feature area to probe mapping:**
+
+| Feature Area | Relevant Probe | What Anomaly Means |
+|---|---|---|
+| Automation | `/ansibletower` | Empty results when AAP is healthy |
+| CLC | `/hub` | Wrong hub name or flags |
+| RBAC | `/username` | Reversed or wrong username |
+| Search | `/proxy/search` | Empty or timeout |
+| All areas | `/authenticated` | Auth failure or slow |
+
+**Source-of-truth validation (v3.4):** Each probe with anomalies is now cross-referenced against the Kubernetes API directly (bypassing the console backend). The probe includes pre-computed fields:
+
+| Field | Values | Meaning |
+|---|---|---|
+| `anomaly_source` | `console_backend` | Cluster API returns correct data but console returns different data — console code is the problem |
+| `anomaly_source` | `upstream` | Both cluster API and console return the same anomalous data — issue is upstream infrastructure |
+| `anomaly_source` | `unknown` | Cannot determine source — let normal routing decide |
+| `classification_hint` | `PRODUCT_BUG` / `INFRASTRUCTURE` / `null` | Pre-computed classification based on deterministic comparison |
+
+**CRITICAL: Use `classification_hint` when available.** This is a deterministic comparison (not AI judgment) and should override AI inference about whether an anomaly is infrastructure or product:
+
+```
+IF probe has anomaly AND anomaly_source == "console_backend":
+  → classification_hint = PRODUCT_BUG
+  → The cluster ground truth is correct but console transforms data incorrectly
+  → Use as Tier 1 evidence
+
+IF probe has anomaly AND anomaly_source == "upstream":
+  → classification_hint = INFRASTRUCTURE
+  → Both cluster and console return the same anomalous data
+  → Use as Tier 1 evidence
+
+IF probe has anomaly AND anomaly_source == "unknown":
+  → No classification_hint — proceed with normal 3-path routing
+  → Add probe data as supplementary evidence
+```
+
+**For each probe with `status == "timeout"` or `"error"`:**
+1. Record as potential **INFRASTRUCTURE** evidence — console backend may be unresponsive
+
+**Example:** Test in Automation area fails with "expected to find 5 templates, got 0". Backend probe `/ansibletower` shows `anomaly_source: "console_backend"` because AAP operator is Succeeded but console returns empty. → PRODUCT_BUG (console proxy strips results, not an infrastructure issue).
 
 ### Phase B6: Repository Deep Dive
 
@@ -708,6 +764,54 @@ When a test's `cy.contains()` or `cy.get()` matches a NEW element that didn't ex
 
 ---
 
+### Phase PR-5: Data Assertion Pre-Check (v3.3)
+
+**Purpose:** Detect failures where the UI rendered correctly but the data is wrong — API returned 200 OK with incorrect/empty data.
+
+**Detection criteria (all must be true):**
+1. `extracted_context.assertion_analysis.has_data_assertion == true`
+2. `extracted_context.failure_mode_category == 'data_incorrect'`
+3. No 500 errors in console log for this test's feature area
+4. `extracted_context.console_search.found == true` OR selector is not relevant (assertion is about data count/value)
+
+**When detected:**
+
+| Assertion Type | Classification | Confidence |
+|----------------|----------------|------------|
+| `count_mismatch` (expected N items, got 0) | PRODUCT_BUG | 0.85 |
+| `value_mismatch` (expected 'Ready', got 'Available') | PRODUCT_BUG | 0.80 |
+| `content_missing` (expected table to contain 'X') | PRODUCT_BUG | 0.80 |
+| `state_mismatch` (expected true, got false) | PRODUCT_BUG | 0.80 |
+| `property_missing` (expected object to have property 'X') | PRODUCT_BUG | 0.75 |
+
+**This check does NOT short-circuit routing.** It sets a strong PRODUCT_BUG hypothesis that is validated through Path B2 investigation. The data assertion itself is a Tier 1 evidence source.
+
+**Key insight:** When `failure_mode_category == 'data_incorrect'`, dominant signals like "pod instability" or "console restarts" cannot explain this failure — pod instability causes pages not to render, not pages that render correctly with wrong data. See Phase D4b.
+
+---
+
+### Phase PR-6: Backend Probe Source-of-Truth Check (v3.4)
+
+**Purpose:** When backend probes detected anomalies, use pre-computed `classification_hint` from source-of-truth validation to determine whether the anomaly is in the console backend code (PRODUCT_BUG) or the upstream cluster (INFRASTRUCTURE). This is a deterministic comparison, not AI judgment.
+
+**Check for each test whose feature area matches a probe with anomalies:**
+
+1. Read `backend_probes.<probe>.anomaly_source` and `classification_hint`
+2. If `anomaly_source == "console_backend"` AND `classification_hint == "PRODUCT_BUG"`:
+   - The Kubernetes API returns correct data but the console backend returns different data
+   - The console code is transforming/corrupting data
+   - Use as **Tier 1 evidence** for PRODUCT_BUG with confidence 0.85
+3. If `anomaly_source == "upstream"` AND `classification_hint == "INFRASTRUCTURE"`:
+   - Both K8s API and console return the same anomalous data — issue is upstream
+   - Use as **Tier 1 evidence** for INFRASTRUCTURE with confidence 0.80
+4. If `anomaly_source == "unknown"` or `classification_hint` is null:
+   - Cannot determine source — proceed with normal routing
+   - Add probe anomaly as supplementary evidence only
+
+**This check does NOT short-circuit routing** but provides strong directional evidence. The `classification_hint` should be trusted because it is based on a factual data comparison (console response vs cluster API response), not on AI inference.
+
+---
+
 ### Phase PR-4: Feature Knowledge Override (v3.1)
 
 **CRITICAL: Check playbook/tiered investigation results BEFORE standard routing.**
@@ -835,11 +939,21 @@ Single-source Path A is NOT allowed — reduce to 0.70 if only one source.
 
 **Classification:** INFRASTRUCTURE
 
-**Confidence:** 0.75 - 0.90
-- 0.90 if multiple tests timeout AND environment_score < 0.5
-- 0.85 if multiple tests timeout
-- 0.80 if single test timeout AND environment_score < 0.5
-- 0.75 if single test timeout with healthy environment
+**Graduated health scoring (v3.3):** Use per-feature-area health scores instead of the global `environment_score` alone. The `ClusterInvestigationService.get_feature_area_health()` provides graduated infrastructure signal strength:
+
+| Feature Area Health Score | Infrastructure Signal | Confidence |
+|---|---|---|
+| < 0.3 (definitive) | Route to INFRASTRUCTURE | 0.90 |
+| 0.3-0.5 (strong) | Route to INFRASTRUCTURE if timeout present | 0.80 |
+| 0.5-0.7 (moderate) | Flag as "possible infra" — investigate per-test | 0.65 |
+| > 0.7 (none) | Don't attribute to infra unless direct evidence | N/A |
+
+**Confidence (using graduated scoring):** 0.65 - 0.90
+- 0.90 if multiple tests timeout AND feature area health < 0.3
+- 0.85 if multiple tests timeout AND feature area health < 0.5
+- 0.80 if single test timeout AND feature area health < 0.5
+- 0.75 if single test timeout AND global environment_score < 0.5
+- 0.65 if feature area health 0.5-0.7 (moderate — requires additional investigation)
 
 **Output fields:**
 ```json
@@ -966,12 +1080,51 @@ After routing through the appropriate path, validate:
 | AUTOMATION_BUG | Backend 500 errors, environment issues |
 | INFRASTRUCTURE | Individual test bugs, product issues |
 
-### Phase D5: Counter-Bias Validation (v3.2)
+### Phase D4b: Per-Test Causal Link Verification (v3.3 — MANDATORY)
 
-Before finalizing any classification:
+**Purpose:** Prevent over-attribution to a single dominant signal (e.g., "console pod instability" applied to all failures). Every test attributed to a shared pattern MUST have a direct causal mechanism linking the pattern to its specific error.
+
+**For each test classified under a dominant pattern or shared root cause:**
+
+1. **State the causal mechanism:** How does [dominant signal] cause [this test's specific error]?
+2. **Check failure_mode_category compatibility:**
+
+| Dominant Signal | Compatible Failure Modes | Incompatible Failure Modes |
+|-----------------|--------------------------|----------------------------|
+| Pod restarts / instability | `render_failure`, `timeout_general` | `data_incorrect`, `assertion_logic` |
+| Network errors | `render_failure`, `timeout_general`, `server_error` | `data_incorrect`, `element_missing` (unless server-rendered) |
+| Backend 500 errors | `server_error`, `render_failure`, `element_missing` | `data_incorrect` (unless the 500 caused empty data) |
+| Selector removed | `element_missing` | `data_incorrect`, `timeout_general`, `render_failure` |
+
+3. **If incompatible:** Re-classify this test independently, ignoring the dominant pattern. Example:
+   - Dominant: "console pod restarted 6 times"
+   - Test error: "expected 5 items, got 0" (`failure_mode_category: data_incorrect`)
+   - Question: "How does a pod restart cause a page to show 0 items instead of 5?"
+   - Answer: It doesn't — the page rendered (showing 0), so the pod was running. This is a data issue, not a render issue.
+   - Action: Re-investigate independently → likely PRODUCT_BUG (backend returned empty data)
+
+4. **3-test threshold rule:** If more than 3 tests share the same classification AND the same `root_cause` explanation, independently re-investigate at least 1 test from that group to verify the explanation holds. If the re-investigation reveals a different root cause, flag the entire group for review.
+
+**Output:** For each test, include a `causal_link` field in the reasoning:
+```json
+{
+  "reasoning": {
+    "summary": "...",
+    "evidence": ["..."],
+    "causal_link": "Pod restart at 14:32 caused page render timeout at 14:33 — 1 minute overlap confirms causal connection",
+    "conclusion": "..."
+  }
+}
+```
+
+### Phase D5: Counter-Bias Validation (v3.3)
+
+Before finalizing any classification, perform these mandatory checks:
 - If AUTOMATION_BUG: Was B7 performed? Could a backend failure explain the missing element?
-- If PRODUCT_BUG: Does the selector exist in console source?
-- If INFRASTRUCTURE: Is only one test affected? (suggests PRODUCT_BUG or AUTOMATION_BUG)
+- If PRODUCT_BUG: Does the selector exist in console source? Is the test logic correct?
+- If INFRASTRUCTURE: Is only one test affected? (suggests PRODUCT_BUG or AUTOMATION_BUG instead)
+- If `failure_mode_category == 'data_incorrect'`: Have you verified the backend API response path? A data mismatch almost never results from infrastructure or selector issues.
+- **Dominant signal check:** If a signal (e.g., pod restarts) is cited in more than 5 test classifications, verify at least 2 tests have a direct `causal_link` documented. If not, the signal may be over-attributed.
 - Self-check: "If the first routing signal pointed to a DIFFERENT classification, would I reach the same conclusion?"
 
 ---
@@ -1164,7 +1317,7 @@ mcp__jira__link_issue({
 
 ---
 
-## ACM-UI MCP Server Reference (20 Tools)
+## ACM-UI MCP Server Reference (19 Tools)
 
 ### Supported Versions
 
@@ -1227,7 +1380,7 @@ ACM and CNV versions are **independent** - set each to match your target environ
 
 ---
 
-## JIRA MCP Server Reference (24 Tools)
+## JIRA MCP Server Reference (25 Tools)
 
 ### Issue Operations
 

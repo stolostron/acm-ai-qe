@@ -646,7 +646,7 @@ class JiraApiClient:
                 smart_patterns = {
                     'component_analysis': '.fields.components[] | {name: .name, description: .description}',
                     'label_analysis': '.fields.labels[]',
-                    'priority_analysis': '{priority: .fields.priority.name, severity: .fields.customfield_12310243.value}',
+                    'priority_analysis': '{priority: .fields.priority.name, severity: .fields.customfield_10840.value}',
                     'time_tracking': '{original_estimate: .fields.timeoriginalestimate, remaining_estimate: .fields.timeestimate, time_spent: .fields.timespent}',
                     'workflow_status': '{status: .fields.status.name, status_category: .fields.status.statusCategory.name, resolution: .fields.resolution.name}'
                 }

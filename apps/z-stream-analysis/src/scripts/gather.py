@@ -1,32 +1,23 @@
 #!/usr/bin/env python3
 """
-Data Gathering Script (v2.4 - Complete Context Upfront)
+Data Gathering Script (v3.3)
 
 Collects FACTUAL DATA from Jenkins, environment, and repository.
 Clones repositories to persistent location for AI to access during analysis.
-Pre-computes evidence to accelerate Phase 2 AI analysis.
+Pre-computes evidence to accelerate Stage 2 AI analysis.
 Extracts complete test context upfront for systematic AI analysis.
 
-Key Changes in v2.4:
-- Complete context extraction: Test file content, page objects, and console search results
-- Eliminated on-demand repo access - AI receives everything upfront
-- Enhanced extracted_context structure for each failed test
-
-Key Changes in v2.3:
-- Knowledge Graph integration: Component extraction from error messages
-- Neo4j dependency queries for cascading failure detection
-
-Key Changes in v2.2:
-- Stack trace pre-parsing: Extracts root cause file:line and failing selectors
-- Timeline evidence collection: Git history comparison for failing selectors
-- CNV version detection: Auto-detects CNV version and clones kubevirt-plugin on correct branch
-- Enhanced AI instructions: Documents new pre-computed data fields
-
-Key Changes in v2.0:
-- Repos cloned to runs/<dir>/repos/ (not /tmp) for AI access
-- No pre-classification - AI performs all classification
-- Investigation hints added to guide AI analysis
-- Repos NOT cleaned up after gathering (AI needs full access)
+10-step pipeline:
+    Step 1:  Jenkins build info
+    Step 2:  Console log
+    Step 3:  Test report
+    Step 4:  Environment check + cluster landscape
+    Step 5:  Clone repositories
+    Step 6:  Extract test context (code, selectors, imports)
+    Step 7:  Feature area grounding
+    Step 8:  Feature knowledge + KG dependency context
+    Step 9:  Element inventory
+    Step 10: Investigation hints + temporal summaries
 
 Usage:
     python -m src.scripts.gather <jenkins_url>
@@ -52,7 +43,6 @@ import os
 import re
 import sys
 import time
-from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
@@ -89,16 +79,15 @@ from src.services.feature_knowledge_service import FeatureKnowledgeService
 
 class DataGatherer:
     """
-    Data Gatherer v2.0 - Collects factual data and clones repos for AI access.
+    Data Gatherer v3.3 - Collects factual data and clones repos for AI access.
 
     This class performs MECHANICAL data collection only.
     NO classification or reasoning is done here - that's the AI's job.
 
-    Key differences from v1.0:
-    - Repos cloned to run directory (persistent, not /tmp)
-    - No EvidencePackageBuilder (classification removed)
-    - Investigation hints added for AI guidance
-    - Repos NOT cleaned up (AI needs full access)
+    Gathers data in 10 steps: Jenkins info, console log, test report,
+    environment + cluster landscape, repo cloning, context extraction,
+    feature grounding, feature knowledge, element inventory, and
+    investigation hints.
     """
 
     def __init__(self, output_dir: str = './runs', verbose: bool = False):
@@ -138,7 +127,7 @@ class DataGatherer:
         # Feature area grounding (v3.0)
         self.feature_area_service = FeatureAreaService()
 
-        # Feature knowledge playbooks (v3.0)
+        # Feature knowledge playbooks (v3.1)
         self.feature_knowledge_service = FeatureKnowledgeService()
 
         # Knowledge Graph client (optional - for dependency queries in Phase 2)
@@ -210,7 +199,7 @@ class DataGatherer:
             'metadata': {
                 'jenkins_url': jenkins_url,
                 'gathered_at': datetime.now().isoformat(),
-                'gatherer_version': '3.2.0',
+                'gatherer_version': '3.3.0',
                 'jenkins_api_available': is_jenkins_available(),
                 'acm_ui_mcp_available': True,  # Always available to Claude Code agent via native MCP
                 'knowledge_graph_available': None,  # Updated after _check_feature_knowledge()
@@ -239,18 +228,14 @@ class DataGatherer:
         self._print_step(3, total_steps, "Extracting test report...")
         self._gather_test_report(jenkins_url, run_dir)
 
-        # Step 4: Gather environment status (optional)
+        # Step 4: Environment check + cluster landscape + backend probes (optional)
         if not skip_environment:
-            self._print_step(4, total_steps, "Checking cluster environment...")
+            self._print_step(4, total_steps, "Checking environment & cluster landscape...")
             self._gather_environment_status(run_dir)
+            self._gather_cluster_landscape()
+            self._probe_backend_apis()
         else:
             self._print_step(4, total_steps, "Skipping environment check (--skip-env)")
-
-        # Step 4b: Gather cluster landscape (v3.0)
-        if not skip_environment:
-            self._print_step(4, total_steps, "Gathering cluster landscape...")
-            self._gather_cluster_landscape()
-        else:
             self.gathered_data['cluster_landscape'] = {'skipped': True}
 
         # Step 5: Clone repositories to run directory (optional)
@@ -268,27 +253,24 @@ class DataGatherer:
         else:
             self._print_step(6, total_steps, "Skipping context extraction (no repos)")
 
-        # Step 6b: Ground feature areas (v3.0)
+        # Step 7: Feature area grounding (v3.0)
         self._print_step(7, total_steps, "Grounding feature areas...")
         self._ground_feature_areas()
 
-        # Step 6c: Feature knowledge playbooks + KG dependency context (v3.0)
+        # Step 8: Feature knowledge playbooks + KG dependency context (v3.1)
         self._print_step(8, total_steps, "Loading feature knowledge...")
         self._check_feature_knowledge()
 
-        # Step 7: Build element inventory from cloned repos (optional)
+        # Step 9: Build element inventory from cloned repos (optional)
         if not skip_repository:
             self._print_step(9, total_steps, "Building element inventory...")
             self._gather_element_inventory(run_dir)
         else:
             self._print_step(9, total_steps, "Skipping element inventory (no repos)")
 
-        # Step 8: Build investigation hints for AI
+        # Step 10: Build investigation hints + temporal summaries
         self._print_step(10, total_steps, "Building investigation hints...")
         self._build_investigation_hints(run_dir)
-
-        # Step 8b: Inject per-test temporal_summary into extracted_context
-        # (runs after timeline evidence is collected in step 8)
         self._inject_temporal_summaries()
 
         # Finalize MCP availability based on actual check results
@@ -576,7 +558,7 @@ class DataGatherer:
 
     def _gather_cluster_landscape(self):
         """
-        Step 4b: Gather cluster landscape snapshot (v3.0).
+        Gather cluster landscape snapshot (part of Step 4, v3.0).
 
         Collects managed clusters, operator statuses, resource pressure,
         policies, and MCH status into core-data.json under 'cluster_landscape'.
@@ -616,9 +598,787 @@ class DataGatherer:
             self.logger.warning(error_msg)
             self.gathered_data['cluster_landscape'] = {'error': error_msg}
 
+    # =========================================================================
+    # Feature area to backend probe mapping
+    # =========================================================================
+    FEATURE_AREA_PROBE_MAP = {
+        'Automation': 'ansibletower',
+        'CLC': 'hub',
+        'RBAC': 'username',
+        'Search': 'search',
+        'Console': 'authenticated',
+        'GRC': 'authenticated',
+        'Observability': 'hub',
+        'Application': 'authenticated',
+        'Virtualization': 'authenticated',
+        'Infrastructure': 'hub',
+    }
+
+    def _probe_backend_apis(self):
+        """
+        Step 4c: Probe ACM console backend API endpoints and validate
+        responses against known cluster state (v3.3).
+
+        Runs inside the console-api pod via oc exec + curl. Each probe is
+        independent — one failure does not block others. Results are stored
+        in gathered_data['backend_probes'] for Stage 2 Phase B7 analysis.
+
+        Probes:
+        - /authenticated: auth health check (baseline)
+        - /hub: hub metadata (name, observability, self-managed)
+        - /username: current user identity
+        - /ansibletower: Ansible template list (if AAP installed)
+        - /proxy/search: search API health (basic Pod query)
+        """
+        self.logger.info("Probing backend APIs...")
+
+        # Check if we have cluster access
+        cluster_access = self.gathered_data.get('cluster_access', {})
+        if not cluster_access.get('has_credentials'):
+            self.logger.info("No cluster credentials — skipping backend probes")
+            self.gathered_data['backend_probes'] = {
+                'skipped': True,
+                'reason': 'no_cluster_credentials',
+                'total_anomalies': 0,
+            }
+            return
+
+        probes_result = {
+            'probe_timestamp': datetime.now().isoformat(),
+            'total_anomalies': 0,
+        }
+
+        try:
+            cli = self.cluster_investigation_service.cli
+            kubeconfig_args = []
+            if self.cluster_investigation_service.kubeconfig:
+                kubeconfig_args = [
+                    '--kubeconfig',
+                    self.cluster_investigation_service.kubeconfig,
+                ]
+
+            # Find a running console-api pod
+            pod_name = self._find_console_api_pod(cli, kubeconfig_args)
+            if not pod_name:
+                self.logger.warning("Console-api pod not found — skipping backend probes")
+                probes_result['skipped'] = True
+                probes_result['reason'] = 'console_api_pod_not_found'
+                self.gathered_data['backend_probes'] = probes_result
+                return
+
+            # Get bearer token for API calls
+            token = self._get_bearer_token(cli, kubeconfig_args)
+            if not token:
+                self.logger.warning("Could not get bearer token — skipping backend probes")
+                probes_result['skipped'] = True
+                probes_result['reason'] = 'no_bearer_token'
+                self.gathered_data['backend_probes'] = probes_result
+                return
+
+            namespace = 'open-cluster-management'
+            landscape = self.gathered_data.get('cluster_landscape', {})
+
+            # Run each probe independently
+            probes_result['authenticated'] = self._probe_authenticated(
+                cli, kubeconfig_args, pod_name, namespace, token
+            )
+            probes_result['hub'] = self._probe_hub(
+                cli, kubeconfig_args, pod_name, namespace, token, landscape
+            )
+            probes_result['username'] = self._probe_username(
+                cli, kubeconfig_args, pod_name, namespace, token
+            )
+            probes_result['ansibletower'] = self._probe_ansibletower(
+                cli, kubeconfig_args, pod_name, namespace, token, landscape
+            )
+            probes_result['search'] = self._probe_search(
+                cli, kubeconfig_args, pod_name, namespace, token
+            )
+
+            # Source-of-truth validation (v3.4): for each probe with
+            # anomalies, query the Kubernetes API directly to determine
+            # whether the anomaly originates in the console backend code
+            # (PRODUCT_BUG) or in the upstream cluster (INFRASTRUCTURE).
+            self._validate_probes_against_cluster(
+                cli, kubeconfig_args, namespace, probes_result
+            )
+
+            # Count total anomalies
+            total = 0
+            for key in ('authenticated', 'hub', 'username', 'ansibletower', 'search'):
+                probe = probes_result.get(key, {})
+                total += len([a for a in probe.get('anomalies', [])
+                              if a.get('is_anomaly', True)])
+            probes_result['total_anomalies'] = total
+
+            if total > 0:
+                self.logger.warning(f"Backend probes found {total} anomalies")
+            else:
+                self.logger.info("Backend probes: all endpoints healthy")
+
+        except Exception as e:
+            error_msg = f"Backend probe error: {e}"
+            self.logger.warning(error_msg)
+            probes_result['error'] = error_msg
+
+        self.gathered_data['backend_probes'] = probes_result
+
+    def _find_console_api_pod(
+        self, cli: str, kubeconfig_args: List[str]
+    ) -> Optional[str]:
+        """Find a running console-api pod name."""
+        cmd = [
+            cli, *kubeconfig_args,
+            'get', 'pods', '-n', 'open-cluster-management',
+            '-l', 'app=console-chart-console-v2,component=console',
+            '--field-selector=status.phase=Running',
+            '-o', 'jsonpath={.items[0].metadata.name}',
+            '--ignore-not-found',
+        ]
+        try:
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=15
+            )
+            pod = result.stdout.strip().strip("'")
+            if pod and result.returncode == 0:
+                self.logger.info(f"Console API pod: {pod}")
+                return pod
+        except Exception as e:
+            self.logger.debug(f"Console pod lookup failed: {e}")
+
+        # Fallback: try name-based match
+        cmd = [
+            cli, *kubeconfig_args,
+            'get', 'pods', '-n', 'open-cluster-management',
+            '--field-selector=status.phase=Running',
+            '-o', 'jsonpath={.items[*].metadata.name}',
+        ]
+        try:
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=15
+            )
+            if result.returncode == 0:
+                for name in result.stdout.split():
+                    if 'console' in name and 'api' not in name.lower():
+                        # Prefer the console pod that serves the API
+                        pass
+                    if 'console' in name:
+                        self.logger.info(f"Console pod (fallback): {name}")
+                        return name
+        except Exception as e:
+            self.logger.debug(f"Console pod fallback failed: {e}")
+
+        return None
+
+    def _get_bearer_token(
+        self, cli: str, kubeconfig_args: List[str]
+    ) -> Optional[str]:
+        """Get bearer token from current oc session."""
+        cmd = [cli, *kubeconfig_args, 'whoami', '-t']
+        try:
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=10
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                return result.stdout.strip()
+        except Exception as e:
+            self.logger.debug(f"Token retrieval failed: {e}")
+        return None
+
+    def _exec_curl_in_pod(
+        self,
+        cli: str,
+        kubeconfig_args: List[str],
+        pod_name: str,
+        namespace: str,
+        token: str,
+        path: str,
+        method: str = 'GET',
+        data: Optional[str] = None,
+        timeout: int = 10,
+    ) -> Dict[str, Any]:
+        """Execute a curl command inside the console pod."""
+        curl_cmd = (
+            f"curl -sk https://localhost:3000{path} "
+            f"-H 'Authorization: Bearer {token}' "
+            f"--max-time {timeout} -w '\\n%{{http_code}}\\n%{{time_total}}'"
+        )
+        if method == 'POST' and data:
+            curl_cmd += f" -X POST -H 'Content-Type: application/json' -d '{data}'"
+
+        cmd = [
+            cli, *kubeconfig_args,
+            'exec', pod_name, '-n', namespace, '--', 'sh', '-c', curl_cmd,
+        ]
+
+        try:
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=timeout + 15
+            )
+            if result.returncode != 0:
+                return {
+                    'status': 'error',
+                    'error': result.stderr.strip()[:200],
+                    'response': None,
+                }
+
+            lines = result.stdout.strip().rsplit('\n', 2)
+            if len(lines) >= 3:
+                body = '\n'.join(lines[:-2])
+                status_code = int(lines[-2])
+                response_time = float(lines[-1])
+            elif len(lines) == 2:
+                body = lines[0]
+                status_code = int(lines[1]) if lines[1].isdigit() else 0
+                response_time = 0.0
+            else:
+                body = result.stdout.strip()
+                status_code = 0
+                response_time = 0.0
+
+            parsed = None
+            if body.strip():
+                try:
+                    parsed = json.loads(body)
+                except json.JSONDecodeError:
+                    parsed = body[:500]
+
+            return {
+                'status': status_code,
+                'response_time_ms': int(response_time * 1000),
+                'response': parsed,
+            }
+        except subprocess.TimeoutExpired:
+            return {
+                'status': 'timeout',
+                'error': f'curl timed out after {timeout}s',
+                'response': None,
+                'response_time_ms': timeout * 1000,
+            }
+        except Exception as e:
+            return {
+                'status': 'error',
+                'error': str(e)[:200],
+                'response': None,
+            }
+
+    def _probe_authenticated(
+        self, cli, kubeconfig_args, pod_name, namespace, token
+    ) -> Dict[str, Any]:
+        """Probe /authenticated — baseline health check."""
+        probe = self._exec_curl_in_pod(
+            cli, kubeconfig_args, pod_name, namespace, token, '/authenticated'
+        )
+        anomalies = []
+
+        if isinstance(probe.get('status'), int) and probe['status'] == 200:
+            response_time = probe.get('response_time_ms', 0)
+            if response_time > 5000:
+                anomalies.append({
+                    'field': 'response_time',
+                    'expected': '<5000ms',
+                    'actual': f'{response_time}ms',
+                    'description': 'Console backend slow response',
+                    'is_anomaly': True,
+                })
+        elif probe.get('status') == 'timeout':
+            anomalies.append({
+                'field': 'response',
+                'description': 'Console backend did not respond — possible crash or resource issue',
+                'is_anomaly': True,
+            })
+        elif probe.get('status') == 'error':
+            anomalies.append({
+                'field': 'response',
+                'description': f"Console backend error: {probe.get('error', 'unknown')}",
+                'is_anomaly': True,
+            })
+
+        probe['anomalies'] = anomalies
+        probe['response_valid'] = len([a for a in anomalies if a.get('is_anomaly', True)]) == 0
+        return probe
+
+    def _probe_hub(
+        self, cli, kubeconfig_args, pod_name, namespace, token, landscape
+    ) -> Dict[str, Any]:
+        """Probe /hub — validate hub metadata against cluster landscape."""
+        probe = self._exec_curl_in_pod(
+            cli, kubeconfig_args, pod_name, namespace, token, '/hub'
+        )
+        anomalies = []
+        resp = probe.get('response')
+
+        if isinstance(resp, dict) and isinstance(probe.get('status'), int) and probe['status'] == 200:
+            # Check hub name against MCH
+            mch_status = landscape.get('multiclusterhub_status')
+            if mch_status:
+                hub_name = resp.get('localHubName', '')
+                # The expected hub name is typically 'local-cluster'
+                if hub_name and 'local-cluster' in hub_name and hub_name != 'local-cluster':
+                    anomalies.append({
+                        'field': 'localHubName',
+                        'expected': 'local-cluster',
+                        'actual': hub_name,
+                        'description': f"Hub name has unexpected suffix: '{hub_name}'",
+                        'is_anomaly': True,
+                    })
+
+            # Check isHubSelfManaged against managed cluster list
+            managed_statuses = landscape.get('managed_cluster_statuses', {})
+            if managed_statuses:
+                has_local = landscape.get('managed_cluster_count', 0) > 0
+                is_self_managed = resp.get('isHubSelfManaged')
+                # This is informational, not always an anomaly
+                anomalies.append({
+                    'field': 'isHubSelfManaged',
+                    'expected': has_local,
+                    'actual': is_self_managed,
+                    'description': f"Hub self-managed: {is_self_managed}",
+                    'is_anomaly': False,  # informational
+                })
+
+        elif probe.get('status') in ('timeout', 'error'):
+            anomalies.append({
+                'field': 'response',
+                'description': f"Hub probe failed: {probe.get('error', probe.get('status'))}",
+                'is_anomaly': True,
+            })
+
+        probe['anomalies'] = anomalies
+        probe['response_valid'] = len([a for a in anomalies if a.get('is_anomaly', True)]) == 0
+        return probe
+
+    def _probe_username(
+        self, cli, kubeconfig_args, pod_name, namespace, token
+    ) -> Dict[str, Any]:
+        """Probe /username — validate user identity format."""
+        probe = self._exec_curl_in_pod(
+            cli, kubeconfig_args, pod_name, namespace, token, '/username'
+        )
+        anomalies = []
+        resp = probe.get('response')
+
+        if isinstance(resp, dict) and isinstance(probe.get('status'), int) and probe['status'] in (200, 201):
+            body = resp.get('body', resp)
+            username = body.get('username', '') if isinstance(body, dict) else str(resp.get('username', ''))
+
+            if username:
+                # Check for reversed username (kube:admin should not be admin:kube)
+                if ':' in username:
+                    parts = username.split(':')
+                    if len(parts) == 2 and parts[0] == 'admin' and parts[1] == 'kube':
+                        anomalies.append({
+                            'field': 'username',
+                            'expected': 'kube:admin',
+                            'actual': username,
+                            'description': 'Username appears reversed (expected provider:user format)',
+                            'is_anomaly': True,
+                        })
+
+        elif probe.get('status') in ('timeout', 'error'):
+            anomalies.append({
+                'field': 'response',
+                'description': f"Username probe failed: {probe.get('error', probe.get('status'))}",
+                'is_anomaly': True,
+            })
+
+        probe['anomalies'] = anomalies
+        probe['response_valid'] = len([a for a in anomalies if a.get('is_anomaly', True)]) == 0
+        return probe
+
+    def _probe_ansibletower(
+        self, cli, kubeconfig_args, pod_name, namespace, token, landscape
+    ) -> Dict[str, Any]:
+        """Probe /ansibletower — validate Ansible template list against AAP status."""
+        # Only probe if AAP operator is installed
+        mch_components = landscape.get('mch_enabled_components', {})
+        # Check if any operator related to AAP/ansible exists
+        # Also check Jenkins params for tower credentials
+        jenkins_params = self.gathered_data.get('jenkins', {}).get('parameters', {})
+        tower_host = jenkins_params.get('TOWER_HOST') or jenkins_params.get('ANSIBLE_TOWER_HOST')
+
+        if not tower_host:
+            return {
+                'status': 'skipped',
+                'reason': 'no_tower_host_in_jenkins_params',
+                'response': None,
+                'anomalies': [],
+                'response_valid': None,
+            }
+
+        probe = self._exec_curl_in_pod(
+            cli, kubeconfig_args, pod_name, namespace, token, '/ansibletower'
+        )
+        anomalies = []
+        resp = probe.get('response')
+
+        if isinstance(resp, dict) and isinstance(probe.get('status'), int) and probe['status'] == 200:
+            count = resp.get('count', -1)
+            results = resp.get('results', [])
+
+            # If AAP operator is healthy and tower host is configured,
+            # the endpoint should return templates
+            if count == 0 and len(results) == 0:
+                anomalies.append({
+                    'field': 'results',
+                    'expected': 'non-empty (Tower host configured)',
+                    'actual': 'empty array (count=0)',
+                    'description': 'Ansible Tower returns empty results despite configured tower host',
+                    'is_anomaly': True,
+                })
+
+        elif probe.get('status') in ('timeout', 'error'):
+            anomalies.append({
+                'field': 'response',
+                'description': f"Ansible Tower probe failed: {probe.get('error', probe.get('status'))}",
+                'is_anomaly': True,
+            })
+
+        probe['anomalies'] = anomalies
+        probe['response_valid'] = len([a for a in anomalies if a.get('is_anomaly', True)]) == 0
+        return probe
+
+    def _probe_search(
+        self, cli, kubeconfig_args, pod_name, namespace, token
+    ) -> Dict[str, Any]:
+        """Probe /proxy/search — validate search pipeline with basic Pod query."""
+        query = json.dumps({
+            "operationName": "searchResult",
+            "variables": {
+                "input": [{
+                    "filters": [{"property": "kind", "values": ["Pod"]}],
+                    "limit": 3,
+                }]
+            },
+            "query": "query searchResult($input: [SearchInput]) { searchResult: search(input: $input) { items } }",
+        })
+        # Escape single quotes for shell
+        query_escaped = query.replace("'", "'\\''")
+
+        probe = self._exec_curl_in_pod(
+            cli, kubeconfig_args, pod_name, namespace, token,
+            '/proxy/search',
+            method='POST',
+            data=query_escaped,
+            timeout=20,
+        )
+        anomalies = []
+        resp = probe.get('response')
+
+        if isinstance(resp, dict) and isinstance(probe.get('status'), int) and probe['status'] == 200:
+            search_results = resp.get('data', {}).get('searchResult', [])
+            if search_results:
+                items = search_results[0].get('items', [])
+                if len(items) == 0:
+                    anomalies.append({
+                        'field': 'items',
+                        'expected': 'at least 1 Pod',
+                        'actual': 'empty array',
+                        'description': 'Search API returns no Pods on a running cluster — search pipeline may be broken',
+                        'is_anomaly': True,
+                    })
+            else:
+                anomalies.append({
+                    'field': 'searchResult',
+                    'expected': 'non-empty searchResult array',
+                    'actual': 'empty or missing',
+                    'description': 'Search API returned no searchResult data',
+                    'is_anomaly': True,
+                })
+
+        elif probe.get('status') == 'timeout':
+            anomalies.append({
+                'field': 'response',
+                'description': 'Search API did not respond within 20s — possible search pipeline issue',
+                'is_anomaly': True,
+            })
+        elif probe.get('status') == 'error':
+            anomalies.append({
+                'field': 'response',
+                'description': f"Search probe failed: {probe.get('error', 'unknown')}",
+                'is_anomaly': True,
+            })
+
+        probe['anomalies'] = anomalies
+        probe['response_valid'] = len([a for a in anomalies if a.get('is_anomaly', True)]) == 0
+        return probe
+
+    # ------------------------------------------------------------------
+    # Source-of-truth validation (v3.4)
+    # ------------------------------------------------------------------
+
+    def _validate_probes_against_cluster(
+        self,
+        cli: str,
+        kubeconfig_args: List[str],
+        namespace: str,
+        probes_result: Dict[str, Any],
+    ):
+        """
+        Cross-reference probe anomalies against Kubernetes API ground truth.
+
+        For each probe with anomalies, query the same data directly from the
+        Kubernetes API (bypassing the console backend). If the cluster returns
+        correct data but the console returns different data, the anomaly
+        originates in the console backend code (PRODUCT_BUG). If both return
+        the same anomalous data, the issue is upstream (INFRASTRUCTURE).
+
+        Enriches each probe dict with:
+          - cluster_ground_truth: raw data from K8s API
+          - anomaly_source: 'console_backend' | 'upstream' | 'unknown'
+          - classification_hint: 'PRODUCT_BUG' | 'INFRASTRUCTURE' | None
+        """
+        self.logger.info("Validating probe anomalies against cluster ground truth...")
+
+        # /username validation
+        username_probe = probes_result.get('username', {})
+        has_username_anomaly = any(
+            a.get('is_anomaly') for a in username_probe.get('anomalies', [])
+        )
+        if has_username_anomaly:
+            self._validate_username_probe(
+                cli, kubeconfig_args, username_probe
+            )
+
+        # /hub validation
+        hub_probe = probes_result.get('hub', {})
+        has_hub_anomaly = any(
+            a.get('is_anomaly') for a in hub_probe.get('anomalies', [])
+        )
+        if has_hub_anomaly:
+            self._validate_hub_probe(
+                cli, kubeconfig_args, namespace, hub_probe
+            )
+
+        # /ansibletower validation
+        tower_probe = probes_result.get('ansibletower', {})
+        has_tower_anomaly = any(
+            a.get('is_anomaly') for a in tower_probe.get('anomalies', [])
+        )
+        if has_tower_anomaly:
+            self._validate_ansibletower_probe(
+                cli, kubeconfig_args, tower_probe
+            )
+
+        # /authenticated validation
+        auth_probe = probes_result.get('authenticated', {})
+        has_auth_anomaly = any(
+            a.get('is_anomaly') for a in auth_probe.get('anomalies', [])
+        )
+        if has_auth_anomaly:
+            self._validate_authenticated_probe(
+                cli, kubeconfig_args, auth_probe
+            )
+
+        # /proxy/search validation
+        search_probe = probes_result.get('search', {})
+        has_search_anomaly = any(
+            a.get('is_anomaly') for a in search_probe.get('anomalies', [])
+        )
+        if has_search_anomaly:
+            self._validate_search_probe(
+                cli, kubeconfig_args, namespace, search_probe
+            )
+
+    def _run_oc_command(
+        self, cli: str, kubeconfig_args: List[str], args: List[str],
+        timeout: int = 10,
+    ) -> Optional[str]:
+        """Run an oc command and return stdout, or None on failure."""
+        cmd = [cli, *kubeconfig_args, *args]
+        try:
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=timeout,
+            )
+            if result.returncode == 0:
+                return result.stdout.strip()
+        except Exception:
+            pass
+        return None
+
+    def _validate_username_probe(
+        self, cli, kubeconfig_args, probe,
+    ):
+        """Validate /username anomaly against oc whoami."""
+        cluster_user = self._run_oc_command(cli, kubeconfig_args, ['whoami'])
+        if cluster_user is None:
+            probe['cluster_ground_truth'] = None
+            probe['anomaly_source'] = 'unknown'
+            probe['classification_hint'] = None
+            return
+
+        probe['cluster_ground_truth'] = {'username': cluster_user}
+
+        # Extract console username from probe response
+        resp = probe.get('response', {})
+        if isinstance(resp, dict):
+            body = resp.get('body', resp)
+            console_user = (
+                body.get('username', '') if isinstance(body, dict)
+                else str(resp.get('username', ''))
+            )
+        else:
+            console_user = ''
+
+        if cluster_user and console_user and cluster_user != console_user:
+            probe['anomaly_source'] = 'console_backend'
+            probe['classification_hint'] = 'PRODUCT_BUG'
+            self.logger.info(
+                f"Username validation: cluster='{cluster_user}', "
+                f"console='{console_user}' -> PRODUCT_BUG"
+            )
+        elif cluster_user == console_user:
+            probe['anomaly_source'] = 'upstream'
+            probe['classification_hint'] = 'INFRASTRUCTURE'
+        else:
+            probe['anomaly_source'] = 'unknown'
+            probe['classification_hint'] = None
+
+    def _validate_hub_probe(
+        self, cli, kubeconfig_args, namespace, probe,
+    ):
+        """Validate /hub anomaly against MCH and ManagedCluster resources."""
+        # Try to get the authoritative hub name from the local-cluster
+        # ManagedCluster resource
+        hub_name = self._run_oc_command(
+            cli, kubeconfig_args,
+            ['get', 'managedcluster', 'local-cluster',
+             '-o', 'jsonpath={.metadata.name}'],
+        )
+        if hub_name is None:
+            probe['cluster_ground_truth'] = None
+            probe['anomaly_source'] = 'unknown'
+            probe['classification_hint'] = None
+            return
+
+        probe['cluster_ground_truth'] = {'hubClusterName': hub_name}
+
+        resp = probe.get('response', {})
+        console_hub = resp.get('localHubName', '') if isinstance(resp, dict) else ''
+
+        if hub_name and console_hub and hub_name != console_hub:
+            probe['anomaly_source'] = 'console_backend'
+            probe['classification_hint'] = 'PRODUCT_BUG'
+            self.logger.info(
+                f"Hub validation: cluster='{hub_name}', "
+                f"console='{console_hub}' -> PRODUCT_BUG"
+            )
+        elif hub_name == console_hub:
+            probe['anomaly_source'] = 'upstream'
+            probe['classification_hint'] = 'INFRASTRUCTURE'
+        else:
+            probe['anomaly_source'] = 'unknown'
+            probe['classification_hint'] = None
+
+    def _validate_ansibletower_probe(
+        self, cli, kubeconfig_args, probe,
+    ):
+        """Validate /ansibletower anomaly against AAP operator status."""
+        # Check if AAP operator CSV is installed and healthy
+        csv_output = self._run_oc_command(
+            cli, kubeconfig_args,
+            ['get', 'csv', '-A', '-o',
+             'jsonpath={range .items[*]}{.metadata.name} {.status.phase}{"\\n"}{end}'],
+            timeout=15,
+        )
+        aap_status = None
+        if csv_output:
+            for line in csv_output.strip().split('\n'):
+                parts = line.split()
+                if len(parts) >= 2:
+                    name_lower = parts[0].lower()
+                    if any(k in name_lower for k in ('aap', 'ansible', 'automation-platform')):
+                        aap_status = parts[1]
+                        break
+
+        probe['cluster_ground_truth'] = {
+            'aap_operator_status': aap_status or 'not_found',
+            'aap_healthy': aap_status == 'Succeeded',
+        }
+
+        resp = probe.get('response', {})
+        console_count = resp.get('count', -1) if isinstance(resp, dict) else -1
+
+        if aap_status == 'Succeeded' and console_count == 0:
+            # AAP is healthy but console returns empty -> console code issue
+            probe['anomaly_source'] = 'console_backend'
+            probe['classification_hint'] = 'PRODUCT_BUG'
+            self.logger.info(
+                "Ansible validation: AAP operator Succeeded but "
+                "console returns 0 templates -> PRODUCT_BUG"
+            )
+        elif aap_status != 'Succeeded':
+            # AAP is not healthy -> empty response is expected
+            probe['anomaly_source'] = 'upstream'
+            probe['classification_hint'] = 'INFRASTRUCTURE'
+            # Clear the anomaly — empty results are expected when AAP is down
+            for anomaly in probe.get('anomalies', []):
+                if anomaly.get('field') == 'results':
+                    anomaly['is_anomaly'] = False
+                    anomaly['description'] += ' (AAP operator not healthy — expected)'
+        else:
+            probe['anomaly_source'] = 'unknown'
+            probe['classification_hint'] = None
+
+    def _validate_authenticated_probe(
+        self, cli, kubeconfig_args, probe,
+    ):
+        """Validate /authenticated anomaly against oc whoami."""
+        cluster_auth = self._run_oc_command(cli, kubeconfig_args, ['whoami'])
+        probe['cluster_ground_truth'] = {
+            'oc_whoami_works': cluster_auth is not None,
+        }
+
+        if cluster_auth is not None:
+            # Cluster auth works but console auth has issues -> console code
+            probe['anomaly_source'] = 'console_backend'
+            probe['classification_hint'] = 'PRODUCT_BUG'
+        else:
+            # Cluster auth also fails -> infrastructure issue
+            probe['anomaly_source'] = 'upstream'
+            probe['classification_hint'] = 'INFRASTRUCTURE'
+
+    def _validate_search_probe(
+        self, cli, kubeconfig_args, namespace, probe,
+    ):
+        """Validate /proxy/search anomaly against search-api deployment."""
+        ready = self._run_oc_command(
+            cli, kubeconfig_args,
+            ['get', 'deploy', 'search-v2-operator-controller-manager',
+             '-n', namespace,
+             '-o', 'jsonpath={.status.readyReplicas}'],
+        )
+        # Fallback: try search-api directly
+        if ready is None:
+            ready = self._run_oc_command(
+                cli, kubeconfig_args,
+                ['get', 'deploy', '-n', namespace, '-l', 'app=search',
+                 '-o', 'jsonpath={.items[0].status.readyReplicas}'],
+            )
+
+        probe['cluster_ground_truth'] = {
+            'search_ready_replicas': int(ready) if ready and ready.isdigit() else None,
+        }
+
+        if ready and ready.isdigit() and int(ready) > 0:
+            # Search pods are running but console returns empty/error
+            probe['anomaly_source'] = 'console_backend'
+            probe['classification_hint'] = 'PRODUCT_BUG'
+            self.logger.info(
+                f"Search validation: {ready} ready replicas but "
+                "console search returns empty -> PRODUCT_BUG"
+            )
+        elif ready is None or (ready.isdigit() and int(ready) == 0):
+            # Search pods are down -> infrastructure issue
+            probe['anomaly_source'] = 'upstream'
+            probe['classification_hint'] = 'INFRASTRUCTURE'
+        else:
+            probe['anomaly_source'] = 'unknown'
+            probe['classification_hint'] = None
+
     def _ground_feature_areas(self):
         """
-        Step 6b: Ground feature areas for all failed tests (v3.0).
+        Step 7: Ground feature areas for all failed tests (v3.0).
 
         Groups tests by feature area and adds grounding context
         (subsystem, key components, namespaces) to core-data.json.
@@ -671,7 +1431,7 @@ class DataGatherer:
 
     def _check_feature_knowledge(self):
         """
-        Step 6c: Load feature investigation playbooks, check MCH prerequisites,
+        Step 8: Load feature investigation playbooks, check MCH prerequisites,
         pre-match test error messages against known failure paths, and query
         Knowledge Graph for dependency context.
 
@@ -698,7 +1458,7 @@ class DataGatherer:
                     if len(parts) >= 2:
                         acm_version = f"{parts[0]}.{parts[1]}"
 
-            # Get detected feature areas from Step 6b
+            # Get detected feature areas from Step 7
             grounding = self.gathered_data.get('feature_grounding', {})
             feature_areas = grounding.get('feature_areas_found', [])
 
@@ -1156,6 +1916,18 @@ class DataGatherer:
         automation_path = repos_dir / 'automation'
         console_path = repos_dir / 'console'
 
+        # Pre-compute selector changes from git diff (runs once, cached for all tests)
+        selector_changes_cache = None
+        if console_path.exists() and hasattr(self, 'timeline_service') and self.timeline_service:
+            self.timeline_service.console_path = console_path
+            selector_changes_cache = self.timeline_service.find_recent_selector_changes(
+                lookback_commits=200
+            )
+            self.logger.info(
+                f"Selector diff: {selector_changes_cache.get('total_files_with_changes', 0)} "
+                f"files with changes in last 200 commits"
+            )
+
         for i, test in enumerate(failed_tests):
             test_name = test.get('test_name', '')
             parsed_stack = test.get('parsed_stack_trace', {})
@@ -1165,7 +1937,8 @@ class DataGatherer:
             extracted_context = {
                 'test_file': None,
                 'page_objects': [],
-                'console_search': None
+                'console_search': None,
+                'recent_selector_changes': None,
             }
 
             # 1. Extract test file content
@@ -1203,10 +1976,89 @@ class DataGatherer:
                     if kubevirt_search.get('found') or kubevirt_search.get('similar_selectors'):
                         extracted_context['kubevirt_search'] = kubevirt_search
 
+            # 4. Cross-reference failing selector against recent git diff changes
+            if failing_selector and selector_changes_cache and self.timeline_service:
+                xref = self.timeline_service.cross_reference_selector(
+                    failing_selector, selector_changes_cache
+                )
+                extracted_context['recent_selector_changes'] = xref
+
+            # 5. Extract assertion values from error message
+            error_message = test.get('error_message', '')
+            if error_message:
+                assertion_values = self.stack_parser.extract_assertion_values(error_message)
+                if assertion_values:
+                    extracted_context['assertion_analysis'] = assertion_values
+
+            # 6. Determine failure mode category (GAP-01 + GAP-02)
+            extracted_context['failure_mode_category'] = self._classify_failure_mode(
+                test.get('failure_type', ''),
+                error_message,
+                extracted_context.get('console_search'),
+                extracted_context.get('assertion_analysis'),
+            )
+
             # Store extracted context in the test entry
             self.gathered_data['test_report']['failed_tests'][i]['extracted_context'] = extracted_context
 
         self.logger.info(f"Extracted context for {len(failed_tests)} failed tests")
+
+    @staticmethod
+    def _classify_failure_mode(
+        failure_type: str,
+        error_message: str,
+        console_search: Optional[Dict],
+        assertion_analysis: Optional[Dict],
+    ) -> str:
+        """
+        Categorize each test's failure mode for causal link verification.
+
+        Categories:
+            render_failure   - page didn't load, blank page, no elements rendered
+            element_missing  - specific selector not found in DOM
+            data_incorrect   - element found but wrong data/count/value
+            timeout_general  - generic timeout without specific element
+            assertion_logic  - test logic assertion that doesn't fit above
+            server_error     - 500/502/503 backend error
+            unknown          - cannot determine
+        """
+        ft = (failure_type or '').lower()
+        err = (error_message or '').lower()
+
+        # Server errors are their own category
+        if ft == 'server_error' or any(p in err for p in ['500', '502', '503', 'internal server']):
+            return 'server_error'
+
+        # Blank/empty page
+        if any(p in err for p in ['no-js', 'blank page', 'empty body', 'zero interactive']):
+            return 'render_failure'
+
+        # Data assertion: element found but data is wrong
+        if assertion_analysis and assertion_analysis.get('has_data_assertion'):
+            # Check if console_search found the selector (page rendered, data wrong)
+            if console_search and console_search.get('found', False):
+                return 'data_incorrect'
+            # Even without console_search, count_mismatch is data-level
+            if assertion_analysis.get('assertion_type') in ('count_mismatch', 'content_missing'):
+                return 'data_incorrect'
+
+        # Element not found
+        if ft == 'element_not_found' or 'expected to find element' in err:
+            return 'element_missing'
+
+        # Timeout without specific element
+        if ft == 'timeout':
+            if 'expected to find element' in err or 'cy.get(' in err:
+                return 'element_missing'
+            return 'timeout_general'
+
+        # Generic assertion
+        if ft in ('assertion', 'assertion_selector', 'assertion_data'):
+            if ft == 'assertion_data':
+                return 'data_incorrect'
+            return 'assertion_logic'
+
+        return 'unknown'
 
     def _read_test_file(
         self,
@@ -2293,7 +3145,7 @@ class DataGatherer:
     def _build_manifest(self, run_dir: Path) -> Dict[str, Any]:
         """Build manifest.json index file."""
         manifest = {
-            'version': '3.2.0',
+            'version': '3.3.0',
             'file_structure': 'multi-file-with-repos',
             'created_at': datetime.now().isoformat(),
             'acm_ui_mcp_available': True,  # Always available via Claude Code native MCP
@@ -2345,7 +3197,7 @@ class DataGatherer:
     def _build_ai_instructions(self) -> Dict[str, Any]:
         """Build AI instructions for 5-phase systematic investigation framework."""
         return {
-            'version': '3.2.0',
+            'version': '3.3.0',
             'architecture': '5-phase-systematic-investigation-with-playbooks',
             'purpose': 'Systematic deep investigation through 5 mandatory phases with feature playbooks, tiered cluster investigation, and KG dependency analysis',
 
@@ -2521,7 +3373,7 @@ class DataGatherer:
                 },
                 'how_to_call': 'Use native MCP tool calls. Example: mcp__jira__search_issues(jql="project = ACM AND type = Bug")',
 
-                # ACM-UI MCP Server (20 tools) - stolostron/console and kubevirt-plugin source code via GitHub
+                # ACM-UI MCP Server (19 tools) - stolostron/console and kubevirt-plugin source code via GitHub
                 'acm_ui': {
                     'tool_prefix': 'mcp__acm-ui__',
                     'description': 'Access ACM Console and kubevirt-plugin source code, selectors, and component structure via GitHub',
@@ -2649,7 +3501,7 @@ class DataGatherer:
                     ]
                 },
 
-                # JIRA MCP Server (23 tools) - Full JIRA integration
+                # JIRA MCP Server (25 tools) - Full JIRA integration
                 'jira': {
                     'tool_prefix': 'mcp__jira__',
                     'description': 'Full JIRA integration for searching bugs, reading feature stories, creating issues, and managing workflows',
@@ -2678,12 +3530,12 @@ class DataGatherer:
                         },
                         'issue_creation_and_update': {
                             'create_issue': {
-                                'call': "mcp__jira__create_issue(project_key='ACM', summary='Component X returns 500', description='Found during z-stream analysis...', issue_type='Bug', priority='Major', components=['Search'], work_type='46653', due_date='2026-03-01')",
+                                'call': "mcp__jira__create_issue(project_key='ACM', summary='Component X returns 500', description='Found during z-stream analysis...', issue_type='Bug', priority='Major', components=['Search'], work_type='10608', due_date='2026-03-01')",
                                 'purpose': 'Create new bug when definitive new issue found with no existing JIRA',
                                 'when': 'Phase E6 - only when classification is definitive and no existing bug matches'
                             },
                             'update_issue': {
-                                'call': "mcp__jira__update_issue(issue_key='ACM-12345', priority='Critical', components=['Search'], work_type='46653', due_date='2026-03-01')",
+                                'call': "mcp__jira__update_issue(issue_key='ACM-12345', priority='Critical', components=['Search'], work_type='10608', due_date='2026-03-01')",
                                 'purpose': 'Update fields on an existing issue'
                             },
                             'transition_issue': {
@@ -2958,13 +3810,13 @@ def gather_all_data(jenkins_url: str, output_dir: str = './runs',
 def main():
     """CLI entry point."""
     parser = argparse.ArgumentParser(
-        description='Z-Stream Analysis - Data Gathering Script (v2.5)',
+        description='Z-Stream Analysis - Data Gathering Script (v3.3)',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 This script gathers FACTUAL DATA and clones repos for AI analysis.
 NO classification is performed - AI handles all classification.
 
-Key Features (v2.5):
+Key Features (v3.3):
   - 5-Phase systematic investigation framework
   - Complete context extraction upfront
   - Multi-evidence validation requirements
@@ -3017,15 +3869,15 @@ Examples:
 
         # Print summary
         print("\n" + "=" * 60)
-        print("DATA GATHERING COMPLETE (v2.5)")
+        print("DATA GATHERING COMPLETE (v3.3)")
         print("=" * 60)
         print(f"\nOutput directory: {run_dir}")
 
         # Show integration status
         print(f"\nIntegrations:")
-        print(f"  - ACM UI MCP: Available for Phase 2 AI analysis (20 tools)")
+        print(f"  - ACM UI MCP: Available for Phase 2 AI analysis (19 tools)")
         print(f"  - Knowledge Graph: Available for Phase 2 AI analysis")
-        print(f"  - JIRA MCP: Available for Phase 2 AI analysis (23 tools)")
+        print(f"  - JIRA MCP: Available for Phase 2 AI analysis (25 tools)")
 
         print(f"\nFiles generated:")
         print(f"  - core-data.json (primary data for AI)")

@@ -19,8 +19,22 @@ import logging
 import subprocess
 from dataclasses import dataclass, field
 
-from .shared_utils import dataclass_to_dict, validate_command_readonly
+from .shared_utils import dataclass_to_dict, validate_command_readonly, THRESHOLDS
 from typing import Dict, Any, List, Optional, Tuple
+
+
+@dataclass
+class FeatureAreaHealth:
+    """Per-feature-area health score based on component diagnostics."""
+    feature_area: str
+    health_score: float = 0.0  # 0.0 (all components down) to 1.0 (all healthy)
+    total_components: int = 0
+    healthy_components: int = 0
+    degraded_components: List[str] = field(default_factory=list)
+    unhealthy_components: List[str] = field(default_factory=list)
+    total_restart_count: int = 0
+    has_operator_degraded: bool = False
+    infrastructure_signal: str = 'none'  # none, moderate, strong, definitive
 
 
 @dataclass
@@ -166,6 +180,23 @@ SUBSYSTEM_COMPONENTS = {
         'klusterlet', 'multicluster-engine',
         'foundation-controller', 'addon-manager',
     ],
+}
+
+# Feature area to subsystem mapping for health scoring.
+# Multiple feature areas may share a subsystem — e.g., Automation uses
+# cluster-curator (Cluster subsystem) for running Ansible hooks, and
+# RBAC uses console-api (Console subsystem) for access control.
+FEATURE_AREA_SUBSYSTEM_MAP = {
+    'GRC': 'Governance',
+    'Search': 'Search',
+    'CLC': 'Cluster',
+    'Observability': 'Observability',
+    'Virtualization': 'Virtualization',
+    'Application': 'Application',
+    'Console': 'Console',
+    'Infrastructure': 'Infrastructure',
+    'RBAC': 'Console',
+    'Automation': 'Cluster',
 }
 
 
@@ -537,6 +568,126 @@ class ClusterInvestigationService:
         if success and stdout.strip():
             return stdout.strip()
         return None
+
+    def get_feature_area_health(
+        self,
+        feature_area: str,
+        landscape: Optional[ClusterLandscape] = None,
+    ) -> FeatureAreaHealth:
+        """
+        Calculate health score for a specific feature area based on its components.
+
+        Uses the subsystem's components to determine health. Checks pod status,
+        restart counts, and operator degradation.
+
+        Args:
+            feature_area: Feature area name (e.g., 'GRC', 'Search', 'CLC').
+            landscape: Optional pre-fetched ClusterLandscape. Fetched if None.
+
+        Returns:
+            FeatureAreaHealth with score and component details.
+        """
+        subsystem = FEATURE_AREA_SUBSYSTEM_MAP.get(feature_area)
+        components = SUBSYSTEM_COMPONENTS.get(subsystem, [])
+
+        health = FeatureAreaHealth(
+            feature_area=feature_area,
+            total_components=len(components),
+        )
+
+        if not components:
+            health.health_score = 1.0
+            health.infrastructure_signal = 'none'
+            return health
+
+        # Check each component
+        for component in components:
+            diag = self.diagnose_component(component)
+
+            if diag.deployment_status == 'Available':
+                health.healthy_components += 1
+            elif diag.deployment_status == 'Degraded':
+                health.degraded_components.append(component)
+            else:
+                health.unhealthy_components.append(component)
+
+            # Sum restart counts across all pods
+            for pod in diag.pods:
+                health.total_restart_count += pod.restart_count
+
+        # Check if any operator matching this area is degraded
+        if landscape:
+            for op in landscape.degraded_operators:
+                op_lower = op.lower()
+                for comp in components:
+                    if comp.lower() in op_lower or op_lower in comp.lower():
+                        health.has_operator_degraded = True
+                        break
+
+        # Calculate health score
+        if health.total_components == 0:
+            health.health_score = 1.0
+        else:
+            # Base score from component availability
+            base = health.healthy_components / health.total_components
+
+            # Penalty for high restart counts (>10 restarts = significant instability)
+            restart_penalty = min(0.2, health.total_restart_count * 0.02)
+
+            # Penalty for degraded operator
+            operator_penalty = 0.15 if health.has_operator_degraded else 0.0
+
+            health.health_score = max(0.0, round(base - restart_penalty - operator_penalty, 2))
+
+        # Determine infrastructure signal strength
+        health.infrastructure_signal = self._score_to_signal(health.health_score)
+
+        return health
+
+    def get_all_feature_area_health(
+        self,
+        feature_areas: Optional[List[str]] = None,
+    ) -> Dict[str, FeatureAreaHealth]:
+        """
+        Calculate health scores for multiple feature areas.
+
+        Args:
+            feature_areas: List of feature area names. If None, checks all known areas.
+
+        Returns:
+            Dict mapping feature_area -> FeatureAreaHealth.
+        """
+        if feature_areas is None:
+            feature_areas = list(FEATURE_AREA_SUBSYSTEM_MAP.keys())
+
+        # Fetch landscape once for all areas
+        landscape = self.get_cluster_landscape()
+
+        results = {}
+        for area in feature_areas:
+            results[area] = self.get_feature_area_health(area, landscape)
+
+        return results
+
+    @staticmethod
+    def _score_to_signal(score: float) -> str:
+        """
+        Convert a health score to an infrastructure signal strength.
+
+        Graduated bands replace the old binary threshold (uses THRESHOLDS config):
+            < 0.3  -> definitive  (route to INFRASTRUCTURE at 0.90)
+            0.3-0.5 -> strong     (route to INFRASTRUCTURE if timeout, 0.80)
+            0.5-0.7 -> moderate   (flag as possible infra, investigate, 0.65)
+            >= 0.7 -> none        (don't attribute to infra unless direct evidence)
+        """
+        if score < THRESHOLDS.INFRA_DEFINITIVE:
+            return 'definitive'
+        elif score < THRESHOLDS.INFRA_STRONG:
+            return 'strong'
+        elif score < THRESHOLDS.INFRA_MODERATE:
+            return 'moderate'
+        else:
+            return 'none'
 
     def to_dict(self, obj) -> Dict[str, Any]:
         """Convert dataclass to dict for serialization."""

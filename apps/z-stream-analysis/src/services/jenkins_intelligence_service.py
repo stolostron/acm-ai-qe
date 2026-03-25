@@ -62,7 +62,7 @@ class JenkinsTestCaseFailure:
     duration: float
     error_message: Optional[str] = None
     stack_trace: Optional[str] = None  # Full stack trace (no truncation)
-    failure_type: Optional[str] = None  # timeout, element_not_found, network, assertion, etc.
+    failure_type: Optional[str] = None  # timeout, element_not_found, network, assertion_data, assertion_selector, server_error, etc.
     # Parsed stack trace data
     parsed_stack_trace: Optional[Dict[str, Any]] = None
     root_cause_file: Optional[str] = None
@@ -637,7 +637,10 @@ class JenkinsIntelligenceService:
         elif any(p in error_lower for p in ['connection', 'network', 'refused', 'dns']):
             return 'network'
         elif any(p in error_lower for p in ['assert', 'expect', 'should', 'equal', 'match']):
-            return 'assertion'
+            # Distinguish data assertions from selector assertions
+            if self._is_data_assertion(error_text):
+                return 'assertion_data'
+            return 'assertion_selector'
         elif any(p in error_lower for p in ['500', '502', '503', 'internal server', 'bad gateway']):
             return 'server_error'
         elif any(p in error_lower for p in ['401', '403', 'unauthorized', 'forbidden', 'permission']):
@@ -647,16 +650,48 @@ class JenkinsIntelligenceService:
         else:
             return 'unknown'
 
+    @staticmethod
+    def _is_data_assertion(error_text: str) -> bool:
+        """
+        Determine if an assertion error is about data values (not selectors).
+
+        Data assertions involve expected vs actual values, counts, text content,
+        or state checks. Selector assertions involve element existence/visibility.
+        """
+        lower = error_text.lower()
+
+        # Data assertion indicators: value/count/content comparisons
+        data_patterns = [
+            'to equal', 'to eql', 'to deep.equal',
+            'to have length', 'elements, but found',
+            'to contain', 'to include', 'to have.text',
+            'to be true', 'to be false',
+            'to have property', 'to have a property',
+            'expected 0', 'expected []', 'expected {}',
+        ]
+        if any(p in lower for p in data_patterns):
+            return True
+
+        # Selector assertion indicators (these are NOT data assertions)
+        selector_patterns = [
+            'to exist', 'to be.visible', 'to be visible',
+            'not to exist', 'element:', 'selector',
+        ]
+        if any(p in lower for p in selector_patterns):
+            return False
+
+        return False
+
     def _summarize_failure_types(self, failed_tests: List[TestCaseFailure]) -> Dict[str, Any]:
         """
         Summarize failure types across all failed tests.
 
-        NOTE: This provides FACTUAL data only (failure_type = timeout, element_not_found, etc.).
+        NOTE: This provides FACTUAL data only (failure_type = timeout, element_not_found, assertion_data, assertion_selector, etc.).
         Bug classification (PRODUCT_BUG, AUTOMATION_BUG, INFRASTRUCTURE) is determined by AI
         during the analysis phase, not pre-computed here.
         """
         summary = {
-            'by_failure_type': {},  # Factual: timeout, element_not_found, network, assertion, etc.
+            'by_failure_type': {},  # Factual: timeout, element_not_found, network, assertion_data, assertion_selector, etc.
             'tests_by_failure_type': {}  # Group test names by failure type
         }
 

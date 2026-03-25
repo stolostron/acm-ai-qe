@@ -5,10 +5,6 @@
 # Sets up the MCP servers used by the z-stream-analysis app.
 # Run from the repository root: bash mcp/setup.sh
 #
-# IMPORTANT: This repo's mcp/ directory is a MIRROR of the canonical
-# MCP code at ai/tools/mcp/. The canonical location is the primary
-# development directory -- see mcp/README.md for details.
-#
 # Servers set up by this script:
 #   [Required] acm-ui     -- Search ACM Console & Fleet Virt source code via GitHub
 #   [Required] jira       -- Search/create JIRA issues for bug correlation
@@ -140,28 +136,29 @@ if [ ! -f "$JIRA_ENV" ]; then
     echo ""
     info "JIRA credentials needed."
     echo ""
-    echo "  The JIRA MCP server needs your JIRA instance URL and a Personal Access Token."
+    echo "  The JIRA MCP server connects to Jira Cloud using basic auth (email + API token)."
     echo ""
-    echo "  To get your JIRA token:"
-    echo "    1. Log in to your JIRA instance (e.g., https://issues.redhat.com)"
-    echo "    2. Go to Profile > Personal Access Tokens"
-    echo "    3. Create a new token"
-    echo "    4. Copy the token"
+    echo "  To get your API token:"
+    echo "    1. Go to https://id.atlassian.com/manage-profile/security/api-tokens"
+    echo "    2. Click 'Create API token'"
+    echo "    3. Copy the token"
     echo ""
 
-    read -p "  JIRA Server URL [https://issues.redhat.com]: " JIRA_URL
-    JIRA_URL="${JIRA_URL:-https://issues.redhat.com}"
+    read -p "  JIRA Server URL [https://redhat.atlassian.net]: " JIRA_URL
+    JIRA_URL="${JIRA_URL:-https://redhat.atlassian.net}"
 
-    read -p "  JIRA Access Token: " JIRA_TOKEN
+    read -p "  JIRA Email (your Atlassian account email): " JIRA_EMAIL_INPUT
+
+    read -p "  JIRA API Token: " JIRA_TOKEN
     if [ -z "$JIRA_TOKEN" ]; then
         warn "No token provided. Creating .env with placeholder."
-        JIRA_TOKEN="PASTE_YOUR_TOKEN_HERE"
+        JIRA_TOKEN="PASTE_YOUR_API_TOKEN_HERE"
     fi
 
     cat > "$JIRA_ENV" <<EOF
 JIRA_SERVER_URL=$JIRA_URL
 JIRA_ACCESS_TOKEN=$JIRA_TOKEN
-JIRA_VERIFY_SSL=true
+JIRA_EMAIL=$JIRA_EMAIL_INPUT
 JIRA_TIMEOUT=30
 JIRA_MAX_RESULTS=100
 EOF
@@ -222,12 +219,20 @@ cat > "$MCP_JSON" <<'MCPEOF'
     "jira": {
       "command": "python",
       "args": ["-m", "jira_mcp_server.main"],
-      "cwd": "../../mcp/jira-mcp-server"
+      "cwd": "../../mcp/jira-mcp-server",
+      "timeout": 60
     },
     "neo4j-rhacm": {
-      "command": "npx",
-      "args": ["-y", "mcp-remote", "http://localhost:8000/sse"],
-      "timeout": 120
+      "command": "uvx",
+      "args": [
+        "--with", "fastmcp<3",
+        "mcp-neo4j-cypher",
+        "--db-url", "bolt://localhost:7687",
+        "--username", "neo4j",
+        "--password", "rhacmgraph",
+        "--read-only"
+      ],
+      "timeout": 60
     }
   }
 }
@@ -253,7 +258,7 @@ else
 fi
 
 if python3 -c "import jira_mcp_server" 2>/dev/null; then
-    echo -e "    ${GREEN}OK${NC} jira         -- JIRA issue management (27 tools)"
+    echo -e "    ${GREEN}OK${NC} jira         -- JIRA issue management (25 tools)"
 else
     echo -e "    ${RED}FAIL${NC} jira         -- Not installed"
 fi

@@ -18,7 +18,9 @@
 
 import asyncio
 import logging
+import os
 import re
+import subprocess
 from typing import List, Dict, Any, Optional
 from fastmcp import FastMCP, Context
 from pydantic import BaseModel
@@ -34,6 +36,20 @@ logger = logging.getLogger(__name__)
 # Statuses that do NOT require fix_version to be set
 # Any status not in this set will require fix_version before transitioning
 EARLY_STATUSES = {'new', 'backlog', 'in progress'}
+
+
+def _user_ref(identifier: str) -> Dict[str, str]:
+    """Build a user reference dict for Jira Cloud.
+
+    Only accountId is valid on Jira Cloud (name was deprecated for privacy).
+    Use search_users to resolve a display name or email to an accountId first.
+    """
+    if ':' in identifier or (identifier.startswith('7') and len(identifier) > 30):
+        return {'accountId': identifier}
+    raise ValueError(
+        f"'{identifier}' does not look like a Jira Cloud accountId. "
+        f"Use search_users to find the accountId for this user first."
+    )
 
 
 def _validate_git_commit_sha(sha: str) -> None:
@@ -105,13 +121,14 @@ class IssueResponse(BaseModel):
     git_pull_requests: Optional[str]
     subtasks: List[SubtaskResponse]
     parent: Optional[ParentResponse]
+    parent_link: Optional[str] = None
+    epic_link: Optional[str] = None
     sprint: Optional[str] = None
     qa_contact: Optional[str] = None
-    epic_link: Optional[str] = None
     severity: Optional[str] = None
     affects_versions: List[str] = []
     acceptance_criteria: Optional[str] = None
-    reviewers: List[str] = []
+    contributors: List[str] = []
     issue_links: List[IssueLinkResponse] = []
     attachments: List[str] = []
 
@@ -185,25 +202,6 @@ class TeamInfoResponse(BaseModel):
 
 class ComponentAliasResponse(BaseModel):
     aliases: Dict[str, str]
-
-class BoardResponse(BaseModel):
-    id: int
-    name: str
-    type: str
-
-class SprintResponse(BaseModel):
-    id: int
-    name: str
-    state: Optional[str]
-    startDate: Optional[str]
-    endDate: Optional[str]
-
-class SprintAssignmentResponse(BaseModel):
-    sprint_name: str
-    sprint_id: int
-    issue_keys: List[str]
-    assigned: bool
-
 class JiraMCPServer:
     """MCP Server for Jira integration."""
     
@@ -212,6 +210,8 @@ class JiraMCPServer:
         self.mcp = FastMCP("Jira MCP Server")
         self.config = JiraConfig.from_env()
         self.client = JiraClient(self.config)
+        self._update_warning: Optional[str] = None
+        self._update_warning_emitted = False
         self._setup_tools()
         self._setup_resources()
     
@@ -231,6 +231,7 @@ class JiraMCPServer:
                 max_results: Maximum number of results to return (default: 100)
                 ctx: MCP context for progress reporting
             """
+            await self._emit_update_warning(ctx)
             if ctx:
                 await ctx.info(f"Searching issues with JQL: {jql}")
             
@@ -264,6 +265,7 @@ class JiraMCPServer:
                 max_results: Maximum number of results to return (default: 100)
                 ctx: MCP context for progress reporting
             """
+            await self._emit_update_warning(ctx)
             if ctx:
                 await ctx.info(f"Searching issues assigned to team '{team_name}'")
             
@@ -315,6 +317,7 @@ class JiraMCPServer:
                 issue_key: Jira issue key (e.g., 'PROJ-123')
                 ctx: MCP context for progress reporting
             """
+            await self._emit_update_warning(ctx)
             if ctx:
                 await ctx.info(f"Fetching issue: {issue_key}")
             
@@ -331,9 +334,9 @@ class JiraMCPServer:
             project_key: str,
             summary: str,
             description: str,
-            priority: str,
-            work_type: str,
-            components: List[str],
+            priority: str = "Normal",
+            work_type: Optional[str] = None,
+            components: Optional[List[str]] = None,
             target_version: Optional[List[str]] = None,
             issue_type: str = "Task",
             due_date: Optional[str] = None,
@@ -350,52 +353,61 @@ class JiraMCPServer:
             git_pull_requests: Optional[str] = None,
             parent: Optional[str] = None,
             epic_name: Optional[str] = None,
-            qa_contact: Optional[str] = None,
+            parent_link: Optional[str] = None,
             epic_link: Optional[str] = None,
+            qa_contact: Optional[str] = None,
             severity: Optional[str] = None,
             affects_versions: Optional[List[str]] = None,
             acceptance_criteria: Optional[str] = None,
-            reviewers: Optional[List[str]] = None,
+            contributors: Optional[List[str]] = None,
             ctx: Optional[Context] = None
         ) -> IssueResponse:
             """Create a new Jira issue.
+
+            ⚠️ WARNING: Issues created in Jira CANNOT BE UNDONE. Issues are permanent records and cannot be deleted.
+            Only create issues when explicitly requested by the user. Never use for testing or if uncertain about parameters.
 
             Args:
                 project_key: Project key (e.g., 'PROJ')
                 summary: Issue summary/title
                 description: Issue description
                 issue_type: Issue type (e.g., 'Bug', 'Task', 'Story', 'Sub-task')
-                priority: Issue priority (required)
+                priority: Issue priority (defaults to 'Normal')
                 assignee: Username of assignee
                 team: Team name to add as watchers (all team members will be added as watchers)
                 labels: List of labels to add
                 fix_versions: List of fix version names (set when issue is closed)
                 target_version: List of target version names (set when issue is created)
-                work_type: Work type for the issue (required). Available options:
+                work_type: Work type for the issue (STRONGLY RECOMMENDED). Available options:
                     - **None** = -1
-                    - **Associate Wellness & Development** = 46650
-                    - **Future Sustainability** = 48051
-                    - **Incident & Support** = 46651
-                    - **Quality / Stability / Reliability** = 46653
-                    - **Security & Compliance** = 46652
-                    - **Product / Portfolio Work** = 46654
+                    - **Associate Wellness & Development** = 10604
+                    - **BU Features** = 10605
+                    - **Future Sustainability** = 10606
+                    - **Incidents & Support** = 10607
+                    - **Quality / Stability / Reliability** = 10608
+                    - **Security & Compliance** = 10609
+                    - **Product / Portfolio Work** = 10610
                 security_level: Security level name
                 due_date: Due date in YYYY-MM-DD format
                 target_start: Target start date in YYYY-MM-DD format
                 target_end: Target end date in YYYY-MM-DD format
-                components: List of component names (required)
-                original_estimate: Original time estimate (e.g., '1h 30m'). Defaults to None (no estimate). Only set if explicitly requested.
-                story_points: Story points value. Defaults to None (no points). Only set if explicitly requested.
+                components: List of component names (STRONGLY RECOMMENDED)
+                original_estimate: Original time estimate (e.g., '1h 30m'). RECOMMENDED for better estimation tracking.
+                story_points: Story points value. RECOMMENDED for better sprint planning.
                 git_commit: Git commit hash or reference
                 git_pull_requests: Git pull requests, comma separated list of pull requests URLs
                 parent: Parent issue key for sub-tasks (e.g., 'PROJ-123')
                 epic_name: Epic Name (required for Epic issue type)
+                parent_link: Parent link issue key for hierarchy (e.g., linking an Epic
+                    to its parent Feature). Use instead of 'parent' for non-sub-task
+                    relationships (e.g., 'PROJ-100').
+                epic_link: Epic link issue key for linking a Story to its parent Epic
+                    (e.g., 'PROJ-200').
                 qa_contact: QA Contact username
-                epic_link: Epic issue key (e.g., 'ACM-24035')
-                severity: Severity value (e.g., 'Important', 'Critical')
-                affects_versions: List of affected version names (e.g., ['ACM 2.15.0'])
+                severity: Severity value (e.g., 'Important', 'Critical', 'Major', 'Moderate', 'Low')
+                affects_versions: List of affected version names (e.g., ['ACM 2.16.0'])
                 acceptance_criteria: Acceptance criteria text
-                reviewers: List of reviewer usernames
+                contributors: List of contributor usernames to add to the issue
                 ctx: MCP context for progress reporting
             """
             # Validate required fields
@@ -403,12 +415,6 @@ class JiraMCPServer:
                 raise ValueError("Summary cannot be empty")
             if not description or not description.strip():
                 raise ValueError("Description cannot be empty")
-            if not priority or not priority.strip():
-                raise ValueError("Priority cannot be empty")
-            if not work_type or not str(work_type).strip():
-                raise ValueError("Work type cannot be empty")
-            if not components or len(components) == 0:
-                raise ValueError("Components cannot be empty")
 
             # Validate optional fields if provided
             if assignee is not None and (not assignee or not assignee.strip()):
@@ -416,6 +422,7 @@ class JiraMCPServer:
             if fix_versions is not None and (not fix_versions or len(fix_versions) == 0):
                 raise ValueError("Fix versions cannot be empty")
 
+            await self._emit_update_warning(ctx)
             if ctx:
                 await ctx.info(f"Creating issue in project {project_key}")
 
@@ -432,48 +439,54 @@ class JiraMCPServer:
                 fields['fixVersions'] = [{'name': version} for version in fix_versions]
             if target_version:
                 # Target versions need to be converted to objects with 'name' property
-                fields['customfield_12319940'] = [{'name': version} for version in target_version]
+                fields['customfield_10855'] = [{'name': version} for version in target_version]
             if work_type:
-                fields['customfield_12320040'] = {'id': str(work_type)}  # Work type custom field
+                fields['customfield_10464'] = {'id': str(work_type)}  # Activity Type (formerly Work Type)
             if security_level:
                 fields['security'] = {'name': security_level}
             if due_date:
                 fields['duedate'] = due_date
             if target_start:
-                fields['customfield_12313941'] = target_start  # Target Start custom field
+                fields['customfield_10022'] = target_start  # Target Start custom field
             if target_end:
-                fields['customfield_12313942'] = target_end  # Target End custom field
+                fields['customfield_10023'] = target_end  # Target End custom field
             if components:
                 # Resolve component aliases to actual component names
                 resolved_components = self.config.resolve_component_names(components)
                 # Components need to be converted to objects with 'name' property
                 fields['components'] = [{'name': component} for component in resolved_components]
-            if original_estimate is not None:
+            if original_estimate:
                 fields['timetracking'] = {'originalEstimate': original_estimate}
             if story_points is not None:
-                fields['customfield_12310243'] = story_points  # Story points custom field
+                fields['customfield_10028'] = story_points  # Story points custom field
             if git_commit:
                 _validate_git_commit_sha(git_commit)
-                fields['customfield_12317372'] = git_commit  # Git Commit custom field
+                fields['customfield_10583'] = git_commit  # Git Commit custom field
             if git_pull_requests:
-                fields['customfield_12310220'] = git_pull_requests  # Git Pull Requests custom field
+                fields['customfield_10875'] = git_pull_requests  # Git Pull Requests custom field
             if parent:
                 fields['parent'] = {'key': parent}  # Parent issue for sub-tasks
             if epic_name:
-                fields['customfield_12311141'] = epic_name  # Epic Name custom field
+                fields['customfield_10011'] = epic_name  # Epic Name custom field
+            if parent_link:
+                fields['customfield_10014'] = parent_link  # Parent Link custom field
+            if epic_link:
+                fields['customfield_10014'] = epic_link  # Epic Link custom field
             if qa_contact is not None:
-                fields['customfield_12315948'] = {'name': qa_contact}
-            if epic_link is not None:
-                fields['customfield_12311140'] = epic_link
+                qa_val = qa_contact.strip() if isinstance(qa_contact, str) else ""
+                if qa_val:
+                    fields['customfield_10470'] = _user_ref(qa_val)  # QA Contact
             if severity is not None:
-                fields['customfield_12316142'] = {'value': severity}
+                fields['customfield_10840'] = {'value': severity}  # Severity
             if affects_versions is not None:
                 fields['versions'] = [{'name': v} for v in affects_versions]
             if acceptance_criteria is not None:
-                fields['customfield_12315940'] = acceptance_criteria
-            if reviewers is not None:
-                fields['customfield_12315950'] = [{'name': r} for r in reviewers]
-            
+                fields['customfield_10718'] = acceptance_criteria  # Acceptance Criteria
+            if contributors is not None:
+                valid = [c.strip() for c in contributors if isinstance(c, str) and c.strip()]
+                if valid:
+                    fields['customfield_10466'] = [_user_ref(c) for c in valid]  # Contributors
+
             try:
                 issue = await self.client.create_issue(
                     project_key, summary, description, issue_type, **fields
@@ -501,9 +514,9 @@ class JiraMCPServer:
         @self.mcp.tool()
         async def update_issue(
             issue_key: str,
-            priority: str,
-            work_type: str,
-            components: List[str],
+            priority: Optional[str] = None,
+            work_type: Optional[str] = None,
+            components: Optional[List[str]] = None,
             due_date: Optional[str] = None,
             summary: Optional[str] = None,
             description: Optional[str] = None,
@@ -518,16 +531,17 @@ class JiraMCPServer:
             story_points: Optional[float] = None,
             git_commit: Optional[str] = None,
             git_pull_requests: Optional[str] = None,
-            qa_contact: Optional[str] = None,
+            parent_link: Optional[str] = None,
             epic_link: Optional[str] = None,
+            qa_contact: Optional[str] = None,
             severity: Optional[str] = None,
             affects_versions: Optional[List[str]] = None,
             acceptance_criteria: Optional[str] = None,
-            reviewers: Optional[List[str]] = None,
+            contributors: Optional[List[str]] = None,
             ctx: Optional[Context] = None
         ) -> IssueResponse:
             """Update an existing Jira issue.
-            
+
             Args:
                 issue_key: Jira issue key (e.g., 'PROJ-123')
                 summary: New summary/title
@@ -537,34 +551,39 @@ class JiraMCPServer:
                 labels: New labels list
                 fix_versions: List of fix version names (set when issue is closed)
                 target_version: List of target version names (set when issue is created)
-                work_type: Work type for the issue. Available options:
+                work_type: Work type for the issue (STRONGLY RECOMMENDED). Available options:
                     - **None** = -1
-                    - **Associate Wellness & Development** = 46650
-                    - **Future Sustainability** = 48051
-                    - **Incident & Support** = 46651
-                    - **Quality / Stability / Reliability** = 46653
-                    - **Security & Compliance** = 46652
-                    - **Product / Portfolio Work** = 46654
+                    - **Associate Wellness & Development** = 10604
+                    - **BU Features** = 10605
+                    - **Future Sustainability** = 10606
+                    - **Incidents & Support** = 10607
+                    - **Quality / Stability / Reliability** = 10608
+                    - **Security & Compliance** = 10609
+                    - **Product / Portfolio Work** = 10610
                 security_level: Security level name
                 due_date: Due date in YYYY-MM-DD format
                 target_start: Target start date in YYYY-MM-DD format
                 target_end: Target end date in YYYY-MM-DD format
-                components: List of component names
+                components: List of component names (STRONGLY RECOMMENDED)
                 original_estimate: Original time estimate (e.g., '1h 30m')
                 story_points: Story points value
                 git_commit: Git commit hash or reference
                 git_pull_requests: Git pull requests, comma separated list of pull requests URLs
+                parent_link: Parent link issue key for hierarchy (e.g., linking an Epic
+                    to its parent Feature). Use instead of 'parent' for non-sub-task
+                    relationships (e.g., 'PROJ-100').
+                epic_link: Epic link issue key for linking a Story to its parent Epic
+                    (e.g., 'PROJ-200').
                 qa_contact: QA Contact username
-                epic_link: Epic issue key (e.g., 'ACM-24035')
-                severity: Severity value (e.g., 'Important', 'Critical')
-                affects_versions: List of affected version names (e.g., ['ACM 2.15.0'])
+                severity: Severity value (e.g., 'Important', 'Critical', 'Major', 'Moderate', 'Low')
+                affects_versions: List of affected version names (e.g., ['ACM 2.16.0'])
                 acceptance_criteria: Acceptance criteria text
-                reviewers: List of reviewer usernames
+                contributors: List of contributor usernames to add to the issue
                 ctx: MCP context for progress reporting
             """
             if ctx:
                 await ctx.info(f"Updating issue: {issue_key}")
-            
+
             fields = {}
             if summary:
                 fields['summary'] = summary
@@ -582,43 +601,52 @@ class JiraMCPServer:
                 fields['fixVersions'] = [{'name': version} for version in fix_versions]
             if target_version:
                 # Target versions need to be converted to objects with 'name' property
-                fields['customfield_12319940'] = [{'name': version} for version in target_version]
+                fields['customfield_10855'] = [{'name': version} for version in target_version]
             if work_type:
-                fields['customfield_12320040'] = {'id': str(work_type)}  # Work type custom field
+                fields['customfield_10464'] = {'id': str(work_type)}  # Activity Type (formerly Work Type)
             if security_level:
                 fields['security'] = {'name': security_level}
             if due_date:
                 fields['duedate'] = due_date
             if target_start:
-                fields['customfield_12313941'] = target_start  # Target Start custom field
+                fields['customfield_10022'] = target_start  # Target Start custom field
             if target_end:
-                fields['customfield_12313942'] = target_end  # Target End custom field
+                fields['customfield_10023'] = target_end  # Target End custom field
             if components:
                 # Resolve component aliases to actual component names
                 resolved_components = self.config.resolve_component_names(components)
                 # Components need to be converted to objects with 'name' property
                 fields['components'] = [{'name': component} for component in resolved_components]
-            if original_estimate is not None:
+            if original_estimate:
                 fields['timetracking'] = {'originalEstimate': original_estimate}
             if story_points is not None:
-                fields['customfield_12310243'] = story_points  # Story points custom field
+                fields['customfield_10028'] = story_points  # Story points custom field
             if git_commit:
                 _validate_git_commit_sha(git_commit)
-                fields['customfield_12317372'] = git_commit  # Git Commit custom field
+                fields['customfield_10583'] = git_commit  # Git Commit custom field
             if git_pull_requests:
-                fields['customfield_12310220'] = git_pull_requests  # Git Pull Requests custom field
+                fields['customfield_10875'] = git_pull_requests  # Git Pull Requests custom field
+            if parent_link:
+                fields['customfield_10014'] = parent_link  # Parent Link custom field
+            if epic_link:
+                fields['customfield_10014'] = epic_link  # Epic Link custom field
             if qa_contact is not None:
-                fields['customfield_12315948'] = {'name': qa_contact}
-            if epic_link is not None:
-                fields['customfield_12311140'] = epic_link
+                qa_val = qa_contact.strip() if isinstance(qa_contact, str) else ""
+                if qa_val:
+                    fields['customfield_10470'] = _user_ref(qa_val)  # QA Contact
             if severity is not None:
-                fields['customfield_12316142'] = {'value': severity}
+                fields['customfield_10840'] = {'value': severity}  # Severity
             if affects_versions is not None:
                 fields['versions'] = [{'name': v} for v in affects_versions]
             if acceptance_criteria is not None:
-                fields['customfield_12315940'] = acceptance_criteria
-            if reviewers is not None:
-                fields['customfield_12315950'] = [{'name': r} for r in reviewers]
+                fields['customfield_10718'] = acceptance_criteria  # Acceptance Criteria
+            if contributors is not None:
+                valid = [c.strip() for c in contributors if isinstance(c, str) and c.strip()]
+                if valid:
+                    fields['customfield_10466'] = [_user_ref(c) for c in valid]  # Contributors
+
+            if not fields:
+                raise ValueError("At least one field must be provided to update an issue")
 
             try:
                 issue = await self.client.update_issue(issue_key, **fields)
@@ -630,6 +658,72 @@ class JiraMCPServer:
                     await ctx.error(f"Failed to update issue {issue_key}: {str(e)}")
                 raise
         
+        @self.mcp.tool()
+        async def clear_field(
+            issue_key: str,
+            field_name: str,
+            ctx: Optional[Context] = None
+        ) -> IssueResponse:
+            """Clear (unset) a field on a Jira issue.
+
+            Dynamically determines the correct empty value by inspecting the
+            field's schema from the Jira edit metadata.
+
+            Args:
+                issue_key: Jira issue key (e.g., 'PROJ-123')
+                field_name: The Jira field ID to clear (e.g., 'fixVersions',
+                    'customfield_10855', 'duedate', 'labels', 'components',
+                    'assignee', 'priority', 'security', 'timetracking').
+                    Use the debug_issue_fields tool to discover available field IDs.
+                ctx: MCP context for progress reporting
+            """
+            if ctx:
+                await ctx.info(f"Fetching edit metadata for {issue_key}")
+
+            editmeta = await self.client.get_editmeta(issue_key)
+
+            if field_name not in editmeta:
+                available = ', '.join(sorted(editmeta.keys()))
+                raise ValueError(
+                    f"Field '{field_name}' is not editable on {issue_key}. "
+                    f"Editable fields: {available}"
+                )
+
+            schema = editmeta[field_name].get('schema', {})
+            field_type = schema.get('type', '')
+
+            # Determine the correct clear value based on schema type
+            if field_type == 'array':
+                clear_value = []
+            elif field_type in ('string', 'date', 'datetime'):
+                clear_value = None
+            elif field_type == 'number':
+                clear_value = None
+            elif field_type == 'timetracking':
+                clear_value = {'originalEstimate': '0m'}
+            else:
+                # option, user, security, priority, issuelink, etc.
+                clear_value = None
+
+            if ctx:
+                await ctx.info(
+                    f"Clearing '{field_name}' (type={field_type}) on {issue_key}"
+                )
+
+            try:
+                issue = await self.client.update_issue(
+                    issue_key, **{field_name: clear_value}
+                )
+                if ctx:
+                    await ctx.info(f"Cleared '{field_name}' on {issue_key}")
+                return IssueResponse(**issue)
+            except Exception as e:
+                if ctx:
+                    await ctx.error(
+                        f"Failed to clear '{field_name}' on {issue_key}: {str(e)}"
+                    )
+                raise
+
         @self.mcp.tool()
         async def transition_issue(
             issue_key: str,
@@ -644,24 +738,26 @@ class JiraMCPServer:
                 ctx: MCP context for progress reporting
 
             Note:
-                Transitions to statuses beyond 'New', 'Backlog', and 'In Progress'
-                require fix_version to be set on the issue.
+                It is highly recommended to set fix_version on the issue before
+                transitioning to statuses beyond 'New', 'Backlog', and 'In Progress'.
             """
             if ctx:
                 await ctx.info(f"Transitioning issue {issue_key} to {transition}")
 
             try:
-                # Check if target status requires fix_version
+                # Warn if fix_version is not set for statuses beyond early stages
                 if transition.lower() not in EARLY_STATUSES:
-                    # Fetch issue to check fix_versions
                     current_issue = await self.client.get_issue(issue_key)
                     fix_versions = current_issue.get('fix_versions', [])
                     if not fix_versions:
-                        raise ValueError(
-                            f"Cannot transition {issue_key} to '{transition}': "
-                            f"fix_version must be set before moving beyond 'In Progress'. "
-                            f"Please update the issue with a fix_version first."
+                        warning_msg = (
+                            f"Warning: {issue_key} is being transitioned to '{transition}' "
+                            f"without a fix_version set. It is highly recommended to set "
+                            f"fix_version before moving beyond 'In Progress'."
                         )
+                        if ctx:
+                            await ctx.warning(warning_msg)
+                        logger.warning(warning_msg)
 
                 issue = await self.client.transition_issue(issue_key, transition)
                 if ctx:
@@ -1148,144 +1244,6 @@ class JiraMCPServer:
                 if ctx:
                     await ctx.error(f"Failed to remove component alias: {str(e)}")
                 raise
-        @self.mcp.tool()
-        async def list_boards(
-            name: Optional[str] = None,
-            ctx: Optional[Context] = None
-        ) -> List[BoardResponse]:
-            """List agile boards, optionally filtered by name.
-
-            Args:
-                name: Optional board name filter (substring match)
-                ctx: MCP context for progress reporting
-            """
-            if ctx:
-                await ctx.info(f"Listing boards{' matching: ' + name if name else ''}")
-
-            try:
-                boards = await self.client.list_boards(name=name)
-                if ctx:
-                    await ctx.info(f"Found {len(boards)} boards")
-                return [BoardResponse(**board) for board in boards]
-            except Exception as e:
-                if ctx:
-                    await ctx.error(f"Failed to list boards: {str(e)}")
-                raise
-
-        @self.mcp.tool()
-        async def list_sprints(
-            board_id: int,
-            state: Optional[str] = None,
-            ctx: Optional[Context] = None
-        ) -> List[SprintResponse]:
-            """List sprints for an agile board.
-
-            Args:
-                board_id: Agile board ID (use list_boards to find)
-                state: Optional state filter ('active', 'future', 'closed')
-                ctx: MCP context for progress reporting
-            """
-            if ctx:
-                await ctx.info(f"Listing sprints for board {board_id}{' (state: ' + state + ')' if state else ''}")
-
-            try:
-                sprints = await self.client.list_sprints(board_id, state=state)
-                if ctx:
-                    await ctx.info(f"Found {len(sprints)} sprints")
-                return [SprintResponse(**sprint) for sprint in sprints]
-            except Exception as e:
-                if ctx:
-                    await ctx.error(f"Failed to list sprints: {str(e)}")
-                raise
-
-        @self.mcp.tool()
-        async def assign_sprint(
-            issue_keys: str,
-            sprint_name: str,
-            board_name: Optional[str] = None,
-            board_id: Optional[int] = None,
-            ctx: Optional[Context] = None
-        ) -> SprintAssignmentResponse:
-            """Assign issues to a sprint by name.
-
-            Resolves the board (from param or config default), finds the sprint
-            by name, and adds the issues to it.
-
-            Args:
-                issue_keys: Comma-separated issue keys (e.g., 'ACM-26041,ACM-30198')
-                sprint_name: Exact sprint name (e.g., 'ACM Console Train 37 - 1')
-                board_name: Board name to search (uses config default if omitted)
-                board_id: Board ID (overrides board_name lookup if provided)
-                ctx: MCP context for progress reporting
-            """
-            if ctx:
-                await ctx.info(f"Assigning {issue_keys} to sprint '{sprint_name}'")
-
-            try:
-                keys = [k.strip() for k in issue_keys.split(',') if k.strip()]
-                if not keys:
-                    raise ValueError("No issue keys provided")
-
-                # Resolve board ID
-                resolved_board_id = board_id
-                if resolved_board_id is None:
-                    # Try board_name param, then config defaults
-                    search_name = board_name or self.config.default_board_name
-                    if self.config.default_board_id and not board_name:
-                        resolved_board_id = self.config.default_board_id
-                    elif search_name:
-                        if ctx:
-                            await ctx.info(f"Looking up board '{search_name}'")
-                        boards = await self.client.list_boards(name=search_name)
-                        if not boards:
-                            raise ValueError(f"No board found matching '{search_name}'")
-                        resolved_board_id = boards[0]['id']
-                    else:
-                        raise ValueError(
-                            "No board specified. Provide board_id, board_name, "
-                            "or set JIRA_DEFAULT_BOARD_ID / JIRA_DEFAULT_BOARD_NAME env vars."
-                        )
-
-                # Find sprint by name
-                if ctx:
-                    await ctx.info(f"Looking up sprint '{sprint_name}' on board {resolved_board_id}")
-                
-                # Search active and future sprints
-                target_sprint = None
-                for state in ['active', 'future']:
-                    sprints = await self.client.list_sprints(resolved_board_id, state=state)
-                    for s in sprints:
-                        if s['name'] == sprint_name:
-                            target_sprint = s
-                            break
-                    if target_sprint:
-                        break
-
-                if not target_sprint:
-                    raise ValueError(
-                        f"Sprint '{sprint_name}' not found in active or future sprints "
-                        f"on board {resolved_board_id}"
-                    )
-
-                # Add issues to sprint
-                sprint_id = target_sprint['id']
-                if ctx:
-                    await ctx.info(f"Adding {len(keys)} issues to sprint {sprint_id}")
-                await self.client.add_to_sprint(sprint_id, keys)
-
-                if ctx:
-                    await ctx.info(f"Successfully assigned {len(keys)} issues to '{sprint_name}'")
-                return SprintAssignmentResponse(
-                    sprint_name=sprint_name,
-                    sprint_id=sprint_id,
-                    issue_keys=keys,
-                    assigned=True
-                )
-            except Exception as e:
-                if ctx:
-                    await ctx.error(f"Failed to assign sprint: {str(e)}")
-                raise
-
     def _setup_resources(self) -> None:
         """Set up MCP resources for Jira data."""
         
@@ -1348,6 +1306,43 @@ class JiraMCPServer:
             except Exception as e:
                 return f"Error fetching projects: {str(e)}"
     
+    async def _check_for_updates(self) -> None:
+        """Check if origin/main has commits not present locally."""
+        try:
+            # Find the repo root (server may be installed anywhere)
+            repo_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            git_dir = os.path.join(repo_dir, ".git")
+            if not os.path.isdir(git_dir):
+                return
+
+            # Fetch latest refs from origin (quiet, no output)
+            subprocess.run(
+                ["git", "fetch", "origin", "main", "--quiet"],
+                cwd=repo_dir, capture_output=True, timeout=10
+            )
+
+            # Count commits on origin/main that are not in local HEAD
+            result = subprocess.run(
+                ["git", "rev-list", "HEAD..origin/main", "--count"],
+                cwd=repo_dir, capture_output=True, text=True, timeout=5
+            )
+            if result.returncode == 0:
+                count = int(result.stdout.strip())
+                if count > 0:
+                    self._update_warning = (
+                        f"jira-mcp-server update available: origin/main is {count} "
+                        f"commit(s) ahead. Run 'git pull' in {repo_dir} to update."
+                    )
+                    logger.warning(self._update_warning)
+        except Exception as e:
+            logger.debug(f"Update check failed (non-fatal): {e}")
+
+    async def _emit_update_warning(self, ctx: Optional[Context]) -> None:
+        """Emit update warning once per session via MCP context."""
+        if self._update_warning and not self._update_warning_emitted and ctx:
+            await ctx.warning(self._update_warning)
+            self._update_warning_emitted = True
+
     async def start(self) -> None:
         """Start the MCP server."""
         try:
@@ -1355,6 +1350,7 @@ class JiraMCPServer:
             await self.client.connect()
             logger.info("Connected to Jira successfully")
             logger.info(f"Server URL: {self.config.server_url}")
+            await self._check_for_updates()
         except Exception as e:
             logger.error(f"Failed to start server: {e}")
             raise

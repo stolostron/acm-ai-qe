@@ -59,7 +59,7 @@ create_issue(
     description="The login button is not responding to clicks",
     issue_type="Bug",
     priority="High",
-    work_type="46654",
+    work_type="10610",
     due_date="2025-12-31",
     components=["ui", "be"]  # Will resolve to ["User Interface", "Backend Services"]
 )
@@ -72,7 +72,7 @@ create_issue(
 update_issue(
     issue_key="ACM-123",
     priority="High",
-    work_type="46654",
+    work_type="10610",
     due_date="2025-12-31",
     components=["ui", "db"]  # Mix of aliases
 )
@@ -88,7 +88,7 @@ create_issue(
     description="Optimize database queries for better performance",
     issue_type="Task",
     priority="Medium",
-    work_type="46654",
+    work_type="10610",
     due_date="2025-12-31",
     components=["db", "Performance Testing"]  # Alias + actual name
 )
@@ -281,7 +281,7 @@ create_issue(
     description="Addon fails to deploy on new clusters",
     issue_type="Bug",
     priority="High",
-    work_type="46651",  # Incident & Support
+    work_type="10607",  # Incident & Support
     due_date="2025-11-30",
     components=["addon", "hcp"]  # Resolves to actual component names
 )
@@ -304,7 +304,7 @@ create_issue(
     description="Response times increased by 50% in production",
     issue_type="Bug",
     priority="Critical",
-    work_type="46651",
+    work_type="10607",
     due_date="2025-11-20",
     components=["fe", "api", "db"]  # Three components with short aliases
 )

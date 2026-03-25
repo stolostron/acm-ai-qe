@@ -22,7 +22,7 @@ from typing import Optional, Dict, List
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=True)
 
 
 class JiraConfig(BaseModel):
@@ -36,8 +36,6 @@ class JiraConfig(BaseModel):
     max_results: int = Field(default=100, description="Maximum results per request")
     teams: Dict[str, List[str]] = Field(default_factory=dict, description="Team definitions mapping team names to member usernames")
     component_aliases: Dict[str, str] = Field(default_factory=dict, description="Component alias definitions mapping aliases to actual component names")
-    default_board_id: Optional[int] = Field(default=None, description="Default agile board ID for sprint operations")
-    default_board_name: Optional[str] = Field(default=None, description="Default agile board name for sprint operations")
 
     @classmethod
     def from_env(cls) -> "JiraConfig":
@@ -65,11 +63,6 @@ class JiraConfig(BaseModel):
             # If component aliases JSON is invalid, just use empty dict
             pass
         
-        # Parse default board settings
-        default_board_id_str = os.getenv("JIRA_DEFAULT_BOARD_ID")
-        default_board_id = int(default_board_id_str) if default_board_id_str else None
-        default_board_name = os.getenv("JIRA_DEFAULT_BOARD_NAME")
-        
         return cls(
             server_url=os.getenv("JIRA_SERVER_URL", ""),
             access_token=os.getenv("JIRA_ACCESS_TOKEN", ""),
@@ -79,8 +72,6 @@ class JiraConfig(BaseModel):
             max_results=int(os.getenv("JIRA_MAX_RESULTS", "100")),
             teams=teams,
             component_aliases=component_aliases,
-            default_board_id=default_board_id,
-            default_board_name=default_board_name,
         )
 
     def is_cloud(self) -> bool:

@@ -45,6 +45,7 @@ class ReportFormatter:
         'PRODUCT_BUG': '🔴',
         'AUTOMATION_BUG': '🟡',
         'INFRASTRUCTURE': '🔵',
+        'MIXED': '🟠',
         'UNKNOWN': '⚪',
         'REQUIRES_INVESTIGATION': '⚪',
         'NO_BUG': '🟢',

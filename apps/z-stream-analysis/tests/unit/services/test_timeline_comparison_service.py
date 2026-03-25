@@ -538,5 +538,153 @@ class TestEdgeCases:
         assert result.timeout_count == 0
 
 
+class TestExtractElementIdCSS:
+    """Test CSS class selector extraction (new functionality)."""
+
+    def setup_method(self):
+        self.service = TimelineComparisonService()
+
+    def test_css_class_selector(self):
+        assert self.service.extract_element_id(".pf-v6-c-menu__list-item") == "pf-v6-c-menu__list-item"
+
+    def test_carbon_css_class(self):
+        assert self.service.extract_element_id(".tf--list-box__menu-item") == "tf--list-box__menu-item"
+
+    def test_simple_css_class(self):
+        assert self.service.extract_element_id(".btn-primary") == "btn-primary"
+
+    def test_complex_css_not_treated_as_single_class(self):
+        """Complex selectors with spaces/combinators should NOT use the CSS class path."""
+        result = self.service.extract_element_id(".parent > .child")
+        # Falls through to generic strip -- not treated as a single CSS class
+        assert ">" in result  # preserves the combinator, indicating it wasn't parsed as a class
+
+
+class TestParseDiffForSelectors:
+    """Test git diff parsing for selector changes."""
+
+    def setup_method(self):
+        self.service = TimelineComparisonService()
+
+    def test_parse_data_testid_change(self):
+        diff = '''diff --git a/src/Component.tsx b/src/Component.tsx
+--- a/src/Component.tsx
++++ b/src/Component.tsx
+@@ -10,3 +10,3 @@
+-  <Button data-testid="create-cluster-btn">Create</Button>
++  <Button data-testid="create-cluster-button">Create</Button>
+'''
+        changes = self.service._parse_diff_for_selectors(diff)
+        assert len(changes) == 1
+        assert 'create-cluster-btn' in changes[0]['removed_selectors']
+        assert 'create-cluster-button' in changes[0]['added_selectors']
+
+    def test_parse_classname_change(self):
+        diff = '''diff --git a/src/Dropdown.tsx b/src/Dropdown.tsx
+--- a/src/Dropdown.tsx
++++ b/src/Dropdown.tsx
+@@ -5,3 +5,3 @@
+-  <ul className="tf--list-box__menu">
++  <ul className="pf-v6-c-menu__list">
+'''
+        changes = self.service._parse_diff_for_selectors(diff)
+        assert len(changes) == 1
+        assert 'tf--list-box__menu' in changes[0]['removed_selectors']
+        assert 'pf-v6-c-menu__list' in changes[0]['added_selectors']
+
+    def test_parse_aria_label_change(self):
+        diff = '''diff --git a/src/Search.tsx b/src/Search.tsx
+--- a/src/Search.tsx
++++ b/src/Search.tsx
+@@ -1,3 +1,3 @@
+-  <input aria-label="Search input" />
++  <input aria-label="Search clusters" />
+'''
+        changes = self.service._parse_diff_for_selectors(diff)
+        assert len(changes) == 1
+        assert 'Search input' in changes[0]['removed_selectors']
+        assert 'Search clusters' in changes[0]['added_selectors']
+
+    def test_unchanged_selectors_not_reported(self):
+        diff = '''diff --git a/src/Foo.tsx b/src/Foo.tsx
+--- a/src/Foo.tsx
++++ b/src/Foo.tsx
+@@ -1,3 +1,3 @@
+-  <div data-testid="stable-id">old text</div>
++  <div data-testid="stable-id">new text</div>
+'''
+        changes = self.service._parse_diff_for_selectors(diff)
+        assert len(changes) == 0
+
+    def test_empty_diff(self):
+        changes = self.service._parse_diff_for_selectors('')
+        assert changes == []
+
+    def test_multiple_classes_split(self):
+        diff = '''diff --git a/src/Card.tsx b/src/Card.tsx
+--- a/src/Card.tsx
++++ b/src/Card.tsx
+@@ -1,3 +1,3 @@
+-  <div className="card-old card-primary">
++  <div className="card-new card-primary">
+'''
+        changes = self.service._parse_diff_for_selectors(diff)
+        assert len(changes) == 1
+        assert 'card-old' in changes[0]['removed_selectors']
+        assert 'card-new' in changes[0]['added_selectors']
+        assert 'card-primary' not in changes[0]['removed_selectors']
+
+
+class TestCrossReferenceSelector:
+    """Test cross-referencing a failing selector against cached changes."""
+
+    def setup_method(self):
+        self.service = TimelineComparisonService()
+
+    def test_exact_match(self):
+        changes = {
+            'changes': [{
+                'file': 'src/Dropdown.tsx',
+                'removed_selectors': ['create-cluster-btn'],
+                'added_selectors': ['create-cluster-button'],
+            }],
+            'lookback_commits': 200,
+        }
+        result = self.service.cross_reference_selector('#create-cluster-btn', changes)
+        assert result['match_found'] is True
+        assert result['matches'][0]['removed_selector'] == 'create-cluster-btn'
+        assert 'create-cluster-button' in result['matches'][0]['added_selectors']
+
+    def test_css_class_match(self):
+        changes = {
+            'changes': [{
+                'file': 'src/List.tsx',
+                'removed_selectors': ['tf--list-box__menu-item'],
+                'added_selectors': ['pf-v6-c-menu__list-item'],
+            }],
+            'lookback_commits': 200,
+        }
+        result = self.service.cross_reference_selector('.tf--list-box__menu-item', changes)
+        assert result['match_found'] is True
+        assert 'pf-v6-c-menu__list-item' in result['matches'][0]['added_selectors']
+
+    def test_no_match(self):
+        changes = {
+            'changes': [{
+                'file': 'src/Other.tsx',
+                'removed_selectors': ['unrelated-id'],
+                'added_selectors': ['other-id'],
+            }],
+            'lookback_commits': 200,
+        }
+        result = self.service.cross_reference_selector('#my-selector', changes)
+        assert result['match_found'] is False
+        assert result['matches'] == []
+
+    def test_empty_changes(self):
+        result = self.service.cross_reference_selector('#foo', {'changes': [], 'lookback_commits': 200})
+        assert result['match_found'] is False
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

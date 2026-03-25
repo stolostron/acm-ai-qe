@@ -16,7 +16,6 @@
 
 """Jira client wrapper for MCP server."""
 
-import re
 import asyncio
 from typing import List, Dict, Any, Optional
 from jira import JIRA
@@ -378,30 +377,50 @@ class JiraClient:
         """Search for Jira users by name or email.
 
         Args:
-            query: Search query (name, email, or username - supports fuzzy matching)
+            query: Search query (name, email, or display name)
             max_results: Maximum number of results to return (default: 50)
 
         Returns:
-            List of user dictionaries with key, name, displayName, and emailAddress
+            List of user dictionaries with account_id, name, display_name, email_address, active
         """
         if not self._jira:
             raise RuntimeError("Not connected to Jira")
 
         try:
-            users = await self._async_call(
-                lambda: self._jira.search_users(query, maxResults=max_results)
-            )
-
-            return [
-                {
-                    'account_id': getattr(user, 'accountId', None),
-                    'name': getattr(user, 'name', None),
-                    'display_name': getattr(user, 'displayName', ''),
-                    'email_address': getattr(user, 'emailAddress', None),
-                    'active': getattr(user, 'active', True)
-                }
-                for user in users
-            ]
+            if self.config.is_cloud():
+                url = f"{self._jira._options['server']}/rest/api/3/user/search"
+                response = await self._async_call(
+                    lambda: self._jira._session.get(
+                        url, params={'query': query, 'maxResults': max_results}
+                    )
+                )
+                if not response.ok:
+                    raise ValueError(f"User search failed: HTTP {response.status_code}")
+                users_data = response.json()
+                return [
+                    {
+                        'account_id': u.get('accountId'),
+                        'name': u.get('name'),
+                        'display_name': u.get('displayName', ''),
+                        'email_address': u.get('emailAddress'),
+                        'active': u.get('active', True)
+                    }
+                    for u in users_data
+                ]
+            else:
+                users = await self._async_call(
+                    lambda: self._jira.search_users(query, maxResults=max_results)
+                )
+                return [
+                    {
+                        'account_id': getattr(user, 'accountId', None),
+                        'name': getattr(user, 'name', None),
+                        'display_name': getattr(user, 'displayName', ''),
+                        'email_address': getattr(user, 'emailAddress', None),
+                        'active': getattr(user, 'active', True)
+                    }
+                    for user in users
+                ]
         except JIRAError as e:
             raise ValueError(f"Failed to search users: {e}")
 
@@ -461,6 +480,26 @@ class JiraClient:
         except JIRAError as e:
             raise ValueError(f"Failed to get raw fields for issue {issue_key}: {e}")
     
+    async def get_editmeta(self, issue_key: str) -> Dict[str, Any]:
+        """Get edit metadata for an issue, describing each editable field's schema.
+
+        Returns a dict mapping field IDs to their schema info (name, type, items, etc.).
+        """
+        if not self._jira:
+            raise RuntimeError("Not connected to Jira")
+
+        try:
+            url = f"{self._jira._options['server']}/rest/api/2/issue/{issue_key}/editmeta"
+            response = await self._async_call(
+                lambda: self._jira._session.get(url)
+            )
+            if not response.ok:
+                raise ValueError(f"Failed to get edit metadata for {issue_key}: HTTP {response.status_code}")
+            data = response.json()
+            return data.get('fields', {})
+        except JIRAError as e:
+            raise ValueError(f"Failed to get edit metadata for {issue_key}: {e}") from e
+
     async def add_watcher(self, issue_key: str, username: str) -> Dict[str, Any]:
         """Add a watcher to an issue.
         
@@ -571,77 +610,6 @@ class JiraClient:
             'total_failed': len(failures)
         }
     
-    async def list_boards(self, name: Optional[str] = None) -> List[Dict[str, Any]]:
-        """List agile boards, optionally filtered by name.
-        
-        Args:
-            name: Optional board name filter (substring match)
-            
-        Returns:
-            List of board dicts with id, name, type
-        """
-        if not self._jira:
-            raise RuntimeError("Not connected to Jira")
-        
-        try:
-            boards = await self._async_call(lambda: self._jira.boards(name=name))
-            return [
-                {
-                    'id': b.id,
-                    'name': b.name,
-                    'type': getattr(b, 'type', 'unknown')
-                }
-                for b in boards
-            ]
-        except JIRAError as e:
-            raise ValueError(f"Failed to list boards: {e}")
-    
-    async def list_sprints(self, board_id: int, state: Optional[str] = None) -> List[Dict[str, Any]]:
-        """List sprints for a board.
-        
-        Args:
-            board_id: Agile board ID
-            state: Optional state filter ('active', 'future', 'closed')
-            
-        Returns:
-            List of sprint dicts with id, name, state, startDate, endDate
-        """
-        if not self._jira:
-            raise RuntimeError("Not connected to Jira")
-        
-        try:
-            kwargs = {}
-            if state:
-                kwargs['state'] = state
-            sprints = await self._async_call(lambda: self._jira.sprints(board_id, **kwargs))
-            return [
-                {
-                    'id': s.id,
-                    'name': s.name,
-                    'state': getattr(s, 'state', None),
-                    'startDate': getattr(s, 'startDate', None),
-                    'endDate': getattr(s, 'endDate', None)
-                }
-                for s in sprints
-            ]
-        except JIRAError as e:
-            raise ValueError(f"Failed to list sprints for board {board_id}: {e}")
-    
-    async def add_to_sprint(self, sprint_id: int, issue_keys: List[str]) -> None:
-        """Add issues to a sprint.
-        
-        Args:
-            sprint_id: Sprint ID
-            issue_keys: List of issue keys to add
-        """
-        if not self._jira:
-            raise RuntimeError("Not connected to Jira")
-        
-        try:
-            await self._async_call(lambda: self._jira.add_issues_to_sprint(sprint_id, issue_keys))
-        except JIRAError as e:
-            raise ValueError(f"Failed to add issues to sprint {sprint_id}: {e}")
-    
     def _extract_custom_field_value(self, field_value):
         """Extract string value from custom field that might be a CustomFieldOption object."""
         if field_value is None:
@@ -746,42 +714,33 @@ class JiraClient:
         
         return " ".join(parts)
     
-    def _parse_sprint_field(self, sprint_data) -> Optional[str]:
-        """Parse sprint name from JIRA Server's Java object string.
-        
-        Sprint data is a list of strings like:
-        "com.atlassian.greenhopper...Sprint@...[id=82854,...,name=ACM Console Train 37 - 1,state=ACTIVE,...]"
-        Returns the name of the last (most recent) sprint.
-        """
-        if not sprint_data:
-            return None
-        for sprint_str in reversed(sprint_data):
-            match = re.search(r'name=([^,\]]+)', str(sprint_str))
-            if match:
-                return match.group(1)
-        return None
-    
     def _parse_issue_links(self, links) -> List[Dict[str, Any]]:
-        """Parse issue links into readable format."""
+        """Parse issue links into structured format."""
         result = []
-        for link in links:
-            link_type = link.type.name if hasattr(link, 'type') else 'unknown'
-            if hasattr(link, 'outwardIssue'):
+        for link in links or []:
+            try:
+                link_type = getattr(getattr(link, 'type', None), 'name', 'unknown')
+                outward = getattr(link, 'outwardIssue', None)
+                inward = getattr(link, 'inwardIssue', None)
+                target = outward or inward
+                if not target:
+                    continue
+
+                key = getattr(target, 'key', None)
+                if not key:
+                    continue
+
+                summary = getattr(getattr(target, 'fields', None), 'summary', None)
                 result.append({
                     'type': link_type,
-                    'direction': 'outward',
-                    'key': link.outwardIssue.key,
-                    'summary': link.outwardIssue.fields.summary
+                    'direction': 'outward' if outward else 'inward',
+                    'key': key,
+                    'summary': summary,
                 })
-            elif hasattr(link, 'inwardIssue'):
-                result.append({
-                    'type': link_type,
-                    'direction': 'inward',
-                    'key': link.inwardIssue.key,
-                    'summary': link.inwardIssue.fields.summary
-                })
+            except Exception:
+                continue
         return result
-    
+
     def _issue_to_dict(self, issue) -> Dict[str, Any]:
         """Convert Jira issue object to dictionary."""
         result = {
@@ -811,16 +770,16 @@ class JiraClient:
             ],
             'url': f"{self.config.server_url}/browse/{issue.key}",
             'fix_versions': [version.name for version in getattr(issue.fields, 'fixVersions', [])],
-            'target_version': [v.name for v in getattr(issue.fields, 'customfield_12319940', []) or []],  # Target Version custom field
-            'work_type': self._extract_custom_field_value(getattr(issue.fields, 'customfield_12320040', None)),  # Work type custom field
+            'target_version': [v.name for v in getattr(issue.fields, 'customfield_10855', []) or []],  # Target Version custom field
+            'work_type': self._extract_custom_field_value(getattr(issue.fields, 'customfield_10464', None)),  # Activity Type (formerly Work Type)
             'security_level': getattr(issue.fields.security, 'name', None) if getattr(issue.fields, 'security', None) else None,
             'due_date': getattr(issue.fields, 'duedate', None),
-            'target_start': getattr(issue.fields, 'customfield_12313941', None),  # Target Start custom field
-            'target_end': getattr(issue.fields, 'customfield_12313942', None),  # Target End custom field
+            'target_start': getattr(issue.fields, 'customfield_10022', None),  # Target Start custom field
+            'target_end': getattr(issue.fields, 'customfield_10023', None),  # Target End custom field
             'original_estimate': self._seconds_to_time_string(getattr(issue.fields, 'timeoriginalestimate', None)),
-            'story_points': getattr(issue.fields, 'customfield_12310243', None),  # Story points custom field
-            'git_commit': self._extract_custom_field_value(getattr(issue.fields, 'customfield_12317372', None)),  # Git Commit custom field
-            'git_pull_requests': self._extract_git_pull_requests(getattr(issue.fields, 'customfield_12310220', None)),  # Git Pull Requests custom field
+            'story_points': getattr(issue.fields, 'customfield_10028', None),  # Story points custom field
+            'git_commit': self._extract_custom_field_value(getattr(issue.fields, 'customfield_10583', None)),  # Git Commit custom field
+            'git_pull_requests': self._extract_git_pull_requests(getattr(issue.fields, 'customfield_10875', None)),  # Git Pull Requests custom field
             'subtasks': [
                 {
                     'key': subtask.key,
@@ -835,24 +794,62 @@ class JiraClient:
                 'summary': issue.fields.parent.fields.summary,
                 'issue_type': issue.fields.parent.fields.issuetype.name
             } if getattr(issue.fields, 'parent', None) else None,
-            # Sprint -- parse Java object string from customfield_12310940
-            'sprint': self._parse_sprint_field(getattr(issue.fields, 'customfield_12310940', None)),
-            # QA Contact
-            'qa_contact': getattr(getattr(issue.fields, 'customfield_12315948', None), 'name', None) or (str(getattr(issue.fields, 'customfield_12315948', None)) if getattr(issue.fields, 'customfield_12315948', None) else None),
-            # Epic Link -- for ALL issue types
-            'epic_link': getattr(issue.fields, 'customfield_12311140', None),
-            # Severity
-            'severity': self._extract_custom_field_value(getattr(issue.fields, 'customfield_12316142', None)),
-            # Affects Versions (standard field)
+            'parent_link': getattr(issue.fields, 'customfield_10014', None),  # Parent Link custom field
+            'epic_link': getattr(issue.fields, 'customfield_10014', None),  # Epic Link custom field
+            'sprint': self._extract_sprint(getattr(issue.fields, 'customfield_10020', None)),
+            'qa_contact': self._extract_user_display_name(getattr(issue.fields, 'customfield_10470', None)),
+            'severity': self._extract_custom_field_value(getattr(issue.fields, 'customfield_10840', None)),
             'affects_versions': [v.name for v in getattr(issue.fields, 'versions', []) or []],
-            # Acceptance Criteria
-            'acceptance_criteria': getattr(issue.fields, 'customfield_12315940', None),
-            # Reviewers
-            'reviewers': [getattr(r, 'name', str(r)) for r in (getattr(issue.fields, 'customfield_12315950', None) or [])],
-            # Issue Links
+            'acceptance_criteria': getattr(issue.fields, 'customfield_10718', None),
+            'contributors': self._extract_user_list(getattr(issue.fields, 'customfield_10466', None)),
             'issue_links': self._parse_issue_links(getattr(issue.fields, 'issuelinks', []) or []),
-            # Attachments (filenames only)
             'attachments': [a.filename for a in getattr(issue.fields, 'attachment', []) or []],
         }
 
+        return result
+
+    @staticmethod
+    def _extract_sprint(sprint_data) -> Optional[str]:
+        """Extract sprint name from Jira Cloud sprint field.
+
+        The field may be: a list of sprint objects (with .name), a list of
+        strings, a single object, or None.  Returns the name of the last
+        (most recent) sprint.
+        """
+        if not sprint_data:
+            return None
+        items = sprint_data if isinstance(sprint_data, list) else [sprint_data]
+        if not items:
+            return None
+        last = items[-1]
+        if hasattr(last, 'name'):
+            return last.name
+        return str(last) if last else None
+
+    @staticmethod
+    def _extract_user_display_name(field_value) -> Optional[str]:
+        """Extract display name from a user-type field (may be object or string)."""
+        if field_value is None:
+            return None
+        if hasattr(field_value, 'displayName'):
+            return field_value.displayName
+        return str(field_value) if field_value else None
+
+    @staticmethod
+    def _extract_user_list(field_value) -> List[str]:
+        """Extract list of display names from a multi-user field (may be strings or objects)."""
+        if not field_value:
+            return []
+        if isinstance(field_value, str):
+            field_value = [field_value]
+        elif not isinstance(field_value, (list, tuple)):
+            field_value = [field_value]
+        result = []
+        for item in field_value:
+            if hasattr(item, 'displayName'):
+                result.append(item.displayName)
+            elif isinstance(item, str):
+                result.append(item)
+            else:
+                result.append(str(item))
         return result

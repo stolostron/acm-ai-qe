@@ -6,7 +6,7 @@ One-stop reference for all Python services and the `ReportFormatter` class.
 
 ## Overview
 
-Z-Stream Analysis uses 16 service modules in `src/services/`, plus `ReportFormatter` in `src/scripts/report.py`. Services provide **factual data only** — all classification is performed by the AI agent in Stage 2.
+Z-Stream Analysis uses 16 service modules in `src/services/`, plus `ReportFormatter` in `src/scripts/report.py` and `DataGatherer` in `src/scripts/gather.py`. Services provide **factual data only** — all classification is performed by the AI agent in Stage 2.
 
 ```
 gather.py ──┬── JenkinsAPIClient ──────────── Jenkins REST API
@@ -51,7 +51,8 @@ Stage 1+2 ─── KnowledgeGraphClient ─────────── Neo4j
 |--------|-------------|
 | `analyze_jenkins_url(url)` | Full analysis: build info + console log + test report |
 | `_analyze_failure_patterns(console_log)` | Regex pattern matching for error categories |
-| `_classify_failure_type(error_text)` | Returns factual error type (timeout, element_not_found, network, etc.) |
+| `_classify_failure_type(error_text)` | Returns factual error type (timeout, element_not_found, network, assertion_data, assertion_selector, etc.) |
+| `_is_data_assertion(error_text)` | Static method. Returns True if assertion error involves data values rather than selectors (v3.3) |
 | `to_dict(intelligence)` | Convert result to serializable dictionary |
 
 ---
@@ -83,7 +84,7 @@ Stage 1+2 ─── KnowledgeGraphClient ─────────── Neo4j
 
 | Property | Value |
 |----------|-------|
-| **File** | `src/services/environment_validation_service.py` (624 lines) |
+| **File** | `src/services/environment_validation_service.py` (616 lines) |
 | **Purpose** | Cluster health checks using READ-ONLY oc/kubectl commands |
 | **Used by** | Stage 1, Step 4 |
 
@@ -129,7 +130,7 @@ Stage 1+2 ─── KnowledgeGraphClient ─────────── Neo4j
 |----------|-------|
 | **File** | `src/services/stack_trace_parser.py` (374 lines) |
 | **Purpose** | Parses JS/TS stack traces to extract file:line, error type, and failing selector |
-| **Used by** | Stage 1, Step 3 |
+| **Used by** | Stage 1, Steps 3 and 6 |
 
 **Key exports:** `StackTraceParser`, `StackFrame`, `ParsedStackTrace`, `parse_stack_trace`
 
@@ -139,7 +140,11 @@ Stage 1+2 ─── KnowledgeGraphClient ─────────── Neo4j
 |--------|-------------|
 | `parse(stack_trace)` | Parse full stack trace into structured frames |
 | `extract_failing_selector(error_message)` | Extract CSS selector from error text |
+| `extract_assertion_values(error_message)` | Extract expected vs actual values from assertion errors. Returns `{has_data_assertion, assertion_type, expected, actual, raw_assertion}` or None (v3.3) |
 | `get_context_range(frame, context_lines)` | Calculate line range for context |
+| `_classify_assertion_type(match, groups)` | Static method. Classifies assertion type from regex match (v3.3) |
+
+**Class data:** `ASSERTION_PATTERNS` — 8 regex patterns for extracting assertion values from Cypress/Chai, Jest, and generic assertion formats (v3.3)
 
 **Handles:** Webpack paths, Node.js format, async functions, Cypress error formats
 
@@ -149,9 +154,9 @@ Stage 1+2 ─── KnowledgeGraphClient ─────────── Neo4j
 
 | Property | Value |
 |----------|-------|
-| **File** | `src/services/timeline_comparison_service.py` (821 lines) |
-| **Purpose** | Compares git modification dates between automation and product repos |
-| **Used by** | Stage 1, Step 6 (timeline evidence) |
+| **File** | `src/services/timeline_comparison_service.py` (1027 lines) |
+| **Purpose** | Compares git modification dates between automation and product repos; detects recent selector changes via git diff |
+| **Used by** | Stage 1, Step 6 (timeline evidence), Step 9 (recent selector changes) |
 
 **Key exports:** `TimelineComparisonService`, `TimelineComparisonResult`, `ElementTimeline`, `SelectorTimeline`, `TimeoutPatternResult`
 
@@ -160,6 +165,8 @@ Stage 1+2 ─── KnowledgeGraphClient ─────────── Neo4j
 | Method | Description |
 |--------|-------------|
 | `compare_timelines(selector)` | Compare automation vs product modification dates |
+| `find_recent_selector_changes(lookback_commits)` | Scan git diff for selector additions/removals across last N commits (runs once, cached) |
+| `cross_reference_selector(failing_selector, changes)` | Match a failing selector against cached changes to find what replaced it |
 | `element_exists_in_console(element_id)` | Check if element exists in product repo |
 | `get_element_last_modified(element_id)` | Get last modification date for element |
 | `get_selector_last_modified(selector)` | Get last modification date for selector |
@@ -167,7 +174,7 @@ Stage 1+2 ─── KnowledgeGraphClient ─────────── Neo4j
 | `clone_console_to(branch, target_path, acm_version)` | Clone console repo to target |
 | `clone_kubevirt_to(branch, target_path)` | Clone kubevirt-plugin to target |
 
-**Key outputs:** `stale_test_signal`, `product_commit_type`, `element_removed`, `element_never_existed`
+**Key outputs:** `stale_test_signal`, `product_commit_type`, `element_removed`, `element_never_existed`, `recent_selector_changes`
 
 ---
 
@@ -200,7 +207,7 @@ Stage 1+2 ─── KnowledgeGraphClient ─────────── Neo4j
 
 | Property | Value |
 |----------|-------|
-| **File** | `src/services/acm_ui_mcp_client.py` (293 lines) |
+| **File** | `src/services/acm_ui_mcp_client.py` (295 lines) |
 | **Purpose** | Python MCP client for Stage 1 data gathering; Stage 2 uses Claude Code's native MCP |
 | **Used by** | Stage 1 (element inventory, CNV detection) |
 
@@ -248,7 +255,7 @@ Stage 1+2 ─── KnowledgeGraphClient ─────────── Neo4j
 
 | Property | Value |
 |----------|-------|
-| **File** | `src/services/knowledge_graph_client.py` |
+| **File** | `src/services/knowledge_graph_client.py` (533 lines) |
 | **Purpose** | Neo4j client for RHACM component dependency analysis via HTTP API |
 | **Used by** | Stage 1 (gather.py for kg_dependency_context) and Stage 2 (Phases B5/C2/E0 via MCP) |
 | **Connection** | Direct HTTP to Neo4j query API (`http://localhost:7474/db/neo4j/query/v2`). Configurable via `NEO4J_HTTP_URL`, `NEO4J_USER`, `NEO4J_PASSWORD` env vars. |
@@ -296,7 +303,7 @@ Stage 1+2 ─── KnowledgeGraphClient ─────────── Neo4j
 
 | Property | Value |
 |----------|-------|
-| **File** | `src/services/shared_utils.py` (482 lines) |
+| **File** | `src/services/shared_utils.py` (513 lines) |
 | **Purpose** | Common configuration, subprocess wrappers, credential handling, file detection |
 | **Used by** | All services |
 
@@ -304,7 +311,7 @@ Stage 1+2 ─── KnowledgeGraphClient ─────────── Neo4j
 
 | Category | Exports |
 |----------|---------|
-| **Config** | `TimeoutConfig`, `RepositoryConfig`, `ThresholdConfig`, `TIMEOUTS`, `REPOS`, `THRESHOLDS` |
+| **Config** | `TimeoutConfig`, `RepositoryConfig`, `ThresholdConfig`, `TIMEOUTS`, `REPOS`, `THRESHOLDS` (includes `INFRA_DEFINITIVE=0.3`, `INFRA_STRONG=0.5`, `INFRA_MODERATE=0.7` — v3.3) |
 | **Subprocess** | `run_subprocess`, `build_curl_command`, `execute_curl` |
 | **JSON** | `parse_json_response`, `safe_json_loads` |
 | **Credentials** | `get_jenkins_credentials`, `encode_basic_auth`, `get_auth_header`, `mask_sensitive_value`, `mask_sensitive_dict` |
@@ -316,7 +323,7 @@ Stage 1+2 ─── KnowledgeGraphClient ─────────── Neo4j
 
 | Property | Value |
 |----------|-------|
-| **File** | `src/scripts/report.py` (899 lines) |
+| **File** | `src/scripts/report.py` (1,049 lines) |
 | **Purpose** | Formats AI analysis results into Markdown, JSON, and text reports |
 | **Used by** | Stage 3 |
 
@@ -339,11 +346,11 @@ See [03-STAGE3-REPORT-GENERATION.md](03-STAGE3-REPORT-GENERATION.md) for details
 
 | Property | Value |
 |----------|-------|
-| **File** | `src/services/cluster_investigation_service.py` (523 lines) |
+| **File** | `src/services/cluster_investigation_service.py` (543 lines) |
 | **Purpose** | Cluster landscape snapshot + targeted pod-level diagnostics |
-| **Used by** | Stage 1, Step 4b (landscape); Stage 2, Phase B5b (pod investigation) |
+| **Used by** | Stage 1, Step 4 (landscape); Stage 2, Phase B5b (pod investigation) |
 
-**Key exports:** `ClusterInvestigationService`, `ClusterLandscape`, `PodDiagnostics`, `ComponentDiagnostics`
+**Key exports:** `ClusterInvestigationService`, `ClusterLandscape`, `PodDiagnostics`, `ComponentDiagnostics`, `FeatureAreaHealth` (v3.3)
 
 **Key methods:**
 
@@ -353,7 +360,12 @@ See [03-STAGE3-REPORT-GENERATION.md](03-STAGE3-REPORT-GENERATION.md) for details
 | `diagnose_component(component, namespace)` | Pod status, restart counts, events, log tails |
 | `diagnose_subsystem(subsystem)` | Diagnose all components in a subsystem |
 | `get_resource_pressure()` | Check CPU/memory/disk/PID pressure on nodes |
+| `get_feature_area_health(feature_area, landscape)` | Calculate health score for a feature area based on its components. Returns `FeatureAreaHealth` (v3.3) |
+| `get_all_feature_area_health(feature_areas)` | Calculate health scores for multiple feature areas. Returns `Dict[str, FeatureAreaHealth]` (v3.3) |
+| `_score_to_signal(score)` | Static method. Converts health score to signal strength using `THRESHOLDS.INFRA_*` constants (v3.3) |
 | `to_dict(obj)` | Convert result to dictionary |
+
+**Class data:** `FEATURE_AREA_SUBSYSTEM_MAP` — maps 10 feature areas (GRC, Search, CLC, etc.) to subsystem names for health scoring (v3.3)
 
 **Safety:** READ-ONLY operations only (same as EnvironmentValidationService). Validates all commands against a whitelist.
 
@@ -363,7 +375,7 @@ See [03-STAGE3-REPORT-GENERATION.md](03-STAGE3-REPORT-GENERATION.md) for details
 
 | Property | Value |
 |----------|-------|
-| **File** | `src/services/feature_area_service.py` (374 lines) |
+| **File** | `src/services/feature_area_service.py` (386 lines) |
 | **Purpose** | Maps failed tests to feature areas (CLC, Search, GRC, etc.) with subsystem context |
 | **Used by** | Stage 1, Step 6 (feature grounding in core-data.json) |
 
@@ -384,9 +396,9 @@ See [03-STAGE3-REPORT-GENERATION.md](03-STAGE3-REPORT-GENERATION.md) for details
 
 | Property | Value |
 |----------|-------|
-| **File** | `src/services/feature_knowledge_service.py` (355 lines) |
+| **File** | `src/services/feature_knowledge_service.py` (354 lines) |
 | **Purpose** | Loads feature investigation playbooks (YAML), checks prerequisites against cluster state, matches error symptoms to known failure paths |
-| **Used by** | Stage 1, Step 6c (feature knowledge in core-data.json) |
+| **Used by** | Stage 1, Step 8 (feature knowledge in core-data.json) |
 
 **Key exports:** `FeatureKnowledgeService`, `FeatureReadiness`, `PrerequisiteCheck`, `MatchedFailurePath`
 
@@ -427,6 +439,32 @@ See [03-STAGE3-REPORT-GENERATION.md](03-STAGE3-REPORT-GENERATION.md) for details
 
 ---
 
+### 18. DataGatherer (gather.py)
+
+| Property | Value |
+|----------|-------|
+| **File** | `src/scripts/gather.py` (3,649 lines) |
+| **Purpose** | Stage 1 orchestrator: extracts test data from Jenkins, validates environment, gathers context, probes backend APIs |
+| **Used by** | Stage 1 (all steps) |
+
+**Backend API probing methods (v3.3):**
+
+| Method | Description |
+|--------|-------------|
+| `_probe_backend_apis()` | Orchestrates all 5 probes, stores results in `gathered_data['backend_probes']` |
+| `_find_console_api_pod(cli, kubeconfig_args)` | Finds a running console-api pod for in-pod curl execution |
+| `_get_bearer_token(cli, kubeconfig_args)` | Gets bearer token via `oc whoami -t` |
+| `_exec_curl_in_pod(cli, kubeconfig_args, pod_name, namespace, token, path, method, data, timeout)` | Executes curl inside the console pod |
+| `_probe_authenticated(...)` | Probes `/authenticated` endpoint |
+| `_probe_hub(...)` | Probes `/hub` and validates against cluster landscape |
+| `_probe_username(...)` | Probes `/username` and checks for reversed format |
+| `_probe_ansibletower(...)` | Probes `/ansibletower` and validates against AAP status |
+| `_probe_search(...)` | Probes `/proxy/search` with basic Pod query |
+
+**Class data:** `FEATURE_AREA_PROBE_MAP` — maps 10 feature areas to probe endpoint names (Automation→ansibletower, CLC→hub, RBAC→username, Search→search, All→authenticated)
+
+---
+
 ## Service-to-Stage Mapping
 
 | Service | Stage 1 | Stage 2 | Stage 3 |
@@ -434,16 +472,16 @@ See [03-STAGE3-REPORT-GENERATION.md](03-STAGE3-REPORT-GENERATION.md) for details
 | JenkinsAPIClient | Steps 1-3 | | |
 | JenkinsIntelligenceService | Steps 1-3 | | |
 | EnvironmentValidationService | Step 4 | | |
-| RepositoryAnalysisService | Steps 5-7 | | |
-| StackTraceParser | Step 3 | | |
+| RepositoryAnalysisService | Step 5 | | |
+| StackTraceParser | Steps 3, 6 | | |
 | TimelineComparisonService | Step 6 | | |
 | ACMConsoleKnowledge | Step 6 | Phase B | |
-| ACMUIMCPClient | Steps 5, 7 | | |
+| ACMUIMCPClient | Steps 5, 9 | | |
 | ComponentExtractor | Step 6 | | |
-| KnowledgeGraphClient | | Phases B5, C2, E0 | |
-| ClusterInvestigationService | Step 4b | Phase B5b | |
-| FeatureAreaService | Step 6 | | |
-| FeatureKnowledgeService | Step 6c | | |
+| KnowledgeGraphClient | Step 8 | Phases B5, C2, E0 | |
+| ClusterInvestigationService | Step 4 | Phase B5b | |
+| FeatureAreaService | Step 7 | | |
+| FeatureKnowledgeService | Step 8 | | |
 | SchemaValidationService | | | Input validation |
 | shared_utils | All steps | | |
 | ReportFormatter | | | All output |
@@ -455,8 +493,7 @@ See [03-STAGE3-REPORT-GENERATION.md](03-STAGE3-REPORT-GENERATION.md) for details
 
 | Metric | Value |
 |--------|-------|
-| Total service lines | ~8,400 |
-| Service files | 16 (+ReportFormatter) |
-| Data classes | 24+ |
-| Public methods | ~150 |
+| Total service lines | ~7,740 (services only, excl. `__init__.py`) |
+| Service files | 16 (+ReportFormatter, +DataGatherer) |
+| Data classes | 36 |
 | Configuration | Centralized in shared_utils |

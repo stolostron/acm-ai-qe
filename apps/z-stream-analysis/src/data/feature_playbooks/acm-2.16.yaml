@@ -45,9 +45,9 @@ profiles:
       - id: ccm-mch-component
         type: mch_component
         check_spec:
-          component_name: cnv-mtv-integrations-preview
+          component_name: cnv-mtv-integrations
         default_enabled: false
-        description: cnv-mtv-integrations-preview MCH component enabled
+        description: cnv-mtv-integrations MCH component enabled
       - id: cnv-source-cluster
         type: operator
         check_spec:
@@ -96,7 +96,7 @@ profiles:
         investigation:
           - step: Check MCH flag
             command: "oc get mch -A -o jsonpath='{.items[0].spec.overrides.components}'"
-            expect: "cnv-mtv-integrations-preview with enabled=true"
+            expect: "cnv-mtv-integrations with enabled=true"
             if_not: "Migration feature flag disabled"
           - step: Check MTV operator
             command: "oc get csv -n openshift-mtv"

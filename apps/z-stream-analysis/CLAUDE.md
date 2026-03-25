@@ -1,6 +1,6 @@
-# Z-Stream Pipeline Analysis (v3.2)
+# Z-Stream Pipeline Analysis (v3.3)
 
-Enterprise Jenkins pipeline failure analysis with definitive PRODUCT BUG | AUTOMATION BUG | INFRASTRUCTURE classification. v3.2 adds blank page pre-routing, hook failure deduplication, temporal evidence routing, Automation/AAP playbook, and a working Knowledge Graph client.
+Enterprise Jenkins pipeline failure analysis with definitive PRODUCT BUG | AUTOMATION BUG | INFRASTRUCTURE classification. v3.3 adds assertion value extraction (expected vs actual), per-feature-area graduated infrastructure health scoring, per-test causal link verification, and failure mode categorization.
 
 ## Quick Start
 
@@ -48,11 +48,14 @@ See `docs/00-OVERVIEW.md` for the full decision routing table. Summary:
 - **PR-1** Blank page / no-js pre-check — if page is blank due to missing prerequisite (AAP, IDP, CNV), route to INFRASTRUCTURE (v3.2)
 - **PR-2** Hook failure dedup — if after-all hook cascades from prior failure, classify NO_BUG (v3.2)
 - **PR-3** Temporal evidence — if `stale_test_signal=true` with refactor/rename commit, signal PRODUCT_BUG (v3.2)
+- **PR-5** Data assertion pre-check — if `failure_mode_category=data_incorrect` with assertion values extracted, signal PRODUCT_BUG (v3.3)
+- **PR-6** Backend probe source-of-truth — if probe has `classification_hint`, use deterministic K8s-vs-console comparison to route PRODUCT_BUG or INFRASTRUCTURE (v3.4)
 - **PR-4** Check feature knowledge override FIRST — if tiered investigation confirmed a playbook failure path, use playbook classification (v3.1)
 - **D0** Check backend cross-check — if backend caused UI failure, route to Path B2
 - **Path A** (selector mismatch, no backend issue) → AUTOMATION_BUG
-- **Path B1** (non-selector timeout) → INFRASTRUCTURE
+- **Path B1** (non-selector timeout, graduated per-area health scoring) → INFRASTRUCTURE (v3.3)
 - **Path B2** (everything else OR backend cross-check override) → JIRA-informed investigation → PRODUCT_BUG or AUTOMATION_BUG
+- **D4b** Per-test causal link verification — dominant signal must have causal mechanism to each test's failure mode (v3.3)
 
 ## Multi-Evidence Requirement
 
@@ -70,6 +73,17 @@ See `docs/00-OVERVIEW.md` for the full decision routing table. Summary:
   {"source": "timeline_evidence", "finding": "element_removed", "tier": 1}
 ]
 ```
+
+## New in v3.3
+
+- **Assertion value extraction** (Phase PR-5) — parses Cypress/Chai `expected X to equal Y` errors to extract expected vs actual values, identifying data-level failures (API returned wrong data) vs selector-level failures
+- **Failure mode categorization** — each test classified as `render_failure`, `element_missing`, `data_incorrect`, `timeout_general`, `assertion_logic`, `server_error`, or `unknown` — enabling causal link verification
+- **Refined failure types** — `assertion` split into `assertion_data` (value/count comparisons) and `assertion_selector` (element existence/visibility)
+- **Per-feature-area health scoring** (GAP-04) — `ClusterInvestigationService.get_feature_area_health()` computes per-area health scores with graduated bands: definitive (<0.3), strong (0.3-0.5), moderate (0.5-0.7), none (>0.7)
+- **Per-test causal link verification** (Phase D4b) — every test attributed to a dominant pattern must have a documented causal mechanism linking the pattern to the specific error; incompatible failure modes trigger independent re-investigation
+- **Counter-bias validation strengthened** (Phase D5) — 3-test threshold rule: if 3+ tests share the same root_cause, at least 1 must be independently re-investigated
+- **Backend API probing** (Step 4c) — probes 5 console backend endpoints (`/authenticated`, `/hub`, `/username`, `/ansibletower`, `/proxy/search`) via `oc exec` + curl, cross-references responses against cluster landscape to detect data anomalies (wrong hub name, reversed username, empty results)
+- **New schema fields** — `failure_mode_category`, `assertion_analysis` per test; `data_assertion_failures`, `feature_area_health` in summary; `backend_probes` in core-data.json
 
 ## New in v3.2
 
@@ -112,8 +126,25 @@ Each failed test includes pre-extracted context in core-data.json:
 - `page_objects` - imported selector definitions
 - `console_search.found` - whether selector exists in product
 - `detected_components` - backend components for Knowledge Graph
+- `recent_selector_changes` - git diff analysis showing what replaced a removed selector (added/removed selectors from recent commits)
+- `assertion_analysis` - parsed expected vs actual values from assertion errors (v3.3)
+- `failure_mode_category` - categorized failure mode: `render_failure`, `element_missing`, `data_incorrect`, `timeout_general`, `assertion_logic`, `server_error`, `unknown` (v3.3)
 
 Use extracted_context first. Only access repos/ if insufficient.
+
+## Backend Probes
+
+core-data.json includes `backend_probes` (v3.3) — responses from 5 console backend API endpoints probed via `oc exec` + curl during Stage 1 Step 4c. Each probe has `response_valid` (boolean) and `anomalies` (list). Used by Phase B7c as Tier 1 evidence when probe anomalies match the test's feature area.
+
+| Probe | Endpoint | Validates | Feature Areas |
+|---|---|---|---|
+| `authenticated` | `/authenticated` | Response time < 5s | All |
+| `hub` | `/hub` | Hub name matches MCH | CLC, Infrastructure, Observability |
+| `username` | `/username` | Not reversed (`kube:admin`) | RBAC |
+| `ansibletower` | `/ansibletower` | Non-empty if AAP healthy | Automation |
+| `search` | `/proxy/search` | Returns Pods | Search |
+
+Skipped when `--skip-env` is used or cluster access is unavailable.
 
 ## MCP Servers Available
 
@@ -121,9 +152,11 @@ Three MCP servers provide tools during Stage 2 (AI Analysis). New users: run `ba
 
 | Server | Tools | Purpose |
 |--------|-------|---------|
-| ACM-UI | 20 | ACM Console + kubevirt-plugin source code search via GitHub |
-| JIRA | 24 | Issue search, creation, management for bug correlation |
-| Knowledge Graph (Neo4j RHACM) | 3 | Component dependency analysis via Cypher queries (optional) |
+| ACM-UI | 19 | ACM Console + kubevirt-plugin source code search via GitHub |
+| JIRA | 25 | Issue search, creation, management for bug correlation (Jira Cloud) |
+| Knowledge Graph (Neo4j RHACM) | 2 | Component dependency analysis via Cypher queries (optional) |
+
+**JIRA Cloud:** Uses basic auth (email + API token). Create `mcp/jira-mcp-server/.env` from `.env.example` with your credentials, or run `bash mcp/setup.sh`. The config uses `load_dotenv(override=True)` so `.env` always takes precedence over shell vars. API token: https://id.atlassian.com/manage-profile/security/api-tokens
 
 **Knowledge Graph:** The KG client (`knowledge_graph_client.py`) queries Neo4j directly via HTTP API (`http://localhost:7474`). It works in both Stage 1 (gather.py populates `kg_dependency_context` in core-data.json) and Stage 2 (AI agent uses MCP tools for ad-hoc queries). Requires `podman start neo4j-rhacm neo4j-mcp`. Connection settings configurable via `NEO4J_HTTP_URL`, `NEO4J_USER`, `NEO4J_PASSWORD` env vars (defaults: `localhost:7474`, `neo4j`, `rhacmgraph`).
 
@@ -170,25 +203,25 @@ python -m src.scripts.feedback --stats           # View accuracy stats
 # Regression tests (fast, no external deps — 47 tests):
 python -m pytest tests/regression/ -v
 
-# Unit tests (382 tests):
+# Unit tests (478 tests):
 python -m pytest tests/unit/ -v
 
-# Unit + regression (429 tests):
+# Unit + regression (525 tests):
 python -m pytest tests/unit/ tests/regression/ -v
 
 # Integration tests (requires Jenkins VPN — 50 tests):
 python -m pytest tests/integration/ -v --timeout=300
 
-# All tests (479 total):
+# All tests (575 total):
 python -m pytest tests/ -v --timeout=300
 ```
 
 ### Test Structure
 
-- `tests/unit/` — 382 unit tests across 13 service/script files
+- `tests/unit/` — 478 unit tests across 17 service/script files
 - `tests/regression/` — 47 regression tests for cross-module consistency, playbook quality, AI instructions, schema coverage
 - `tests/integration/` — 50 integration tests for Stage 1 gather, Stage 3 report, and cross-stage data contracts
-- `tests/fixtures/` — Synthetic analysis-results.json exercising all v3.2 schema fields
+- `tests/fixtures/` — Synthetic analysis-results.json exercising v3.2+ schema fields
 
 ## File Structure
 
@@ -206,8 +239,8 @@ z-stream-analysis/
 │   └── feature_playbooks/ # YAML investigation playbooks (base.yaml, acm-2.16.yaml)
 ├── tests/
 │   ├── conftest.py        # Shared fixtures
-│   ├── unit/              # Unit tests (379)
-│   ├── regression/        # Regression tests (40)
+│   ├── unit/              # Unit tests (478)
+│   ├── regression/        # Regression tests (47)
 │   ├── integration/       # Integration tests (50)
 │   └── fixtures/          # Test data (synthetic analysis-results.json)
 ├── .claude/agents/

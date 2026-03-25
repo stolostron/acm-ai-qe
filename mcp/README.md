@@ -1,17 +1,5 @@
 # MCP Servers -- Setup Guide
 
-> **MIRROR NOTICE:** This directory is a **git-tracked mirror** of the canonical
-> MCP source code at `ai/tools/mcp/`. All development and modifications happen
-> in the canonical location. This mirror is synced periodically for version
-> tracking in the stolostron/ai-test-gen repository.
->
-> **Canonical location:** `/Users/ashafi/Documents/work/ai/tools/mcp/`
-> **Sync script:** `ai/tools/mcp/sync-to-git.sh`
->
-> **NEVER** run `pip install -e .` from this directory. Use the canonical path.
-
----
-
 ## What are MCP servers?
 
 MCP (Model Context Protocol) servers are background processes that give AI agents
@@ -27,7 +15,7 @@ failures beyond what's in the gathered data files.
 | Server | Required? | What it does | Tools | Needs |
 |--------|-----------|--------------|-------|-------|
 | **acm-ui** | Yes | Searches ACM Console & Fleet Virt source code on GitHub | 20 | `gh` CLI authenticated |
-| **jira** | Yes | Searches/creates JIRA issues for bug correlation | 27 | JIRA Personal Access Token |
+| **jira** | Yes | Searches/creates JIRA issues for bug correlation | 25 | Jira Cloud API token + email |
 | **neo4j-rhacm** | No | Queries RHACM component dependency graph (291 components) | 3 | Podman + Node.js |
 | **polarion** | No | Reads Polarion test cases (RHACM4K project) | 17+ | Red Hat VPN + Polarion JWT token |
 
@@ -42,16 +30,15 @@ bash mcp/setup.sh
 The script will:
 1. Check prerequisites (Python, `gh` CLI)
 2. Install ACM UI MCP server dependencies
-3. Install JIRA MCP server dependencies, prompt for your JIRA token
+3. Install JIRA MCP server dependencies, prompt for your credentials
 4. Optionally set up the Neo4j knowledge graph (Podman containers)
-5. Update `apps/z-stream-analysis/.mcp.json` with correct paths
+5. Generate `apps/z-stream-analysis/.mcp.json` with correct relative paths
 
 After the script finishes, restart Claude Code or Cursor to pick up the new config.
 
 ## Manual Setup
 
-If you prefer to set things up individually, or if the setup script doesn't cover
-your environment, see the README in each server's directory:
+If you prefer to set things up individually:
 
 | Server | Setup instructions |
 |--------|--------------------|
@@ -59,6 +46,21 @@ your environment, see the README in each server's directory:
 | jira | [mcp/jira-mcp-server/README.md](jira-mcp-server/README.md) |
 | neo4j-rhacm | [mcp/neo4j-rhacm/README.md](neo4j-rhacm/README.md) |
 | polarion | [mcp/polarion/README.md](polarion/README.md) |
+
+### Manual JIRA Setup
+
+1. Install dependencies: `pip install -e mcp/jira-mcp-server/`
+2. Copy the example env: `cp mcp/jira-mcp-server/.env.example mcp/jira-mcp-server/.env`
+3. Edit `mcp/jira-mcp-server/.env` with your credentials:
+   ```
+   JIRA_SERVER_URL=https://your-company.atlassian.net
+   JIRA_ACCESS_TOKEN=<your-api-token>
+   JIRA_EMAIL=<your-email>@company.com
+   ```
+4. Get an API token at https://id.atlassian.com/manage-profile/security/api-tokens
+
+The `.env` file uses `override=True` so it always takes precedence over any
+pre-existing shell environment variables (e.g., from `jira-cli`).
 
 ## Verifying Setup
 
@@ -78,18 +80,17 @@ Or ask the AI agent directly:
 ## How it works
 
 The z-stream analysis app has a `.mcp.json` file that tells Claude Code which
-MCP servers to start:
+MCP servers to start. All paths are relative to the app directory:
 
 ```
 apps/z-stream-analysis/.mcp.json
-  -> acm-ui:      ../../mcp/acm-ui-mcp-server     (Python package, in this repo)
-  -> jira:         ../../mcp/jira-mcp-server        (Python package, in this repo)
-  -> neo4j-rhacm:  npx mcp-remote localhost:8000    (Podman container, if set up)
-  -> polarion:     uvx polarion-mcp wrapper          (PyPI package + wrapper, if set up)
+  -> acm-ui:      ../../mcp/acm-ui-mcp-server     (Python package)
+  -> jira:         ../../mcp/jira-mcp-server        (Python package)
+  -> neo4j-rhacm:  uvx mcp-neo4j-cypher             (bolt://localhost:7687)
 ```
 
 Each server runs as a subprocess that communicates with the AI agent via JSON-RPC
-over stdin/stdout (or SSE for neo4j-rhacm).
+over stdin/stdout.
 
 ## After a reboot
 
@@ -117,17 +118,17 @@ Can auto-detect CNV version from a connected OpenShift cluster.
 
 ### jira (`mcp/jira-mcp-server/`)
 
-Based on [stolostron/jira-mcp-server](https://github.com/stolostron/jira-mcp-server),
-with local modifications for sprint management and field coverage.
+Based on [stolostron/jira-mcp-server](https://github.com/stolostron/jira-mcp-server).
 
-27 tools for JIRA issue search, creation, team management, component aliases,
-sprint assignment, and user search.
+**Jira Cloud:** Uses basic auth (email + API token). Custom field IDs and work type
+IDs are configured for Jira Cloud. User references require `accountId` (use
+`search_users` to resolve names to IDs).
 
-**Local modifications (not in upstream):**
-- Sprint management: `list_boards`, `list_sprints`, `assign_sprint`
-- Fields: qa_contact, epic_link, severity, affects_versions, acceptance_criteria, reviewers
-- Read: issue_links, attachments, sprint info in issue responses
-- Bug fixes: story_points=0 and original_estimate="" handling
+**Setup:** Run `bash mcp/setup.sh` or manually create `mcp/jira-mcp-server/.env`
+from the `.env.example` template.
+
+25 tools for JIRA issue search, creation, team management, component aliases,
+watcher management, field clearing, and user search.
 
 **Detailed docs:** [mcp/jira-mcp-server/README.md](jira-mcp-server/README.md)
 
@@ -135,8 +136,7 @@ sprint assignment, and user search.
 
 Container-based. Two Podman containers run a Neo4j database with 291 RHACM components
 and an MCP SSE server. Based on
-[stolostron/knowledge-graph](https://github.com/stolostron/knowledge-graph/tree/main/acm/agentic-docs/dependency-analysis),
-forked and extended with additional queries and MCP integration docs.
+[stolostron/knowledge-graph](https://github.com/stolostron/knowledge-graph/tree/main/acm/agentic-docs/dependency-analysis).
 
 3 tools: `read_neo4j_cypher`, `write_neo4j_cypher`, `get_neo4j_schema`
 
@@ -156,16 +156,17 @@ content retrieval. 17+ tools total.
 
 ```
 mcp/
-+-- README.md                        <-- This file (setup guide + mirror docs)
++-- README.md                        <-- This file (setup guide)
 +-- setup.sh                         <-- Run this to set up everything
 +-- acm-ui-mcp-server/               <-- ACM Console source code search (20 tools)
 |   +-- README.md
 |   +-- pyproject.toml
 |   +-- acm_ui_mcp_server/           <-- Python package (4 modules)
 |   \-- docs/                        <-- Full reference documentation
-+-- jira-mcp-server/                 <-- JIRA integration (27 tools)
++-- jira-mcp-server/                 <-- JIRA integration (25 tools)
 |   +-- README.md
 |   +-- pyproject.toml
+|   +-- .env.example                 <-- Template for credentials
 |   +-- jira_mcp_server/             <-- Python package (4 modules)
 |   +-- tests/                       <-- Unit tests
 |   +-- doc/                         <-- Feature documentation
@@ -179,18 +180,3 @@ mcp/
     +-- README.md
     \-- polarion-mcp-wrapper.py      <-- SSL patch + enhanced tools
 ```
-
----
-
-## Mirror Sync Process
-
-This directory mirrors `ai/tools/mcp/` (the canonical development location).
-To update this mirror after making changes to MCP code:
-
-```bash
-# From the canonical location:
-bash ai/tools/mcp/sync-to-git.sh
-```
-
-The sync script uses rsync to copy code while excluding secrets (.env), build
-artifacts (__pycache__), and nested git directories (.git/).

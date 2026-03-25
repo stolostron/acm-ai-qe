@@ -25,37 +25,35 @@ python -m src.scripts.gather "<JENKINS_URL>"
     │                              ▼                      │
     │                          Step 3: Test Report         │
     │                              │                      │
-    │               ┌──────────────┼──────────────┐       │
-    │               ▼                             ▼       │
-    │   ┌───────────────────┐        ┌────────────────┐   │
-    │   │ Step 4: Env Check │        │ Step 4b: (v3.0)│   │
-    │   │ (skip: --skip-env)│        │ Cluster        │   │
-    │   │                   │        │ Landscape      │   │
-    │   └───────────────────┘        │ (skip:         │   │
-    │               │                │  --skip-env)   │   │
-    │               │                └────────────────┘   │
-    │               ▼                                     │
+    │                              ▼                      │
+    │   ┌───────────────────────────────────────────────┐   │
+    │   │ Step 4: Env Check + Cluster Landscape         │   │
+    │   │         + Backend API Probes (v3.3)           │   │
+    │   │ (skip: --skip-env)                            │   │
+    │   └───────────────────────┬───────────────────────┘   │
+    │                       ▼                             │
     │   ┌───────────────────┐                             │
     │   │ Step 5: Clone     │                             │
     │   │ Repos             │                             │
-    │   │ (skip: --skip-repo│                             │
+    │   │ (skip: --skip-repo)                             │
     │   └─────────┬─────────┘                             │
     │             │                                       │
     │   ┌─────────┼──────────────────────┐                │
     │   ▼         ▼                      ▼                │
-    │ Step 6:   Step 6b: (v3.0)  Step 6c: (v3.1)  Step 7: │
-    │ Extract   Feature         Feature          Element │
-    │ Context   Grounding       Knowledge        Inv.   │
-    │ (skip:    (always)        + KG Context     (skip: │
-    │  --skip-                  (always)          --skip-│
-    │  repo)                                      repo) │
-    │   └─────────┬──────────────────────────────┘       │
-    │             ▼                                       │
-    │   ┌───────────────────┐                             │
-    │   │ Step 8: Hints     │ ◄── always runs             │
-    │   │ + Step 8b:        │                             │
-    │   │ Temporal Summaries│                             │
-    │   └───────────────────┘                             │
+    │ Step 6:   Step 7: (v3.0)  Step 8: (v3.1)           │
+    │ Extract   Feature         Feature                  │
+    │ Context   Grounding       Knowledge                │
+    │ (skip:    (always)        + KG Context              │
+    │  --skip-                  (always)                  │
+    │  repo)                                              │
+    │   └─────────┬──────────────────────┘                │
+    │             │                                       │
+    │   ┌─────────┼──────────────────────┐                │
+    │   ▼                                ▼                │
+    │ Step 9:                     Step 10: Hints          │
+    │ Element Inv.                + Temporal Summaries     │
+    │ (skip: --skip-repo)        (always runs)            │
+    │   └────────────────────────┘                        │
     │             │                                       │
     └─────────────┼───────────────────────────────────────┘
                   ▼
@@ -151,6 +149,11 @@ def _classify_failure_type(self, error_text: str) -> str:
     elif any(p in error_lower for p in ['connection', 'network', 'refused', 'dns']):
         return 'network'
     elif any(p in error_lower for p in ['assert', 'expect', 'should', 'equal', 'match']):
+        # v3.3: further split into assertion_data or assertion_selector
+        if has_data_assertion(error_text):
+            return 'assertion_data'
+        elif has_selector_assertion(error_text):
+            return 'assertion_selector'
         return 'assertion'
     elif any(p in error_lower for p in ['500', '502', '503', 'internal server', 'bad gateway']):
         return 'server_error'
@@ -292,11 +295,27 @@ If no namespaces are available to check, partial credit of 0.1 is given.
 | `oc api-resources` | `oc scale`, `oc rollout` |
 | `kubectl get`, `kubectl describe` | Any write operation |
 
-**Output file:** `environment-status.json`
+### Cluster Access Persistence (v3.1)
+
+Part of `_gather_environment_status()`. Persists cluster credentials (API URL, username, masked password) in `core-data.json` under `cluster_access` so the AI agent can re-authenticate to the cluster during Stage 2 for live investigation.
+
+```json
+{
+  "cluster_access": {
+    "api_url": "https://api.cluster.example.com:6443",
+    "username": "kubeadmin",
+    "has_credentials": true,
+    "password": "****masked****",
+    "note": "Re-authenticate in Stage 2: oc login <api_url> --username <user> --password <password>"
+  }
+}
+```
+
+**Output files:** `environment-status.json`, `cluster_access` key in `core-data.json`
 
 ---
 
-## Step 4b: Cluster Landscape (v3.0)
+## Step 4 (continued): Cluster Landscape (v3.0)
 
 **Service:** `ClusterInvestigationService.get_cluster_landscape()`
 
@@ -329,6 +348,94 @@ Shares the kubeconfig and CLI from `EnvironmentValidationService` so both servic
 - **Phase B7:** Backend cross-check uses landscape data to determine if backend issues caused UI failures
 
 **Output:** Stored in `core-data.json` under `cluster_landscape` key.
+
+---
+
+## Step 4c: Backend API Probing (v3.3)
+
+**Method:** `DataGatherer._probe_backend_apis()`
+
+Probes 5 ACM console backend API endpoints to detect backend anomalies before AI analysis. Runs after Step 4b (cluster landscape) and before Step 5 (clone repos). Each probe runs via `oc exec` into the console pod with `curl`, using the bearer token from the cluster session.
+
+Adds ~10-15 seconds to Stage 1 execution.
+
+### Skip Conditions
+
+Probing is skipped entirely (with `backend_probes: {skipped: true}`) if any of:
+- No cluster credentials available (e.g., `--skip-env` was used)
+- Console pod not found in `open-cluster-management` namespace
+- Bearer token unavailable from the cluster session
+
+Each probe is independent — if one probe fails, the others still execute.
+
+### Probes
+
+| Endpoint | Validation | Anomaly Example |
+|----------|-----------|-----------------|
+| `/authenticated` | Baseline auth health; response time < 5s | Response time > 5s indicates auth latency |
+| `/hub` | Hub metadata; validates `localHubName` matches MCH cluster name from `cluster_landscape` | Hub name mismatch between API and MCH |
+| `/username` | User identity; checks for reversed username format | `admin:kube` instead of `kube:admin` |
+| `/ansibletower` | Ansible template list; cross-references against AAP operator status | Only runs if `TOWER_HOST` present in Jenkins params |
+| `/proxy/search` | Search pipeline health; sends basic Pod query, expects non-empty results | Empty result set indicates search indexing failure |
+
+### Output Structure
+
+Stored in `core-data.json` under `backend_probes`:
+
+```json
+{
+  "backend_probes": {
+    "probed_at": "2026-03-25T10:30:00Z",
+    "console_pod": "console-chart-abc123-xyz",
+    "probes": {
+      "authenticated": {
+        "response_valid": true,
+        "anomalies": []
+      },
+      "hub": {
+        "response_valid": true,
+        "anomalies": ["hub_name_mismatch: API returned 'local-cluster' but MCH reports 'hub-cluster'"]
+      },
+      "username": {
+        "response_valid": true,
+        "anomalies": []
+      },
+      "ansibletower": {
+        "response_valid": false,
+        "anomalies": ["aap_operator_missing: TOWER_HOST set but AAP operator not installed"]
+      },
+      "proxy_search": {
+        "response_valid": true,
+        "anomalies": []
+      }
+    },
+    "total_anomalies": 2
+  }
+}
+```
+
+### Feature Area to Probe Mapping
+
+`FEATURE_AREA_PROBE_MAP` maps each feature area to the probe endpoints most relevant to it. Stage 2 (Phase B7c) uses this mapping to check whether a feature area's backend is healthy.
+
+| Feature Area | Relevant Probes |
+|---|---|
+| Automation | `authenticated`, `ansibletower` |
+| Search | `authenticated`, `proxy_search` |
+| Console | `authenticated`, `hub` |
+| CLC | `authenticated`, `hub` |
+| GRC | `authenticated`, `proxy_search` |
+| Application | `authenticated`, `hub` |
+| Observability | `authenticated`, `proxy_search` |
+| Infrastructure | `authenticated`, `hub` |
+| RBAC | `authenticated`, `username` |
+| Virtualization | `authenticated`, `hub` |
+
+### How It's Used in Stage 2
+
+- **Phase B7c:** Backend API probe check — if a test's feature area maps to a probe with anomalies, the probe data is used as evidence for backend-caused failures
+
+**Output:** Stored in `core-data.json` under `backend_probes` key.
 
 ---
 
@@ -399,6 +506,8 @@ For each failed test:
      ├── Sub-step 6a: Read test file content
      ├── Sub-step 6b: Extract page objects
      ├── Sub-step 6c: Search console repository
+     ├── Sub-step 6d: Parse assertion analysis (v3.3)
+     ├── Sub-step 6e: Categorize failure mode (v3.3)
      ├── Timeline evidence
      ├── Component extraction
      └── Temporal summary injection
@@ -480,6 +589,47 @@ def _read_test_file(self, automation_path, test_file_path, max_lines=200):
 }
 ```
 
+### Sub-step 6d: Parse Assertion Analysis (v3.3)
+
+**Method:** `StackTraceParser.extract_assertion_values(error_message)`
+
+Parses Cypress/Chai assertion errors to extract expected vs actual values. Only populated when the error contains a data assertion (not selector assertions like `expected to find element`).
+
+**Output:**
+```json
+{
+  "has_data_assertion": true,
+  "assertion_type": "count_mismatch",
+  "expected": "5",
+  "actual": "3",
+  "raw_assertion": "expected 3 to equal 5"
+}
+```
+
+| `assertion_type` | Meaning |
+|---|---|
+| `count_mismatch` | Expected N items, got M |
+| `value_mismatch` | Expected value X, got Y |
+| `content_missing` | Expected text/content not present |
+| `state_mismatch` | Expected state (enabled, visible, checked) differs |
+| `property_missing` | Expected property/attribute absent |
+
+### Sub-step 6e: Categorize Failure Mode (v3.3)
+
+**Method:** `DataGatherer._classify_failure_mode(failure_type, error_message, console_search, assertion_analysis)`
+
+Assigns a high-level failure mode category to each test based on its `failure_type`, error content, and assertion analysis. Used by Phase PR-5 and Phase D4b in Stage 2.
+
+| `failure_mode_category` | Trigger |
+|---|---|
+| `render_failure` | Blank page, no-js, page failed to load |
+| `element_missing` | `element_not_found` failure type |
+| `data_incorrect` | `assertion_data` with `has_data_assertion=true` |
+| `timeout_general` | Timeout without element reference |
+| `assertion_logic` | `assertion_selector` or assertion without data component |
+| `server_error` | 500/502/503 in error message |
+| `unknown` | No pattern matched |
+
 ### Timeline Evidence
 
 **Service:** `TimelineComparisonService.compare_timelines(selector)`
@@ -492,6 +642,30 @@ Compares git modification dates between automation and product repos:
 | `element_removed` | Selector existed but was deleted |
 | `stale_test_signal` | Product changed after automation last touched selector |
 | `product_commit_type` | Type of last product change (rename, refactor, etc.) |
+
+**Limitation:** The `compare_timelines` method only works for ID-based selectors (`data-testid`, `id`). It returns null for CSS class selectors, role-based selectors, and text-based selectors. For broader coverage, use the git diff approach below.
+
+### Recent Selector Changes (Git Diff)
+
+**Service:** `TimelineComparisonService.find_recent_selector_changes(lookback_commits=200)`
+
+Scans the last 200 commits (~6 months) in the console repo's `src/` directory for selector-related changes. Covers all selector types: `data-testid`, `className`, `aria-label`, `id`, CSS classes, OUIA IDs.
+
+Runs **once per analysis** (not per test). Results are cached and cross-referenced per-test via `cross_reference_selector()`.
+
+| Output Field | Meaning |
+|---|---|
+| `match_found` | Whether the failing selector was found in the removed selectors list |
+| `matches[].removed_selector` | The selector that was removed |
+| `matches[].added_selectors` | Selectors added in the same file (potential replacements) |
+| `matches[].file` | The product file that changed |
+| `lookback_commits` | Number of commits scanned (default 200) |
+
+**Limitations:**
+- Only covers changes within the lookback window (~6 months). Older changes rely on `console_search.found = false`.
+- Cannot detect text-based selectors (`cy.contains('Submit')`).
+- Cannot detect dynamic/runtime-constructed selectors (template literals).
+- PatternFly internal class changes between PF versions may not appear in the console repo's diff.
 
 ### Component Extraction
 
@@ -510,7 +684,7 @@ Adds human-readable temporal summaries to each test's timeline evidence for AI c
 
 ---
 
-## Step 6b: Feature Area Grounding (v3.0)
+## Step 7: Feature Area Grounding (v3.0)
 
 **Service:** `FeatureAreaService.group_tests_by_feature()`
 
@@ -569,13 +743,13 @@ Stored in `core-data.json` under `feature_grounding`:
 
 ---
 
-## Step 6c: Feature Knowledge Playbooks (v3.1)
+## Step 8: Feature Knowledge Playbooks (v3.1)
 
 **Service:** `FeatureKnowledgeService.load_playbooks()`, `FeatureKnowledgeService.get_feature_readiness()`
 
 **Method:** `DataGatherer._check_feature_knowledge()`
 
-Loads YAML investigation playbooks from `src/data/feature_playbooks/`, checks MCH prerequisites against cluster state, pre-matches test error messages against known failure paths, and queries the Knowledge Graph for per-area dependency context. Runs after Step 6b (requires detected feature areas).
+Loads YAML investigation playbooks from `src/data/feature_playbooks/`, checks MCH prerequisites against cluster state, pre-matches test error messages against known failure paths, and queries the Knowledge Graph for per-area dependency context. Runs after Step 7 (requires detected feature areas).
 
 ### Data Sources
 
@@ -647,31 +821,9 @@ Stored in `core-data.json` under `feature_knowledge`:
 
 ---
 
-## Step 6d: Cluster Access Persistence (v3.1)
-
-**Method:** Part of `DataGatherer._gather_environment_status()`
-
-Persists cluster credentials (API URL, username, masked password) in `core-data.json` under `cluster_access` so the AI agent can re-authenticate to the cluster during Stage 2 for live investigation.
-
-### Output Structure
-
-```json
-{
-  "cluster_access": {
-    "api_url": "https://api.cluster.example.com:6443",
-    "username": "kubeadmin",
-    "has_credentials": true,
-    "password": "****masked****",
-    "note": "Re-authenticate in Stage 2: oc login <api_url> --username <user> --password <password>"
-  }
-}
-```
-
-**Output:** Stored in `core-data.json` under `cluster_access` key.
-
 ---
 
-## Step 7: Build Element Inventory
+## Step 9: Build Element Inventory
 
 **Method:** `DataGatherer._gather_element_inventory()`
 
@@ -683,7 +835,7 @@ Skipped when `--skip-repo` is used (requires cloned repos).
 
 ---
 
-## Step 8: Build Investigation Hints
+## Step 10: Build Investigation Hints
 
 **Method:** `DataGatherer._build_investigation_hints()` + `_inject_temporal_summaries()`
 
@@ -718,7 +870,7 @@ All collected data is written to the run directory.
   "metadata": {
     "jenkins_url": "https://jenkins.../job/acm-e2e/123/",
     "gathered_at": "2026-02-04T15:30:00Z",
-    "gatherer_version": "3.1.0"
+    "gatherer_version": "3.3.0"
   },
   "jenkins": {
     "job_name": "acm-qe-e2e-nightly",
@@ -737,7 +889,9 @@ All collected data is written to the run directory.
         "extracted_context": {
           "test_file": { "content": "...", "line_count": 150 },
           "page_objects": [...],
-          "console_search": { "found": false, ... }
+          "console_search": { "found": false, ... },
+          "assertion_analysis": { "has_data_assertion": false },
+          "failure_mode_category": "element_missing"
         },
         "detected_components": [...]
       }
@@ -775,6 +929,12 @@ All collected data is written to the run directory.
     "kg_dependency_context": { ... },
     "kg_status": { "available": true }
   },
+  "backend_probes": {
+    "probed_at": "2026-03-25T10:30:00Z",
+    "console_pod": "console-chart-abc123-xyz",
+    "probes": { ... },
+    "total_anomalies": 0
+  },
   "cluster_access": {
     "api_url": "https://api.cluster.example.com:6443",
     "username": "kubeadmin",
@@ -794,16 +954,17 @@ All collected data is written to the run directory.
 | `JenkinsAPIClient` | 1-3 | Jenkins REST API calls |
 | `JenkinsIntelligenceService` | 1-3 | Build info, console parsing, test report |
 | `StackTraceParser` | 3 | JS/TS stack trace → file:line |
-| `EnvironmentValidationService` | 4 | Cluster health checks |
-| `ClusterInvestigationService` | 4b | Cluster landscape snapshot (v3.0) |
+| `EnvironmentValidationService` | 4 | Cluster health checks + credential persistence |
+| `ClusterInvestigationService` | 4 | Cluster landscape snapshot (v3.0) |
+| `DataGatherer._probe_backend_apis` | 4c | Backend API endpoint probing (v3.3) |
 | `RepositoryAnalysisService` | 5 | Git clone, repo inference |
 | `TimelineComparisonService` | 6 | Git date comparison |
 | `ComponentExtractor` | 6 | Error → component names |
-| `ACMConsoleKnowledge` | 6-7 | Directory structure mapping |
-| `FeatureAreaService` | 6b | Test-to-feature-area mapping (v3.0) |
-| `FeatureKnowledgeService` | 6c | Playbook loading, prerequisite checks, symptom matching (v3.1) |
-| `KnowledgeGraphClient` | 6c | Neo4j dependency queries for kg_dependency_context (v3.2) |
-| `ACMUIMCPClient` | 5, 7 | CNV detection (Step 5), element inventory (Step 7) |
+| `ACMConsoleKnowledge` | 6, 9 | Directory structure mapping |
+| `FeatureAreaService` | 7 | Test-to-feature-area mapping (v3.0) |
+| `FeatureKnowledgeService` | 8 | Playbook loading, prerequisite checks, symptom matching (v3.1) |
+| `KnowledgeGraphClient` | 8 | Neo4j dependency queries for kg_dependency_context (v3.2) |
+| `ACMUIMCPClient` | 5, 9 | CNV detection (Step 5), element inventory (Step 9) |
 | `shared_utils` | All | Config, subprocess, credentials |
 
 See [04-SERVICES-REFERENCE.md](04-SERVICES-REFERENCE.md) for detailed method signatures.
@@ -818,7 +979,7 @@ python -m src.scripts.gather "https://jenkins.example.com/job/test/123/"
 
 # Options
 python -m src.scripts.gather <url> --verbose       # Verbose logging
-python -m src.scripts.gather <url> --skip-env      # Skip environment validation (Step 4)
-python -m src.scripts.gather <url> --skip-repo     # Skip repository cloning (Steps 5-7)
+python -m src.scripts.gather <url> --skip-env      # Skip environment + cluster landscape (Step 4)
+python -m src.scripts.gather <url> --skip-repo     # Skip repository cloning (Steps 5-6, 9)
 python -m src.scripts.gather <url> -o ./my-runs    # Custom output directory
 ```

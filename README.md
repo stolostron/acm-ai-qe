@@ -120,7 +120,7 @@ Four MCP servers provide tools during analysis. Run `bash mcp/setup.sh` to confi
 | Server | Tools | Purpose |
 |--------|-------|---------|
 | **ACM UI** | 20 | ACM Console + kubevirt-plugin source code search via GitHub |
-| **JIRA** | 24 | Issue search, creation, and management |
+| **JIRA** | 25 | Issue search, creation, and management |
 | **Neo4j RHACM** | 3 | Component dependency analysis (optional) |
 | **Polarion** | 17 | Polarion test case access (optional) |
 

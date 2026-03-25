@@ -122,6 +122,11 @@ class ThresholdConfig:
     MEDIUM_CONFIDENCE: float = 0.60         # Medium confidence threshold
     LOW_CONFIDENCE: float = 0.50            # Low confidence / UNKNOWN threshold
 
+    # Infrastructure health score graduated bands (GAP-04)
+    INFRA_DEFINITIVE: float = 0.3       # Below this: definitive infra issue
+    INFRA_STRONG: float = 0.5           # Below this: strong infra signal
+    INFRA_MODERATE: float = 0.7         # Below this: moderate infra signal (investigate)
+
     # Stack trace limits
     MAX_STACK_FRAMES: int = 20              # Maximum frames to process
     CONSOLE_LOG_SNIPPET_SIZE: int = 2000    # Characters for console snippets
@@ -452,8 +457,9 @@ def is_support_file(file_path: str) -> bool:
 # =============================================================================
 
 SENSITIVE_PATTERNS = [
-    'password', 'token', 'secret', 'key', 'credential',
-    'api_key', 'apikey', 'api_token', 'apitoken', 'auth', 'bearer',
+    'password', 'token', 'secret', 'credential', 'bearer',
+    'api_key', 'apikey', 'api_token', 'apitoken',
+    'private_key', 'passphrase',
 ]
 
 

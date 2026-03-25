@@ -1,7 +1,5 @@
 .env
 .mcp.json
-.claude
-!.claude/commands/*.md
 .gemini
 !.gemini/commands/*.toml
 .cursor
@@ -49,3 +47,6 @@ venv.bak/
 Thumbs.db
 CLAUDE.md
 GEMINI.md
+.claude/settings.local.json
+.claude/settings.json
+.claude/hook-handler.sh

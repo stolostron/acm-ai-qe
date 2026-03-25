@@ -1,6 +1,20 @@
-"""Mock-based tests for _issue_to_dict with all new fields."""
+# Copyright 2025 Red Hat, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# This file was developed with AI assistance.
 
-import asyncio
+"""Mock-based tests for _issue_to_dict with all new fields."""
 
 import pytest
 
@@ -12,7 +26,7 @@ from tests.conftest import make_mock_issue
 @pytest.fixture
 def client():
     """Create a JiraClient instance for testing _issue_to_dict."""
-    config = JiraConfig(server_url="https://issues.redhat.com", access_token="test")
+    config = JiraConfig(server_url="https://test.atlassian.net", access_token="test-token")
     return JiraClient(config)
 
 
@@ -22,16 +36,13 @@ class TestStoryWithAllFields:
         issue = make_mock_issue(
             key="ACM-26041",
             issue_type="Story",
-            sprint_data=[
-                "com.atlassian.greenhopper.service.sprint.Sprint@x[id=82854,"
-                "state=ACTIVE,name=ACM Console Train 37 - 1]"
-            ],
+            sprint_data=["ACM Console 2.17 - 1"],
             qa_contact="rhn-support-dhuynh",
             epic_link="ACM-24035",
             severity="Important",
             versions=["ACM 2.15.0"],
             acceptance_criteria="All tests pass and coverage above 80%",
-            reviewers=["rh-ee-manravi", "rhn-support-vboulos"],
+            contributors=["Alice Smith", "Bob Jones"],
             issuelinks=[
                 {'type': 'Blocks', 'direction': 'outward', 'key': 'ACM-100', 'summary': 'Blocked task'},
                 {'type': 'Relates', 'direction': 'inward', 'key': 'ACM-200', 'summary': 'Related work'},
@@ -41,13 +52,13 @@ class TestStoryWithAllFields:
 
         result = client._issue_to_dict(issue)
 
-        assert result['sprint'] == "ACM Console Train 37 - 1"
+        assert result['sprint'] == "ACM Console 2.17 - 1"
         assert result['qa_contact'] == "rhn-support-dhuynh"
         assert result['epic_link'] == "ACM-24035"
         assert result['severity'] == "Important"
         assert result['affects_versions'] == ["ACM 2.15.0"]
         assert result['acceptance_criteria'] == "All tests pass and coverage above 80%"
-        assert result['reviewers'] == ["rh-ee-manravi", "rhn-support-vboulos"]
+        assert result['contributors'] == ["Alice Smith", "Bob Jones"]
         assert len(result['issue_links']) == 2
         assert result['issue_links'][0]['direction'] == 'outward'
         assert result['issue_links'][1]['direction'] == 'inward'
@@ -75,15 +86,11 @@ class TestTaskInSprint:
         issue = make_mock_issue(
             key="ACM-30114",
             issue_type="Task",
-            sprint_data=[
-                "com.atlassian.greenhopper.service.sprint.Sprint@abc["
-                "id=82854,state=ACTIVE,name=ACM Console Train 37 - 1,"
-                "startDate=2026-02-12T00:00:00.000Z]"
-            ],
+            sprint_data=["ACM Console 2.17 - 1"],
         )
 
         result = client._issue_to_dict(issue)
-        assert result['sprint'] == "ACM Console Train 37 - 1"
+        assert result['sprint'] == "ACM Console 2.17 - 1"
 
 
 class TestIssueWithLinks:
@@ -119,18 +126,6 @@ class TestIssueWithAttachments:
         assert result['attachments'] == ["report.pdf", "data.csv", "diagram.png"]
 
 
-class TestIssueWithReviewers:
-    def test_reviewers_list(self, client):
-        """Issue with reviewers returns list of usernames."""
-        issue = make_mock_issue(
-            key="ACM-700",
-            reviewers=["rh-ee-manravi", "rhn-support-vboulos"],
-        )
-
-        result = client._issue_to_dict(issue)
-        assert result['reviewers'] == ["rh-ee-manravi", "rhn-support-vboulos"]
-
-
 class TestIssueWithAffectsVersions:
     def test_affects_versions_list(self, client):
         """Issue with affects versions returns list of version names."""
@@ -154,7 +149,6 @@ class TestMinimalFields:
             severity=None,
             versions=None,
             acceptance_criteria=None,
-            reviewers=None,
             issuelinks=None,
             attachments=None,
         )
@@ -166,9 +160,8 @@ class TestMinimalFields:
         assert result['severity'] is None
         assert result['affects_versions'] == []
         assert result['acceptance_criteria'] is None
-        assert result['reviewers'] == []
+        assert result['contributors'] == []
         assert result['issue_links'] == []
         assert result['attachments'] == []
-        # Existing fields still work
         assert result['key'] == "ACM-999"
         assert result['status'] == "New"

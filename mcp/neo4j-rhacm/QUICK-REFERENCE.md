@@ -145,8 +145,8 @@ ORDER BY count(r) DESC;
 
 | Resource | Path |
 |----------|------|
-| Knowledge Graph Repo | `/Users/ashafi/Documents/work/tools/knowledge-graph/` |
-| This Documentation | `/Users/ashafi/Documents/work/automation/tools/mcp/knowledge-graph/` |
+| Knowledge Graph Repo | Your local clone of [stolostron/knowledge-graph](https://github.com/stolostron/knowledge-graph) |
+| This Documentation | `mcp/neo4j-rhacm/` (this directory) |
 | Cursor MCP Config | `~/.cursor/mcp.json` |
 | Tool Descriptors | `~/.cursor/projects/Users-ashafi-Documents-work-automation/mcps/user-neo4j-rhacm/tools/` |
 

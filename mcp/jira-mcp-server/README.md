@@ -2,6 +2,28 @@
 
 A Model Context Protocol (MCP) server that provides seamless integration with Jira instances. This server enables AI applications to interact with Jira issues, projects, and workflows through a standardized interface.
 
+## Jira Cloud Migration
+
+The server has been updated to work with the new Jira Cloud instance. To migrate:
+
+1. **Pull the latest changes**
+```bash
+cd /path/to/jira-mcp-server && git pull
+```
+
+2. **Update your `.env` file**
+```env
+JIRA_SERVER_URL=https://redhat.atlassian.net
+JIRA_ACCESS_TOKEN=<your-api-token>
+JIRA_EMAIL=<your-email>@redhat.com
+```
+
+3. **Get your API token** — Go to https://id.atlassian.com/manage-profile/security/api-tokens and click "Create API token"
+
+4. **Reconnect** — In Claude Code run `/mcp` to reconnect, or restart your client (Cursor, Gemini CLI, etc.)
+
+All custom field IDs and work type IDs have been updated in the code. No other changes needed.
+
 ## Table of Contents
 
 1. [Features](#features)
@@ -10,10 +32,12 @@ A Model Context Protocol (MCP) server that provides seamless integration with Ji
 4. [Usage](#usage)
 5. [Client Configuration](#client-configuration)
 6. [Available Tools](#available-tools)
-7. [Development](#development)
-8. [Troubleshooting](#troubleshooting)
-9. [Advanced Configuration](#advanced-configuration)
-10. [License & Contributing](#license--contributing)
+7. [Slash Commands](#slash-commands)
+8. [Automatic Update Notifications](#automatic-update-notifications)
+9. [Development](#development)
+10. [Troubleshooting](#troubleshooting)
+11. [Advanced Configuration](#advanced-configuration)
+12. [License & Contributing](#license--contributing)
 
 ## Features
 
@@ -63,6 +87,7 @@ cp .env.example .env
 ```env
 JIRA_SERVER_URL=https://your-company.atlassian.net
 JIRA_ACCESS_TOKEN=your-personal-access-token
+JIRA_EMAIL=your-email@company.com
 JIRA_VERIFY_SSL=true
 JIRA_TIMEOUT=30
 JIRA_MAX_RESULTS=100
@@ -83,9 +108,11 @@ For Jira Cloud (Atlassian Cloud), you'll need to:
 1. Create a personal access token:
    - Go to https://id.atlassian.com/manage-profile/security/api-tokens
    - Click "Create API token"
-   - Use the access token as the JIRA_ACCESS_TOKEN
+   - Use the access token as the `JIRA_ACCESS_TOKEN`
 
-2. Use your full Atlassian domain (e.g., `https://yourcompany.atlassian.net`)
+2. Set `JIRA_EMAIL` to the email address associated with your Atlassian account (required for Cloud authentication)
+
+3. Use your full Atlassian domain (e.g., `https://yourcompany.atlassian.net`)
 
 ### Jira Server/Data Center Setup
 
@@ -154,49 +181,6 @@ The example client demonstrates:
 - Listing available tools
 - Getting Jira projects
 - Searching for issues
-
-## AI Assistant Configuration
-
-To optimize the Jira MCP server integration with AI assistants, create a simple configuration file that specifies your default Jira project and user information.
-
-### Configuration Setup
-
-Create a configuration file in your AI assistant's expected location with just two lines:
-
-```
-Jira project = YOUR_PROJECT_KEY
-Jira assignee or reported = your.email@company.com
-```
-
-### File Locations by AI Assistant
-
-**Claude Code:**
-- Create `CLAUDE.md` in your project root, or
-- Create `~/.claude/CLAUDE.md` for global access
-
-**Gemini CLI:**
-- Create `GEMINI.md` in your project root, or
-- Create `~/.gemini/GEMINI.md` for global access
-
-**Cursor:**
-- In Cursor, go to **Preferences > Cursor Settings > Rules & Memories > User Rules**
-- Add the two-line configuration directly in the User Rules section
-
-### Example Configuration
-
-```
-Jira project = ACM
-Jira assignee or reported = john.doe@company.com
-```
-
-This simple configuration allows the AI assistant to:
-- Default to your specified project when creating or searching issues
-- Automatically assign new issues to you when no assignee is specified
-- Use your email as the reporter for new issues
-
-### Why This Works
-
-The AI assistant will automatically detect these settings and apply them as intelligent defaults when working with Jira issues, reducing the need to specify project keys and assignees repeatedly.
 
 ## Client Configuration
 
@@ -573,7 +557,67 @@ The server also provides MCP resources for read-only access:
 - `jira://issue/{issue_key}` - Get formatted issue details
 - `jira://projects` - Get formatted list of all projects
 
+## Slash Commands
+
+The project includes custom slash commands that can be installed for use in Claude Code.
+
+### `/jira-create` — Interactive Issue Creation
+
+The `/jira-create` command provides a guided, interactive flow for creating Jira issues. It walks you through each step using prompts:
+
+1. **Issue Type** — Select from Story, Bug, Task, Spike, Feature, Epic, or Sub-task
+2. **Specialist Agent** — A specialist agent (e.g., `story-specialist`, `bug-specialist`) is launched to help craft the summary and description based on the issue type
+3. **Core Fields** — Priority, Work Type, Original Estimate, Story Points
+4. **Categorization** — Component, Labels, Target Version
+5. **Parent / Linking** — Link to a parent issue or related issues
+6. **Confirmation** — Review all fields before creation
+7. **Post-Creation** — Option to create child stories (for Epics) or related issues (for Features)
+
+To install the command:
+
+```bash
+make install-commands
+```
+
+This symlinks the command to `~/.claude/commands/` so it's available globally in Claude Code. You can then invoke it by typing `/jira-create` in any Claude Code session.
+
+### `/summary` — Work Summary
+
+The `/summary` command generates a formal summary of work performed in the current AI session. It gathers repository changes (`git diff`, recent commits) and conversation context (Jira activity, decisions made) to produce:
+
+1. **Formal Work Summary** — A structured markdown summary with changes, Jira activity, and notes
+2. **Git Commit Message** — A plain-text version suitable for direct use in CLI commands (no special characters that interfere with shell interpretation)
+3. **Jira Integration** — Option to post the summary as a comment on a Jira issue
+4. **Git Reference Reminder** — Reminds you to add commit SHA and PR URL to the Jira issue
+
+## Automatic Update Notifications
+
+The server automatically checks for updates when it starts. It compares your local checkout against `origin/main` and, if new commits are available, emits a one-time warning on the first tool call of the session:
+
+```
+jira-mcp-server update available: origin/main is 3 commit(s) ahead. Run 'git pull' in /path/to/jira-mcp-server to update.
+```
+
+This check is non-blocking and fails silently if the repository is not available or the fetch times out.
+
 ## Development
+
+### Makefile Targets
+
+```bash
+make help              # Show available targets
+make tests             # Run all tests in the tests/ directory
+make install-commands  # Symlink project commands to ~/.claude/commands/
+```
+
+### Running Tests
+
+Run all tests with:
+```bash
+make tests
+```
+
+This runs all test_*.py files using pytest with verbose output.
 
 ### Setting up Development Environment
 
@@ -584,7 +628,7 @@ pip install -e ".[dev]"
 
 2. Run tests:
 ```bash
-pytest
+make tests
 ```
 
 3. Format code:
@@ -629,6 +673,7 @@ jira_mcp_server/
 
 **Solutions**:
 - Verify Jira credentials in the `.env` file
+- For Jira Cloud: ensure `JIRA_EMAIL` is set to your Atlassian account email
 - Check if the Jira server URL is correct
 - Ensure the personal access token is valid
 - Test credentials with a simple Jira API call
@@ -688,6 +733,7 @@ You can override any configuration by setting environment variables:
 
 ```bash
 export JIRA_SERVER_URL="https://custom-jira.company.com"
+export JIRA_EMAIL="your-email@company.com"
 export JIRA_TIMEOUT="60"
 export JIRA_MAX_RESULTS="200"
 export JIRA_TEAMS='{"frontend": ["alice", "bob"], "backend": ["charlie"]}'
@@ -847,7 +893,8 @@ To connect to multiple Jira instances, create separate MCP server configurations
       "cwd": "/home/user/workspace_git/jira-mcp-server",
       "env": {
         "JIRA_SERVER_URL": "https://prod.atlassian.net",
-        "JIRA_ACCESS_TOKEN": "prod-token"
+        "JIRA_ACCESS_TOKEN": "prod-token",
+        "JIRA_EMAIL": "you@company.com"
       }
     },
     "jira-staging": {
@@ -855,8 +902,9 @@ To connect to multiple Jira instances, create separate MCP server configurations
       "args": ["-m", "jira_mcp_server.main"],
       "cwd": "/home/user/workspace_git/jira-mcp-server",
       "env": {
-        "JIRA_SERVER_URL": "https://staging.atlassian.net",
-        "JIRA_ACCESS_TOKEN": "staging-token"
+        "JIRA_SERVER_URL": "https://company.atlassian.net",
+        "JIRA_ACCESS_TOKEN": "cloud-token",
+        "JIRA_EMAIL": "you@company.com"
       }
     }
   }

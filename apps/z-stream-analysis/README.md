@@ -1,4 +1,4 @@
-# Z-Stream Pipeline Analysis (v3.2)
+# Z-Stream Pipeline Analysis (v3.3)
 
 Jenkins pipeline failure analysis with definitive PRODUCT_BUG | AUTOMATION_BUG | INFRASTRUCTURE classification.
 
@@ -48,6 +48,7 @@ STAGE 3: report.py    -> Detailed-Analysis.md + per-test-breakdown.json + SUMMAR
 - Context extraction (test code, page objects, selector search)
 - Feature grounding (tests grouped by feature area with subsystem context)
 - Cluster landscape (managed clusters, operator statuses, resource pressure)
+- Backend API probing (5 console endpoints validated against cluster state)
 - Feature knowledge (playbook-driven prerequisites, failure paths, KG dependency context)
 - Temporal evidence (git timeline comparison between product and test changes)
 - Cluster credentials (persisted for Stage 2 re-authentication)
@@ -58,7 +59,7 @@ Claude Code agent performs 5-phase investigation:
 - **Phase A**: Initial assessment (re-auth, feature grounding, environment, patterns, KG context)
 - **Phase B**: Deep investigation per test (extracted context, timeline, console, MCP, backend cross-check, tiered playbook investigation)
 - **Phase C**: Cross-reference validation (multi-evidence, cascading failures, pattern correlation)
-- **Phase D**: Classification routing with pre-checks (blank page, hook dedup, temporal evidence) then 3-path routing (selector -> Path A, timeout -> Path B1, else -> Path B2 JIRA investigation)
+- **Phase D**: Classification routing with pre-checks (blank page, hook dedup, temporal evidence, data assertion) then 3-path routing (selector -> Path A, timeout -> Path B1 with graduated health scoring, else -> Path B2 JIRA investigation) then causal link verification and counter-bias validation
 - **Phase E**: Feature context and JIRA correlation (Knowledge Graph, feature stories, bug search)
 
 ### Stage 3: Report Generation
@@ -144,7 +145,7 @@ runs/<job>_<timestamp>/
 | Server | Tools | Purpose |
 |--------|-------|---------|
 | ACM-UI | 20 | ACM Console + kubevirt-plugin source code search via GitHub |
-| JIRA | 24 | Issue search, creation, management for bug correlation |
+| JIRA | 25 | Issue search, creation, management for bug correlation |
 | Knowledge Graph (Neo4j) | 3 | Component dependency analysis via Cypher queries |
 
 Run `bash mcp/setup.sh` from the repo root to configure all servers.
@@ -152,13 +153,13 @@ Run `bash mcp/setup.sh` from the repo root to configure all servers.
 ## Tests
 
 ```bash
-# Unit + regression (429 tests, no external deps):
+# Unit + regression (515 tests, no external deps):
 python -m pytest tests/unit/ tests/regression/ -q
 
 # Integration (requires Jenkins VPN, 50 tests):
 python -m pytest tests/integration/ -v --timeout=300
 
-# All tests (479 total):
+# All tests (565 total):
 python -m pytest tests/ -q --timeout=300
 ```
 

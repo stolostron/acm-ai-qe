@@ -241,8 +241,8 @@ class TestMchComponentNamesAreReal:
         "cluster-lifecycle",
         "app-lifecycle",
         "console",
-        "fine-grained-rbac-preview",
-        "cnv-mtv-integrations-preview",
+        "fine-grained-rbac",
+        "cnv-mtv-integrations",
         "multicluster-observability-operator",
     }
 

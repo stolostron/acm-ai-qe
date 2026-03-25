@@ -84,7 +84,7 @@ class TestEnvironmentStatusGathered:
 
 
 class TestClusterLandscapeGathered:
-    """Step 4b: cluster_landscape section."""
+    """Step 4 (cluster landscape): cluster_landscape section."""
 
     def test_cluster_landscape_gathered(self, core_data):
         landscape = core_data.get("cluster_landscape", {})
@@ -155,7 +155,7 @@ class TestExtractedContextPopulated:
 
 
 class TestFeatureGroundingPopulated:
-    """Step 6b: feature_grounding section."""
+    """Step 7: feature_grounding section."""
 
     def test_feature_grounding_populated(self, core_data):
         grounding = core_data.get("feature_grounding", {})
@@ -177,7 +177,7 @@ class TestFeatureGroundingPopulated:
 
 
 class TestFeatureKnowledgePopulated:
-    """Step 6c: feature_knowledge section."""
+    """Step 8: feature_knowledge section."""
 
     def test_feature_knowledge_populated(self, core_data):
         fk = core_data.get("feature_knowledge", {})

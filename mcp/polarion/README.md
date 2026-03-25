@@ -36,8 +36,8 @@ The wrapper exists because Red Hat's internal Polarion instance uses certificate
   "polarion": {
     "command": "uvx",
     "args": ["--with", "polarion-mcp", "python",
-             "/Users/ashafi/Documents/work/ai/tools/mcp/polarion/polarion-mcp-wrapper.py"],
-    "cwd": "/Users/ashafi",
+             "mcp/polarion/polarion-mcp-wrapper.py"],
+    "cwd": ".",
     "env": {
       "POLARION_BASE_URL": "https://polarion.engineering.redhat.com/polarion",
       "POLARION_PAT": "<JWT token -- set via env or set_polarion_token tool>"
@@ -327,7 +327,7 @@ The test run read/write tools were inspired by the [`stolostron/acm-workflows`](
 | File | Purpose |
 |------|---------|
 | `~/.cursor/mcp.json` | MCP server configuration (path to wrapper) |
-| `/Users/ashafi/Documents/work/automation/.cursorrules` | AI rules referencing Polarion MCP (query syntax, defaults, behaviors) |
+| Project `.cursorrules` | AI rules referencing Polarion MCP (query syntax, defaults, behaviors) |
 | `~/.cursor/skills/write-testcase-console/SKILL.md` | Test case writing skill (uses Polarion MCP) |
 | `~/.cursor/skills/active-sprint-tasks/SKILL.md` | Sprint tasks skill (uses Polarion MCP) |
-| `/Users/ashafi/Documents/work/automation/tools/polarion/` | Older standalone CLI tool (not this MCP) |
+| Standalone Polarion CLI tool (separate repo) | Older standalone CLI tool (not this MCP) |

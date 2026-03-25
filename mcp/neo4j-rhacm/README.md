@@ -131,7 +131,7 @@ ORDER BY Dependencies DESC;
 
 | Resource | Path |
 |----------|------|
-| Cloned Repository | `/Users/ashafi/Documents/work/tools/knowledge-graph/` |
+| Cloned Repository | Your local clone of [stolostron/knowledge-graph](https://github.com/stolostron/knowledge-graph) |
 | Cursor MCP Config | `~/.cursor/mcp.json` |
 | MCP Tool Descriptors | `~/.cursor/projects/Users-ashafi-Documents-work-automation/mcps/user-neo4j-rhacm/tools/` |
 
@@ -142,7 +142,7 @@ ORDER BY Dependencies DESC;
 ### Update Data from Repository
 
 ```bash
-cd /Users/ashafi/Documents/work/tools/knowledge-graph
+cd <knowledge-graph-repo>
 git pull
 
 # Reload data

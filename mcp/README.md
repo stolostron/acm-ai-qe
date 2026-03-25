@@ -28,14 +28,17 @@ From the repository root, run:
 bash mcp/setup.sh
 ```
 
-The script will:
+The script sets up all 5 servers and will:
 1. Check prerequisites (Python, `gh` CLI)
 2. Install ACM UI MCP server dependencies
-3. Install JIRA MCP server dependencies, prompt for your credentials
-4. Optionally install Jenkins MCP server, prompt for credentials
-5. Optionally set up Polarion MCP (requires VPN + JWT token)
-6. Optionally set up the Neo4j knowledge graph (Podman containers)
-7. Generate `apps/z-stream-analysis/.mcp.json` with correct relative paths
+3. Install JIRA MCP server dependencies, prompt for credentials
+4. Install Jenkins MCP server dependencies, prompt for credentials
+5. Set up Polarion MCP, prompt for JWT token
+6. Check Neo4j RHACM knowledge graph (Podman containers)
+7. Generate `apps/z-stream-analysis/.mcp.json` with all servers configured
+
+If you don't have credentials for a server, press Enter to skip -- a placeholder
+will be created that you can fill in later.
 
 After the script finishes, restart Claude Code or Cursor to pick up the new config.
 

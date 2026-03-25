@@ -153,13 +153,13 @@ Run `bash mcp/setup.sh` from the repo root to configure all servers.
 ## Tests
 
 ```bash
-# Unit + regression (515 tests, no external deps):
+# Unit + regression (529 tests, no external deps):
 python -m pytest tests/unit/ tests/regression/ -q
 
-# Integration (requires Jenkins VPN, 50 tests):
+# Integration (requires Jenkins VPN):
 python -m pytest tests/integration/ -v --timeout=300
 
-# All tests (565 total):
+# All tests:
 python -m pytest tests/ -q --timeout=300
 ```
 

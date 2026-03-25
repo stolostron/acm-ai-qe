@@ -1,4 +1,4 @@
-# AI Systems Suite
+# AI Systems Suite (v3.3)
 
 Multi-app repository for Jenkins pipeline analysis and test generation tools, built on Claude Code.
 
@@ -13,65 +13,22 @@ Multi-app repository for Jenkins pipeline analysis and test generation tools, bu
 Open Claude Code in this repository (root or `apps/z-stream-analysis/`) and ask:
 
 ```
-Analyze this run: https://jenkins-csb-rhacm-tests.dno.corp.redhat.com/job/qe-acm-automation-poc/job/clc-e2e-pipeline/3757
+Analyze this run: <JENKINS_BUILD_URL>
 ```
 
 That's it. Claude Code handles the full pipeline automatically:
 
-1. **Gather** -- Fetches build info, test reports, and console logs from Jenkins
-2. **Analyze** -- For each failed test, reads the error message, searches the product source code and test code for root cause, checks JIRA for known bugs, and determines whether the failure is a product bug, automation bug, infra issue, etc.
-3. **Report** -- Generates a detailed report with per-test breakdown and prioritized action items
-
-### Example Output
-
-After the analysis completes, you'll find these files in `apps/z-stream-analysis/runs/<job>_<timestamp>/`:
-
-```
-runs/qe-acm-automation-poc_clc-e2e-pipeline_20260212_003849/
-├── Detailed-Analysis.md        # Full report with per-test breakdown
-├── SUMMARY.txt                 # Quick overview
-├── per-test-breakdown.json     # Structured data for tooling
-├── analysis-results.json       # Raw AI analysis output
-├── core-data.json              # Gathered Jenkins data
-└── console-log.txt             # Jenkins console log
-```
-
-**SUMMARY.txt** gives you the high-level picture:
-
-```
-PIPELINE FAILURE ANALYSIS SUMMARY
-============================================================
-Jenkins URL: https://jenkins.example.com/job/clc-e2e-pipeline/3757
-Build: qe-acm-automation-poc #3757
-Result: UNSTABLE
-
-TEST SUMMARY:
-  Total: 34  |  Passed: 23  |  Failed: 11  |  Pass Rate: 67.6%
-
-FAILURE BREAKDOWN:
-  [AUTOMATION BUG]: 11 test(s)
-  [PRODUCT BUG]:     0 test(s)
-  [INFRASTRUCTURE]:  0 test(s)
-
-OVERALL: AUTOMATION BUG (90% confidence)
-
-PRIORITY ACTIONS:
-  1. [HIGH]   RHACM4K-3046 — Case mismatch in button selector
-  2. [MEDIUM] RHACM4K-51365/51367/51368 — Unstable OUIA selectors
-  3. [MEDIUM] RHACM4K-30168/3177/52891 — Test isolation failure
-```
-
-**Detailed-Analysis.md** includes per-test analysis with evidence, root cause, and recommended fixes.
+1. **Gather** -- Collects facts from Jenkins, validates cluster health, clones repos, searches product source for failing selectors, scans 200 commits for selector renames, probes backend API endpoints
+2. **Analyze** -- 5-phase AI investigation per test: assess environment, deep-dive with MCP tools (source code, JIRA, Knowledge Graph), validate with 2+ evidence sources, classify via decision tree, correlate with JIRA
+3. **Report** -- Generates per-test markdown report, JSON breakdown, and summary
 
 ### How It Works
 
-The analysis runs in three stages:
-
 | Stage | What | How |
 |-------|------|-----|
-| **1. Gather** | Fetch Jenkins data | `gather.py` pulls build info, test reports, console logs, and clones test repos |
-| **2. Analyze** | Classify each failure | For each failed test, AI reads the error, searches product and test source code for the root cause, checks JIRA for known bugs, and classifies the failure |
-| **3. Report** | Generate deliverables | `report.py` produces markdown report, JSON breakdown, and summary |
+| **1. Gather** (Python, ~3 min) | Collect evidence | Jenkins data, cluster validation via `oc`, repo cloning, selector search in product source, 200-commit git diff for renames, backend API probing with cluster ground truth cross-reference |
+| **2. Analyze** (AI, ~20-30 min) | Classify each failure | 5-phase investigation using ACM-UI MCP (selectors), JIRA MCP (known bugs), Neo4j KG (dependencies). Per-test causal verification, graduated infrastructure scoring |
+| **3. Report** (Python) | Generate deliverables | `Detailed-Analysis.md`, `per-test-breakdown.json`, `SUMMARY.txt` |
 
 ### Classification Guide
 
@@ -142,8 +99,8 @@ ai_systems_v2/
 │   ├── z-stream-analysis/     # Pipeline failure analysis (active)
 │   └── claude-test-generator/ # Test generation (in progress)
 └── mcp/
-    ├── acm-ui/                # ACM UI MCP server
-    ├── jira/                  # JIRA MCP server
+    ├── acm-ui-mcp-server/     # ACM UI MCP server
+    ├── jira-mcp-server/       # JIRA MCP server
     ├── neo4j-rhacm/           # Knowledge graph MCP server
     └── polarion/              # Polarion MCP server
 ```

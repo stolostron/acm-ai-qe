@@ -6,11 +6,11 @@ Multi-app repository for Jenkins pipeline analysis and test generation tools.
 
 ### Z-Stream Analysis (`apps/z-stream-analysis/`) — Active
 
-Jenkins pipeline failure analysis with classification: PRODUCT_BUG | AUTOMATION_BUG | INFRASTRUCTURE | FLAKY | NO_BUG | MIXED | UNKNOWN.
+Jenkins pipeline failure analysis (v3.3) with classification: PRODUCT_BUG | AUTOMATION_BUG | INFRASTRUCTURE | FLAKY | NO_BUG | MIXED | UNKNOWN. Includes assertion value extraction, per-feature-area graduated infrastructure scoring, per-test causal link verification, failure mode categorization, blank page pre-routing, hook failure deduplication, temporal evidence routing, feature investigation playbooks, tiered cluster investigation, and classification feedback.
 
 Three-stage pipeline:
-1. **gather.py** — Extracts test data from Jenkins (builds `core-data.json`)
-2. **AI Analysis** — 5-phase investigation producing `analysis-results.json`
+1. **gather.py** — Extracts test data from Jenkins (builds `core-data.json` with cluster landscape, backend API probes, and feature grounding)
+2. **AI Analysis** — 5-phase investigation with backend cross-check producing `analysis-results.json`
 3. **report.py** — Generates `Detailed-Analysis.md` from analysis results
 
 See `apps/z-stream-analysis/CLAUDE.md` for schema requirements, classification guide, and MCP tool reference.
@@ -53,10 +53,12 @@ Run `bash mcp/setup.sh` from repo root to configure all servers.
 
 | Server | Tools | Purpose |
 |--------|-------|---------|
-| ACM UI (`mcp/acm-ui/`) | 20 | ACM Console + kubevirt-plugin source code search via GitHub |
-| JIRA (`mcp/jira/`) | 24 | Issue search, creation, management for bug correlation |
-| Neo4j RHACM (`mcp/neo4j-rhacm/`) | 3 | Component dependency analysis via Cypher queries (optional) |
-| Polarion (`mcp/polarion/`) | 17 | Polarion test case access (optional) |
+| ACM UI (`mcp/acm-ui/`) | 19 | ACM Console + kubevirt-plugin source code search via GitHub |
+| JIRA (`mcp/jira/`) | 25 | Issue search, creation, management for bug correlation (Jira Cloud) |
+| Neo4j RHACM (`mcp/neo4j-rhacm/`) | 2 | Component dependency analysis via Cypher queries (optional) |
+| Polarion (`mcp/polarion/`) | 25 | Polarion test case access (optional) |
+
+**JIRA Cloud Setup:** Create `mcp/jira-mcp-server/.env` from `.env.example` with your Jira Cloud credentials (email + API token). Or run `bash mcp/setup.sh`. Get a token at https://id.atlassian.com/manage-profile/security/api-tokens. See `apps/z-stream-analysis/docs/05-MCP-INTEGRATION.md` for details.
 
 ## Directory Structure
 
@@ -76,5 +78,11 @@ ai_systems_v2/
 
 ```bash
 # Z-stream analysis tests (from app directory)
-cd apps/z-stream-analysis/ && python -m pytest tests/ -q
+cd apps/z-stream-analysis/
+
+# Fast — unit + regression (525 tests, no external deps):
+python -m pytest tests/unit/ tests/regression/ -q
+
+# Full suite (575 tests, requires Jenkins VPN for integration):
+python -m pytest tests/ -q --timeout=300
 ```

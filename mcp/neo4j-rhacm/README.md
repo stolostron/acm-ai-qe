@@ -1,134 +1,39 @@
-# Neo4j RHACM Knowledge Graph MCP
+# Knowledge Graph MCP Documentation
 
-RHACM architecture dependency graph in Neo4j, accessible via the Model Context Protocol (MCP).
+This folder contains all documentation related to the Neo4j RHACM Knowledge Graph MCP integration.
 
-Part of the [AI Systems Suite](../../README.md). Used by the [Z-Stream Analysis](../../apps/z-stream-analysis/) application for component dependency analysis during pipeline failure investigation.
+## Quick Start
 
-**Origin:** Based on [stolostron/knowledge-graph](https://github.com/stolostron/knowledge-graph/tree/main/acm/agentic-docs/dependency-analysis), forked and extended with additional sample queries, MCP integration documentation, and curated AI interaction questions.
+**Services are running on:**
+- Neo4j Browser: http://localhost:7474 (neo4j / rhacmgraph)
+- MCP SSE Endpoint: http://localhost:8000/sse
 
-This is a **container-based** MCP server. No custom source code is maintained here — this directory contains setup documentation, sample queries, and reference materials.
-
----
-
-## Quick Start (Existing Setup)
-
-If containers are already set up, start them after a reboot:
-
+**Start services after reboot:**
 ```bash
 podman machine start
 podman start neo4j-rhacm neo4j-mcp
 ```
 
-**Services:**
-- Neo4j Browser: http://localhost:7474 (neo4j / rhacmgraph)
-- MCP SSE Endpoint: http://localhost:8000/sse
-
 ---
 
-## New User Setup (First-Time)
+## Documentation Index
 
-### Step 1: Install Podman
+### Primary Documentation
 
-```bash
-# macOS
-brew install podman
-podman machine init
-podman machine start
+| File | Description |
+|------|-------------|
+| [Neo4j-RHACM-MCP-Complete-Guide.md](./Neo4j-RHACM-MCP-Complete-Guide.md) | **Main Guide** - Complete setup, usage, and troubleshooting (885 lines) |
+| [mcp_sample_questions.md](./mcp_sample_questions.md) | 100+ curated questions for AI interaction |
+| [sample_queries.cypher](./sample_queries.cypher) | 30+ ready-to-use Cypher analytics queries |
 
-# Linux (Fedora/RHEL)
-sudo dnf install podman
-```
+### Reference Documentation
 
-Verify: `podman --version`
-
-### Step 2: Install Node.js (for mcp-remote)
-
-```bash
-# macOS
-brew install node
-
-# Linux
-sudo dnf install nodejs
-```
-
-Verify: `node --version` (18+ required), `which npx`
-
-### Step 3: Start the Neo4j database container
-
-```bash
-podman run -d \
-  --name neo4j-rhacm \
-  -p 7474:7474 \
-  -p 7687:7687 \
-  -e NEO4J_AUTH=neo4j/rhacmgraph \
-  -e NEO4J_PLUGINS='["apoc"]' \
-  neo4j:2025.01.0
-```
-
-Wait ~30 seconds for Neo4j to initialize, then verify:
-
-```bash
-podman exec neo4j-rhacm cypher-shell -u neo4j -p rhacmgraph "RETURN 1"
-```
-
-### Step 4: Load the RHACM knowledge graph data
-
-```bash
-# Clone the data source
-git clone https://github.com/stolostron/knowledge-graph.git /tmp/knowledge-graph
-
-# Copy the Cypher import script into the container
-podman cp /tmp/knowledge-graph/acm/agentic-docs/dependency-analysis/knowledge-graph/rhacm_architecture_comprehensive_final.cypher neo4j-rhacm:/tmp/
-
-# Load data
-podman exec neo4j-rhacm cypher-shell -u neo4j -p rhacmgraph -f /tmp/rhacm_architecture_comprehensive_final.cypher
-
-# Verify (should return 291)
-podman exec neo4j-rhacm cypher-shell -u neo4j -p rhacmgraph "MATCH (n) RETURN count(n)"
-```
-
-### Step 5: Start the MCP SSE server container
-
-```bash
-podman run -d \
-  --name neo4j-mcp \
-  -p 8000:8000 \
-  quay.io/bjoydeep/neo4j-cypher:fixed \
-  mcp-neo4j-cypher \
-    --db-url bolt://host.containers.internal:7687 \
-    --username neo4j \
-    --password rhacmgraph \
-    --transport sse
-```
-
-Verify MCP endpoint:
-
-```bash
-curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/sse
-# Should return 200
-```
-
-### Step 6: Configure MCP in your project
-
-Add to your project's `.mcp.json`:
-
-```json
-{
-  "mcpServers": {
-    "neo4j-rhacm": {
-      "command": "npx",
-      "args": ["-y", "mcp-remote", "http://localhost:8000/sse"],
-      "timeout": 120
-    }
-  }
-}
-```
-
-### Step 7: Test the connection
-
-In Claude Code or Cursor, ask: "Query the knowledge graph: MATCH (n) RETURN count(n)"
-
-Expected result: 291 components.
+| File | Description |
+|------|-------------|
+| [MCP-Architecture-Guide.md](./MCP-Architecture-Guide.md) | MCP protocol architecture and usage patterns |
+| [Graph-Architecture-Reference.md](./Graph-Architecture-Reference.md) | Neo4j graph data model and query patterns |
+| [ACM-Dependency-Graph-Original-Guide.md](./ACM-Dependency-Graph-Original-Guide.md) | Original ACM dependency graph documentation |
+| [stolostron-knowledge-graph-README.md](./stolostron-knowledge-graph-README.md) | Original README from stolostron/knowledge-graph repo |
 
 ---
 
@@ -139,7 +44,6 @@ Expected result: 291 components.
 | Total Components | 291 |
 | Total Relationships | 419 |
 | Subsystems | 7 |
-| Data Source | [stolostron/knowledge-graph](https://github.com/stolostron/knowledge-graph) |
 
 ### Components by Subsystem
 
@@ -152,44 +56,6 @@ Expected result: 291 components.
 | Observability | 20 |
 | Search | 16 |
 | Cluster | 13 |
-
----
-
-## Architecture
-
-```
-AI Agent (Claude Code / Cursor)
-  └─ MCP protocol (via npx mcp-remote or direct SSE)
-       └─ MCP Server container (Port 8000, SSE transport)
-            └─ Neo4j Database container (Port 7474/7687, Bolt protocol)
-                 └─ RHACM Architecture Graph (291 components, 419 relationships)
-```
-
-### Containers
-
-| Container | Image | Port | Purpose |
-|-----------|-------|------|---------|
-| `neo4j-rhacm` | `neo4j:2025.01.0` | 7474, 7687 | Graph database |
-| `neo4j-mcp` | `quay.io/bjoydeep/neo4j-cypher:fixed` | 8000 | MCP SSE server |
-
-### MCP Tools
-
-| Tool | Purpose |
-|------|---------|
-| `read_neo4j_cypher` | Execute read-only Cypher queries |
-| `write_neo4j_cypher` | Execute write Cypher queries |
-| `get_neo4j_schema` | Get database schema information |
-
----
-
-## Documentation Index
-
-| File | Description |
-|------|-------------|
-| [QUICK-REFERENCE.md](./QUICK-REFERENCE.md) | Quick lookup card for commands and queries |
-| [MCP-Architecture-Guide.md](./MCP-Architecture-Guide.md) | MCP protocol architecture and usage patterns |
-| [mcp_sample_questions.md](./mcp_sample_questions.md) | 100+ curated questions for AI interaction |
-| [sample_queries.cypher](./sample_queries.cypher) | 30+ ready-to-use Cypher analytics queries |
 
 ---
 
@@ -230,7 +96,7 @@ curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/sse
 
 ## Example Queries
 
-### Natural Language (via AI agent)
+### Natural Language (in Cursor)
 
 ```
 "What components are in the Governance subsystem?"
@@ -243,59 +109,52 @@ curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/sse
 
 ```cypher
 -- List all subsystems with counts
-MATCH (n:RHACMComponent)
-RETURN n.subsystem as Subsystem, count(n) as Count
+MATCH (n:RHACMComponent) 
+RETURN n.subsystem as Subsystem, count(n) as Count 
 ORDER BY Count DESC;
 
 -- Find policy-related components
-MATCH (n:RHACMComponent)
-WHERE n.label CONTAINS 'policy'
+MATCH (n:RHACMComponent) 
+WHERE n.label CONTAINS 'policy' 
 RETURN n.label, n.subsystem, n.type;
 
 -- Cross-subsystem dependencies
-MATCH (s:RHACMComponent)-[r]->(t:RHACMComponent)
-WHERE s.subsystem <> t.subsystem
-RETURN s.subsystem as From, t.subsystem as To, count(r) as Dependencies
+MATCH (s:RHACMComponent)-[r]->(t:RHACMComponent) 
+WHERE s.subsystem <> t.subsystem 
+RETURN s.subsystem as From, t.subsystem as To, count(r) as Dependencies 
 ORDER BY Dependencies DESC;
 ```
 
 ---
 
-## Usage in Z-Stream Analysis
+## Related Locations
 
-During Stage 2 (AI Analysis), the Knowledge Graph is used in:
-
-- **Phase B5**: Component dependency analysis, cascading failure detection
-- **Phase C2**: Cascading failure validation
-- **Phase E0**: Subsystem context building and feature workflow understanding
-
-The `knowledge_graph_client.py` service provides a Python interface, but actual Cypher queries are executed via MCP tool calls during AI analysis.
+| Resource | Path |
+|----------|------|
+| Cloned Repository | Your local clone of [stolostron/knowledge-graph](https://github.com/stolostron/knowledge-graph) |
+| Cursor MCP Config | `~/.cursor/mcp.json` |
+| MCP Tool Descriptors | `~/.cursor/projects/Users-ashafi-Documents-work-automation/mcps/user-neo4j-rhacm/tools/` |
 
 ---
 
-## Updating Data
+## Maintenance
+
+### Update Data from Repository
 
 ```bash
-# Pull latest from stolostron/knowledge-graph
-cd /path/to/knowledge-graph
+cd <knowledge-graph-repo>
 git pull
 
-# Clear and reload
+# Reload data
 podman exec neo4j-rhacm cypher-shell -u neo4j -p rhacmgraph "MATCH (n) DETACH DELETE n"
 podman cp acm/agentic-docs/dependency-analysis/knowledge-graph/rhacm_architecture_comprehensive_final.cypher neo4j-rhacm:/tmp/
 podman exec neo4j-rhacm cypher-shell -u neo4j -p rhacmgraph -f /tmp/rhacm_architecture_comprehensive_final.cypher
 ```
 
+### Recreate Containers
+
+See [Neo4j-RHACM-MCP-Complete-Guide.md](./Neo4j-RHACM-MCP-Complete-Guide.md#recreating-containers) for full instructions.
+
 ---
 
-## Troubleshooting
-
-| Issue | Solution |
-|-------|----------|
-| "Cannot connect to Podman" | `podman machine start` |
-| MCP not connecting | Check `podman ps --filter name=neo4j-mcp` |
-| MCP can't reach Neo4j | Use container IP: `podman inspect neo4j-rhacm --format '{{.NetworkSettings.IPAddress}}'` |
-| Neo4j connection refused | Wait 30s after container start |
-| Query timeout | Add `LIMIT` clause, bound variable-length paths |
-
-See the troubleshooting table above for common fixes.
+*Last Updated: January 30, 2026*

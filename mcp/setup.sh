@@ -5,15 +5,10 @@
 # Sets up the MCP servers used by the z-stream-analysis app.
 # Run from the repository root: bash mcp/setup.sh
 #
-# What are MCP servers?
-#   MCP (Model Context Protocol) servers give AI agents (Claude Code, Cursor)
-#   access to external tools — GitHub code search, JIRA issue lookup, etc.
-#   Without them, the AI can't investigate pipeline failures effectively.
-#
 # Servers set up by this script:
-#   [Required] acm-ui     — Search ACM Console & Fleet Virt source code via GitHub
-#   [Required] jira       — Search/create JIRA issues for bug correlation
-#   [Optional] neo4j-rhacm — RHACM component dependency graph (needs Podman)
+#   [Required] acm-ui     -- Search ACM Console & Fleet Virt source code via GitHub
+#   [Required] jira       -- Search/create JIRA issues for bug correlation
+#   [Optional] neo4j-rhacm -- RHACM component dependency graph (needs Podman)
 
 set -euo pipefail
 
@@ -32,13 +27,13 @@ ok()    { echo -e "${GREEN}[OK]${NC} $1"; }
 warn()  { echo -e "${YELLOW}[WARN]${NC} $1"; }
 fail()  { echo -e "${RED}[FAIL]${NC} $1"; }
 
-# ─────────────────────────────────────────────
+# -----------------------------------------------
 # Prerequisites Check
-# ─────────────────────────────────────────────
+# -----------------------------------------------
 echo ""
-echo "════════════════════════════════════════════"
+echo "============================================"
 echo "  MCP Server Setup for Z-Stream Analysis"
-echo "════════════════════════════════════════════"
+echo "============================================"
 echo ""
 
 info "Checking prerequisites..."
@@ -80,57 +75,59 @@ fi
 
 echo ""
 
-# ─────────────────────────────────────────────
+# -----------------------------------------------
 # [1] ACM UI MCP Server (Required)
-# ─────────────────────────────────────────────
-echo "────────────────────────────────────────────"
+# -----------------------------------------------
+echo "--------------------------------------------"
 echo "  [1/3] ACM UI MCP Server (Required)"
-echo "────────────────────────────────────────────"
+echo "--------------------------------------------"
 echo ""
 echo "  What: Searches ACM Console and Fleet Virtualization source code on GitHub."
 echo "  Used for: Finding UI selectors, component source, translations during analysis."
 echo ""
 
+ACM_UI_DIR="$SCRIPT_DIR/acm-ui-mcp-server"
+
 if python3 -c "import acm_ui_mcp_server" 2>/dev/null; then
     ok "Already installed"
 else
-    info "Installing..."
-    pip3 install -e "$SCRIPT_DIR/acm-ui/" --quiet
-    if python3 -c "import acm_ui_mcp_server" 2>/dev/null; then
-        ok "Installed successfully"
-    else
-        fail "Installation failed. Try manually: pip install -e mcp/acm-ui/"
-        exit 1
-    fi
+    info "Installing dependencies..."
+    pip3 install -r <(python3 -c "
+import tomllib, pathlib
+data = tomllib.loads(pathlib.Path('$ACM_UI_DIR/pyproject.toml').read_text())
+for dep in data.get('project', {}).get('dependencies', []):
+    print(dep)
+") --quiet 2>/dev/null || pip3 install mcp pydantic pydantic-settings python-dotenv --quiet
+    ok "Dependencies installed"
+    info "Note: The .mcp.json cwd field handles module discovery at runtime."
 fi
 
 echo ""
 
-# ─────────────────────────────────────────────
+# -----------------------------------------------
 # [2] JIRA MCP Server (Required)
-# ─────────────────────────────────────────────
-echo "────────────────────────────────────────────"
+# -----------------------------------------------
+echo "--------------------------------------------"
 echo "  [2/3] JIRA MCP Server (Required)"
-echo "────────────────────────────────────────────"
+echo "--------------------------------------------"
 echo ""
 echo "  What: Searches and manages JIRA issues."
 echo "  Used for: Finding related bugs, reading feature stories during analysis."
 echo ""
 
-JIRA_DIR="$SCRIPT_DIR/jira/jira-mcp-server"
+JIRA_DIR="$SCRIPT_DIR/jira-mcp-server"
 
-if [ -d "$JIRA_DIR" ] && python3 -c "import jira_mcp_server" 2>/dev/null; then
+if python3 -c "import jira_mcp_server" 2>/dev/null; then
     ok "Already installed"
 else
-    # Clone if not present
-    if [ ! -d "$JIRA_DIR" ]; then
-        info "Cloning stolostron/jira-mcp-server..."
-        git clone --quiet https://github.com/stolostron/jira-mcp-server.git "$JIRA_DIR"
-    fi
-
-    info "Installing..."
-    pip3 install -e "$JIRA_DIR" --quiet
-    ok "Installed"
+    info "Installing dependencies..."
+    pip3 install -r <(python3 -c "
+import tomllib, pathlib
+data = tomllib.loads(pathlib.Path('$JIRA_DIR/pyproject.toml').read_text())
+for dep in data.get('project', {}).get('dependencies', []):
+    print(dep)
+") --quiet 2>/dev/null || pip3 install jira mcp pydantic pydantic-settings python-dotenv --quiet
+    ok "Dependencies installed"
 fi
 
 # Check for .env
@@ -139,28 +136,29 @@ if [ ! -f "$JIRA_ENV" ]; then
     echo ""
     info "JIRA credentials needed."
     echo ""
-    echo "  The JIRA MCP server needs your JIRA instance URL and a Personal Access Token."
+    echo "  The JIRA MCP server connects to Jira Cloud using basic auth (email + API token)."
     echo ""
-    echo "  To get your JIRA token:"
-    echo "    1. Log in to your JIRA instance (e.g., https://issues.redhat.com)"
-    echo "    2. Go to Profile > Personal Access Tokens"
-    echo "    3. Create a new token"
-    echo "    4. Copy the token"
+    echo "  To get your API token:"
+    echo "    1. Go to https://id.atlassian.com/manage-profile/security/api-tokens"
+    echo "    2. Click 'Create API token'"
+    echo "    3. Copy the token"
     echo ""
 
-    read -p "  JIRA Server URL [https://issues.redhat.com]: " JIRA_URL
-    JIRA_URL="${JIRA_URL:-https://issues.redhat.com}"
+    read -p "  JIRA Server URL [https://redhat.atlassian.net]: " JIRA_URL
+    JIRA_URL="${JIRA_URL:-https://redhat.atlassian.net}"
 
-    read -p "  JIRA Access Token: " JIRA_TOKEN
+    read -p "  JIRA Email (your Atlassian account email): " JIRA_EMAIL_INPUT
+
+    read -p "  JIRA API Token: " JIRA_TOKEN
     if [ -z "$JIRA_TOKEN" ]; then
         warn "No token provided. Creating .env with placeholder."
-        JIRA_TOKEN="PASTE_YOUR_TOKEN_HERE"
+        JIRA_TOKEN="PASTE_YOUR_API_TOKEN_HERE"
     fi
 
     cat > "$JIRA_ENV" <<EOF
 JIRA_SERVER_URL=$JIRA_URL
 JIRA_ACCESS_TOKEN=$JIRA_TOKEN
-JIRA_VERIFY_SSL=true
+JIRA_EMAIL=$JIRA_EMAIL_INPUT
 JIRA_TIMEOUT=30
 JIRA_MAX_RESULTS=100
 EOF
@@ -172,12 +170,12 @@ fi
 
 echo ""
 
-# ─────────────────────────────────────────────
+# -----------------------------------------------
 # [3] Neo4j RHACM Knowledge Graph (Optional)
-# ─────────────────────────────────────────────
-echo "────────────────────────────────────────────"
+# -----------------------------------------------
+echo "--------------------------------------------"
 echo "  [3/3] Neo4j RHACM Knowledge Graph (Optional)"
-echo "────────────────────────────────────────────"
+echo "--------------------------------------------"
 echo ""
 echo "  What: RHACM component dependency graph (291 components, 419 relationships)."
 echo "  Used for: Understanding which components depend on each other during analysis."
@@ -200,35 +198,41 @@ fi
 
 echo ""
 
-# ─────────────────────────────────────────────
+# -----------------------------------------------
 # Update .mcp.json
-# ─────────────────────────────────────────────
-echo "────────────────────────────────────────────"
+# -----------------------------------------------
+echo "--------------------------------------------"
 echo "  Updating .mcp.json"
-echo "────────────────────────────────────────────"
+echo "--------------------------------------------"
 echo ""
 
 MCP_JSON="$APP_DIR/.mcp.json"
 
-# All 3 servers are always included in .mcp.json.
-# neo4j-rhacm is optional — it fails gracefully if containers aren't running.
 cat > "$MCP_JSON" <<'MCPEOF'
 {
   "mcpServers": {
     "acm-ui": {
       "command": "python",
       "args": ["-m", "acm_ui_mcp_server.main"],
-      "cwd": "../../mcp/acm-ui"
+      "cwd": "../../mcp/acm-ui-mcp-server"
     },
     "jira": {
       "command": "python",
       "args": ["-m", "jira_mcp_server.main"],
-      "cwd": "../../mcp/jira/jira-mcp-server"
+      "cwd": "../../mcp/jira-mcp-server",
+      "timeout": 60
     },
     "neo4j-rhacm": {
-      "command": "npx",
-      "args": ["-y", "mcp-remote", "http://localhost:8000/sse"],
-      "timeout": 120
+      "command": "uvx",
+      "args": [
+        "--with", "fastmcp<3",
+        "mcp-neo4j-cypher",
+        "--db-url", "bolt://localhost:7687",
+        "--username", "neo4j",
+        "--password", "rhacmgraph",
+        "--read-only"
+      ],
+      "timeout": 60
     }
   }
 }
@@ -237,32 +241,32 @@ ok "Updated $MCP_JSON"
 
 echo ""
 
-# ─────────────────────────────────────────────
+# -----------------------------------------------
 # Summary
-# ─────────────────────────────────────────────
-echo "════════════════════════════════════════════"
+# -----------------------------------------------
+echo "============================================"
 echo "  Setup Complete"
-echo "════════════════════════════════════════════"
+echo "============================================"
 echo ""
 echo "  Configured servers:"
 
 # Check each
 if python3 -c "import acm_ui_mcp_server" 2>/dev/null; then
-    echo -e "    ${GREEN}✓${NC} acm-ui       — ACM Console & Fleet Virt source code"
+    echo -e "    ${GREEN}OK${NC} acm-ui       -- ACM Console & Fleet Virt source code (20 tools)"
 else
-    echo -e "    ${RED}✗${NC} acm-ui       — Not installed"
+    echo -e "    ${RED}FAIL${NC} acm-ui       -- Not installed"
 fi
 
 if python3 -c "import jira_mcp_server" 2>/dev/null; then
-    echo -e "    ${GREEN}✓${NC} jira         — JIRA issue management"
+    echo -e "    ${GREEN}OK${NC} jira         -- JIRA issue management (25 tools)"
 else
-    echo -e "    ${RED}✗${NC} jira         — Not installed"
+    echo -e "    ${RED}FAIL${NC} jira         -- Not installed"
 fi
 
 if podman ps -a --format '{{.Names}}' 2>/dev/null | grep -q neo4j-mcp; then
-    echo -e "    ${GREEN}✓${NC} neo4j-rhacm  — RHACM component dependency graph"
+    echo -e "    ${GREEN}OK${NC} neo4j-rhacm  -- RHACM component dependency graph (3 tools)"
 else
-    echo -e "    ${YELLOW}○${NC} neo4j-rhacm  — Not set up (optional)"
+    echo -e "    ${YELLOW}--${NC} neo4j-rhacm  -- Not set up (optional)"
 fi
 
 echo ""

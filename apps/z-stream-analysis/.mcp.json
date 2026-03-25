@@ -1,0 +1,27 @@
+{
+  "mcpServers": {
+    "acm-ui": {
+      "command": "python",
+      "args": ["-m", "acm_ui_mcp_server.main"],
+      "cwd": "../../mcp/acm-ui-mcp-server"
+    },
+    "jira": {
+      "command": "python",
+      "args": ["-m", "jira_mcp_server.main"],
+      "cwd": "../../mcp/jira-mcp-server",
+      "timeout": 60
+    },
+    "neo4j-rhacm": {
+      "command": "uvx",
+      "args": [
+        "--with", "fastmcp<3",
+        "mcp-neo4j-cypher",
+        "--db-url", "bolt://localhost:7687",
+        "--username", "neo4j",
+        "--password", "rhacmgraph",
+        "--read-only"
+      ],
+      "timeout": 60
+    }
+  }
+}

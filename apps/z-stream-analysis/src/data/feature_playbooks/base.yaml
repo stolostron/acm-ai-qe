@@ -1,0 +1,1714 @@
+# Feature Investigation Playbooks — Stable across ACM versions
+# These profiles describe architecture, prerequisites, and known failure paths
+# for core ACM features. They guide AI investigation during Stage 2 analysis.
+
+profiles:
+
+  Search:
+    display_name: Search & Discovery
+    docs_ref: rhacm-docs/observability/search
+
+    architecture:
+      summary: |
+        search-collector addon runs on each spoke cluster and indexes resources.
+        Data flows to search-aggregator on hub, which feeds search-indexer.
+        search-api serves the UI. redisgraph provides persistent index storage.
+      data_flow:
+        - "search-collector (spoke) collects resources"
+        - "Collection Agent feeds raw data to Data Transformer"
+        - "Data Transformer processes into Resource Indexer"
+        - "Resource Indexer indexes via ElasticSearch Integration (redisgraph)"
+        - "Query Processor serves via REST API Gateway and GraphQL API Server"
+        - "search-api serves queries from the console UI"
+      key_insight: >
+        If search-collector addon is not running on a spoke, resources from that
+        spoke won't appear in search results. No error is produced — just empty results.
+      cross_subsystem_impact:
+        - "Virtualization depends on Search: Fleet Virt uses VM Search Integration to discover VMs across clusters — if Search is down, VM list is empty"
+        - "RBAC depends on Search: Fine-Grained RBAC Search Integration filters search results by MCRA permissions"
+        - "Console Resource Proxy proxies resource requests through Search Interface"
+      ui_routes:
+        - "/multicloud/search"
+        - "/multicloud/search/resources"
+        - "/multicloud/search/resources/yaml"
+        - "/multicloud/search/resources/related"
+      key_components:
+        - name: search-api
+          role: Serves search queries to the console UI
+          type: hub-deployment
+          namespace: open-cluster-management
+          pod_label: app=search-api
+        - name: search-collector
+          role: Indexes resources on spoke clusters
+          type: addon
+          namespace: open-cluster-management
+          pod_label: app=search-collector
+        - name: search-indexer
+          role: Processes and indexes data into redisgraph
+          type: hub-deployment
+          namespace: open-cluster-management
+          pod_label: app=search-indexer
+        - name: search-redisgraph
+          role: Persistent graph store for search index
+          type: hub-statefulset
+          namespace: open-cluster-management
+          pod_label: app=search-redisgraph
+
+    prerequisites:
+      - id: search-mch-component
+        type: mch_component
+        check_spec:
+          component_name: search
+        default_enabled: true
+        description: Search component enabled in MultiClusterHub
+      - id: search-collector-addon
+        type: addon
+        check_spec:
+          addon_name: search-collector
+        default_enabled: true
+        description: search-collector addon deployed to spoke clusters
+    dependencies:
+      - Infrastructure
+
+    failure_paths:
+      - id: search-disabled
+        description: Search component disabled in MultiClusterHub
+        category: prerequisite
+        symptoms:
+          - "(?i)search.*not found"
+          - "(?i)search.*tab.*missing"
+          - "(?i)cannot find.*search"
+        prerequisite_id: search-mch-component
+        investigation:
+          - step: Check MCH component status
+            command: "oc get mch -A -o jsonpath='{.items[0].spec.overrides.components}'"
+            expect: "search component with enabled=true"
+            if_not: "Search is disabled in MCH — tests targeting search will not find the UI"
+        classification: NO_BUG
+        confidence: 0.95
+        explanation: Search feature is intentionally disabled. Tests expecting it will timeout.
+
+      - id: collector-not-on-spoke
+        description: search-collector addon not installed or unhealthy on spoke
+        category: connectivity
+        symptoms:
+          - "(?i)no results.*found"
+          - "(?i)empty.*search.*results"
+          - "(?i)resource.*not.*found.*search"
+        investigation:
+          - step: Check addon status on spoke
+            command: "oc get managedclusteraddon search-collector -n {spoke_cluster} -o yaml"
+            expect: "condition Available=True"
+            if_not: "search-collector addon is not healthy on this spoke — resources won't be indexed"
+          - step: Check addon pod logs
+            command: "oc logs -n open-cluster-management -l app=search-collector --tail=50"
+            expect: "No connection errors"
+            if_not: "search-collector has connection issues — check network to spoke"
+        classification: INFRASTRUCTURE
+        confidence: 0.90
+        explanation: search-collector addon not running on spoke. Resources from that spoke are not indexed.
+
+      - id: search-api-down
+        description: search-api pod crashed or OOM
+        category: component_health
+        symptoms:
+          - "(?i)500.*search"
+          - "(?i)search.*error"
+          - "(?i)internal server error.*search"
+          - "(?i)ECONNREFUSED.*search"
+        investigation:
+          - step: Check search-api pod
+            command: "oc get pods -n open-cluster-management -l app=search-api"
+            expect: "1/1 Running, 0 restarts"
+            if_not: "search-api is not healthy"
+          - step: Check logs for errors
+            command: "oc logs -n open-cluster-management -l app=search-api --tail=100"
+            expect: "No panic or OOM messages"
+            if_not: "search-api is crashing — infrastructure issue"
+        classification: INFRASTRUCTURE
+        confidence: 0.85
+        explanation: search-api pod is not running. All search queries will fail.
+
+      - id: redisgraph-unavailable
+        description: redisgraph statefulset down
+        category: component_health
+        symptoms:
+          - "(?i)redis.*connection.*refused"
+          - "(?i)redisgraph.*unavailable"
+          - "(?i)search.*timeout.*query"
+        investigation:
+          - step: Check redisgraph statefulset
+            command: "oc get statefulset -n open-cluster-management -l app=search-redisgraph"
+            expect: "READY 1/1"
+            if_not: "redisgraph is down — search index is unavailable"
+          - step: Check PVC health
+            command: "oc get pvc -n open-cluster-management -l app=search-redisgraph"
+            expect: "STATUS Bound"
+            if_not: "PVC not bound — storage issue preventing redisgraph from starting"
+        classification: INFRASTRUCTURE
+        confidence: 0.85
+        explanation: redisgraph statefulset is down. Search index is unavailable.
+
+      - id: search-index-stale
+        description: Indexer lag — newly created resources not appearing
+        category: data_flow
+        symptoms:
+          - "(?i)expected.*resource.*not.*found"
+          - "(?i)created.*but.*not.*in.*search"
+          - "(?i)stale.*results"
+        investigation:
+          - step: Check search-indexer pod
+            command: "oc get pods -n open-cluster-management -l app=search-indexer"
+            expect: "Running, low restart count"
+            if_not: "search-indexer is restarting — may be rebuilding index"
+          - step: Check indexer logs
+            command: "oc logs -n open-cluster-management -l app=search-indexer --tail=50"
+            expect: "No rebuild or connection lost messages"
+            if_not: "Indexer is rebuilding — index is stale during rebuild"
+        classification: PRODUCT_BUG
+        confidence: 0.75
+        explanation: Search indexer has lag. Recently created resources are not yet indexed.
+
+      - id: search-query-regression
+        description: Search query returns wrong results — API healthy but logic incorrect
+        category: data_flow
+        symptoms:
+          - "(?i)expected.*result.*not.*match"
+          - "(?i)search.*returned.*wrong"
+          - "(?i)assert.*search.*result"
+          - "(?i)unexpected.*search.*response"
+        investigation:
+          - step: Check search-api health
+            command: "oc get pods -n open-cluster-management -l app=search-api"
+            expect: "Running, 0 restarts"
+            if_not: "search-api is not healthy — route to search-api-down"
+          - step: Verify search-api responds to queries
+            command: "oc logs -n open-cluster-management -l app=search-api --tail=50"
+            expect: "No error responses, query processing normal"
+            if_not: "search-api is returning errors"
+        classification: PRODUCT_BUG
+        confidence: 0.80
+        explanation: Search API is healthy but returns incorrect results. Likely a query processing regression.
+
+      - id: search-selector-stale
+        description: Test selector for search UI element no longer matches product
+        category: configuration
+        symptoms:
+          - "(?i)element.*not found.*search"
+          - "(?i)search.*selector.*not found"
+          - "(?i)Expected to find element.*search"
+        investigation:
+          - step: Check search-api is healthy
+            command: "oc get pods -n open-cluster-management -l app=search-api"
+            expect: "Running, 0 restarts"
+            if_not: "search-api is not healthy — route to search-api-down"
+          - step: Verify search page loads content
+            command: "echo 'Manual check: verify /multicloud/search renders search bar and results'"
+            expect: "Search page renders with content"
+            if_not: "Search page is blank — different failure mode"
+        classification: AUTOMATION_BUG
+        confidence: 0.85
+        explanation: Search backend is healthy. The test selector does not match the current product UI.
+
+  GRC:
+    display_name: Governance, Risk & Compliance
+    docs_ref: rhacm-docs/governance
+
+    architecture:
+      summary: |
+        Policy created on hub. grc-policy-propagator sends it to managed clusters
+        via work-manager. config-policy-controller enforces on spoke.
+        Compliance status reported back to hub. Policy types include
+        ConfigurationPolicy, CertificatePolicy, IAMPolicy.
+      data_flow:
+        - "Policy created on hub (or via PolicyGenerator CLI/Kustomize plugin)"
+        - "Policy Propagator Controller distributes to managed clusters using PlacementBinding + PlacementRule/Placement"
+        - "Propagator uses Template Resolvers (with encryption) to resolve hub templates before distribution"
+        - "governance-policy-framework-addon on spoke runs 5 sync controllers: Spec Sync, Template Sync, Status Sync, Secret Sync, Gatekeeper Sync"
+        - "config-policy-controller enforces ConfigurationPolicy on spoke"
+        - "Status Sync Controller reports compliance back to hub"
+        - "Status Aggregation Engine on hub calculates root compliance via Root Compliance Calculator"
+      key_insight: >
+        Policy propagation is a multi-hop flow (hub -> propagator -> work-manager
+        -> spoke controller). Failure at any hop means the policy won't apply or
+        won't report compliance.
+      component_hierarchy:
+        - "governance-policy-framework-addon contains: Spec Sync Controller, Template Sync Controller, Status Sync Controller, Secret Sync Controller, Gatekeeper Sync Controller"
+        - "Policy Propagator Controller uses: Resource Version Tracker, Template Resolvers, PlacementRule Event Handler, PlacementBinding Event Handler, Placement Decision Handler"
+        - "Policy Propagator Controller contains: Status Aggregation Engine (which uses Root Compliance Calculator)"
+        - "Addon Manager manages: iam-policy-controller, cert-policy-controller, config-policy-controller, governance-policy-framework-addon"
+      cross_subsystem_impact:
+        - "Infrastructure: If klusterlet loses connectivity, compliance status stops updating from that spoke (Status Sync cannot report back)"
+        - "Console: Resource Proxy proxies GRC Resources for the governance UI"
+      ui_routes:
+        - "/multicloud/governance"
+        - "/multicloud/governance/policies"
+        - "/multicloud/governance/policy-sets"
+        - "/multicloud/governance/policies/create"
+        - "/multicloud/governance/discovered"
+      key_components:
+        - name: grc-policy-propagator
+          role: Distributes policies from hub to managed clusters
+          type: hub-deployment
+          namespace: open-cluster-management
+          pod_label: app=grc-policy-propagator
+        - name: config-policy-controller
+          role: Enforces ConfigurationPolicy on spoke clusters
+          type: addon
+          namespace: open-cluster-management
+          pod_label: app=config-policy-controller
+        - name: governance-policy-framework
+          role: Core policy framework addon on spoke
+          type: addon
+          namespace: open-cluster-management
+          pod_label: app=governance-policy-framework
+        - name: iam-policy-controller
+          role: Enforces IAM policies on spoke
+          type: addon
+          namespace: open-cluster-management
+          pod_label: app=iam-policy-controller
+        - name: cert-policy-controller
+          role: Enforces certificate policies on spoke
+          type: addon
+          namespace: open-cluster-management
+          pod_label: app=cert-policy-controller
+
+    prerequisites:
+      - id: grc-mch-component
+        type: mch_component
+        check_spec:
+          component_name: grc
+        default_enabled: true
+        description: GRC component enabled in MultiClusterHub
+      - id: governance-framework-addon
+        type: addon
+        check_spec:
+          addon_name: governance-policy-framework
+        default_enabled: true
+        description: governance-policy-framework addon on managed clusters
+      - id: config-policy-addon
+        type: addon
+        check_spec:
+          addon_name: config-policy-controller
+        default_enabled: true
+        description: config-policy-controller addon on managed clusters
+    dependencies:
+      - Infrastructure
+
+    failure_paths:
+      - id: grc-disabled
+        description: GRC component disabled in MultiClusterHub
+        category: prerequisite
+        symptoms:
+          - "(?i)governance.*not found"
+          - "(?i)grc.*tab.*missing"
+          - "(?i)policies.*page.*not.*found"
+        prerequisite_id: grc-mch-component
+        investigation:
+          - step: Check MCH component status
+            command: "oc get mch -A -o jsonpath='{.items[0].spec.overrides.components}'"
+            expect: "grc component with enabled=true"
+            if_not: "GRC is disabled in MCH"
+        classification: NO_BUG
+        confidence: 0.95
+        explanation: GRC feature is intentionally disabled.
+
+      - id: propagator-down
+        description: grc-policy-propagator crash — policies not distributed
+        category: component_health
+        symptoms:
+          - "(?i)policy.*not.*propagat"
+          - "(?i)policy.*stuck"
+          - "(?i)500.*governance"
+        investigation:
+          - step: Check propagator pod
+            command: "oc get pods -n open-cluster-management -l app=grc-policy-propagator"
+            expect: "Running, 0 restarts"
+            if_not: "policy-propagator is not healthy — policies won't distribute"
+          - step: Check propagator logs
+            command: "oc logs -n open-cluster-management -l app=grc-policy-propagator --tail=50"
+            expect: "No errors"
+            if_not: "Propagator is failing — check for resource conflicts or RBAC issues"
+        classification: INFRASTRUCTURE
+        confidence: 0.85
+        explanation: Policy propagator is down. Policies cannot be distributed to managed clusters.
+
+      - id: policy-controller-missing-spoke
+        description: config-policy-controller not on spoke
+        category: connectivity
+        symptoms:
+          - "(?i)compliance.*unknown"
+          - "(?i)policy.*no.*status"
+          - "(?i)non-compliant.*all"
+        investigation:
+          - step: Check addon on spoke
+            command: "oc get managedclusteraddon config-policy-controller -n {spoke_cluster}"
+            expect: "Available=True"
+            if_not: "config-policy-controller not deployed to this spoke"
+        classification: INFRASTRUCTURE
+        confidence: 0.90
+        explanation: config-policy-controller addon not running on spoke. Policies exist but no compliance reported.
+
+      - id: compliance-stuck
+        description: Compliance status not updating (work-manager backlog)
+        category: data_flow
+        symptoms:
+          - "(?i)compliance.*not.*updat"
+          - "(?i)stale.*compliance"
+          - "(?i)policy.*pending"
+        investigation:
+          - step: Check work-manager pod
+            command: "oc get pods -n open-cluster-management-hub -l app=work-manager"
+            expect: "Running, low restart count"
+            if_not: "work-manager is overloaded or restarting"
+          - step: Check work-manager logs
+            command: "oc logs -n open-cluster-management-hub -l app=work-manager --tail=50"
+            expect: "No backlog or timeout messages"
+            if_not: "work-manager has a backlog — compliance updates are delayed"
+        classification: PRODUCT_BUG
+        confidence: 0.70
+        explanation: Compliance status is stuck. work-manager may have a backlog.
+
+      - id: policy-template-error
+        description: Invalid policy template — policy rejected
+        category: configuration
+        symptoms:
+          - "(?i)template.*error"
+          - "(?i)invalid.*policy"
+          - "(?i)policy.*rejected"
+          - "(?i)spec.*invalid"
+        investigation:
+          - step: Check policy status
+            command: "oc get policies -A -o jsonpath='{range .items[*]}{.metadata.name}: {.status.compliant}{\"\\n\"}{end}'"
+            expect: "Compliant or NonCompliant status for all policies"
+            if_not: "Some policies have no status — may be rejected due to template errors"
+        classification: PRODUCT_BUG
+        confidence: 0.80
+        explanation: Policy template has errors. Policy was rejected before it could be propagated.
+
+      - id: policy-ui-render-error
+        description: Policy page shows wrong data — propagator healthy but UI data incorrect
+        category: data_flow
+        symptoms:
+          - "(?i)policy.*wrong.*data"
+          - "(?i)governance.*display.*incorrect"
+          - "(?i)assert.*policy.*status"
+          - "(?i)expected.*compliant.*got"
+        investigation:
+          - step: Check propagator health
+            command: "oc get pods -n open-cluster-management -l app=grc-policy-propagator"
+            expect: "Running, 0 restarts"
+            if_not: "propagator is not healthy — route to propagator-down"
+          - step: Verify policy status in backend
+            command: "oc get policies -A -o jsonpath='{range .items[*]}{.metadata.name}: {.status.compliant}{\"\\n\"}{end}'"
+            expect: "Status matches what test expects"
+            if_not: "Backend status differs — product rendering issue"
+        classification: PRODUCT_BUG
+        confidence: 0.80
+        explanation: Policy propagator is healthy but UI displays incorrect policy data. Likely a rendering regression.
+
+      - id: grc-selector-stale
+        description: Test selector for governance UI element no longer matches product
+        category: configuration
+        symptoms:
+          - "(?i)element.*not found.*governance"
+          - "(?i)element.*not found.*policy"
+          - "(?i)Expected to find element.*grc"
+        investigation:
+          - step: Check propagator is healthy
+            command: "oc get pods -n open-cluster-management -l app=grc-policy-propagator"
+            expect: "Running, 0 restarts"
+            if_not: "propagator is not healthy — route to propagator-down"
+          - step: Verify governance page loads content
+            command: "echo 'Manual check: verify /multicloud/governance renders policy list'"
+            expect: "Governance page renders with content"
+            if_not: "Governance page is blank — different failure mode"
+        classification: AUTOMATION_BUG
+        confidence: 0.85
+        explanation: GRC backend is healthy. The test selector does not match the current governance UI.
+
+  CLC:
+    display_name: Cluster Lifecycle
+    docs_ref: rhacm-docs/clusters
+
+    architecture:
+      summary: |
+        Three distinct flows:
+        1. Create: Hive ClusterDeployment -> hive-controllers provision -> klusterlet import.
+        2. Import: managedcluster-import-controller deploys klusterlet to spoke.
+        3. Upgrade: ClusterCurator orchestrates upgrade via curator pods.
+        Also: HyperShift for hosted control planes, assisted-service for bare metal.
+        KubeVirt provider enables creating clusters on KubeVirt infrastructure.
+      data_flow:
+        - "ClusterDeployment created on hub (provisioning)"
+        - "hive-controllers provisions cloud infrastructure (uses Cloud Provider Secrets for auth)"
+        - "managedcluster-import-controller imports cluster (deploys klusterlet agent)"
+        - "klusterlet deployed to spoke for management"
+        - "ClusterCurator orchestrates upgrades (creates AnsibleJob CRD, uses JobTemplate CRD)"
+        - "Cluster Pools provide pre-provisioned clusters via ClusterClaim resources"
+        - "HyperShift enables hosted control planes (separate namespace per hosted cluster)"
+      key_insight: >
+        CLC spans multiple operators (Hive, MCE, ClusterCurator) across different
+        namespaces. Failures often cross subsystem boundaries.
+      component_hierarchy:
+        - "HyperConverged Cluster Operator manages: KubeVirt Operator, CDI Operator, SSP Operator, Cluster Network Addons Operator, Node Maintenance Operator, HostPath Provisioner Operator"
+        - "Forklift Controller contains: Migration Controller, Plan Controller, Provider Controller, StorageMap Controller, NetworkMap Controller, Hook Controller"
+        - "Curator Jobs create AnsibleJob CRDs and use JobTemplate CRDs for pre/post hooks"
+      cross_subsystem_impact:
+        - "Infrastructure: CLC depends on klusterlet for spoke connectivity — if klusterlet is down, import/upgrade cannot proceed"
+        - "Virtualization: Cluster API Provider KubeVirt uses KubeVirt Operator for KubeVirt-based cluster provisioning"
+        - "Governance: PlacementBinding/PlacementRule used by both CLC and GRC for target selection"
+      ui_routes:
+        - "/multicloud/infrastructure/clusters"
+        - "/multicloud/infrastructure/clusters/managed"
+        - "/multicloud/infrastructure/clusters/create"
+        - "/multicloud/infrastructure/clusters/import"
+        - "/multicloud/infrastructure/clusters/details/:namespace/:name"
+        - "/multicloud/infrastructure/clusters/sets"
+        - "/multicloud/infrastructure/clusters/pools"
+        - "/multicloud/infrastructure/environments"
+        - "/multicloud/infrastructure/automations"
+      key_components:
+        - name: cluster-curator
+          role: Orchestrates cluster upgrades via curator pods
+          type: hub-deployment
+          namespace: open-cluster-management
+          pod_label: app=cluster-curator
+        - name: managedcluster-import-controller
+          role: Deploys klusterlet to spoke for import
+          type: hub-deployment
+          namespace: open-cluster-management
+          pod_label: app=managedcluster-import-controller
+        - name: cluster-manager
+          role: Core cluster management controller
+          type: hub-deployment
+          namespace: open-cluster-management
+          pod_label: app=cluster-manager
+        - name: hive-controllers
+          role: Provisions cloud infrastructure for new clusters
+          type: hub-deployment
+          namespace: hive
+          pod_label: app=hive-controllers
+        - name: registration-operator
+          role: Manages hub-side registration of managed clusters
+          type: hub-deployment
+          namespace: open-cluster-management
+          pod_label: app=registration-operator
+        - name: placement-controller
+          role: Evaluates placement decisions for workloads
+          type: hub-deployment
+          namespace: open-cluster-management-hub
+          pod_label: app=placement-controller
+
+    prerequisites:
+      - id: clc-mch-component
+        type: mch_component
+        check_spec:
+          component_name: cluster-lifecycle
+        default_enabled: true
+        description: Cluster Lifecycle component enabled in MultiClusterHub
+      - id: hive-operator
+        type: operator
+        check_spec:
+          operator_name: hive-operator
+          namespace: hive
+        default_enabled: true
+        description: Hive operator installed (required for cluster provisioning)
+      - id: cloud-credentials
+        type: informational
+        check_spec: {}
+        default_enabled: true
+        description: Appropriate cloud credentials configured for target provider
+    dependencies:
+      - Infrastructure
+
+    failure_paths:
+      - id: clc-disabled
+        description: Cluster Lifecycle disabled in MCH
+        category: prerequisite
+        symptoms:
+          - "(?i)cluster.*lifecycle.*not found"
+          - "(?i)clusters.*tab.*missing"
+        prerequisite_id: clc-mch-component
+        investigation:
+          - step: Check MCH component status
+            command: "oc get mch -A -o jsonpath='{.items[0].spec.overrides.components}'"
+            expect: "cluster-lifecycle component with enabled=true"
+            if_not: "Cluster Lifecycle is disabled in MCH"
+        classification: NO_BUG
+        confidence: 0.95
+        explanation: Cluster Lifecycle feature is intentionally disabled.
+
+      - id: hive-controllers-down
+        description: hive-controllers crash — provisioning fails
+        category: component_health
+        symptoms:
+          - "(?i)provision.*fail"
+          - "(?i)hive.*error"
+          - "(?i)clusterdeployment.*fail"
+        investigation:
+          - step: Check hive-controllers pod
+            command: "oc get pods -n hive -l app=hive-controllers"
+            expect: "Running, 0 restarts"
+            if_not: "hive-controllers is not healthy — provisioning will fail"
+          - step: Check hive-controllers logs
+            command: "oc logs -n hive -l app=hive-controllers --tail=50"
+            expect: "No errors"
+            if_not: "hive-controllers is crashing — check for credential or API issues"
+        classification: INFRASTRUCTURE
+        confidence: 0.85
+        explanation: hive-controllers is down. Cluster provisioning operations fail.
+
+      - id: import-controller-crash
+        description: managedcluster-import-controller crash — import stuck
+        category: component_health
+        symptoms:
+          - "(?i)import.*fail"
+          - "(?i)import.*stuck"
+          - "(?i)managedcluster.*pending"
+        investigation:
+          - step: Check import controller pod
+            command: "oc get pods -n open-cluster-management -l app=managedcluster-import-controller"
+            expect: "Running, 0 restarts"
+            if_not: "import controller is not healthy — cluster import stuck"
+        classification: INFRASTRUCTURE
+        confidence: 0.85
+        explanation: Import controller is crashing. Cluster import operations are stuck.
+
+      - id: curator-upgrade-stuck
+        description: ClusterCurator job not completing
+        category: data_flow
+        symptoms:
+          - "(?i)upgrade.*fail"
+          - "(?i)curator.*timeout"
+          - "(?i)upgrade.*stuck"
+          - "(?i)clustercurator.*fail"
+        investigation:
+          - step: Check curator pods
+            command: "oc get pods -n open-cluster-management -l app=cluster-curator"
+            expect: "Running, low restart count"
+            if_not: "Curator controller is not healthy"
+          - step: Check curator job logs
+            command: "oc get clustercurators -A -o jsonpath='{range .items[*]}{.metadata.name}: {.status.conditions[*].type}={.status.conditions[*].status}{\"\\n\"}{end}'"
+            expect: "Completed conditions"
+            if_not: "Curator job is stuck — check for upgrade errors"
+        classification: PRODUCT_BUG
+        confidence: 0.75
+        explanation: ClusterCurator upgrade job is not completing. Check curator pod logs for errors.
+
+      - id: managed-cluster-unreachable
+        description: Spoke cluster API unreachable — import/upgrade cannot proceed
+        category: connectivity
+        symptoms:
+          - "(?i)cluster.*unreachable"
+          - "(?i)connection.*refused.*api"
+          - "(?i)cluster.*offline"
+          - "(?i)managedcluster.*not.*ready"
+        investigation:
+          - step: Check managed cluster status
+            command: "oc get managedclusters"
+            expect: "All clusters show True under AVAILABLE"
+            if_not: "One or more managed clusters are not available"
+          - step: Check cluster conditions
+            command: "oc get managedcluster {cluster_name} -o jsonpath='{.status.conditions}'"
+            expect: "ManagedClusterConditionAvailable=True"
+            if_not: "Cluster is not reachable from the hub"
+        classification: INFRASTRUCTURE
+        confidence: 0.90
+        explanation: Spoke cluster is unreachable. Import and upgrade operations cannot proceed.
+
+      - id: cluster-create-api-regression
+        description: Cluster creation API rejects valid request — backend regression
+        category: data_flow
+        symptoms:
+          - "(?i)cluster.*create.*fail"
+          - "(?i)cluster.*create.*reject"
+          - "(?i)400.*clusterdeployment"
+          - "(?i)422.*cluster"
+          - "(?i)validation.*fail.*cluster"
+        investigation:
+          - step: Check hive-controllers health
+            command: "oc get pods -n hive -l app=hive-controllers"
+            expect: "Running, 0 restarts"
+            if_not: "hive-controllers is not healthy — route to hive-controllers-down"
+          - step: Check hive-controllers logs for validation errors
+            command: "oc logs -n hive -l app=hive-controllers --tail=50"
+            expect: "No validation rejection messages"
+            if_not: "hive-controllers is rejecting valid cluster creation requests"
+        classification: PRODUCT_BUG
+        confidence: 0.80
+        explanation: Cluster creation API rejects a valid request. Backend validation regression.
+
+      - id: clc-test-setup-error
+        description: CLC test setup fails — wrong fixture, missing secret, or bad config
+        category: configuration
+        symptoms:
+          - "(?i)before.*hook.*fail"
+          - "(?i)setup.*fail.*cluster"
+          - "(?i)secret.*not found"
+          - "(?i)fixture.*error"
+          - "(?i)cloud.*credential.*missing"
+        investigation:
+          - step: Check test error is in setup phase
+            command: "echo 'Verify error occurs in before/beforeAll hook, not in test body'"
+            expect: "Error is in test setup, not product interaction"
+            if_not: "Error is in test body — classify as PRODUCT_BUG or INFRASTRUCTURE"
+          - step: Check for missing test prerequisites
+            command: "oc get secrets -n open-cluster-management | grep -i credential"
+            expect: "Required cloud credential secrets exist"
+            if_not: "Test prerequisites (secrets/fixtures) are missing"
+        classification: AUTOMATION_BUG
+        confidence: 0.80
+        explanation: Test setup fails due to missing fixture, secret, or configuration. Automation issue.
+
+      - id: clc-selector-stale
+        description: Test selector for cluster UI element no longer matches product
+        category: configuration
+        symptoms:
+          - "(?i)element.*not found.*cluster"
+          - "(?i)Expected to find element.*cluster"
+          - "(?i)element.*not found.*infrastructure"
+        investigation:
+          - step: Check cluster management backend is healthy
+            command: "oc get pods -n open-cluster-management -l app=cluster-manager"
+            expect: "Running, 0 restarts"
+            if_not: "cluster-manager is not healthy — investigate backend"
+          - step: Verify clusters page loads content
+            command: "echo 'Manual check: verify /multicloud/infrastructure/clusters renders cluster list'"
+            expect: "Clusters page renders with content"
+            if_not: "Clusters page is blank — different failure mode"
+        classification: AUTOMATION_BUG
+        confidence: 0.85
+        explanation: CLC backend is healthy. The test selector does not match the current cluster UI.
+
+  Application:
+    display_name: Application Lifecycle
+    docs_ref: rhacm-docs/applications
+
+    architecture:
+      summary: |
+        Two deployment models:
+        1. Subscription: Channel (Git/Helm/ObjectBucket) -> Subscription -> PlacementRule -> managed clusters via ManifestWork.
+        2. ArgoCD/GitOps: ApplicationSet CRD -> GitOps Addon Controller -> OpenShift GitOps Operator on spokes.
+        Hub subscription-controller reconciles subscriptions. Status Aggregation Controller collects deployment status.
+      data_flow:
+        - "multicloud-operators-channel provides Git Channel, Helm Channel, Object Storage Channel"
+        - "Channels feed content to multicloud-operators-subscription"
+        - "Application Controller watches Application CRD and creates ManifestWork CRD for distribution"
+        - "ManifestWork CRD distributes application resources to spoke clusters"
+        - "Application Status Controller syncs status back to Application CRD"
+        - "GitOps path: GitOps Sync Resource Controller processes ApplicationSet CRDs"
+        - "GitOpsCluster CRD imports clusters to OpenShift GitOps Operator"
+        - "Status Aggregation Controller creates MulticlusterApplicationSetReport CRD"
+      key_insight: >
+        Application deployment has two code paths (Subscription vs ArgoCD). Errors
+        in channel access (Git auth, Helm repo) appear as subscription stuck, not
+        as explicit errors.
+      component_hierarchy:
+        - "multicloud-operators-channel provides: Git Channel, Helm Channel, Object Storage Channel"
+        - "GitOps integration: GitOps Addon Controller manages OpenShift GitOps Operator, GitOps Cluster Controller reconciles GitOpsCluster CRD"
+        - "Application Manager Addon validates via Application Webhooks"
+      cross_subsystem_impact:
+        - "Infrastructure: Application distribution uses ManifestWork which requires klusterlet connectivity to spoke"
+        - "Console: Resource Proxy proxies Application Resources for the applications UI"
+        - "GitOps: Depends on OpenShift GitOps Operator (external to ACM) — if GitOps operator is not installed, ArgoCD path fails silently"
+      ui_routes:
+        - "/multicloud/applications"
+        - "/multicloud/applications/create/subscription"
+        - "/multicloud/applications/create/argo"
+        - "/multicloud/applications/create/argopullmodel"
+        - "/multicloud/applications/details/:namespace/:name"
+        - "/multicloud/applications/advanced"
+      key_components:
+        - name: application-manager
+          role: Manages application resources on spoke clusters
+          type: addon
+          namespace: open-cluster-management
+          pod_label: app=application-manager
+        - name: subscription-controller
+          role: Reconciles subscriptions on hub
+          type: hub-deployment
+          namespace: open-cluster-management
+          pod_label: app=subscription-controller
+        - name: channel-controller
+          role: Manages channel resources
+          type: hub-deployment
+          namespace: open-cluster-management
+          pod_label: app=channel-controller
+        - name: multicluster-operators-subscription
+          role: Core subscription operator
+          type: hub-deployment
+          namespace: open-cluster-management
+          pod_label: app=multicluster-operators-subscription
+
+    prerequisites:
+      - id: app-lifecycle-mch-component
+        type: mch_component
+        check_spec:
+          component_name: app-lifecycle
+        default_enabled: true
+        description: Application Lifecycle component enabled in MultiClusterHub
+      - id: application-manager-addon
+        type: addon
+        check_spec:
+          addon_name: application-manager
+        default_enabled: true
+        description: application-manager addon on managed clusters
+    dependencies:
+      - Infrastructure
+
+    failure_paths:
+      - id: app-lifecycle-disabled
+        description: Application Lifecycle disabled in MCH
+        category: prerequisite
+        symptoms:
+          - "(?i)application.*not found"
+          - "(?i)app.*tab.*missing"
+        prerequisite_id: app-lifecycle-mch-component
+        investigation:
+          - step: Check MCH component status
+            command: "oc get mch -A -o jsonpath='{.items[0].spec.overrides.components}'"
+            expect: "app-lifecycle component with enabled=true"
+            if_not: "Application Lifecycle is disabled in MCH"
+        classification: NO_BUG
+        confidence: 0.95
+        explanation: Application Lifecycle feature is intentionally disabled.
+
+      - id: subscription-controller-down
+        description: subscription-controller crash — subscriptions not reconciled
+        category: component_health
+        symptoms:
+          - "(?i)subscription.*not.*reconcil"
+          - "(?i)subscription.*stuck"
+          - "(?i)subscription.*error"
+        investigation:
+          - step: Check subscription-controller pod
+            command: "oc get pods -n open-cluster-management -l app=subscription-controller"
+            expect: "Running, 0 restarts"
+            if_not: "subscription-controller is not healthy"
+        classification: INFRASTRUCTURE
+        confidence: 0.85
+        explanation: subscription-controller is down. Subscriptions are not being reconciled.
+
+      - id: channel-unreachable
+        description: Git/Helm/ObjectBucket channel auth or network failure
+        category: connectivity
+        symptoms:
+          - "(?i)channel.*auth.*fail"
+          - "(?i)channel.*unreachable"
+          - "(?i)git.*clone.*fail"
+          - "(?i)helm.*repo.*fail"
+        investigation:
+          - step: Check channel status
+            command: "oc get channels -A"
+            expect: "All channels show status"
+            if_not: "Some channels are unreachable"
+        classification: INFRASTRUCTURE
+        confidence: 0.80
+        explanation: Channel source (Git/Helm) is unreachable. Application deployment stuck.
+
+      - id: placement-no-match
+        description: PlacementRule selects no clusters
+        category: configuration
+        symptoms:
+          - "(?i)no.*cluster.*match"
+          - "(?i)placement.*no.*decision"
+          - "(?i)subscription.*not.*deployed"
+        investigation:
+          - step: Check placement decisions
+            command: "oc get placementdecisions -A"
+            expect: "Decisions with cluster selections"
+            if_not: "No clusters matched the placement criteria"
+        classification: AUTOMATION_BUG
+        confidence: 0.65
+        explanation: PlacementRule selects no clusters. May be a test setup issue or a product behavior change.
+
+      - id: subscription-reconcile-error
+        description: Subscription never reconciles — controller healthy but reconciliation fails
+        category: data_flow
+        symptoms:
+          - "(?i)subscription.*propagat.*fail"
+          - "(?i)subscription.*status.*fail"
+          - "(?i)assert.*subscription.*status"
+          - "(?i)subscription.*phase.*not.*propagated"
+        investigation:
+          - step: Check subscription-controller health
+            command: "oc get pods -n open-cluster-management -l app=subscription-controller"
+            expect: "Running, 0 restarts"
+            if_not: "subscription-controller not healthy — route to subscription-controller-down"
+          - step: Check subscription status
+            command: "oc get subscriptions.apps.open-cluster-management.io -A -o jsonpath='{range .items[*]}{.metadata.name}: {.status.phase}{\"\\n\"}{end}'"
+            expect: "Subscriptions show Propagated phase"
+            if_not: "Subscriptions not reconciling despite healthy controller"
+        classification: PRODUCT_BUG
+        confidence: 0.80
+        explanation: Subscription controller is healthy but subscriptions fail to reconcile. Likely a reconciliation regression.
+
+      - id: app-selector-stale
+        description: Test selector for application UI element no longer matches product
+        category: configuration
+        symptoms:
+          - "(?i)element.*not found.*application"
+          - "(?i)Expected to find element.*app"
+          - "(?i)element.*not found.*subscription"
+        investigation:
+          - step: Check application backend is healthy
+            command: "oc get pods -n open-cluster-management -l app=subscription-controller"
+            expect: "Running, 0 restarts"
+            if_not: "subscription-controller not healthy — investigate backend"
+          - step: Verify applications page loads content
+            command: "echo 'Manual check: verify /multicloud/applications renders application list'"
+            expect: "Applications page renders with content"
+            if_not: "Applications page is blank — different failure mode"
+        classification: AUTOMATION_BUG
+        confidence: 0.85
+        explanation: Application backend is healthy. The test selector does not match the current application UI.
+
+  Console:
+    display_name: ACM Console
+    docs_ref: rhacm-docs/web_console
+
+    architecture:
+      summary: |
+        ACM console is an OpenShift dynamic plugin (ConsolePlugin CR). console-api
+        serves backend data. Two plugins: acm (ACM features) and mce (MCE features).
+        Plugins loaded at runtime via Webpack module federation. Auth flows through
+        OpenShift OAuth.
+      data_flow:
+        - "User authenticates via OpenShift OAuth → Authentication Handler → Session Manager"
+        - "Plugin Management System manages MCE Plugin and ACM Plugin"
+        - "Plugin Framework extends Frontend React Components"
+        - "Frontend React Components communicate via REST API Controllers"
+        - "RBAC Middleware authorizes REST API Controllers"
+        - "Resource Proxy proxies requests to: Search Interface, Cluster Resources, Observability Dashboards, Application Resources, GRC Resources"
+        - "Dashboard Renderer streams via WebSocket Manager"
+        - "console-api serves backend data (RBAC endpoints, cluster data, resource proxy)"
+      key_insight: >
+        If the ConsolePlugin CR is missing or the plugin service is down, entire
+        feature tabs disappear from the UI. No error — just missing navigation items.
+      component_hierarchy:
+        - "Access Management UI contains RBAC UI"
+        - "Fleet Virtualization contains: VM Actions, VM Tree View"
+        - "Resource Proxy proxies to 5 subsystems: Search, Cluster, Observability, Application, GRC"
+        - "Console Backend API authenticates via OAuth Integration"
+      cross_subsystem_impact:
+        - "ALL features: Console is the UI layer for every feature — if console-api is down, all UI tests fail with 500 errors"
+        - "Search: Resource Proxy proxies Search Interface requests"
+        - "Observability: Resource Proxy proxies Observability Dashboard requests"
+        - "Red Hat Insights: Red Hat Insights Integration connects to Insights Operator"
+      ui_routes:
+        - "/multicloud/home/overview"
+        - "/multicloud/home/welcome"
+        - "/multicloud/credentials"
+      key_components:
+        - name: console-api
+          role: Serves backend data to the console UI
+          type: hub-deployment
+          namespace: open-cluster-management
+          pod_label: app=console-api
+        - name: acm-console
+          role: ACM console dynamic plugin
+          type: hub-deployment
+          namespace: open-cluster-management
+          pod_label: app=acm-console
+        - name: mce-console
+          role: MCE console dynamic plugin
+          type: hub-deployment
+          namespace: multicluster-engine
+          pod_label: app=mce-console
+
+    prerequisites:
+      - id: console-mch-component
+        type: mch_component
+        check_spec:
+          component_name: console
+        default_enabled: true
+        description: Console component enabled in MultiClusterHub
+      - id: console-plugin-crs
+        type: crd
+        check_spec:
+          crd_name: consoleplugins.console.openshift.io
+        default_enabled: true
+        description: ConsolePlugin CRs registered (acm, mce)
+    dependencies:
+      - Infrastructure
+
+    failure_paths:
+      - id: console-disabled
+        description: Console component disabled in MCH
+        category: prerequisite
+        symptoms:
+          - "(?i)console.*not found"
+          - "(?i)acm.*console.*missing"
+        prerequisite_id: console-mch-component
+        investigation:
+          - step: Check MCH component status
+            command: "oc get mch -A -o jsonpath='{.items[0].spec.overrides.components}'"
+            expect: "console component with enabled=true"
+            if_not: "Console is disabled in MCH"
+        classification: NO_BUG
+        confidence: 0.95
+        explanation: Console feature is intentionally disabled.
+
+      - id: console-api-down
+        description: console-api crash — 500 errors in UI
+        category: component_health
+        symptoms:
+          - "(?i)500.*console"
+          - "(?i)console.*api.*error"
+          - "(?i)internal server error"
+          - "(?i)ECONNREFUSED"
+        investigation:
+          - step: Check console-api pod
+            command: "oc get pods -n open-cluster-management -l app=console-api"
+            expect: "Running, 0 restarts"
+            if_not: "console-api is not healthy"
+          - step: Check logs
+            command: "oc logs -n open-cluster-management -l app=console-api --tail=50"
+            expect: "No errors"
+            if_not: "console-api is crashing"
+        classification: INFRASTRUCTURE
+        confidence: 0.85
+        explanation: console-api is down. UI gets 500 errors for backend data.
+
+      - id: plugin-not-registered
+        description: ConsolePlugin CR missing — feature tabs absent
+        category: configuration
+        symptoms:
+          - "(?i)tab.*missing"
+          - "(?i)navigation.*not.*found"
+          - "(?i)page.*not.*load"
+        investigation:
+          - step: Check ConsolePlugin CRs
+            command: "oc get consoleplugins"
+            expect: "acm and mce plugins listed"
+            if_not: "ConsolePlugin CR is missing — feature tabs won't render"
+        classification: INFRASTRUCTURE
+        confidence: 0.80
+        explanation: ConsolePlugin CR is not registered. Feature tabs are absent from the UI.
+
+      - id: oauth-auth-failure
+        description: OAuth proxy error — login redirect loop
+        category: connectivity
+        symptoms:
+          - "(?i)oauth.*error"
+          - "(?i)redirect.*loop"
+          - "(?i)login.*fail"
+          - "(?i)403.*forbidden"
+        investigation:
+          - step: Check OAuth proxy
+            command: "oc get oauth cluster -o yaml"
+            expect: "Valid OAuth configuration"
+            if_not: "OAuth configuration issue"
+        classification: INFRASTRUCTURE
+        confidence: 0.85
+        explanation: OAuth proxy error. Login is in a redirect loop or failing.
+
+      - id: console-render-regression
+        description: Page loads but renders incorrectly — console-api healthy but data wrong
+        category: data_flow
+        symptoms:
+          - "(?i)render.*incorrect"
+          - "(?i)page.*display.*wrong"
+          - "(?i)assert.*content.*mismatch"
+          - "(?i)expected.*text.*got"
+          - "(?i)visual.*regression"
+        investigation:
+          - step: Check console-api health
+            command: "oc get pods -n open-cluster-management -l app=console-api"
+            expect: "Running, 0 restarts"
+            if_not: "console-api is not healthy — route to console-api-down"
+          - step: Check console plugin pods
+            command: "oc get pods -n open-cluster-management -l app=acm-console"
+            expect: "Running, 0 restarts"
+            if_not: "ACM console plugin pod is not healthy"
+        classification: PRODUCT_BUG
+        confidence: 0.80
+        explanation: Console loads but renders incorrectly. Backend is healthy — likely a frontend rendering regression.
+
+      - id: console-selector-stale
+        description: Test selector for console UI element no longer matches product
+        category: configuration
+        symptoms:
+          - "(?i)element.*not found.*console"
+          - "(?i)element.*not found.*overview"
+          - "(?i)Expected to find element.*welcome"
+          - "(?i)Expected to find element.*credential"
+        investigation:
+          - step: Check console-api is healthy
+            command: "oc get pods -n open-cluster-management -l app=console-api"
+            expect: "Running, 0 restarts"
+            if_not: "console-api is not healthy — route to console-api-down"
+          - step: Verify console page loads content
+            command: "echo 'Manual check: verify /multicloud/home/overview renders dashboard'"
+            expect: "Console page renders with content"
+            if_not: "Console page is blank — different failure mode"
+        classification: AUTOMATION_BUG
+        confidence: 0.85
+        explanation: Console backend is healthy. The test selector does not match the current console UI.
+
+  Infrastructure:
+    display_name: Infrastructure Foundation
+    docs_ref: rhacm-docs/install
+
+    architecture:
+      summary: |
+        Foundation layer: klusterlet (agent on spokes) maintains heartbeat with hub.
+        addon-manager deploys/manages addons. foundation-controller provides
+        cluster-level services. MCE provides the base platform.
+      data_flow:
+        - "MCE provides base platform services (multicluster-engine operator)"
+        - "foundation-controller provides cluster-level services"
+        - "addon-manager deploys and manages addons on spokes (search-collector, governance-framework, metrics-collector, application-manager)"
+        - "klusterlet (spoke) maintains heartbeat with hub via lease renewal"
+        - "registration-operator manages hub-side registration of managed clusters"
+      key_insight: >
+        Infrastructure failures cascade. If klusterlet loses connectivity, ALL
+        spoke-dependent features (Search, GRC, App, Observability) fail on that cluster.
+      cross_subsystem_impact:
+        - "Search: addon-manager deploys search-collector to spokes — if addon-manager is down, search-collector doesn't get deployed"
+        - "GRC: addon-manager deploys governance-policy-framework-addon and config-policy-controller — if addon-manager is down, policies don't propagate"
+        - "Observability: addon-manager deploys metrics-collector addon — if addon-manager is down, metrics stop flowing"
+        - "Application: ManifestWork delivery requires klusterlet connectivity — if klusterlet is disconnected, app deployment to that spoke fails"
+        - "ALL features: MCE degraded = platform-wide impact, every feature is affected"
+      key_components:
+        - name: klusterlet
+          role: Agent on spoke clusters maintaining heartbeat with hub
+          type: daemonset
+          namespace: open-cluster-management-agent
+          pod_label: app=klusterlet
+        - name: addon-manager
+          role: Deploys and manages addons on spoke clusters
+          type: hub-deployment
+          namespace: open-cluster-management
+          pod_label: app=addon-manager
+        - name: foundation-controller
+          role: Core cluster-level services
+          type: hub-deployment
+          namespace: open-cluster-management
+          pod_label: app=foundation-controller
+        - name: multicluster-engine
+          role: MCE base platform operator
+          type: operator
+          namespace: multicluster-engine
+          pod_label: app=multicluster-engine
+
+    prerequisites:
+      - id: mce-installed
+        type: operator
+        check_spec:
+          operator_name: multicluster-engine
+          namespace: multicluster-engine
+        default_enabled: true
+        description: MCE operator installed and running
+      - id: klusterlet-deployed
+        type: addon
+        check_spec:
+          addon_name: klusterlet
+        default_enabled: true
+        description: klusterlet agent deployed to managed clusters
+    dependencies: []
+
+    failure_paths:
+      - id: klusterlet-disconnected
+        description: klusterlet agent can't reach hub API — cluster shows NotReady
+        category: connectivity
+        symptoms:
+          - "(?i)cluster.*not.*ready"
+          - "(?i)klusterlet.*disconnect"
+          - "(?i)lease.*expired"
+          - "(?i)managedcluster.*unknown"
+        investigation:
+          - step: Check managed cluster conditions
+            command: "oc get managedclusters"
+            expect: "All clusters show AVAILABLE=True"
+            if_not: "One or more clusters are disconnected"
+          - step: Check klusterlet pod on spoke
+            command: "oc get pods -n open-cluster-management-agent -l app=klusterlet"
+            expect: "Running"
+            if_not: "klusterlet is not running on the spoke"
+        classification: INFRASTRUCTURE
+        confidence: 0.90
+        explanation: klusterlet lost connectivity. All spoke-dependent features fail on this cluster.
+
+      - id: addon-manager-crash
+        description: addon-manager down — addon deployment stuck
+        category: component_health
+        symptoms:
+          - "(?i)addon.*stuck"
+          - "(?i)addon.*not.*deploy"
+          - "(?i)managedclusteraddon.*fail"
+        investigation:
+          - step: Check addon-manager pod
+            command: "oc get pods -n open-cluster-management -l app=addon-manager"
+            expect: "Running, 0 restarts"
+            if_not: "addon-manager is not healthy"
+        classification: INFRASTRUCTURE
+        confidence: 0.85
+        explanation: addon-manager is down. Addon deployments to spokes are stuck.
+
+      - id: foundation-controller-down
+        description: foundation-controller crash — core services unavailable
+        category: component_health
+        symptoms:
+          - "(?i)foundation.*error"
+          - "(?i)foundation.*crash"
+        investigation:
+          - step: Check foundation-controller pod
+            command: "oc get pods -n open-cluster-management -l app=foundation-controller"
+            expect: "Running, 0 restarts"
+            if_not: "foundation-controller is not healthy"
+        classification: INFRASTRUCTURE
+        confidence: 0.85
+        explanation: foundation-controller is down. Core cluster services are unavailable.
+
+      - id: mce-degraded
+        description: MCE operator degraded — platform-wide impact
+        category: component_health
+        symptoms:
+          - "(?i)multiclusterengine.*degraded"
+          - "(?i)mce.*error"
+          - "(?i)multicluster.*engine.*fail"
+        investigation:
+          - step: Check MCE operator
+            command: "oc get multiclusterengines -o yaml"
+            expect: "phase: Available"
+            if_not: "MCE is degraded — platform-wide impact"
+          - step: Check MCE pods
+            command: "oc get pods -n multicluster-engine | grep -v Running"
+            expect: "No non-running pods"
+            if_not: "MCE has unhealthy pods"
+        classification: INFRASTRUCTURE
+        confidence: 0.90
+        explanation: MCE operator is degraded. This causes platform-wide impact across all features.
+
+  RBAC:
+    display_name: RBAC & User Management
+    docs_ref: rhacm-docs/access_control/rbac
+
+    architecture:
+      summary: |
+        Fine-grained RBAC extends Kubernetes RBAC with ACM-specific roles.
+        Requires fine-grained-rbac MCH component (default: disabled).
+        User Management tab renders only when enabled. Depends on
+        IDP (Identity Provider) configuration for user enumeration.
+        MultiClusterRoleAssignment (MCRA) Operator handles role assignments.
+      data_flow:
+        - "fine-grained-rbac MCH component enables the feature"
+        - "MultiClusterRoleAssignment Operator processes role assignments"
+        - "console-api serves RBAC endpoints (/rbac/...)"
+        - "RBAC Middleware in console authorizes REST API requests"
+        - "RBAC UI (inside Access Management UI) renders User Management tab"
+        - "IDP provides user enumeration for role assignment"
+      key_insight: >
+        fine-grained-rbac is disabled by default. If disabled, the User
+        Management tab does not render. Tests looking for it will timeout with no
+        error, just a missing element.
+      cross_subsystem_impact:
+        - "Search: Fine-Grained RBAC Search Integration filters search results by MCRA permissions — RBAC state affects what search returns"
+        - "Console: RBAC UI is contained within Access Management UI in the Console subsystem"
+        - "Cluster: RBAC UI provides UI for MultiClusterRoleAssignment Operator (Cluster subsystem) and ClusterPermission CRD (Application subsystem)"
+      ui_routes:
+        - "/multicloud/user-management/identities"
+        - "/multicloud/user-management/identities/users"
+        - "/multicloud/user-management/identities/groups"
+        - "/multicloud/user-management/identities/service-accounts"
+        - "/multicloud/user-management/roles"
+        - "/multicloud/infrastructure/clusters/details/:namespace/:name/role-assignments"
+      key_components:
+        - name: console-api
+          role: Serves RBAC endpoints for the console UI
+          type: hub-deployment
+          namespace: open-cluster-management
+          pod_label: app=console-api
+
+    prerequisites:
+      - id: rbac-mch-component
+        type: mch_component
+        check_spec:
+          component_name: fine-grained-rbac
+        default_enabled: false
+        description: fine-grained-rbac MCH component enabled (disabled by default)
+      - id: idp-configured
+        type: informational
+        check_spec: {}
+        default_enabled: true
+        description: Identity Provider configured on hub cluster (needed for user enumeration)
+    dependencies:
+      - Console
+      - Infrastructure
+
+    failure_paths:
+      - id: rbac-flag-disabled
+        description: MCH component off — User Management tab absent
+        category: prerequisite
+        symptoms:
+          - "(?i)user.*management.*not found"
+          - "(?i)rbac.*tab.*missing"
+          - "(?i)role.*assignment.*not found"
+          - "(?i)user.*management.*timeout"
+          - "(?i)access.*control.*not found"
+        prerequisite_id: rbac-mch-component
+        investigation:
+          - step: Check MCH for fine-grained-rbac
+            command: "oc get mch -A -o jsonpath='{.items[0].spec.overrides.components}'"
+            expect: "fine-grained-rbac with enabled=true"
+            if_not: "RBAC feature flag is disabled — User Management tab will not render"
+        classification: NO_BUG
+        confidence: 0.95
+        explanation: >
+          fine-grained-rbac is disabled in MCH. The User Management tab
+          does not render. Tests expecting it will timeout.
+
+      - id: idp-not-configured
+        description: No IDP configured — user list empty
+        category: configuration
+        symptoms:
+          - "(?i)no.*users.*found"
+          - "(?i)user.*list.*empty"
+          - "(?i)cannot.*find.*user"
+        investigation:
+          - step: Check IDP configuration
+            command: "oc get oauth cluster -o jsonpath='{.spec.identityProviders}'"
+            expect: "At least one identity provider configured"
+            if_not: "No IDP configured — user enumeration will return empty results"
+        classification: INFRASTRUCTURE
+        confidence: 0.80
+        explanation: No Identity Provider configured. User enumeration returns empty results.
+
+      - id: rbac-api-error
+        description: console-api returns 500 on RBAC endpoints
+        category: component_health
+        symptoms:
+          - "(?i)500.*rbac"
+          - "(?i)500.*user.*management"
+          - "(?i)rbac.*api.*error"
+        investigation:
+          - step: Check console-api pod
+            command: "oc get pods -n open-cluster-management -l app=console-api"
+            expect: "Running, 0 restarts"
+            if_not: "console-api is not healthy"
+          - step: Check console-api logs for RBAC errors
+            command: "oc logs -n open-cluster-management -l app=console-api --tail=100 | grep -i rbac"
+            expect: "No error messages related to RBAC"
+            if_not: "console-api is returning errors on RBAC endpoints"
+        classification: PRODUCT_BUG
+        confidence: 0.80
+        explanation: console-api returns 500 errors on RBAC endpoints. This is a backend issue.
+
+  Virtualization:
+    display_name: Fleet Virtualization
+    docs_ref: rhacm-docs/virtualization
+
+    architecture:
+      summary: |
+        Fleet Virtualization UI is a kubevirt-plugin console extension. Requires
+        CNV (OpenShift Virtualization) operator on spoke clusters. Hub-side requires
+        cnv-mtv-integrations MCH component for cross-cluster VM management.
+        VMs run on spoke clusters; UI on hub displays them via search index.
+        MTV Integrations deploys CNV Addon and MTV Addon to managed clusters.
+      data_flow:
+        - "cnv-mtv-integrations MCH component enables fleet virt on hub"
+        - "MTV Integrations deploys CNV Addon and MTV Addon to managed clusters"
+        - "HyperConverged Cluster Operator manages: KubeVirt Operator, CDI Operator, SSP Operator, Cluster Network Addons Operator"
+        - "KubeVirt Operator provides KubeVirt API for VM operations on spoke"
+        - "kubevirt-plugin console extension renders VM UI on hub (VM Tree View, VM Actions)"
+        - "VM Search Integration indexes VirtualMachine resources across clusters via Search subsystem"
+        - "Cross-Cluster Live Migration uses KubeVirt Migration Operator (depends on KubeVirt Operator)"
+      key_insight: >
+        Two independent prerequisites: CNV operator on spoke (for VMs to exist)
+        AND MCH flag on hub (for fleet UI). Missing either one causes different
+        failure modes.
+      component_hierarchy:
+        - "HyperConverged Cluster Operator manages 6 sub-operators: KubeVirt, CDI, SSP, Cluster Network Addons, Node Maintenance, HostPath Provisioner"
+        - "Fleet Virtualization (Console subsystem) contains: VM Actions, VM Tree View"
+        - "KubeVirt Operator integrates with CDI Operator for disk management"
+      cross_subsystem_impact:
+        - "Search: Fleet Virt uses VM Search Integration — if Search is down, VM list across clusters is empty"
+        - "Console: Fleet Virtualization UI is part of Console subsystem (dynamic plugin)"
+        - "RBAC: Fleet Virtualization integrates with MultiClusterRoleAssignment Operator for VM access control"
+        - "Infrastructure: Spoke cluster connectivity required for VM operations — if klusterlet disconnected, VM status stale"
+      ui_routes:
+        - "/multicloud/search/resources (VM resources displayed via search)"
+        - "/multicloud/search/resources/snapshots (VM snapshots)"
+        - "/multicloud/infrastructure/clusters/create/kubevirt (KubeVirt cluster creation)"
+      key_components:
+        - name: virt-api
+          role: VM API server on spoke clusters
+          type: hub-deployment
+          namespace: openshift-cnv
+          pod_label: app=virt-api
+        - name: kubevirt-operator
+          role: KubeVirt operator managing VM infrastructure
+          type: operator
+          namespace: openshift-cnv
+          pod_label: app=kubevirt-operator
+        - name: hyperconverged-cluster-operator
+          role: HCO operator managing CNV deployment
+          type: operator
+          namespace: openshift-cnv
+          pod_label: app=hyperconverged-cluster-operator
+
+    prerequisites:
+      - id: virt-mch-component
+        type: mch_component
+        check_spec:
+          component_name: cnv-mtv-integrations
+        default_enabled: false
+        description: cnv-mtv-integrations MCH component enabled (disabled by default)
+      - id: cnv-operator-spoke
+        type: operator
+        check_spec:
+          operator_name: kubevirt-hyperconverged
+          namespace: openshift-cnv
+        default_enabled: false
+        description: CNV operator installed on spoke clusters (openshift-cnv namespace)
+      - id: kubevirt-plugin-registered
+        type: crd
+        check_spec:
+          crd_name: consoleplugins.console.openshift.io
+          plugin_name: kubevirt-plugin
+        default_enabled: false
+        description: kubevirt-plugin console plugin registered
+    dependencies:
+      - Console
+      - Infrastructure
+      - Search
+
+    failure_paths:
+      - id: virt-flag-disabled
+        description: MCH component off — Fleet Virt tab absent
+        category: prerequisite
+        symptoms:
+          - "(?i)virtual.*machine.*not found"
+          - "(?i)fleet.*virt.*missing"
+          - "(?i)vm.*tab.*not found"
+          - "(?i)virtualization.*timeout"
+        prerequisite_id: virt-mch-component
+        investigation:
+          - step: Check MCH for cnv-mtv-integrations
+            command: "oc get mch -A -o jsonpath='{.items[0].spec.overrides.components}'"
+            expect: "cnv-mtv-integrations with enabled=true"
+            if_not: "Fleet Virtualization flag is disabled — VM tab will not render"
+        classification: NO_BUG
+        confidence: 0.95
+        explanation: cnv-mtv-integrations is disabled. Fleet Virt tab will not render.
+
+      - id: cnv-not-on-spoke
+        description: CNV operator missing on spoke — no VMs exist
+        category: prerequisite
+        symptoms:
+          - "(?i)no.*virtual.*machine"
+          - "(?i)vm.*not.*found"
+          - "(?i)kubevirt.*not.*found"
+        prerequisite_id: cnv-operator-spoke
+        investigation:
+          - step: Check CNV operator on spoke
+            command: "oc get csv -n openshift-cnv"
+            expect: "kubevirt-hyperconverged CSV with Succeeded phase"
+            if_not: "CNV operator is not installed on this spoke — VMs cannot exist"
+        classification: INFRASTRUCTURE
+        confidence: 0.90
+        explanation: CNV operator not installed on spoke cluster. VMs cannot be created.
+
+      - id: virt-api-crash
+        description: virt-api on spoke crash — VM operations fail
+        category: component_health
+        symptoms:
+          - "(?i)virt.*api.*error"
+          - "(?i)vm.*operation.*fail"
+          - "(?i)500.*virtual"
+        investigation:
+          - step: Check virt-api pod
+            command: "oc get pods -n openshift-cnv -l app=virt-api"
+            expect: "Running, 0 restarts"
+            if_not: "virt-api is not healthy"
+        classification: INFRASTRUCTURE
+        confidence: 0.85
+        explanation: virt-api on spoke is crashing. VM operations fail.
+
+      - id: kubevirt-plugin-missing
+        description: Console plugin not registered — VM tab absent
+        category: configuration
+        symptoms:
+          - "(?i)vm.*tab.*absent"
+          - "(?i)kubevirt.*plugin.*not"
+        investigation:
+          - step: Check kubevirt-plugin registration
+            command: "oc get consoleplugins"
+            expect: "kubevirt-plugin listed"
+            if_not: "kubevirt-plugin not registered — VM tab will not render"
+        classification: INFRASTRUCTURE
+        confidence: 0.80
+        explanation: kubevirt-plugin console plugin not registered. VM tab absent.
+
+  Automation:
+    display_name: Ansible Automation Platform Integration
+    docs_ref: rhacm-docs/clusters/automations
+
+    architecture:
+      summary: |
+        ACM integrates with Ansible Automation Platform (AAP) for cluster lifecycle
+        automation templates. Requires AAP operator installed separately (not part of
+        ACM/MCE). The Automation page in ACM Console renders only when AAP is detected.
+        ClusterCurator uses AnsibleJob CRDs to trigger pre/post-upgrade hooks via AAP.
+      data_flow:
+        - "AAP operator installed in dedicated namespace (aap, ansible-automation-platform, or tower)"
+        - "ACM Console detects AAP via ClusterServiceVersion (CSV) presence"
+        - "Automation page renders templates from AAP controller"
+        - "ClusterCurator creates AnsibleJob CRDs referencing AAP templates"
+        - "AAP controller executes automation jobs on target clusters"
+      key_insight: >
+        AAP is an external operator, not an ACM component. If AAP is not installed,
+        the entire Automation page will show a blank page (no-js / empty body). This
+        is NOT a selector issue — the page route exists but has nothing to render.
+      cross_subsystem_impact:
+        - "CLC: ClusterCurator depends on AAP for pre/post upgrade automation hooks"
+        - "Console: Automation page is a Console route that renders AAP templates"
+      ui_routes:
+        - "/multicloud/infrastructure/automations"
+      key_components:
+        - name: aap-controller
+          role: Ansible Automation Platform controller
+          type: operator
+          namespace: aap
+          pod_label: app=automation-controller
+
+    prerequisites:
+      - id: aap-operator-installed
+        type: operator
+        check_spec:
+          operator_name: aap-operator
+          namespace: aap
+        default_enabled: false
+        description: >
+          Ansible Automation Platform operator installed. Namespace varies by
+          installation (aap, ansible-automation-platform, or tower).
+    dependencies:
+      - Console
+      - Infrastructure
+
+    failure_paths:
+      - id: aap-not-installed
+        description: AAP operator not installed — Automation page blank
+        category: prerequisite
+        symptoms:
+          - "(?i)no-js"
+          - "(?i)blank.*page"
+          - "(?i)automation.*not found"
+          - "(?i)automation.*timeout"
+          - "(?i)template.*not found"
+          - "(?i)ansible.*not found"
+        prerequisite_id: aap-operator-installed
+        investigation:
+          - step: Check for AAP operator CSV in common namespaces
+            command: "oc get csv -A 2>/dev/null | grep -i 'aap\\|ansible\\|automation-platform\\|tower'"
+            expect: "At least one AAP-related CSV in Succeeded phase"
+            if_not: "AAP operator is not installed — Automation page has nothing to render"
+          - step: Check for AAP subscription
+            command: "oc get subscription -A 2>/dev/null | grep -i 'aap\\|ansible\\|automation-platform'"
+            expect: "AAP subscription exists"
+            if_not: "No AAP subscription found — operator was never installed"
+        classification: INFRASTRUCTURE
+        confidence: 0.90
+        explanation: >
+          AAP operator is not installed on the cluster. The Automation page route
+          exists in ACM Console but has no content to render, resulting in a blank
+          page. This is an environment prerequisite issue, not a test code problem.
+
+      - id: aap-operator-degraded
+        description: AAP operator installed but degraded
+        category: component_health
+        symptoms:
+          - "(?i)automation.*error"
+          - "(?i)automation.*500"
+          - "(?i)template.*fail"
+          - "(?i)ansible.*connection"
+        investigation:
+          - step: Check AAP operator status
+            command: "oc get csv -A 2>/dev/null | grep -i 'aap\\|ansible\\|automation-platform'"
+            expect: "CSV in Succeeded phase"
+            if_not: "AAP operator is installed but not in Succeeded phase"
+          - step: Check AAP controller pods
+            command: "oc get pods -A 2>/dev/null | grep -i 'automation-controller\\|aap-controller'"
+            expect: "Running pods"
+            if_not: "AAP controller pods are not healthy"
+        classification: INFRASTRUCTURE
+        confidence: 0.85
+        explanation: AAP operator is installed but degraded. Automation features will fail.
+
+      - id: aap-installed-automation-selector-issue
+        description: AAP installed and healthy but test selector doesn't match
+        category: configuration
+        symptoms:
+          - "(?i)element.*not found"
+          - "(?i)selector.*not found"
+        investigation:
+          - step: Confirm AAP is healthy
+            command: "oc get csv -A 2>/dev/null | grep -i 'aap\\|ansible\\|automation-platform'"
+            expect: "CSV in Succeeded phase"
+            if_not: "AAP is not healthy — route to aap-operator-degraded"
+          - step: Check that Automation page loads
+            command: "echo 'Manual check: verify /multicloud/infrastructure/automations renders content'"
+            expect: "Page renders with AAP templates"
+            if_not: "Page loads but selector doesn't match — automation test code issue"
+        classification: AUTOMATION_BUG
+        confidence: 0.85
+        explanation: AAP is installed and healthy. The test selector doesn't match the current UI.
+
+  Observability:
+    display_name: Observability
+    docs_ref: rhacm-docs/observability
+
+    architecture:
+      summary: |
+        Hub: multicluster-observability-operator deploys Thanos stack
+        (thanos-query, thanos-receive, thanos-store) and Grafana in
+        open-cluster-management-observability. Spokes: metrics-collector addon
+        scrapes and sends metrics to hub's thanos-receive endpoint.
+        Requires S3-compatible storage for Thanos persistence.
+        Ruler Engine evaluates recording/alerting rules and triggers Alert Manager.
+      data_flow:
+        - "multicluster-observability-operator deploys observability stack on hub"
+        - "Metrics Collection Manager configures Prometheus Stack on spokes"
+        - "metrics-collector addon on spokes scrapes metrics from Prometheus"
+        - "metrics sent to thanos-receive on hub"
+        - "thanos-store persists to S3-compatible storage"
+        - "Compactor Service compacts historical data in Metrics Storage"
+        - "Query Gateway routes to Query Engine (thanos-query) for Grafana dashboards"
+        - "Ruler Engine evaluates rules and triggers Alert Manager Integration"
+      key_insight: >
+        Observability is the only feature that requires external storage
+        (S3/Minio). Missing storage config is a common deployment issue that
+        causes thanos-store to crash.
+      component_hierarchy:
+        - "multicluster-observability-operator deploys: thanos-query, thanos-receive, thanos-store, thanos-compactor, grafana, alertmanager"
+        - "Metrics Collection Manager configures Prometheus Stack on spokes"
+        - "Query Gateway routes queries to Query Engine"
+      cross_subsystem_impact:
+        - "Infrastructure: metrics-collector addon deployed by addon-manager — if addon-manager is down, metrics stop flowing from new spokes"
+        - "Console: Resource Proxy proxies Observability Dashboard requests for the observability UI"
+      ui_routes:
+        - "/multicloud/home/overview (observability widgets)"
+      key_components:
+        - name: multicluster-observability-operator
+          role: Deploys and manages the observability stack
+          type: operator
+          namespace: open-cluster-management
+          pod_label: app=multicluster-observability-operator
+        - name: thanos-query
+          role: Serves queries for Grafana dashboards
+          type: hub-statefulset
+          namespace: open-cluster-management-observability
+          pod_label: app=thanos-query
+        - name: thanos-receive
+          role: Receives metrics from spoke collectors
+          type: hub-statefulset
+          namespace: open-cluster-management-observability
+          pod_label: app=thanos-receive
+        - name: thanos-store
+          role: Persists metrics to S3-compatible storage
+          type: hub-statefulset
+          namespace: open-cluster-management-observability
+          pod_label: app=thanos-store
+        - name: grafana
+          role: Visualization dashboards for metrics
+          type: hub-deployment
+          namespace: open-cluster-management-observability
+          pod_label: app=grafana
+
+    prerequisites:
+      - id: observability-mch-component
+        type: mch_component
+        check_spec:
+          component_name: multicluster-observability-operator
+        default_enabled: false
+        description: multicluster-observability-operator MCH component enabled
+      - id: metrics-collector-addon
+        type: addon
+        check_spec:
+          addon_name: metrics-collector
+        default_enabled: true
+        description: metrics-collector addon deployed to spoke clusters
+      - id: s3-storage
+        type: informational
+        check_spec: {}
+        default_enabled: false
+        description: S3-compatible storage configured for Thanos persistence
+    dependencies:
+      - Infrastructure
+
+    failure_paths:
+      - id: observability-disabled
+        description: Observability component disabled in MCH
+        category: prerequisite
+        symptoms:
+          - "(?i)observability.*not found"
+          - "(?i)observability.*tab.*missing"
+          - "(?i)grafana.*not found"
+        prerequisite_id: observability-mch-component
+        investigation:
+          - step: Check MCH component status
+            command: "oc get mch -A -o jsonpath='{.items[0].spec.overrides.components}'"
+            expect: "multicluster-observability-operator with enabled=true"
+            if_not: "Observability is disabled in MCH"
+        classification: NO_BUG
+        confidence: 0.95
+        explanation: Observability feature is intentionally disabled.
+
+      - id: metrics-collector-missing-spoke
+        description: metrics-collector addon not installed on spoke — no metrics from that spoke
+        category: connectivity
+        symptoms:
+          - "(?i)no.*metrics.*from"
+          - "(?i)metrics.*missing"
+          - "(?i)metrics.*collector.*not"
+        investigation:
+          - step: Check addon status
+            command: "oc get managedclusteraddon metrics-collector -A"
+            expect: "Available=True for all clusters"
+            if_not: "metrics-collector not deployed to some spokes"
+        classification: INFRASTRUCTURE
+        confidence: 0.90
+        explanation: metrics-collector addon not running on spoke. No metrics from that cluster.
+
+      - id: thanos-store-crash
+        description: thanos-store crash — usually S3 config issue
+        category: component_health
+        symptoms:
+          - "(?i)thanos.*store.*crash"
+          - "(?i)thanos.*store.*error"
+          - "(?i)storage.*error"
+          - "(?i)s3.*error"
+        investigation:
+          - step: Check thanos-store pods
+            command: "oc get pods -n open-cluster-management-observability -l app=thanos-store"
+            expect: "Running, 0 restarts"
+            if_not: "thanos-store is crashing — likely S3 configuration issue"
+          - step: Check thanos-store logs
+            command: "oc logs -n open-cluster-management-observability -l app=thanos-store --tail=50"
+            expect: "No S3 connection errors"
+            if_not: "S3 storage configuration issue"
+        classification: INFRASTRUCTURE
+        confidence: 0.85
+        explanation: thanos-store is crashing. Usually caused by missing or incorrect S3 storage config.
+
+      - id: grafana-datasource-error
+        description: Grafana datasource misconfigured — dashboards empty
+        category: configuration
+        symptoms:
+          - "(?i)grafana.*datasource.*error"
+          - "(?i)dashboard.*empty"
+          - "(?i)no.*data.*grafana"
+        investigation:
+          - step: Check Grafana pod
+            command: "oc get pods -n open-cluster-management-observability -l app=grafana"
+            expect: "Running"
+            if_not: "Grafana is not healthy"
+          - step: Check datasource configuration
+            command: "oc logs -n open-cluster-management-observability -l app=grafana --tail=50"
+            expect: "No datasource errors"
+            if_not: "Grafana datasource is misconfigured"
+        classification: PRODUCT_BUG
+        confidence: 0.75
+        explanation: Grafana datasource is misconfigured. Dashboards show no data.

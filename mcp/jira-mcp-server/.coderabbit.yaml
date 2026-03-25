@@ -1,0 +1,67 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+
+language: en-US
+
+reviews:
+  profile: chill
+  request_changes_workflow: false
+  high_level_summary: true
+  high_level_summary_placeholder: "@coderabbitai summary"
+  auto_title_placeholder: "@coderabbitai"
+  poem: false
+  review_status: true
+  collapse_walkthrough: false
+  sequence_diagrams: true
+  changed_files_summary: true
+  labeling_instructions: []
+  path_filters:
+    - "!**/*.lock"
+    - "!**/*.md"
+    - "!doc/**"
+    - "!examples/**"
+  path_instructions:
+    - path: "jira_mcp_server/server.py"
+      instructions: |
+        This is the MCP server definition with all tool registrations.
+        Pay close attention to:
+        - Correct parameter validation and types
+        - Proper error handling for Jira API calls
+        - Security: no credential leakage in error messages or logs
+        - Rate limiting compliance
+    - path: "jira_mcp_server/client.py"
+      instructions: |
+        This is the async Jira API client with rate limiting.
+        Review for:
+        - Proper async/await usage
+        - Rate limiting correctness
+        - Error handling and retries
+        - No blocking calls in async context
+    - path: "jira_mcp_server/config.py"
+      instructions: |
+        Pydantic configuration models.
+        Ensure:
+        - Sensitive fields (tokens, passwords) are not exposed in repr/logs
+        - Validation rules are correct
+        - Defaults are sensible
+    - path: "tests/**"
+      instructions: |
+        Review tests for:
+        - Adequate coverage of edge cases
+        - Proper use of pytest fixtures and pytest-asyncio
+        - No hardcoded credentials or real Jira URLs
+  tools:
+    ruff:
+      enabled: true
+    shellcheck:
+      enabled: true
+
+chat:
+  auto_reply: true
+
+knowledge_base:
+  learnings:
+    scope: auto
+  jira:
+    project_keys: []
+  linear:
+    team_keys: []

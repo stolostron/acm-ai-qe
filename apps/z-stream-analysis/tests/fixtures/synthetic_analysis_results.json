@@ -1,0 +1,578 @@
+{
+  "analysis_metadata": {
+    "jenkins_url": "https://jenkins-csb-rhacm-tests.dno.corp.redhat.com/job/qe-acm-automation-poc/job/clc-e2e-pipeline/3757/",
+    "analyzed_at": "2026-02-15T12:00:00Z",
+    "analyzer": "z-stream-analysis",
+    "analyzer_version": "3.2.0",
+    "investigation_framework": "5-phase-systematic",
+    "build_result": "UNSTABLE",
+    "branch": "release-2.16",
+    "run_directory": "runs/clc-e2e-pipeline_3757_20260215_120000"
+  },
+  "investigation_phases_completed": ["A", "B", "C", "D", "E"],
+  "mcp_queries_executed": [
+    {
+      "tool": "mcp__acm-ui__set_acm_version",
+      "query": "version=2.16",
+      "success": true,
+      "result_summary": "Set ACM Console to release-2.16 branch"
+    },
+    {
+      "tool": "mcp__jira__search_issues",
+      "query": "project = ACM AND type = Bug AND component = 'Cluster Lifecycle'",
+      "success": true,
+      "result_summary": "Found 3 related bugs"
+    }
+  ],
+  "cross_test_correlations": {
+    "shared_components": {
+      "cluster-curator": ["test_cluster_upgrade_with_curator", "test_curator_prehook_execution"]
+    },
+    "shared_feature_areas": {
+      "CLC": ["test_cluster_upgrade_with_curator", "test_curator_prehook_execution", "test_cluster_import_detach"]
+    },
+    "pattern_type": "single_component_failure",
+    "root_cause_affects_count": 2
+  },
+  "cluster_investigation": {
+    "landscape": {
+      "managed_cluster_count": 3,
+      "managed_cluster_statuses": {"Ready": 2, "NotReady": 1},
+      "operator_statuses": {"authentication": "Available", "console": "Available"},
+      "degraded_operators": [],
+      "resource_pressure": {"cpu": false, "memory": false, "disk": false, "pid": false},
+      "multiclusterhub_status": "Running"
+    },
+    "component_diagnostics": [
+      {
+        "component_name": "cluster-curator",
+        "subsystem": "Cluster",
+        "deployment_status": "Available",
+        "desired_replicas": 1,
+        "ready_replicas": 1,
+        "pods": [
+          {
+            "name": "cluster-curator-controller-abc123",
+            "status": "Running",
+            "restart_count": 0,
+            "ready": true
+          }
+        ]
+      }
+    ],
+    "infrastructure_signals": [],
+    "backend_failure_signals": []
+  },
+  "cluster_investigation_summary": {
+    "cluster_reauth_status": "authenticated",
+    "investigation_mode": "live",
+    "tier_0_health": {
+      "mch_status": "Running",
+      "degraded_operators": [],
+      "resource_pressure": {"cpu": false, "memory": false, "disk": false},
+      "non_healthy_pods_count": 0
+    },
+    "component_health_overview": [
+      {
+        "feature_area": "CLC",
+        "component": "cluster-curator",
+        "status": "Available",
+        "restart_count": 0,
+        "key_finding": "All pods healthy"
+      },
+      {
+        "feature_area": "CLC",
+        "component": "managedcluster-import-controller",
+        "status": "Available",
+        "restart_count": 0,
+        "key_finding": "All pods healthy"
+      }
+    ],
+    "prerequisite_summary": [
+      {
+        "feature_area": "CLC",
+        "prerequisite": "Cluster Lifecycle component enabled in MultiClusterHub",
+        "met": true,
+        "tests_affected": 3
+      },
+      {
+        "feature_area": "CLC",
+        "prerequisite": "Hive operator installed",
+        "met": true,
+        "tests_affected": 3
+      }
+    ]
+  },
+  "per_test_analysis": [
+    {
+      "test_name": "test_cluster_upgrade_with_curator",
+      "test_file": "cypress/e2e/clc/cluster-upgrade.cy.ts",
+      "class_name": "ClusterUpgrade",
+      "classification": "PRODUCT_BUG",
+      "classification_path": "B2",
+      "confidence": 0.90,
+      "evidence_sources": [
+        {
+          "source": "console_log",
+          "finding": "500 error on /api/v1/clustercurators PATCH endpoint",
+          "tier": 1
+        },
+        {
+          "source": "mcp_query",
+          "finding": "ACM-54321 open bug: curator PATCH returns 500 on digest-based upgrades",
+          "tier": 1
+        },
+        {
+          "source": "cluster_investigation",
+          "finding": "cluster-curator pod healthy, issue is in API logic not infrastructure",
+          "tier": 2
+        }
+      ],
+      "ruled_out_alternatives": [
+        {
+          "classification": "AUTOMATION_BUG",
+          "reason": "Test logic correct — calls valid API endpoint that returns 500"
+        },
+        {
+          "classification": "INFRASTRUCTURE",
+          "reason": "All cluster components healthy, issue is in product API logic"
+        }
+      ],
+      "reasoning": {
+        "summary": "ClusterCurator PATCH endpoint returns 500 for digest-based upgrades",
+        "evidence": [
+          "Console log shows 500 on /api/v1/clustercurators PATCH",
+          "JIRA ACM-54321 confirms this is a known regression",
+          "Cluster investigation confirms curator pod is healthy"
+        ],
+        "conclusion": "Product bug in ClusterCurator API — PATCH fails for digest-based upgrade spec"
+      },
+      "root_cause": "ClusterCurator API does not handle digest-based upgrade channel spec",
+      "error": {
+        "message": "expected status code 200 but got 500",
+        "type": "AssertionError",
+        "stack_trace": "at Object.patchClusterCurator (cypress/support/clc/cluster-curator.ts:45:12)"
+      },
+      "recommended_fix": {
+        "action": "Fix ClusterCurator PATCH endpoint to handle digest-based upgrade channel",
+        "steps": [
+          "Review ACM-54321 for details",
+          "Fix curator API handler for digest channel spec"
+        ],
+        "owner": "Cluster Lifecycle team"
+      },
+      "jira_correlation": {
+        "search_performed": true,
+        "related_issues": ["ACM-54321"],
+        "match_confidence": "high"
+      },
+      "owner": "Cluster Lifecycle",
+      "priority": "HIGH",
+      "jira_component": "Cluster Lifecycle",
+      "feature_area": "CLC",
+      "is_cascading_hook_failure": false,
+      "blank_page_detected": false,
+      "backend_cross_check": {
+        "performed": true,
+        "backend_caused_ui_failure": true,
+        "failing_components": ["cluster-curator"],
+        "evidence": ["500 error on curator PATCH endpoint"],
+        "overrides_path_a": true
+      },
+      "prerequisite_analysis": {
+        "feature_area": "CLC",
+        "all_prerequisites_met": true,
+        "unmet_prerequisites": []
+      },
+      "playbook_investigation": {
+        "failure_path_id": "curator-upgrade-stuck",
+        "failure_path_description": "ClusterCurator job not completing",
+        "steps_executed": [
+          {
+            "step": "Check curator pods",
+            "command": "oc get pods -n open-cluster-management -l app=cluster-curator",
+            "result": "cluster-curator-controller-abc123 1/1 Running 0",
+            "matched_expectation": true
+          },
+          {
+            "step": "Check curator job logs",
+            "command": "oc get clustercurators -A -o jsonpath=...",
+            "result": "ClusterCurator upgrade resource shows error in PATCH handler",
+            "matched_expectation": false
+          }
+        ],
+        "path_confirmed": true,
+        "suggested_classification": "PRODUCT_BUG",
+        "confidence": 0.90
+      },
+      "cluster_investigation_detail": {
+        "tier_reached": 3,
+        "key_findings": [
+          "cluster-curator pod healthy (Tier 1)",
+          "CLC prerequisites all met (Tier 2)",
+          "Data flow break at PATCH endpoint — curator API rejects digest-based spec (Tier 3)"
+        ],
+        "commands_run": [
+          {
+            "command": "oc get pods -n open-cluster-management -l app=cluster-curator",
+            "output_summary": "1/1 Running, 0 restarts"
+          },
+          {
+            "command": "oc get mch -A -o jsonpath='{.items[0].spec.overrides.components}'",
+            "output_summary": "cluster-lifecycle enabled=true"
+          }
+        ]
+      },
+      "feature_context": {
+        "subsystem": "Cluster Lifecycle",
+        "components_involved": ["cluster-curator", "cluster-curator-controller"],
+        "feature_story": "ACM-50000: Digest-based cluster upgrades",
+        "feature_description": "Support digest-based image references for cluster upgrades",
+        "source": "knowledge_graph+jira"
+      }
+    },
+    {
+      "test_name": "test_curator_prehook_execution",
+      "test_file": "cypress/e2e/clc/cluster-curator-hooks.cy.ts",
+      "class_name": "ClusterCuratorHooks",
+      "classification": "AUTOMATION_BUG",
+      "classification_path": "A",
+      "confidence": 0.85,
+      "evidence_sources": [
+        {
+          "source": "console_search",
+          "finding": "Selector #prehook-status-btn not found in console source — renamed to #curator-prehook-btn in 2.16",
+          "tier": 1
+        },
+        {
+          "source": "timeline_evidence",
+          "finding": "Element #prehook-status-btn renamed in PR #4521 (release-2.16)",
+          "tier": 1
+        }
+      ],
+      "ruled_out_alternatives": [
+        {
+          "classification": "PRODUCT_BUG",
+          "reason": "Element exists in product under new name — UI renders correctly"
+        },
+        {
+          "classification": "INFRASTRUCTURE",
+          "reason": "All components healthy, single test affected"
+        }
+      ],
+      "reasoning": "Selector #prehook-status-btn was renamed to #curator-prehook-btn in release-2.16. Test needs selector update.",
+      "root_cause": "Stale selector #prehook-status-btn in test code",
+      "error": {
+        "message": "Timed out retrying after 10000ms: Expected to find element: #prehook-status-btn, but never found it.",
+        "type": "AssertionError"
+      },
+      "recommended_fix": "Update test selector from #prehook-status-btn to #curator-prehook-btn",
+      "jira_correlation": {
+        "search_performed": true,
+        "related_issues": [],
+        "match_confidence": "none"
+      },
+      "owner": "QE Automation",
+      "priority": "MEDIUM",
+      "feature_area": "CLC",
+      "is_cascading_hook_failure": false,
+      "blank_page_detected": false
+    },
+    {
+      "test_name": "test_cluster_import_detach",
+      "test_file": "cypress/e2e/clc/cluster-import.cy.ts",
+      "class_name": "ClusterImport",
+      "classification": "INFRASTRUCTURE",
+      "classification_path": "B1",
+      "confidence": 0.88,
+      "evidence_sources": [
+        {
+          "source": "cluster_investigation",
+          "finding": "Managed cluster 'spoke-2' shows NotReady status — klusterlet lease expired",
+          "tier": 1
+        },
+        {
+          "source": "console_log",
+          "finding": "Connection refused to spoke-2 API server during detach operation",
+          "tier": 1
+        },
+        {
+          "source": "environment",
+          "finding": "environment_score=0.65 — degraded due to spoke-2 connectivity loss",
+          "tier": 2
+        }
+      ],
+      "ruled_out_alternatives": [
+        {
+          "classification": "PRODUCT_BUG",
+          "reason": "Import/detach logic works for healthy clusters — spoke-2 is unreachable"
+        },
+        {
+          "classification": "AUTOMATION_BUG",
+          "reason": "Test correctly attempts detach — failure is from infrastructure, not test code"
+        }
+      ],
+      "reasoning": {
+        "summary": "Spoke cluster spoke-2 is unreachable — klusterlet lease expired",
+        "evidence": [
+          "Managed cluster spoke-2 shows NotReady",
+          "Connection refused errors in console log",
+          "Environment score degraded"
+        ],
+        "conclusion": "Infrastructure issue — spoke cluster connectivity lost"
+      },
+      "root_cause": "Spoke cluster spoke-2 lost connectivity — klusterlet lease expired",
+      "error": {
+        "message": "Timed out waiting for cluster detach to complete",
+        "type": "TimeoutError"
+      },
+      "recommended_fix": {
+        "action": "Investigate spoke-2 cluster connectivity",
+        "steps": [
+          "Check spoke-2 API server health",
+          "Verify klusterlet pod on spoke-2",
+          "Check network connectivity between hub and spoke-2"
+        ],
+        "owner": "Infrastructure team"
+      },
+      "jira_correlation": {
+        "search_performed": true,
+        "related_issues": [],
+        "match_confidence": "none"
+      },
+      "owner": "Infrastructure",
+      "priority": "HIGH",
+      "feature_area": "CLC",
+      "is_cascading_hook_failure": false,
+      "blank_page_detected": false,
+      "backend_cross_check": {
+        "performed": true,
+        "backend_caused_ui_failure": false,
+        "failing_components": [],
+        "evidence": [],
+        "overrides_path_a": false
+      },
+      "prerequisite_analysis": {
+        "feature_area": "CLC",
+        "all_prerequisites_met": true,
+        "unmet_prerequisites": [],
+        "matched_failure_mode": {
+          "path_id": "managed-cluster-unreachable",
+          "description": "Spoke cluster API unreachable",
+          "suggested_classification": "INFRASTRUCTURE",
+          "confidence": 0.90
+        }
+      },
+      "cluster_investigation_detail": {
+        "tier_reached": 2,
+        "key_findings": [
+          "managedcluster-import-controller pod healthy (Tier 1)",
+          "Spoke-2 ManagedCluster condition Available=False (Tier 2)",
+          "Matched playbook path: managed-cluster-unreachable (Tier 2)"
+        ],
+        "commands_run": [
+          {
+            "command": "oc get managedclusters",
+            "output_summary": "spoke-2 shows AVAILABLE=False"
+          }
+        ]
+      }
+    },
+    {
+      "test_name": "test_cluster_import_detach > \"after all\" hook: cleanup clusters",
+      "test_file": "cypress/e2e/clc/cluster-import.cy.ts",
+      "class_name": "ClusterImport",
+      "classification": "NO_BUG",
+      "confidence": 0.95,
+      "evidence_sources": [
+        {
+          "source": "hook_analysis",
+          "finding": "after-all hook failed as cascade from test_cluster_import_detach failure",
+          "tier": 1
+        },
+        {
+          "source": "test_sequence",
+          "finding": "Parent test test_cluster_import_detach failed first; hook cleanup could not proceed",
+          "tier": 1
+        }
+      ],
+      "ruled_out_alternatives": [
+        {
+          "classification": "INFRASTRUCTURE",
+          "reason": "Hook failure is a consequence of prior test failure, not an independent infra issue"
+        },
+        {
+          "classification": "AUTOMATION_BUG",
+          "reason": "Hook logic is correct — it fails because the prior test left the cluster in a bad state"
+        }
+      ],
+      "reasoning": "After-all hook cascading failure from test_cluster_import_detach. The hook attempted cleanup but failed because the parent test had already failed, leaving the cluster in an inconsistent state.",
+      "root_cause": "Cascading failure from test_cluster_import_detach",
+      "error": {
+        "message": "Timed out waiting for cluster cleanup to complete",
+        "type": "TimeoutError"
+      },
+      "recommended_fix": "No fix needed — resolve the parent test failure (test_cluster_import_detach) and this hook will pass",
+      "owner": "N/A",
+      "priority": "LOW",
+      "feature_area": "CLC",
+      "is_cascading_hook_failure": true,
+      "blank_page_detected": false
+    },
+    {
+      "test_name": "test_aap_credential_creation",
+      "test_file": "cypress/e2e/automation/aap-credentials.cy.ts",
+      "class_name": "AAPCredentials",
+      "classification": "INFRASTRUCTURE",
+      "confidence": 0.92,
+      "evidence_sources": [
+        {
+          "source": "blank_page_detection",
+          "finding": "Page rendered blank — AAP operator not installed on cluster",
+          "tier": 1
+        },
+        {
+          "source": "prerequisite_check",
+          "finding": "AAP operator CRD (automationcontrollers.aap.example.com) not found on cluster",
+          "tier": 1
+        }
+      ],
+      "ruled_out_alternatives": [
+        {
+          "classification": "AUTOMATION_BUG",
+          "reason": "Test is correct — the page is blank because AAP is not installed, not because of a selector mismatch"
+        },
+        {
+          "classification": "PRODUCT_BUG",
+          "reason": "Console correctly shows blank/error when AAP prerequisite is missing"
+        }
+      ],
+      "reasoning": {
+        "summary": "Blank page detected — AAP operator prerequisite not met",
+        "evidence": [
+          "Page body is empty after navigation to AAP credentials page",
+          "AAP operator CRD not found on cluster",
+          "Playbook prerequisite check confirms AAP not installed"
+        ],
+        "conclusion": "Infrastructure prerequisite issue — AAP operator must be installed before running AAP tests"
+      },
+      "root_cause": "AAP operator not installed on test cluster",
+      "error": {
+        "message": "Expected to find element: #aap-credential-form, but the page rendered blank",
+        "type": "AssertionError"
+      },
+      "recommended_fix": {
+        "action": "Install AAP operator on test cluster before running Automation tests",
+        "steps": [
+          "Verify AAP operator is listed in OperatorHub",
+          "Install AAP operator via OLM",
+          "Verify AutomationController CRD is available"
+        ],
+        "owner": "Infrastructure team"
+      },
+      "owner": "Infrastructure",
+      "priority": "HIGH",
+      "feature_area": "Automation",
+      "is_cascading_hook_failure": false,
+      "blank_page_detected": true,
+      "prerequisite_analysis": {
+        "feature_area": "Automation",
+        "all_prerequisites_met": false,
+        "unmet_prerequisites": ["AAP operator installed"],
+        "matched_failure_mode": {
+          "path_id": "aap-not-installed",
+          "description": "AAP operator not installed on cluster",
+          "suggested_classification": "INFRASTRUCTURE",
+          "confidence": 0.92
+        }
+      }
+    }
+  ],
+  "summary": {
+    "total_tests": 45,
+    "passed_count": 40,
+    "failed_count": 5,
+    "total_failures": 5,
+    "pass_rate": 88.9,
+    "by_classification": {
+      "PRODUCT_BUG": 1,
+      "AUTOMATION_BUG": 1,
+      "INFRASTRUCTURE": 2,
+      "MIXED": 0,
+      "UNKNOWN": 0,
+      "NO_BUG": 1,
+      "FLAKY": 0
+    },
+    "cascading_hook_failures": 1,
+    "blank_page_failures": 1,
+    "overall_classification": "MIXED",
+    "overall_confidence": 0.88,
+    "priority_order": [
+      {
+        "test": "test_cluster_upgrade_with_curator",
+        "priority": "HIGH",
+        "reason": "Product bug in ClusterCurator API",
+        "classification": "PRODUCT_BUG"
+      },
+      {
+        "test": "test_cluster_import_detach",
+        "priority": "HIGH",
+        "reason": "Infrastructure connectivity issue",
+        "classification": "INFRASTRUCTURE"
+      },
+      {
+        "test": "test_curator_prehook_execution",
+        "priority": "MEDIUM",
+        "reason": "Stale selector — QE fix needed",
+        "classification": "AUTOMATION_BUG"
+      }
+    ]
+  },
+  "jira_correlation": {
+    "search_performed": true,
+    "queries_executed": 4,
+    "related_issues_found": ["ACM-54321"],
+    "known_issue_matches": [
+      {
+        "jira_key": "ACM-54321",
+        "test_name": "test_cluster_upgrade_with_curator",
+        "match_type": "component"
+      }
+    ]
+  },
+  "environment_summary": {
+    "target_cluster": "hub-cluster.example.com",
+    "target_cluster_used": true,
+    "environment_score": 0.65,
+    "cluster_healthy": false,
+    "all_services_running": true
+  },
+  "feature_context_summary": {
+    "subsystems_investigated": ["Cluster Lifecycle"],
+    "feature_stories_read": ["ACM-50000"],
+    "linked_prs_found": 2,
+    "knowledge_graph_queries": 3,
+    "jira_feature_queries": 4
+  },
+  "action_items": [
+    {
+      "priority": 1,
+      "action": "Fix ClusterCurator PATCH endpoint for digest-based upgrades",
+      "owner": "Cluster Lifecycle team",
+      "type": "PRODUCT_BUG",
+      "jira_reference": "ACM-54321"
+    },
+    {
+      "priority": 2,
+      "action": "Investigate spoke-2 cluster connectivity loss",
+      "owner": "Infrastructure team",
+      "type": "INFRASTRUCTURE"
+    },
+    {
+      "priority": 3,
+      "action": "Update selector #prehook-status-btn to #curator-prehook-btn",
+      "owner": "QE Automation",
+      "type": "AUTOMATION_BUG"
+    }
+  ]
+}

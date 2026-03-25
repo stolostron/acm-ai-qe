@@ -21,7 +21,7 @@ Z-Stream Analysis uses three MCP servers:
 │      ┌─────────┐          ┌─────────┐          ┌─────────┐          │
 │      │ ACM-UI  │          │  JIRA   │          │Knowledge│          │
 │      │   MCP   │          │   MCP   │          │  Graph  │          │
-│      │20 tools │          │24 tools │          │  MCP    │          │
+│      │19 tools │          │25 tools │          │  MCP    │          │
 │      └────┬────┘          └────┬────┘          └────┬────┘          │
 └───────────┼────────────────────┼────────────────────┼────────────────┘
             │                    │                    │
@@ -58,7 +58,7 @@ MCP tools are accessed differently depending on the stage:
 │                                                                      │
 │  Files:                                                              │
 │    src/services/acm_ui_mcp_client.py (293 lines)                     │
-│    src/services/knowledge_graph_client.py (513 lines)                │
+│    src/services/knowledge_graph_client.py (456 lines)                │
 │                                                                      │
 │  Purpose: CNV version detection, element inventory pre-computation   │
 └──────────────────────────────────────────────────────────────────────┘
@@ -294,13 +294,15 @@ Product text: 'Create cluster'                ← lowercase c
 
 ---
 
-## MCP Server 2: JIRA (24 Tools)
+## MCP Server 2: JIRA (25 Tools)
 
 ### What It Is
 
-A full-featured JIRA integration server providing authenticated access to Red Hat JIRA. The agent can search for issues, read feature stories, create bugs, link related failures, add comments, and manage watchers.
+A full-featured JIRA integration server providing authenticated access to Red Hat JIRA Cloud (`redhat.atlassian.net`). The agent can search for issues, read feature stories, create bugs, link related failures, add comments, and manage watchers.
 
 **Tool prefix:** `mcp__jira__`
+
+**Authentication:** Jira Cloud uses basic auth with email + API token (not PAT). See [Connection Setup](#jira-connection-setup) below.
 
 ### Why It Matters
 
@@ -434,7 +436,7 @@ Match: Test queries search-api and gets 500. Known issue ACM-12345.
     issue_type='Bug',
     priority='Major',
     components=['Search'],
-    work_type='46653',
+    work_type='10608',
     due_date='2026-03-01'
   )
   ──────────────────────────────────────────────────────────────────
@@ -459,6 +461,7 @@ Match: Test queries search-api and gets 500. Known issue ACM-12345.
 | | `debug_issue_fields` | Raw field dump for debugging | As needed |
 | **Create** | `create_issue` | File new bug with evidence | E6 |
 | | `update_issue` | Update priority, components, etc. | E6 |
+| | `clear_field` | Clear/unset a field on an issue | E6 |
 | | `transition_issue` | Change issue status | E6 |
 | **Link** | `link_issue` | Link related issues (Relates, Blocks, Duplicates) | E6 |
 | | `add_comment` | Add analysis findings as comment | E6 |
@@ -472,6 +475,44 @@ Match: Test queries search-api and gets 500. Known issue ACM-12345.
 | | `get_issue_watchers` | List watchers | As needed |
 | **Aliases** | `list_component_aliases` / `add_component_alias` / `remove_component_alias` | Component shortcuts | Setup |
 
+### JIRA Connection Setup
+
+The JIRA MCP server connects to Jira Cloud using basic auth with email + API token.
+
+**1. Get an API token:**
+- Go to https://id.atlassian.com/manage-profile/security/api-tokens
+- Click "Create API token"
+- Save the token securely
+
+**2. Create the `.env` file** in `mcp/jira-mcp-server/`:
+
+```bash
+cp mcp/jira-mcp-server/.env.example mcp/jira-mcp-server/.env
+# Edit with your credentials:
+# JIRA_SERVER_URL=https://your-company.atlassian.net
+# JIRA_ACCESS_TOKEN=<your-api-token>
+# JIRA_EMAIL=<your-email>@company.com
+```
+
+Or run `bash mcp/setup.sh` which prompts for credentials interactively.
+
+**3. Shell environment conflicts:**
+
+The `.env` file uses `load_dotenv(override=True)`, so it always takes precedence over pre-existing shell environment variables (e.g., from `jira-cli` or old self-hosted config). No manual workaround needed.
+
+**4. Verify connection:**
+
+```bash
+# Restart MCP in Claude Code
+/mcp
+
+# Or test directly
+cd mcp/jira-mcp-server
+python -c "from jira_mcp_server.config import JiraConfig; c = JiraConfig.from_env(); c.validate_required_fields(); print('OK')"
+```
+
+**Note on user references:** Jira Cloud uses `accountId` (not username) for user fields like assignee, qa_contact, and contributors. Use `search_users` to find the `accountId` before setting user fields.
+
 ---
 
 ## MCP Server 3: Knowledge Graph (Neo4j RHACM)
@@ -482,7 +523,7 @@ A Neo4j graph database containing the dependency relationships between all RHACM
 
 **Tool:** `mcp__neo4j-rhacm__read_neo4j_cypher`
 
-**Status:** Optional — may not be connected in all environments. The agent degrades gracefully when unavailable.
+**Status:** Available when Neo4j containers are running (`podman start neo4j-rhacm neo4j-mcp`). The agent degrades gracefully when unavailable.
 
 ### Why It Matters
 
@@ -500,13 +541,18 @@ With Knowledge Graph:
 
 ### How It Is Used: Stage 1
 
-In `gather.py`, the Python `KnowledgeGraphClient` checks if the Knowledge Graph is available and flags it in `core-data.json`. No queries are executed during Stage 1 — the client just records availability for the AI agent.
+In `gather.py`, the `KnowledgeGraphClient` queries Neo4j directly via HTTP API (`http://localhost:7474/db/neo4j/query/v2`) to:
+1. Check availability (records `kg_status.available` in core-data.json)
+2. Query dependency context per feature area (populates `kg_dependency_context`)
 
 ```python
 # In gather.py initialization
 if is_knowledge_graph_available():
     self.knowledge_graph_client = get_knowledge_graph_client()
+    # Client queries Neo4j via HTTP — no MCP needed
 ```
+
+Connection settings can be overridden via environment variables: `NEO4J_HTTP_URL` (default: `http://localhost:7474`), `NEO4J_USER` (default: `neo4j`), `NEO4J_PASSWORD` (default: `rhacmgraph`).
 
 ### How It Is Used: Stage 2
 

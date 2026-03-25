@@ -29,7 +29,7 @@ import tempfile
 import time
 from dataclasses import dataclass, asdict
 
-from .shared_utils import TIMEOUTS
+from .shared_utils import TIMEOUTS, validate_command_readonly
 from typing import Dict, Any, List, Optional, Tuple
 
 
@@ -160,19 +160,11 @@ class EnvironmentValidationService:
         Returns:
             True if command is allowed, False otherwise
         """
-        if not args:
-            return False
-
-        # Get the primary command (first argument)
-        primary_cmd = args[0]
-
-        # Check if it's in the allowed list
-        if primary_cmd not in self.ALLOWED_COMMANDS:
-            self.logger.warning(f"READ-ONLY VIOLATION: Command '{primary_cmd}' not allowed. "
-                              f"Allowed: {self.ALLOWED_COMMANDS}")
+        if not validate_command_readonly(args, self.ALLOWED_COMMANDS, "EnvironmentValidationService"):
             return False
 
         # Additional checks for specific commands
+        primary_cmd = args[0]
         if primary_cmd == 'get' or primary_cmd == 'describe':
             # These are always read-only
             return True
@@ -512,17 +504,26 @@ class EnvironmentValidationService:
                 pass
         
         # For OpenShift, check cluster operators
+        # Output format: NAME VERSION AVAILABLE PROGRESSING DEGRADED
+        # Healthy: True False False (AVAILABLE=True, PROGRESSING=False, DEGRADED=False)
         if self.cli == 'oc':
             success, stdout, _ = self._run_command(['get', 'clusteroperators', '--no-headers'])
             if success:
-                # Check if any operators are degraded
                 lines = stdout.strip().split('\n')
                 all_healthy = True
                 for line in lines:
-                    if 'Degraded' in line or 'False' in line:
+                    parts = line.split()
+                    if len(parts) >= 5:
+                        available = parts[2]
+                        degraded = parts[4]
+                        if available != 'True' or degraded == 'True':
+                            all_healthy = False
+                            break
+                    elif line.strip():
+                        # Unexpected format — can't determine health
                         all_healthy = False
                         break
-                
+
                 if all_healthy:
                     health['etcd'] = True
                     health['scheduler'] = True

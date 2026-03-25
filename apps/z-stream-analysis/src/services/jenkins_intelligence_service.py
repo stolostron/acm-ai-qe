@@ -13,24 +13,19 @@ Uses JenkinsAPIClient for all Jenkins REST API interactions.
 
 import json
 import logging
-import os
 import re
 import subprocess
-import time
-from dataclasses import dataclass, asdict, field
+from dataclasses import dataclass, asdict
 from typing import Callable, Dict, Any, List, Optional, Tuple
 from urllib.parse import urlparse
 
 # Import stack trace parser
-from .stack_trace_parser import StackTraceParser, ParsedStackTrace
+from .stack_trace_parser import StackTraceParser
 
 # Import shared utilities (replaces duplicate functions)
 from .shared_utils import (
     get_jenkins_credentials,
-    get_auth_header,
-    run_subprocess,
     build_curl_command,
-    parse_json_response,
     TIMEOUTS,
 )
 
@@ -67,7 +62,7 @@ class JenkinsTestCaseFailure:
     duration: float
     error_message: Optional[str] = None
     stack_trace: Optional[str] = None  # Full stack trace (no truncation)
-    failure_type: Optional[str] = None  # timeout, element_not_found, network, assertion, etc.
+    failure_type: Optional[str] = None  # timeout, element_not_found, network, assertion_data, assertion_selector, server_error, etc.
     # Parsed stack trace data
     parsed_stack_trace: Optional[Dict[str, Any]] = None
     root_cause_file: Optional[str] = None
@@ -631,34 +626,72 @@ class JenkinsIntelligenceService:
         not the bug classification (PRODUCT_BUG, AUTOMATION_BUG, INFRASTRUCTURE).
         Bug classification is performed by the AI during analysis.
         """
-        # Check for specific patterns
-        if any(p in error_text for p in ['timeout', 'timed out', 'exceeded']):
+        # Check for specific patterns (order matters — more specific checks first)
+        error_lower = error_text.lower()
+        if any(p in error_lower for p in ['timeout', 'timed out', 'exceeded']):
             return 'timeout'
-        elif any(p in error_text for p in ['element', 'not found', 'selector', 'nosuchelement']):
+        elif any(p in error_lower for p in ['element not found', 'element: not found',
+                                             'expected to find element', 'nosuchelementexception',
+                                             'elementnotinteractableexception', 'selector not found']):
             return 'element_not_found'
-        elif any(p in error_text for p in ['connection', 'network', 'refused', 'dns']):
+        elif any(p in error_lower for p in ['connection', 'network', 'refused', 'dns']):
             return 'network'
-        elif any(p in error_text for p in ['assert', 'expect', 'should', 'equal', 'match']):
-            return 'assertion'
-        elif any(p in error_text for p in ['500', '502', '503', 'internal server', 'bad gateway']):
+        elif any(p in error_lower for p in ['assert', 'expect', 'should', 'equal', 'match']):
+            # Distinguish data assertions from selector assertions
+            if self._is_data_assertion(error_text):
+                return 'assertion_data'
+            return 'assertion_selector'
+        elif any(p in error_lower for p in ['500', '502', '503', 'internal server', 'bad gateway']):
             return 'server_error'
-        elif any(p in error_text for p in ['401', '403', 'unauthorized', 'forbidden', 'permission']):
+        elif any(p in error_lower for p in ['401', '403', 'unauthorized', 'forbidden', 'permission']):
             return 'auth_error'
-        elif any(p in error_text for p in ['404', 'not found', 'no such']):
+        elif any(p in error_lower for p in ['404', 'not found', 'no such']):
             return 'not_found'
         else:
             return 'unknown'
+
+    @staticmethod
+    def _is_data_assertion(error_text: str) -> bool:
+        """
+        Determine if an assertion error is about data values (not selectors).
+
+        Data assertions involve expected vs actual values, counts, text content,
+        or state checks. Selector assertions involve element existence/visibility.
+        """
+        lower = error_text.lower()
+
+        # Data assertion indicators: value/count/content comparisons
+        data_patterns = [
+            'to equal', 'to eql', 'to deep.equal',
+            'to have length', 'elements, but found',
+            'to contain', 'to include', 'to have.text',
+            'to be true', 'to be false',
+            'to have property', 'to have a property',
+            'expected 0', 'expected []', 'expected {}',
+        ]
+        if any(p in lower for p in data_patterns):
+            return True
+
+        # Selector assertion indicators (these are NOT data assertions)
+        selector_patterns = [
+            'to exist', 'to be.visible', 'to be visible',
+            'not to exist', 'element:', 'selector',
+        ]
+        if any(p in lower for p in selector_patterns):
+            return False
+
+        return False
 
     def _summarize_failure_types(self, failed_tests: List[TestCaseFailure]) -> Dict[str, Any]:
         """
         Summarize failure types across all failed tests.
 
-        NOTE: This provides FACTUAL data only (failure_type = timeout, element_not_found, etc.).
+        NOTE: This provides FACTUAL data only (failure_type = timeout, element_not_found, assertion_data, assertion_selector, etc.).
         Bug classification (PRODUCT_BUG, AUTOMATION_BUG, INFRASTRUCTURE) is determined by AI
         during the analysis phase, not pre-computed here.
         """
         summary = {
-            'by_failure_type': {},  # Factual: timeout, element_not_found, network, assertion, etc.
+            'by_failure_type': {},  # Factual: timeout, element_not_found, network, assertion_data, assertion_selector, etc.
             'tests_by_failure_type': {}  # Group test names by failure type
         }
 

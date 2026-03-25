@@ -15,7 +15,7 @@ Handles various stack trace formats:
 import logging
 import re
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 # Import shared utilities to avoid code duplication
 from .shared_utils import (
@@ -75,13 +75,9 @@ class StackTraceParser:
         ),
 
         # Standard Node.js: at functionName (/path/to/file.js:123:45)
+        # Also matches anonymous functions: at Object.<anonymous> (file.js:10:5)
         re.compile(
             r'at\s+(?P<func>[^\s(]+)\s+\((?P<file>[^:]+):(?P<line>\d+)(?::(?P<col>\d+))?\)'
-        ),
-
-        # Anonymous functions: at Object.<anonymous> (file.js:10:5)
-        re.compile(
-            r'at\s+(?P<func>Object\.<anonymous>|<anonymous>)\s+\((?P<file>[^:]+):(?P<line>\d+)(?::(?P<col>\d+))?\)'
         ),
 
         # Async functions: at async Context.eval (file.ts:50:3)
@@ -316,6 +312,124 @@ class StackTraceParser:
             if frame.is_support_file and not frame.is_framework_file:
                 return frame
         return None
+
+    # Assertion value extraction patterns (ordered by specificity)
+    ASSERTION_PATTERNS = [
+        # Cypress/Chai: expected 'Ready' to equal 'Available'
+        re.compile(
+            r"expected\s+['\"](.+?)['\"]\s+to\s+(?:equal|deep\.equal|eql|be|match|include|contain)\s+['\"](.+?)['\"]",
+            re.IGNORECASE,
+        ),
+        # Cypress/Chai: expected 5 to equal 0 (numeric)
+        re.compile(
+            r"expected\s+(\d+(?:\.\d+)?)\s+to\s+(?:equal|be|eql)\s+(\d+(?:\.\d+)?)",
+            re.IGNORECASE,
+        ),
+        # Cypress: expected to find N elements, but found M
+        re.compile(
+            r"expected\s+to\s+find\s+(\d+)\s+elements?,\s*but\s+found\s+(\d+)",
+            re.IGNORECASE,
+        ),
+        # Chai: expected [] to have length N
+        re.compile(
+            r"expected\s+\[.*?\]\s+to\s+have\s+(?:a\s+)?length\s+(?:of\s+)?(\d+)",
+            re.IGNORECASE,
+        ),
+        # Cypress: expected '<element>' to contain 'text'
+        re.compile(
+            r"expected\s+['\"]?<.+?>['\"]?\s+to\s+(?:contain|include|have\.text)\s+['\"](.+?)['\"]",
+            re.IGNORECASE,
+        ),
+        # Cypress: expected true to be false / expected false to be true
+        re.compile(
+            r"expected\s+(true|false|null|undefined)\s+to\s+(?:be|equal)\s+(true|false|null|undefined)",
+            re.IGNORECASE,
+        ),
+        # Chai: expected { ... } to have property 'X'
+        re.compile(
+            r"expected\s+.+?\s+to\s+have\s+(?:a\s+)?property\s+['\"](.+?)['\"]",
+            re.IGNORECASE,
+        ),
+        # Cypress: Timed out retrying: expected to find N elements, but found M
+        re.compile(
+            r"Timed\s+out.*?expected\s+to\s+find\s+(\d+)\s+elements?,?\s*but\s+found\s+(\d+)",
+            re.IGNORECASE | re.DOTALL,
+        ),
+    ]
+
+    def extract_assertion_values(self, error_message: str) -> Optional[Dict[str, Any]]:
+        """
+        Extract expected vs actual assertion values from an error message.
+
+        Parses Cypress/Chai assertion errors to identify what the test expected
+        vs what it got. This distinguishes data-level failures (product returned
+        wrong data) from selector-level failures (element not found).
+
+        Args:
+            error_message: Error message from the test failure.
+
+        Returns:
+            Dict with has_data_assertion, expected, actual, assertion_type,
+            and raw_assertion. None if no assertion pattern matched.
+        """
+        if not error_message:
+            return None
+
+        for pattern in self.ASSERTION_PATTERNS:
+            match = pattern.search(error_message)
+            if match:
+                groups = match.groups()
+                assertion_type = self._classify_assertion_type(match, groups)
+
+                result = {
+                    'has_data_assertion': True,
+                    'assertion_type': assertion_type,
+                    'raw_assertion': match.group(0)[:200],
+                }
+
+                if len(groups) >= 2:
+                    result['expected'] = str(groups[1])
+                    result['actual'] = str(groups[0])
+                elif len(groups) == 1:
+                    result['expected'] = str(groups[0])
+                    result['actual'] = None
+
+                return result
+
+        return None
+
+    @staticmethod
+    def _classify_assertion_type(match: re.Match, groups: tuple) -> str:
+        """Classify the type of assertion based on matched pattern content."""
+        matched_text = match.group(0).lower()
+
+        # Count/length mismatch: expected N items, got M
+        if 'length' in matched_text or 'elements' in matched_text:
+            return 'count_mismatch'
+
+        # Check for numeric comparison
+        if len(groups) >= 2:
+            try:
+                float(groups[0])
+                float(groups[1])
+                return 'count_mismatch'
+            except (ValueError, TypeError):
+                pass
+
+        # Boolean/state mismatch
+        if any(v in matched_text for v in ('true', 'false', 'null', 'undefined')):
+            return 'state_mismatch'
+
+        # Property assertion
+        if 'property' in matched_text:
+            return 'property_missing'
+
+        # Content/text mismatch
+        if any(v in matched_text for v in ('contain', 'include', 'text')):
+            return 'content_missing'
+
+        # Default: value mismatch
+        return 'value_mismatch'
 
     def extract_failing_selector(self, error_message: str) -> Optional[str]:
         """

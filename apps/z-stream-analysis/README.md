@@ -1,17 +1,15 @@
-# Z-Stream Pipeline Analysis (v2.5)
+# Z-Stream Pipeline Analysis (v3.3)
 
-> **Enterprise Jenkins Pipeline Failure Analysis with 5-Phase Investigation Framework and 279 Unit Tests**
+Jenkins pipeline failure analysis with definitive PRODUCT_BUG | AUTOMATION_BUG | INFRASTRUCTURE classification.
 
 ## What This Does
 
 When Jenkins tests fail, you need to know: **Is it a PRODUCT BUG, AUTOMATION BUG, or INFRASTRUCTURE issue?**
 
-This **3-Stage Pipeline** provides:
-1. **Data Gathering** (gather.py): Factual data collection from Jenkins, environment, and repositories
+This 3-Stage Pipeline provides:
+1. **Data Gathering** (`gather.py`): Factual data collection from Jenkins, environment, repositories, and Knowledge Graph
 2. **AI Analysis** (Claude Code agent): 5-phase investigation with full repo access and MCP integration
-3. **Report Generation** (report.py): Human-readable reports from AI analysis
-
-**Result:** Definitive verdicts with evidence-based classification in < 5 minutes.
+3. **Report Generation** (`report.py`): Human-readable reports from AI analysis
 
 ## Quick Start
 
@@ -28,49 +26,48 @@ python -m src.scripts.gather "https://jenkins.example.com/job/pipeline/123/"
 python -m src.scripts.report runs/<run_dir>
 ```
 
-## Architecture Overview (v2.5)
-
+Or in Claude Code, just say:
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│  STAGE 1: DATA GATHERING (gather.py)                                │
-│  Script collects FACTUAL DATA + clones FULL REPOS for AI access     │
-│  ├── Jenkins: build info, parameters, result                        │
-│  ├── Console Log: error lines, patterns                             │
-│  ├── Test Report: test name, error, stack trace, duration           │
-│  ├── Environment: cluster accessible? API responding?               │
-│  ├── Repositories: FULL CLONE to runs/<dir>/repos/                  │
-│  ├── Context Extraction: test code, page objects, console search    │
-│  ├── MCP Integration (optional): element-inventory.json             │
-│  └── Investigation Hints: pointers to failed test files, selectors  │
-│                                                                     │
-│  Output: core-data.json + element-inventory.json (if MCP available) │
-│          + repos/automation/ + repos/console/ + repos/kubevirt/     │
-└─────────────────────────────────────────────────────────────────────┘
-                                │
-                                ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│  STAGE 2: AI ANALYSIS (Claude Code Agent)                           │
-│  5-Phase Investigation with repo access and MCP tools               │
-│  ├── Phase A: Initial Assessment (environment, patterns)            │
-│  ├── Phase B: Deep Investigation (per-test, 6 steps)                │
-│  ├── Phase C: Cross-Reference Validation (2+ evidence sources)      │
-│  ├── Phase D: Classification (3-path routing)                       │
-│  └── Phase E: Feature Context & JIRA Correlation (7 steps)          │
-│                                                                     │
-│  Output: analysis-results.json (classifications + reasoning)        │
-└─────────────────────────────────────────────────────────────────────┘
-                                │
-                                ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│  STAGE 3: REPORT GENERATION (report.py)                             │
-│  Script formats AI output into human-readable reports               │
-│  ├── Parse analysis-results.json                                    │
-│  ├── Generate Detailed-Analysis.md                                  │
-│  └── Generate SUMMARY.txt                                           │
-└─────────────────────────────────────────────────────────────────────┘
+Analyze this run: <JENKINS_URL>
 ```
 
-**Key Design Principle:** Services provide FACTUAL DATA only. All classification is performed by AI during the analysis phase.
+## Architecture
+
+```
+STAGE 1: gather.py    -> core-data.json + repos/
+STAGE 2: AI Analysis  -> analysis-results.json (5-phase investigation)
+STAGE 3: report.py    -> Detailed-Analysis.md + per-test-breakdown.json + SUMMARY.txt
+```
+
+### Stage 1: Data Gathering
+
+`gather.py` collects factual data without classification:
+- Jenkins build info, console log, test report
+- Environment validation (cluster connectivity, API health)
+- Repository cloning (automation, console, kubevirt-plugin)
+- Context extraction (test code, page objects, selector search)
+- Feature grounding (tests grouped by feature area with subsystem context)
+- Cluster landscape (managed clusters, operator statuses, resource pressure)
+- Backend API probing (5 console endpoints validated against cluster state)
+- Feature knowledge (playbook-driven prerequisites, failure paths, KG dependency context)
+- Temporal evidence (git timeline comparison between product and test changes)
+- Cluster credentials (persisted for Stage 2 re-authentication)
+
+### Stage 2: AI Analysis
+
+Claude Code agent performs 5-phase investigation:
+- **Phase A**: Initial assessment (re-auth, feature grounding, environment, patterns, KG context)
+- **Phase B**: Deep investigation per test (extracted context, timeline, console, MCP, backend cross-check, tiered playbook investigation)
+- **Phase C**: Cross-reference validation (multi-evidence, cascading failures, pattern correlation)
+- **Phase D**: Classification routing with pre-checks (blank page, hook dedup, temporal evidence, data assertion) then 3-path routing (selector -> Path A, timeout -> Path B1 with graduated health scoring, else -> Path B2 JIRA investigation) then causal link verification and counter-bias validation
+- **Phase E**: Feature context and JIRA correlation (Knowledge Graph, feature stories, bug search)
+
+### Stage 3: Report Generation
+
+`report.py` formats AI output into reports:
+- `Detailed-Analysis.md` — comprehensive markdown report
+- `per-test-breakdown.json` — structured data for tooling
+- `SUMMARY.txt` — brief text summary
 
 ## Classification Types
 
@@ -84,49 +81,99 @@ python -m src.scripts.report runs/<run_dir>
 | **FLAKY** | Automation Team | Passes on retry, intermittent timing failure |
 | **NO_BUG** | N/A | Expected failure from intentional product change |
 
+## Feature Areas
+
+| Area | Subsystem | Playbook |
+|------|-----------|----------|
+| GRC | Governance | Yes |
+| Search | Search | Yes |
+| CLC | Cluster Lifecycle | Yes |
+| Observability | Observability | Yes |
+| Virtualization | Virtualization | Yes |
+| Application | Application Lifecycle | Yes |
+| Console | Console | Yes |
+| Infrastructure | Infrastructure | Yes |
+| RBAC | RBAC & User Management | Yes |
+| Automation | Ansible Automation Platform | Yes |
+
 ## Run Directory Structure
 
 ```
 runs/<job>_<timestamp>/
-├── core-data.json              ← Primary data for AI (read first)
-├── element-inventory.json      ← MCP element locations (if available)
+├── core-data.json              <- Primary data for AI (read first)
+├── run-metadata.json           <- Run metadata (timing, version)
+├── manifest.json               <- File index
+├── console-log.txt             <- Full Jenkins console output
+├── jenkins-build-info.json     <- Build metadata
+├── test-report.json            <- Per-test failure details
+├── environment-status.json     <- Cluster health
+├── element-inventory.json      <- MCP element locations (if available)
 ├── repos/
-│   ├── automation/             ← Full cloned automation repo
-│   ├── console/                ← Full cloned console repo
-│   └── kubevirt-plugin/        ← For VM tests only
-├── analysis-results.json       ← AI output (created by agent)
-├── Detailed-Analysis.md        ← Report (created by report.py)
-└── SUMMARY.txt                 ← Report (created by report.py)
+│   ├── automation/             <- Full cloned automation repo
+│   ├── console/                <- Full cloned console repo
+│   └── kubevirt-plugin/        <- For VM tests only
+├── analysis-results.json       <- AI output (created by agent)
+├── Detailed-Analysis.md        <- Report (created by report.py)
+├── per-test-breakdown.json     <- Structured data (created by report.py)
+├── SUMMARY.txt                 <- Brief summary (created by report.py)
+└── feedback.json               <- Classification feedback (optional)
 ```
 
-## Services Layer (13 Python Service Modules)
+## Services (16 Python Modules)
 
 | Service | Purpose |
 |---------|---------|
 | `JenkinsIntelligenceService` | Build info extraction, console log parsing, test report analysis |
 | `JenkinsAPIClient` | Direct Jenkins REST API client with authentication |
-| `ACMUIMCPClient` | ACM UI MCP Server integration for element discovery |
 | `EnvironmentValidationService` | Real oc/kubectl cluster validation (READ-ONLY) |
 | `RepositoryAnalysisService` | Git clone to run directory, test file indexing |
 | `TimelineComparisonService` | Git date comparison between repos |
 | `StackTraceParser` | Parse JS/TS stack traces to file:line |
 | `ACMConsoleKnowledge` | ACM console directory structure and feature mapping |
+| `ACMUIMCPClient` | ACM UI MCP Server integration for element discovery |
 | `ComponentExtractor` | Extract backend component names from test failures |
-| `KnowledgeGraphClient` | Neo4j RHACM Knowledge Graph integration |
+| `KnowledgeGraphClient` | Neo4j RHACM Knowledge Graph queries via HTTP API |
+| `ClusterInvestigationService` | Targeted component diagnostics and cluster landscape |
+| `FeatureAreaService` | Map tests to feature areas with subsystem context |
+| `FeatureKnowledgeService` | Load playbooks, check prerequisites, match failure paths |
+| `FeedbackService` | Classification accuracy tracking and feedback |
 | `SchemaValidationService` | JSON Schema validation for analysis results |
-| `SharedUtils` | Common functions (subprocess, curl, masking) |
+| `shared_utils` | Common functions (subprocess, curl, masking, dataclass_to_dict, command validation) |
 
-## Test Coverage
+## MCP Servers
 
-- **279 unit tests** across 8 test files
-- **100% pass rate** with comprehensive edge case coverage
+| Server | Tools | Purpose |
+|--------|-------|---------|
+| ACM-UI | 20 | ACM Console + kubevirt-plugin source code search via GitHub |
+| JIRA | 25 | Issue search, creation, management for bug correlation |
+| Knowledge Graph (Neo4j) | 3 | Component dependency analysis via Cypher queries |
+
+Run `bash mcp/setup.sh` from the repo root to configure all servers.
+
+## Tests
 
 ```bash
-# Run all tests
-python -m pytest tests/unit/ -v
+# Unit + regression (515 tests, no external deps):
+python -m pytest tests/unit/ tests/regression/ -q
 
-# Run specific test file
-python -m pytest tests/unit/services/test_acm_ui_mcp_client.py -v
+# Integration (requires Jenkins VPN, 50 tests):
+python -m pytest tests/integration/ -v --timeout=300
+
+# All tests (565 total):
+python -m pytest tests/ -q --timeout=300
+```
+
+## CLI Options
+
+```bash
+python -m src.scripts.gather <url>               # Standard gather
+python -m src.scripts.gather <url> --skip-env     # Skip cluster validation
+python -m src.scripts.gather <url> --skip-repo    # Skip repository cloning
+python -m src.scripts.report <dir>                # Generate reports
+python -m src.scripts.report <dir> --keep-repos   # Don't cleanup repos/
+python -m src.scripts.feedback <dir> --test "name" --correct
+python -m src.scripts.feedback <dir> --test "name" --incorrect --should-be PRODUCT_BUG
+python -m src.scripts.feedback --stats
 ```
 
 ## Configuration
@@ -139,27 +186,19 @@ python -m pytest tests/unit/services/test_acm_ui_mcp_client.py -v
 | `JENKINS_API_TOKEN` | Jenkins API token |
 | `Z_STREAM_CONSOLE_REPO_URL` | Override console repository URL |
 | `Z_STREAM_KUBEVIRT_REPO_URL` | Override kubevirt-plugin repository URL |
-
-### MCP Integration (Optional)
-
-When ACM UI MCP Server is configured, additional capabilities are available:
-- CNV version detection from cluster
-- Fleet Virtualization selector inventory
-- Pre-computed element locations
-
-## Key Principle
-
-**Don't guess. Investigate.**
-
-The AI has full repo access - use it to understand exactly what went wrong before classifying. Read the actual test code, trace the imports, search for elements, check git history.
-
-A thorough investigation beats a quick guess every time.
+| `NEO4J_HTTP_URL` | Neo4j HTTP API URL (default: `http://localhost:7474`) |
+| `NEO4J_USER` | Neo4j username (default: `neo4j`) |
+| `NEO4J_PASSWORD` | Neo4j password (default: `rhacmgraph`) |
 
 ## Documentation
 
-See [CLAUDE.md](CLAUDE.md) for comprehensive documentation including:
-- Detailed workflow instructions
-- Classification guide
-- MCP integration details
-- ACM console directory structure
-- KubeVirt plugin integration
+| Topic | File |
+|-------|------|
+| Classification guide & pipeline overview | [CLAUDE.md](CLAUDE.md) |
+| Pipeline overview & version history | [docs/00-OVERVIEW.md](docs/00-OVERVIEW.md) |
+| Stage 1: Data gathering | [docs/01-STAGE1-DATA-GATHERING.md](docs/01-STAGE1-DATA-GATHERING.md) |
+| Stage 2: AI analysis | [docs/02-STAGE2-AI-ANALYSIS.md](docs/02-STAGE2-AI-ANALYSIS.md) |
+| Stage 3: Report generation | [docs/03-STAGE3-REPORT-GENERATION.md](docs/03-STAGE3-REPORT-GENERATION.md) |
+| Services reference | [docs/04-SERVICES-REFERENCE.md](docs/04-SERVICES-REFERENCE.md) |
+| MCP integration guide | [docs/05-MCP-INTEGRATION.md](docs/05-MCP-INTEGRATION.md) |
+| Agent instructions | [.claude/agents/z-stream-analysis.md](.claude/agents/z-stream-analysis.md) |

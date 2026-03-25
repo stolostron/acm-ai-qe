@@ -195,79 +195,40 @@ class TimelineComparisonService:
         self.automation_path: Optional[Path] = None
         self.kubevirt_path: Optional[Path] = None
 
-    def clone_console_repo(self, branch: str = "main") -> Tuple[Optional[Path], Optional[str]]:
-        """
-        Clone the stolostron/console repository.
-
-        Args:
-            branch: Branch to checkout (should match automation branch, e.g., release-2.15)
-
-        Returns:
-            Tuple of (clone_path, error_message)
-        """
-        timestamp = int(time.time())
-        clone_dir = self.base_path / f"console_{timestamp}"
-
-        try:
-            cmd = [
-                'git', 'clone',
-                '--branch', branch,
-                '--depth', str(THRESHOLDS.GIT_SHALLOW_CLONE_DEPTH),  # Shallow clone with enough history
-                self.CONSOLE_REPO_URL,
-                str(clone_dir)
-            ]
-
-            self.logger.info(f"Cloning console repo at branch {branch}")
-
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=TIMEOUTS.GIT_CLONE
-            )
-
-            if result.returncode != 0:
-                # Try with main if branch doesn't exist
-                if "not find remote branch" in result.stderr or "not found" in result.stderr.lower():
-                    self.logger.warning(f"Branch {branch} not found in console, trying main")
-                    cmd[3] = "main"
-                    result = subprocess.run(
-                        cmd,
-                        capture_output=True,
-                        text=True,
-                        timeout=TIMEOUTS.GIT_CLONE
-                    )
-
-                if result.returncode != 0:
-                    error = f"Git clone failed: {result.stderr}"
-                    self.logger.error(error)
-                    return None, error
-
-            self.console_path = clone_dir
-            self.logger.info(f"Console repo cloned to: {clone_dir}")
-            return clone_dir, None
-
-        except subprocess.TimeoutExpired:
-            error = "Git clone timed out after 180s"
-            self.logger.error(error)
-            return None, error
-        except Exception as e:
-            error = f"Git clone error: {str(e)}"
-            self.logger.error(error)
-            return None, error
-
     def set_automation_path(self, path: Path):
         """Set the path to the automation repository."""
         self.automation_path = path
+
+    # Patterns to detect selector-related changes in git diffs.
+    # Covers data-testid, id, className, aria-label, CSS classes, OUIA IDs.
+    DIFF_SELECTOR_PATTERNS = [
+        re.compile(r'data-testid=["\']([^"\']+)["\']'),
+        re.compile(r'data-test-id=["\']([^"\']+)["\']'),
+        re.compile(r'data-test=["\']([^"\']+)["\']'),
+        re.compile(r'data-ouia-component-id=["\']([^"\']+)["\']'),
+        re.compile(r'\bid=["\']([^"\']+)["\']'),
+        re.compile(r'\bid:\s*["\']([^"\']+)["\']'),
+        re.compile(r'className=["\']([^"\']+)["\']'),
+        re.compile(r'class=["\']([^"\']+)["\']'),
+        re.compile(r'aria-label=["\']([^"\']+)["\']'),
+        re.compile(r'testId=["\']([^"\']+)["\']'),
+    ]
+
+    # Default lookback for git diff selector change detection
+    SELECTOR_DIFF_LOOKBACK_COMMITS = 200
 
     def extract_element_id(self, selector: str) -> str:
         """
         Extract element ID from various selector formats.
 
+        Handles ID selectors, attribute selectors, CSS class selectors,
+        aria-label selectors, and PatternFly/Carbon class patterns.
+
         Examples:
             "#google" -> "google"
             "[data-testid='google']" -> "google"
-            "#my-element" -> "my-element"
+            ".pf-v6-c-menu__list-item" -> "pf-v6-c-menu__list-item"
+            ".tf--list-box__menu-item" -> "tf--list-box__menu-item"
         """
         # Handle ID selectors: #google -> google
         if selector.startswith('#'):
@@ -282,6 +243,10 @@ class TimelineComparisonService:
         match = re.search(r"data-[\w-]+=['\"]?([^'\"\]]+)['\"]?", selector)
         if match:
             return match.group(1)
+
+        # Handle CSS class selectors: .foo-bar -> foo-bar
+        if selector.startswith('.') and ' ' not in selector and '>' not in selector:
+            return selector[1:]
 
         # Return as-is if no pattern matches
         return selector.strip('#.[]')
@@ -522,7 +487,8 @@ class TimelineComparisonService:
             result.console_changed_after_automation = console_date > auto_date
 
             # Fact 3: Stale test signal — product changed after test AND test not updated since
-            result.stale_test_signal = console_date > auto_date
+            # True only when console changed AFTER automation AND automation was not updated afterward
+            result.stale_test_signal = (console_date > auto_date) and (result.days_difference > 1)
 
         # Fact 4: Classify the product commit message type
         if console and console.last_commit_message:
@@ -733,6 +699,186 @@ class TimelineComparisonService:
             return False, "Git clone timed out after 180s"
         except Exception as e:
             return False, f"Git clone error: {str(e)}"
+
+    def find_recent_selector_changes(
+        self,
+        lookback_commits: int = 200,
+    ) -> Dict[str, Any]:
+        """
+        Find all selector-related changes in recent product commits using git diff.
+
+        Parses the unified diff of the last N commits in the console repo for
+        lines containing selector patterns (data-testid, className, aria-label,
+        id, CSS classes, OUIA IDs). Returns a structured map of removed and
+        added selectors per file, with commit metadata.
+
+        This runs ONCE per analysis (not per test) and the result is cached.
+        The output is cross-referenced per-test against failing selectors.
+
+        Args:
+            lookback_commits: Number of commits to look back. Default 200 (~6 months).
+
+        Returns:
+            Dict with 'changes' list and metadata. Each change entry contains:
+            - removed_selectors: selectors that were removed
+            - added_selectors: selectors that were added
+            - file: the file that changed
+            - All selectors are normalized strings.
+
+        Limitations:
+            - Only covers the lookback window. Changes older than ~6 months won't appear.
+            - Cannot detect text-based selectors (cy.contains).
+            - Cannot detect dynamic/runtime-constructed selectors.
+            - className values with multiple classes are split into individual classes.
+        """
+        if not self.console_path or not self.console_path.exists():
+            self.logger.warning("Console repo not available for selector diff")
+            return {'changes': [], 'lookback_commits': lookback_commits, 'error': 'no_console_repo'}
+
+        self.logger.info(f"Scanning last {lookback_commits} commits for selector changes...")
+
+        try:
+            result = subprocess.run(
+                ['git', 'diff', f'HEAD~{lookback_commits}..HEAD', '--', 'src/'],
+                cwd=self.console_path,
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+
+            if result.returncode != 0:
+                self.logger.warning(f"git diff failed: {result.stderr[:200]}")
+                return {'changes': [], 'lookback_commits': lookback_commits, 'error': 'git_diff_failed'}
+
+            changes = self._parse_diff_for_selectors(result.stdout)
+
+            self.logger.info(
+                f"Found {len(changes)} files with selector changes "
+                f"across {lookback_commits} commits"
+            )
+
+            return {
+                'changes': changes,
+                'lookback_commits': lookback_commits,
+                'total_files_with_changes': len(changes),
+            }
+
+        except subprocess.TimeoutExpired:
+            self.logger.warning(f"git diff timed out after 120s for {lookback_commits} commits")
+            return {'changes': [], 'lookback_commits': lookback_commits, 'error': 'timeout'}
+        except Exception as e:
+            self.logger.warning(f"Error finding selector changes: {e}")
+            return {'changes': [], 'lookback_commits': lookback_commits, 'error': str(e)}
+
+    def _parse_diff_for_selectors(self, diff_output: str) -> List[Dict[str, Any]]:
+        """
+        Parse unified diff output for selector-related additions and removals.
+
+        Scans each file's diff hunks for lines starting with - or + that contain
+        selector patterns. Groups results by file.
+
+        Args:
+            diff_output: Raw output from git diff.
+
+        Returns:
+            List of dicts, each representing a file with selector changes.
+        """
+        file_changes: Dict[str, Dict[str, set]] = {}
+        current_file = None
+
+        for line in diff_output.split('\n'):
+            if line.startswith('diff --git'):
+                match = re.search(r'b/(.+)$', line)
+                if match:
+                    current_file = match.group(1)
+                continue
+
+            if not current_file:
+                continue
+
+            is_removed = line.startswith('-') and not line.startswith('---')
+            is_added = line.startswith('+') and not line.startswith('+++')
+
+            if not (is_removed or is_added):
+                continue
+
+            selectors = self._extract_selectors_from_line(line[1:])
+            if not selectors:
+                continue
+
+            if current_file not in file_changes:
+                file_changes[current_file] = {'removed': set(), 'added': set()}
+
+            target = 'removed' if is_removed else 'added'
+            file_changes[current_file][target].update(selectors)
+
+        results = []
+        for filepath, changes in file_changes.items():
+            removed = changes['removed'] - changes['added']
+            added = changes['added'] - changes['removed']
+
+            if removed or added:
+                results.append({
+                    'file': filepath,
+                    'removed_selectors': sorted(removed),
+                    'added_selectors': sorted(added),
+                })
+
+        return results
+
+    def _extract_selectors_from_line(self, line: str) -> List[str]:
+        """Extract all selector values from a single diff line."""
+        selectors = []
+        for pattern in self.DIFF_SELECTOR_PATTERNS:
+            for match in pattern.finditer(line):
+                value = match.group(1).strip()
+                if not value or len(value) > 200:
+                    continue
+                if ' ' in value and ('className' in line or 'class=' in line):
+                    selectors.extend(cls for cls in value.split() if cls)
+                else:
+                    selectors.append(value)
+        return selectors
+
+    def cross_reference_selector(
+        self,
+        failing_selector: str,
+        selector_changes: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """
+        Cross-reference a failing selector against the cached selector changes.
+
+        Checks if the failing selector (or its extracted ID) appears in any
+        removed_selectors list. If found, returns the file and what was added
+        in the same file (potential replacement).
+
+        Args:
+            failing_selector: The selector string from the failing test.
+            selector_changes: The cached output of find_recent_selector_changes().
+
+        Returns:
+            Dict with match_found, matching changes, and the lookback window used.
+        """
+        element_id = self.extract_element_id(failing_selector)
+        changes = selector_changes.get('changes', [])
+        matches = []
+
+        for change in changes:
+            for removed in change.get('removed_selectors', []):
+                if element_id in removed or removed in element_id or failing_selector.lstrip('.#') in removed:
+                    matches.append({
+                        'removed_selector': removed,
+                        'added_selectors': change.get('added_selectors', []),
+                        'file': change.get('file', ''),
+                    })
+
+        return {
+            'match_found': len(matches) > 0,
+            'matches': matches[:5],
+            'lookback_commits': selector_changes.get('lookback_commits', 200),
+            'selector_searched': failing_selector,
+            'element_id_searched': element_id,
+        }
 
     def cleanup(self):
         """Clean up cloned console and kubevirt repositories."""

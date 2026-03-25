@@ -1,9 +1,12 @@
 """
-Z-Stream Analysis Services Module (v2.5)
+Z-Stream Analysis Services Module (v3.0)
 
 Core services for Jenkins pipeline failure data gathering.
 
-Architecture Note (v2.5):
+Architecture Note (v3.0):
+- Cluster investigation service for targeted pod diagnostics
+- Feature area service for grounding analysis in feature context
+- Feedback service for classification accuracy tracking
 - Classification services removed - AI now performs all classification
 - Repos cloned to run directory for AI full access
 - Services provide FACTUAL DATA only
@@ -45,9 +48,6 @@ from .environment_validation_service import (
 )
 from .repository_analysis_service import (
     RepositoryAnalysisService,
-    RepositoryAnalysisResult,
-    TestFileInfo,
-    DependencyInfo,
     SelectorHistory
 )
 
@@ -88,6 +88,37 @@ from .knowledge_graph_client import (
     is_knowledge_graph_available
 )
 
+# Cluster Investigation (v3.0)
+from .cluster_investigation_service import (
+    ClusterInvestigationService,
+    ClusterLandscape,
+    PodDiagnostics,
+    ComponentDiagnostics,
+)
+
+# Feature Area Grounding (v3.0)
+from .feature_area_service import (
+    FeatureAreaService,
+    FeatureGrounding,
+    FeatureMapping,
+    FeatureGrouping,
+)
+
+# Feedback (v3.0)
+from .feedback_service import (
+    FeedbackService,
+    ClassificationFeedback,
+    RunFeedback,
+)
+
+# Feature Knowledge Playbooks (v3.0)
+from .feature_knowledge_service import (
+    FeatureKnowledgeService,
+    PrerequisiteCheck,
+    MatchedFailurePath,
+    FeatureReadiness,
+)
+
 # Shared utilities
 from .shared_utils import (
     # Configuration classes
@@ -104,10 +135,13 @@ from .shared_utils import (
     # JSON utilities
     parse_json_response,
     safe_json_loads,
+    # Dataclass utilities
+    dataclass_to_dict,
+    # Command validation utilities
+    validate_command_readonly,
     # Credential utilities
     get_jenkins_credentials,
     encode_basic_auth,
-    decode_basic_auth,
     get_auth_header,
     # File detection utilities
     TEST_FILE_PATTERNS,
@@ -116,12 +150,8 @@ from .shared_utils import (
     is_test_file,
     is_framework_file,
     is_support_file,
-    detect_test_framework,
-    # Dataclass utilities
-    dataclass_to_dict,
-    # Base class
-    ServiceBase,
     # Credential masking
+    SENSITIVE_PATTERNS,
     mask_sensitive_value,
     mask_sensitive_dict,
 )
@@ -151,9 +181,6 @@ __all__ = [
     'ClusterInfo',
     # Repository Service
     'RepositoryAnalysisService',
-    'RepositoryAnalysisResult',
-    'TestFileInfo',
-    'DependencyInfo',
     'SelectorHistory',
     # Schema Validation
     'SchemaValidationService',
@@ -181,6 +208,25 @@ __all__ = [
     'DependencyChain',
     'get_knowledge_graph_client',
     'is_knowledge_graph_available',
+    # Cluster Investigation (v3.0)
+    'ClusterInvestigationService',
+    'ClusterLandscape',
+    'PodDiagnostics',
+    'ComponentDiagnostics',
+    # Feature Area Grounding (v3.0)
+    'FeatureAreaService',
+    'FeatureGrounding',
+    'FeatureMapping',
+    'FeatureGrouping',
+    # Feedback (v3.0)
+    'FeedbackService',
+    'ClassificationFeedback',
+    'RunFeedback',
+    # Feature Knowledge Playbooks (v3.0)
+    'FeatureKnowledgeService',
+    'PrerequisiteCheck',
+    'MatchedFailurePath',
+    'FeatureReadiness',
     # Configuration Classes
     'TimeoutConfig',
     'RepositoryConfig',
@@ -194,9 +240,10 @@ __all__ = [
     'execute_curl',
     'parse_json_response',
     'safe_json_loads',
+    'dataclass_to_dict',
+    'validate_command_readonly',
     'get_jenkins_credentials',
     'encode_basic_auth',
-    'decode_basic_auth',
     'get_auth_header',
     'TEST_FILE_PATTERNS',
     'FRAMEWORK_FILE_PATTERNS',
@@ -204,9 +251,7 @@ __all__ = [
     'is_test_file',
     'is_framework_file',
     'is_support_file',
-    'detect_test_framework',
-    'dataclass_to_dict',
-    'ServiceBase',
+    'SENSITIVE_PATTERNS',
     'mask_sensitive_value',
     'mask_sensitive_dict',
 ]

@@ -237,3 +237,104 @@ class TestStackFrame:
             line_number=10
         )
         assert frame.is_support_file is True
+
+
+class TestAssertionValueExtraction:
+    """Tests for assertion value extraction (GAP-01)."""
+
+    def setup_method(self):
+        self.parser = StackTraceParser()
+
+    def test_extract_string_equality(self):
+        """Test extracting expected/actual from string equality assertion."""
+        error = "AssertionError: expected 'Ready' to equal 'Available'"
+        result = self.parser.extract_assertion_values(error)
+        assert result is not None
+        assert result['has_data_assertion'] is True
+        assert result['actual'] == 'Ready'
+        assert result['expected'] == 'Available'
+        assert result['assertion_type'] == 'value_mismatch'
+
+    def test_extract_numeric_equality(self):
+        """Test extracting expected/actual from numeric assertion."""
+        error = "AssertionError: expected 0 to equal 5"
+        result = self.parser.extract_assertion_values(error)
+        assert result is not None
+        assert result['actual'] == '0'
+        assert result['expected'] == '5'
+        assert result['assertion_type'] == 'count_mismatch'
+
+    def test_extract_element_count(self):
+        """Test extracting count from element count assertion."""
+        error = "Timed out retrying after 4000ms: expected to find 5 elements, but found 0"
+        result = self.parser.extract_assertion_values(error)
+        assert result is not None
+        assert result['assertion_type'] == 'count_mismatch'
+
+    def test_extract_array_length(self):
+        """Test extracting expected length from array assertion."""
+        error = "AssertionError: expected [] to have length 5"
+        result = self.parser.extract_assertion_values(error)
+        assert result is not None
+        assert result['expected'] == '5'
+        assert result['assertion_type'] == 'count_mismatch'
+
+    def test_extract_contain_text(self):
+        """Test extracting text content assertion."""
+        error = "expected '<div>' to contain 'clusterset-name'"
+        result = self.parser.extract_assertion_values(error)
+        assert result is not None
+        assert result['assertion_type'] == 'content_missing'
+
+    def test_extract_boolean_state(self):
+        """Test extracting boolean state assertion."""
+        error = "expected true to be false"
+        result = self.parser.extract_assertion_values(error)
+        assert result is not None
+        assert result['assertion_type'] == 'state_mismatch'
+
+    def test_no_assertion_in_selector_error(self):
+        """Test that selector errors don't match assertion patterns."""
+        error = "Expected to find element: '#my-button', but never found it"
+        result = self.parser.extract_assertion_values(error)
+        # This should NOT match -- it's about element existence, not data
+        assert result is None
+
+    def test_no_assertion_in_network_error(self):
+        """Test that network errors don't match assertion patterns."""
+        error = "Network error: connection refused"
+        result = self.parser.extract_assertion_values(error)
+        assert result is None
+
+    def test_empty_message(self):
+        """Test empty error message returns None."""
+        result = self.parser.extract_assertion_values("")
+        assert result is None
+
+    def test_none_message(self):
+        """Test None error message returns None."""
+        result = self.parser.extract_assertion_values(None)
+        assert result is None
+
+    def test_deep_equal_assertion(self):
+        """Test deep.equal assertion extraction."""
+        error = "expected 'admin:kube' to deep.equal 'kube:admin'"
+        result = self.parser.extract_assertion_values(error)
+        assert result is not None
+        assert result['actual'] == 'admin:kube'
+        assert result['expected'] == 'kube:admin'
+        assert result['assertion_type'] == 'value_mismatch'
+
+    def test_property_assertion(self):
+        """Test property assertion extraction."""
+        error = "expected { count: 0 } to have property 'items'"
+        result = self.parser.extract_assertion_values(error)
+        assert result is not None
+        assert result['assertion_type'] == 'property_missing'
+
+    def test_raw_assertion_truncation(self):
+        """Test that raw_assertion is truncated to 200 chars."""
+        long_error = "expected '" + "x" * 300 + "' to equal 'y'"
+        result = self.parser.extract_assertion_values(long_error)
+        if result:
+            assert len(result['raw_assertion']) <= 200

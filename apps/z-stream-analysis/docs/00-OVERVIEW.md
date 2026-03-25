@@ -1,4 +1,4 @@
-# Z-Stream Analysis Overview (v2.5)
+# Z-Stream Analysis Overview (v3.3)
 
 Jenkins pipeline failure analysis with definitive classification of each test failure.
 
@@ -107,22 +107,15 @@ runs/<job>_<timestamp>/
 | **FLAKY** | — | Passes on retry without code changes; intermittent timing failure |
 | **NO_BUG** | — | Failure expected given intentional product changes |
 
-### Decision Quick Reference (3-Path Routing in Phase D)
+### Decision Quick Reference (Pre-Routing + 3-Path Routing in Phase D)
 
-| Evidence | Path | Classification |
-|----------|------|----------------|
-| `console_search.found = false` | A | AUTOMATION_BUG |
-| `element_removed = true` in timeline | A | AUTOMATION_BUG |
-| `failure_type = element_not_found` | A | AUTOMATION_BUG |
-| Timeout waiting for missing selector | A | AUTOMATION_BUG |
-| Timeout (non-selector) | B1 | INFRASTRUCTURE |
-| `environment.cluster_connectivity = false` | B1 | INFRASTRUCTURE |
-| Multiple unrelated tests timeout | B1 | INFRASTRUCTURE |
-| 500 errors in console log | B2 | PRODUCT_BUG |
-| Feature story contradicts product behavior | B2/E | PRODUCT_BUG |
-| Assertion failure + test logic wrong | B2 | AUTOMATION_BUG |
-| Test passes on retry, no code changes | Any | FLAKY |
-| Failure matches intentional product change | E | NO_BUG |
+**Pre-routing checks:** **PR-1** blank page / no-js detection (missing prerequisite → INFRASTRUCTURE), **PR-2** hook failure deduplication (cascading after-all hooks → NO_BUG), **PR-3** temporal evidence (stale_test_signal with refactor commit → signals PRODUCT_BUG), **PR-5** data assertion extraction (expected vs actual value mismatch → signals PRODUCT_BUG or AUTOMATION_BUG based on value source) (v3.3).
+
+**3-path routing:** **Path A** (selector mismatch → AUTOMATION_BUG), **Path B1** (non-selector timeout → INFRASTRUCTURE, graduated health scoring with definitive/strong/moderate bands) (v3.3), **Path B2** (everything else → JIRA-informed investigation). **PR-4** checks feature knowledge override first (unmet prerequisites, playbook-confirmed failure paths). **D0** checks backend cross-check — if a backend issue caused the UI failure, routes to Path B2 regardless.
+
+**Post-classification validation:** **D4** final validation, **D4b** per-test causal link verification (every test attributed to a dominant pattern must have a documented causal mechanism) (v3.3), **D5** counter-bias validation (3-test threshold rule: if 3+ tests share the same root_cause, at least 1 must be independently re-investigated) (v3.3).
+
+See [02-STAGE2-AI-ANALYSIS.md](02-STAGE2-AI-ANALYSIS.md) Phase D for the full decision routing with evidence tables and confidence scores.
 
 ---
 
@@ -134,9 +127,9 @@ Every classification requires 2+ evidence sources.
 
 | Tier | Weight | Examples |
 |------|--------|----------|
-| 1 (Definitive) | 1.0 | 500 errors in log, element_removed=true, env_score<0.3 |
-| 2 (Strong) | 0.8 | Selector mismatch, multiple tests same selector, cascading failure |
-| 3 (Supportive) | 0.5 | Similar selectors exist, timing issues, single timeout |
+| 1 (Definitive) | 1.0 | 500 errors in log, element_removed=true, feature_area_health<0.3 |
+| 2 (Strong) | 0.8 | Selector mismatch, multiple tests same selector, cascading failure, feature_area_health 0.3-0.5 |
+| 3 (Supportive) | 0.5 | Similar selectors exist, timing issues, single timeout, feature_area_health 0.5-0.7 |
 
 ### Minimum Requirement
 
@@ -154,18 +147,18 @@ Every classification requires 2+ evidence sources.
 
 ## MCP Servers
 
-Three MCP servers provide tools during Stage 2 (AI Analysis):
+Three MCP servers provide tools during Stage 2 (AI Analysis). The Knowledge Graph is also queried directly via HTTP API during Stage 1 (gather.py) for dependency context.
 
 ```
 ┌─────────────────────┐  ┌─────────────────────┐  ┌─────────────────────┐
-│   ACM-UI MCP (20)   │  │  Knowledge Graph    │  │   JIRA MCP (24)     │
+│   ACM-UI MCP (19)   │  │  Knowledge Graph    │  │   JIRA MCP (25)     │
 │  ─────────────────  │  │  ─────────────────  │  │  ─────────────────  │
 │  Code search        │  │  Component deps     │  │  Search issues      │
 │  Find selectors     │  │  Cascading failure  │  │  Get/create/update  │
 │  Get source code    │  │  Subsystem context  │  │  Comments & time    │
 │  Version control    │  │  Feature workflow   │  │  Link issues        │
 │  Translations       │  │  Neo4j Cypher       │  │  Team management    │
-│  Wizard steps       │  │  (Optional)         │  │  Watchers           │
+│  Wizard steps       │  │  HTTP API + MCP     │  │  Watchers           │
 │                     │  │                     │  │  Transitions        │
 │  ACM: 2.11-2.17     │  │                     │  │                     │
 │  CNV: 4.14-4.22     │  │                     │  │                     │
@@ -210,10 +203,10 @@ python -m src.scripts.report <dir> --keep-repos    # Don't delete repos/
 
 | Phase | Purpose | Key Question |
 |-------|---------|--------------|
-| A | Initial Assessment | What's the big picture? |
-| B | Deep Investigation | What went wrong in each test? |
+| A | Initial Assessment + Feature Knowledge | What's the big picture? What do playbooks say? |
+| B | Deep Investigation + Tiered Cluster Checks | What went wrong in each test? What do pods show? |
 | C | Cross-Reference Validation | Do I have enough evidence? |
-| D | 3-Path Classification Routing | Selector (A), timeout (B1), or JIRA-informed (B2)? |
+| D | Pre-Routing + Classification (Blank Page → Hook Dedup → Temporal → Data Assertion → Feature Override → Backend → 3-Path → Causal Link → Counter-Bias) | Blank page? Cascading hook? Stale test? Data assertion mismatch? Prerequisite unmet? Backend caused it? Selector (A), timeout (B1), or JIRA-informed (B2)? Causal link verified? Counter-bias checked? |
 | E | Feature Context & JIRA Correlation | What should this feature do? Are there known issues? |
 
 ---
@@ -222,7 +215,7 @@ python -m src.scripts.report <dir> --keep-repos    # Don't delete repos/
 
 | Topic | File |
 |-------|------|
-| Stage 1: Data gathering (Steps 1-8) | [01-STAGE1-DATA-GATHERING.md](01-STAGE1-DATA-GATHERING.md) |
+| Stage 1: Data gathering (Steps 1-10) | [01-STAGE1-DATA-GATHERING.md](01-STAGE1-DATA-GATHERING.md) |
 | Stage 2: AI analysis (Phases A-E) | [02-STAGE2-AI-ANALYSIS.md](02-STAGE2-AI-ANALYSIS.md) |
 | Stage 3: Report generation | [03-STAGE3-REPORT-GENERATION.md](03-STAGE3-REPORT-GENERATION.md) |
 | All services reference | [04-SERVICES-REFERENCE.md](04-SERVICES-REFERENCE.md) |
@@ -234,6 +227,10 @@ python -m src.scripts.report <dir> --keep-repos    # Don't delete repos/
 
 | Version | Changes |
 |---------|---------|
+| v3.3 | Backend API probing (Step 4c) with 5 endpoint checks (`/authenticated`, `/hub`, `/username`, `/ansibletower`, `/proxy/search`) stored in `backend_probes`, `FEATURE_AREA_PROBE_MAP` linking feature areas to relevant probes, assertion value extraction (PR-5) with `assertion_analysis` per test, failure mode categorization (`failure_mode_category`: render_failure/element_missing/data_incorrect/timeout_general/assertion_logic/server_error/unknown), refined failure types (`assertion_data`/`assertion_selector`), per-feature-area health scoring (GAP-04) with graduated bands (definitive <0.3, strong 0.3-0.5, moderate 0.5-0.7, none >=0.7), per-test causal link verification (D4b), counter-bias 3-test threshold rule (D5 strengthened), new schema fields (`failure_mode_category`, `assertion_analysis`, `data_assertion_failures`, `feature_area_health`, `backend_probes`), graduated infrastructure thresholds (`INFRA_DEFINITIVE`/`INFRA_STRONG`/`INFRA_MODERATE`), schema version 3.3.0 |
+| v3.2 | Blank page / no-js pre-routing (PR-1), hook failure deduplication (PR-2), temporal evidence routing (PR-3), Automation/AAP playbook and feature area, KnowledgeGraphClient rewritten with direct Neo4j HTTP API (fixes always-unavailable bug), new schema fields (`is_cascading_hook_failure`, `blank_page_detected`, `cascading_hook_failures`, `blank_page_failures`), counter-bias validation (D5) |
+| v3.1 | Feature investigation playbooks (YAML), FeatureKnowledgeService, MCH component extraction (`mch_enabled_components`, `mch_version`), cluster credential persistence (`cluster_access`), tiered investigation (Tiers 0-4), `feature_knowledge` in core-data.json, new schema fields (`prerequisite_analysis`, `playbook_investigation`, `cluster_investigation_detail`, `cluster_investigation_summary`), feedback CLI |
+| v3.0 | Cluster investigation, feature area grounding, backend cross-check (B7/D0), targeted pod investigation (B5b) |
 | v2.5 | 5-Phase Systematic Investigation Framework, multi-evidence requirement |
 | v2.4 | Complete Context Upfront, extracted_context per test |
 | v2.3 | Knowledge Graph integration, component extraction |

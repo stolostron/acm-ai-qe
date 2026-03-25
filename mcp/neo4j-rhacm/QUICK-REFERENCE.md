@@ -28,7 +28,7 @@ podman logs neo4j-mcp
 
 ---
 
-## Natural Language Queries
+## Natural Language Queries (Cursor)
 
 ### Architecture Discovery
 - "How many components are in each RHACM subsystem?"
@@ -58,16 +58,16 @@ podman logs neo4j-mcp
 
 ```cypher
 -- Count by subsystem
-MATCH (n:RHACMComponent)
+MATCH (n:RHACMComponent) 
 RETURN n.subsystem, count(n) ORDER BY count(n) DESC;
 
 -- Find by name
-MATCH (n:RHACMComponent)
-WHERE n.label CONTAINS 'policy'
+MATCH (n:RHACMComponent) 
+WHERE n.label CONTAINS 'policy' 
 RETURN n.label, n.type;
 
 -- List controllers
-MATCH (n:RHACMComponent {type: 'Controller'})
+MATCH (n:RHACMComponent {type: 'Controller'}) 
 RETURN n.label, n.subsystem;
 ```
 
@@ -120,10 +120,10 @@ ORDER BY count(r) DESC;
 
 | Type | Count | Meaning |
 |------|-------|---------|
-| CONTAINS | 108 | Parent -> Child |
+| CONTAINS | 108 | Parent → Child |
 | DEPENDS_ON | 88 | Dependency |
 | USES | 33 | Uses functionality |
-| MANAGES | 21 | Controller -> CRD |
+| MANAGES | 21 | Controller → CRD |
 | INTEGRATES_WITH | 10 | Integration |
 
 ---
@@ -133,10 +133,22 @@ ORDER BY count(r) DESC;
 | Issue | Solution |
 |-------|----------|
 | "Cannot connect to Podman" | `podman machine start` |
-| MCP not connecting | Check `podman ps --filter name=neo4j-mcp` |
+| MCP not in Cursor | Restart Cursor (Cmd+Q) |
+| "No tools, prompts, or resources" | Create tool descriptors in `~/.cursor/projects/Users-ashafi-Documents-work-automation/mcps/user-neo4j-rhacm/tools/` |
 | MCP can't connect to Neo4j | Use actual container IP: `podman inspect neo4j-rhacm --format '{{.NetworkSettings.IPAddress}}'` |
 | Neo4j connection refused | Wait 30s after start |
 | Query timeout | Add `LIMIT` clause |
+
+---
+
+## Files Location
+
+| Resource | Path |
+|----------|------|
+| Knowledge Graph Repo | Your local clone of [stolostron/knowledge-graph](https://github.com/stolostron/knowledge-graph) |
+| This Documentation | `mcp/neo4j-rhacm/` (this directory) |
+| Cursor MCP Config | `~/.cursor/mcp.json` |
+| Tool Descriptors | `~/.cursor/projects/Users-ashafi-Documents-work-automation/mcps/user-neo4j-rhacm/tools/` |
 
 ---
 

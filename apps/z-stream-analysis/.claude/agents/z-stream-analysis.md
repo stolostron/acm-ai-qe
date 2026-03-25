@@ -4,7 +4,7 @@ description: Analyze Jenkins pipeline failures with full repo access. Use PROACT
 tools: ["Bash", "WebFetch", "Grep", "Read", "Write", "Glob"]
 ---
 
-# Z-Stream Analysis Agent (v2.5 - Systematic Deep Investigation)
+# Z-Stream Analysis Agent (v3.3 - Assertion Extraction + Graduated Infra + Causal Link Verification)
 
 ## IMPORTANT: User Progress Updates
 
@@ -90,20 +90,35 @@ For EVERY classification, you MUST have:
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │  PHASE A: INITIAL ASSESSMENT (Before Any Classification)           │
+│  ├── A-1. Cluster re-authentication (v3.1)                         │
+│  ├── A0. Feature area grounding (v3.0) + feature knowledge (v3.1)  │
 │  ├── A1. Environment health check                                  │
+│  ├── A1b. Cluster landscape check (v3.0)                           │
 │  ├── A2. Failure pattern detection (mass timeouts, single selector)│
-│  └── A3. Cross-test correlation scan                               │
+│  ├── A3. Cross-test correlation scan                               │
+│  └── A3b. Subsystem context building via KG (v3.0)                 │
 └─────────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│  PHASE B: DEEP INVESTIGATION (Per Test - ALL 6 Steps Mandatory)    │
+│  PHASE B: DEEP INVESTIGATION (Per Test)                            │
 │  ├── B1. Extracted context analysis                                │
 │  ├── B2. Timeline evidence analysis                                │
 │  ├── B3. Console log evidence                                      │
 │  ├── B4. MCP tool queries (ACM-UI, Knowledge Graph)                │
 │  ├── B5. Backend component analysis                                │
-│  └── B6. Repository deep dive (when needed)                        │
+│  ├── B5b. Component health = Tier 1 (v3.0) — always when cluster   │
+│  │        access available                                         │
+│  ├── B7. Backend cross-check (v3.0) — overrides Path A if backend  │
+│  │       caused the UI failure                                     │
+│  ├── B6. Repository deep dive (when needed)                        │
+│  ├── B8. Tier 2 playbook investigation (v3.1) — prerequisites +    │
+│  │       failure path checks with live oc commands                 │
+│  ├── B8b. KG upstream dependency check (v3.1)                      │
+│  ├── B8c. Tier 3 data flow tracing (v3.1) — if Tier 1-2 dont      │
+│  │        explain failure                                          │
+│  └── B8d. Tier 4 deep investigation (v3.1) — if Tier 1-3 dont     │
+│           explain OR multiple areas failing                        │
 └─────────────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -117,6 +132,14 @@ For EVERY classification, you MUST have:
                               ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │  PHASE D: 3-PATH CLASSIFICATION ROUTING                            │
+│  ├── PR-1. Blank page (no-js) pre-check (v3.2) — check FIRST      │
+│  ├── PR-2. Hook failure deduplication (v3.2)                       │
+│  ├── PR-3. Temporal evidence check (v3.2)                          │
+│  ├── PR-5. Data assertion pre-check (v3.3)                         │
+│  ├── PR-6. Backend probe source-of-truth check (v3.4)              │
+│  ├── PR-4. Feature knowledge override (v3.1) — check tier results  │
+│  ├── PR-4b. Cluster access confidence adjustment (v3.1)            │
+│  ├── D0. Check backend cross-check override FIRST (v3.0)           │
 │  ├── D1. Route: Selector mismatch? → Path A (AUTOMATION_BUG)      │
 │  ├── D2. Route: Timeout (non-selector)? → Path B1 (INFRASTRUCTURE)│
 │  ├── D3. Route: Everything else → Path B2 (JIRA investigation)    │
@@ -126,7 +149,7 @@ For EVERY classification, you MUST have:
                               ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │  PHASE E: FEATURE CONTEXT & JIRA CORRELATION (Mandatory)           │
-│  ├── E0. Build subsystem context (Knowledge Graph)                 │
+│  ├── E0. Build subsystem context (Knowledge Graph) — incremental   │
 │  ├── E1. Carry forward Path B2 findings (if applicable)            │
 │  ├── E2. Search for feature stories and PORs (JIRA)                │
 │  ├── E3. Read acceptance criteria, linked PRs                      │
@@ -140,9 +163,60 @@ For EVERY classification, you MUST have:
 
 ## Phase A: Initial Assessment
 
-**Purpose:** Detect global patterns before diving into individual tests.
+**Purpose:** Re-authenticate to cluster, ground analysis in feature areas, detect global patterns, check cluster health.
 
-### Step A1: Environment Health Check
+### Phase A-1: MANDATORY Cluster Re-Authentication (v3.1)
+
+**This step is MANDATORY. Execute it FIRST before any other investigation.**
+
+Re-authenticate to the target cluster using credentials from Stage 1. Without cluster access, Tier 1-4 investigation commands are unavailable and classification accuracy degrades.
+
+```bash
+# Step 1: Read cluster_access from core-data.json
+cat runs/<dir>/core-data.json | jq '.cluster_access'
+
+# Step 2: Login (if has_credentials == true) — DO NOT SKIP
+oc login <api_url> --username <user> --password <password> --insecure-skip-tls-verify=true
+
+# Step 3: Verify login succeeded
+oc whoami
+```
+
+| Outcome | Action |
+|---------|--------|
+| Login succeeds | Set `cluster_access_available = true`. Tier 1-4 commands available. |
+| Login fails | Set `cluster_access_available = false`. Proceed with snapshot data only. Reduce all classification confidence by 0.15. Log warning in analysis-results.json `cluster_investigation_summary.cluster_reauth_status = "failed"`. |
+| No credentials in core-data.json | Set `cluster_access_available = false`, `cluster_reauth_status = "skipped"`. |
+
+### Phase A0: Feature Area Grounding (v3.0) + Feature Knowledge (v3.1)
+
+Read `feature_grounding` from core-data.json. Note which subsystem and key components each test group maps to.
+
+```bash
+cat runs/<dir>/core-data.json | jq '.feature_grounding'
+```
+
+This tells you WHAT feature each test validates before you analyze WHY it failed. Use this to:
+- Focus investigation on the relevant subsystem's components
+- Know which namespaces to check for pod health
+- Understand the investigation focus for each feature area
+
+**Feature Knowledge (v3.1):** Also read `feature_knowledge` from core-data.json. This contains playbook-driven context loaded by FeatureKnowledgeService:
+
+```bash
+cat runs/<dir>/core-data.json | jq '.feature_knowledge'
+```
+
+| Field | Use |
+|-------|-----|
+| `feature_readiness[<area>].all_prerequisites_met` | If `false`, unmet prerequisites may explain failures — check `unmet_prerequisites` list |
+| `feature_readiness[<area>].pre_matched_paths` | Error messages already matched to known failure paths with `suggested_classification` and `investigation_steps` |
+| `investigation_playbooks[<area>].architecture` | Feature architecture summary and key insight — provides domain context for investigation |
+| `investigation_playbooks[<area>].failure_paths` | All known failure paths for the feature area — use as a checklist during Phase B |
+
+When `pre_matched_paths` exist, use their `investigation_steps` to guide Phase B investigation and their `suggested_classification` as a starting hypothesis (still validate with multi-evidence).
+
+### Phase A1: Environment Health Check
 
 ```bash
 # Read environment status
@@ -157,7 +231,22 @@ cat runs/<dir>/core-data.json | jq '.environment'
 
 **When Phase A short-circuits**, set `investigation_phases_completed: ["A"]` and skip Phases B-E. All tests receive the same INFRASTRUCTURE classification with the same confidence score.
 
-### Step A2: Failure Pattern Detection
+### Phase A1b: Cluster Landscape Check (v3.0)
+
+Read `cluster_landscape` from core-data.json. Check for degraded operators that overlap with feature area components.
+
+```bash
+cat runs/<dir>/core-data.json | jq '.cluster_landscape'
+```
+
+| Condition | Implication |
+|-----------|-------------|
+| Degraded operator matches feature area component | Backend may be causing UI failures |
+| Resource pressure (memory/CPU) detected | Performance-related timeouts more likely |
+| MCH status not Running | Cluster-wide issues possible |
+| Managed clusters NotReady | Multi-cluster test failures expected |
+
+### Phase A2: Failure Pattern Detection
 
 ```bash
 # Count failure types
@@ -171,7 +260,7 @@ cat runs/<dir>/core-data.json | jq '.test_report.failed_tests | group_by(.failur
 | Mix of different errors | Multiple issues | Analyze individually |
 | >50% timeouts | System-wide issue | Check infrastructure first |
 
-### Step A3: Cross-Test Correlation Scan
+### Phase A3: Cross-Test Correlation Scan
 
 Before individual analysis, identify shared characteristics:
 
@@ -188,13 +277,31 @@ cat runs/<dir>/core-data.json | jq '.investigation_hints.failed_test_locations[]
 
 **Record correlations found for Phase C validation.**
 
+### Phase A3b: Subsystem Context Building (v3.0)
+
+If Knowledge Graph is available AND feature_grounding identifies components, batch-query subsystem context:
+
+```
+For each unique subsystem in feature_grounding:
+  Query: all components in subsystem + dependency chains
+  Store as subsystem_context for use throughout Phases B-E
+```
+
+This replaces per-test queries with a single batch query. Phase E0 becomes incremental.
+
+```
+mcp__neo4j-rhacm__read_neo4j_cypher({
+  "query": "MATCH (c:RHACMComponent) WHERE c.subsystem = 'Search' RETURN c.label, c.type"
+})
+```
+
 ---
 
 ## Phase B: Deep Investigation (Per Test)
 
 **Purpose:** Systematically gather ALL evidence for each failed test.
 
-### Step B1: Extracted Context Analysis
+### Phase B1: Extracted Context Analysis
 
 Each failed test includes pre-computed `extracted_context`:
 
@@ -227,8 +334,10 @@ Each failed test includes pre-computed `extracted_context`:
 - Is the failing selector defined correctly? (check `page_objects`)
 - Does the selector exist in the product? (`console_search.found`)
 - What similar selectors exist? (`console_search.similar_selectors`)
+- Is this a data-level failure? (check `assertion_analysis.has_data_assertion` and `failure_mode_category`)
+- If `failure_mode_category == 'data_incorrect'`: the page rendered but showed wrong data — focus investigation on the backend API data path, NOT selectors
 
-### Step B2: Timeline Evidence Analysis
+### Phase B2: Timeline Evidence Analysis
 
 Check `investigation_hints.timeline_evidence`:
 
@@ -254,7 +363,7 @@ Check `investigation_hints.timeline_evidence`:
 | `element_removed = true` | Product changed, automation not updated |
 | `console_changed_after_automation = true` | Recent product change may have broken test |
 
-### Step B3: Console Log Evidence
+### Phase B3: Console Log Evidence
 
 ```bash
 # Check for 500 errors
@@ -271,7 +380,7 @@ cat runs/<dir>/core-data.json | jq '.console_log.key_errors[]' | head -20
 | "timeout" + healthy env | AUTOMATION_BUG (wait strategy) |
 | No errors, just element not found | AUTOMATION_BUG (selector) |
 
-### Step B4: MCP Tool Queries
+### Phase B4: MCP Tool Queries
 
 **MANDATORY when trigger conditions are met.**
 
@@ -321,7 +430,7 @@ Use `get_acm_selectors('catalog', component)` for proven, tested selectors:
 | Applications | `'app'` | `get_acm_selectors('catalog', 'app')` |
 | Governance | `'grc'` | `get_acm_selectors('catalog', 'grc')` |
 
-### Step B5: Backend Component Analysis
+### Phase B5: Backend Component Analysis
 
 Check `detected_components` for each failed test:
 
@@ -353,7 +462,97 @@ mcp__neo4j-rhacm__read_neo4j_cypher({
 })
 ```
 
-### Step B6: Repository Deep Dive
+### Phase B5b: Targeted Pod Investigation = Tier 1 Component Health (v3.0)
+
+**Always run when cluster access is available.** Check health of every backend component the feature depends on (from `feature_grounding.key_components`). This is Tier 1 of the tiered investigation — see Phase B8 for the full tier progression.
+
+| Finding | Implication |
+|---------|-------------|
+| CrashLoopBackOff on feature component | Backend crash → PRODUCT_BUG |
+| High restart count (>5) | Instability → investigate further |
+| Pod Pending (resource issues) | INFRASTRUCTURE |
+| All pods Running/Ready | Backend healthy, issue is elsewhere |
+
+### Phase B7: Backend Cross-Check (v3.0)
+
+**Purpose:** Detect "UI failure caused by backend problem" — prevents misclassifying as AUTOMATION_BUG.
+
+**Trigger:** For each test with `failure_type == element_not_found` or `timeout`:
+
+1. **Check console log:** Does it show 500 errors from the feature area's `key_components`?
+2. **Check cluster landscape:** Are any `feature_grounding.key_components` in non-Ready state?
+3. **Check pod diagnostics:** Did B5b find CrashLoopBackOff or degraded pods?
+
+**If YES to any:**
+```json
+{
+  "backend_cross_check": {
+    "performed": true,
+    "backend_caused_ui_failure": true,
+    "failing_components": ["search-api"],
+    "evidence": ["search-api in CrashLoopBackOff", "500 errors in console log"],
+    "overrides_path_a": true
+  }
+}
+```
+
+→ Set `backend_caused_ui_failure = true` → Route to **Path B2** in Phase D instead of Path A.
+
+**Reason:** Element not found BECAUSE the backend broke (search results never loaded), NOT because the selector changed.
+
+### Phase B7c: Backend Probe Analysis with Source-of-Truth Validation (v3.4)
+
+**Trigger:** `core-data.json` contains `backend_probes` section (collected in Stage 1 Step 4c).
+
+If `backend_probes` is present, check for anomalies that match this test's feature area:
+
+```bash
+cat runs/<dir>/core-data.json | jq '.backend_probes'
+```
+
+**Feature area to probe mapping:**
+
+| Feature Area | Relevant Probe | What Anomaly Means |
+|---|---|---|
+| Automation | `/ansibletower` | Empty results when AAP is healthy |
+| CLC | `/hub` | Wrong hub name or flags |
+| RBAC | `/username` | Reversed or wrong username |
+| Search | `/proxy/search` | Empty or timeout |
+| All areas | `/authenticated` | Auth failure or slow |
+
+**Source-of-truth validation (v3.4):** Each probe with anomalies is now cross-referenced against the Kubernetes API directly (bypassing the console backend). The probe includes pre-computed fields:
+
+| Field | Values | Meaning |
+|---|---|---|
+| `anomaly_source` | `console_backend` | Cluster API returns correct data but console returns different data — console code is the problem |
+| `anomaly_source` | `upstream` | Both cluster API and console return the same anomalous data — issue is upstream infrastructure |
+| `anomaly_source` | `unknown` | Cannot determine source — let normal routing decide |
+| `classification_hint` | `PRODUCT_BUG` / `INFRASTRUCTURE` / `null` | Pre-computed classification based on deterministic comparison |
+
+**CRITICAL: Use `classification_hint` when available.** This is a deterministic comparison (not AI judgment) and should override AI inference about whether an anomaly is infrastructure or product:
+
+```
+IF probe has anomaly AND anomaly_source == "console_backend":
+  → classification_hint = PRODUCT_BUG
+  → The cluster ground truth is correct but console transforms data incorrectly
+  → Use as Tier 1 evidence
+
+IF probe has anomaly AND anomaly_source == "upstream":
+  → classification_hint = INFRASTRUCTURE
+  → Both cluster and console return the same anomalous data
+  → Use as Tier 1 evidence
+
+IF probe has anomaly AND anomaly_source == "unknown":
+  → No classification_hint — proceed with normal 3-path routing
+  → Add probe data as supplementary evidence
+```
+
+**For each probe with `status == "timeout"` or `"error"`:**
+1. Record as potential **INFRASTRUCTURE** evidence — console backend may be unresponsive
+
+**Example:** Test in Automation area fails with "expected to find 5 templates, got 0". Backend probe `/ansibletower` shows `anomaly_source: "console_backend"` because AAP operator is Succeeded but console returns empty. → PRODUCT_BUG (console proxy strips results, not an infrastructure issue).
+
+### Phase B6: Repository Deep Dive
 
 **Trigger:** When extracted_context is insufficient.
 
@@ -374,35 +573,90 @@ cd runs/<dir>/repos/console && git log -3 --oneline -S "element-name"
 grep -rn "element-name" runs/<dir>/repos/kubevirt-plugin/src/
 ```
 
+### Phase B8: Tiered Playbook Investigation (v3.1)
+
+**Purpose:** Use feature knowledge playbooks and live cluster access to systematically investigate failures through escalating tiers.
+
+**Pre-requisite:** Cluster re-authentication must be attempted at start of Phase A (see Phase A-1). If login failed, Tier 1-4 commands won't work — use snapshot data only (confidence reduction applied in Phase PR-4b).
+
+#### Tier 0: Health Snapshot (run ONCE at start of Phase A)
+
+Verify the Stage 1 snapshot is still current:
+
+```bash
+oc get mch -A -o yaml                                    # MCH phase, version, overrides
+oc get managedclusters                                    # Cluster health
+oc get clusteroperators | grep -v 'True.*False.*False'    # Degraded operators only
+oc adm top nodes                                          # Resource pressure
+oc get pods -A | grep -Ev 'Running|Completed'             # Non-healthy pods
+```
+
+#### Tier 1: Component Health (per feature area)
+
+Already covered by Phase B5b above. Use findings from B5b here — no need to re-run the same commands.
+
+#### Tier 2: Playbook Investigation (when playbook loaded)
+
+Check prerequisites from `feature_knowledge.feature_readiness[<area>]` with live commands:
+
+| Prerequisite Type | Live Check |
+|-------------------|------------|
+| `mch_component` | `oc get mch -A -o jsonpath='{.items[0].spec.overrides.components}'` |
+| `addon` | `oc get managedclusteraddon <addon> -n <cluster>` |
+| `operator` | `oc get csv -n <namespace> \| grep <operator>` |
+| `crd` | `oc get crd <crd-name>` |
+
+Then match test errors against playbook failure path symptoms, execute investigation steps, compare against expected results.
+
+#### B8b: KG Upstream Dependency Check
+
+If Tier 2 confirms a failure path, query KG for upstream dependencies of the confirmed failing component. If upstream is also failing, root cause is upstream.
+
+#### B8c: Tier 3 Data Flow Tracing
+
+**Trigger:** Tier 1-2 don't explain the failure (all components healthy, prerequisites met).
+
+Trace feature data flow using KG dependency context (`feature_knowledge.kg_dependency_context`) + playbook architecture. Look for data not flowing between components.
+
+#### B8d: Tier 4 Deep Investigation
+
+**Trigger:** Tier 1-3 don't explain OR multiple feature areas failing simultaneously.
+
+- Cross-namespace event scan
+- Network connectivity checks
+- Resource deep-dive (node pressure, memory-heavy pods)
+- KG cascading failure analysis (`find_common_dependency`)
+- Recent changes (recently created pods, image pulls)
+
 ---
 
 ## Phase C: Cross-Reference Validation
 
 **Purpose:** Validate classification through multiple sources.
 
-### Step C1: Multi-Evidence Requirement (MANDATORY)
+### Phase C1: Multi-Evidence Requirement (MANDATORY)
 
 **Every classification MUST have 2+ evidence sources:**
 
 | Classification | Required Evidence Sources |
 |----------------|---------------------------|
 | **PRODUCT_BUG** | Console log 500 + Environment healthy + Test logic correct |
-| **AUTOMATION_BUG** | Selector mismatch + No 500 errors + Element exists in product |
+| **AUTOMATION_BUG** | Selector mismatch + No 500 errors + Element exists under different name/ID |
 | **INFRASTRUCTURE** | Environment unhealthy + Multiple tests affected + Network errors |
 
 **Evidence Tier Priority:**
 
 | Tier | Evidence Type | Weight |
 |------|---------------|--------|
-| **Tier 1 (Definitive)** | 500 errors, element removed, env < 0.3 | High |
-| **Tier 2 (Strong)** | Selector mismatch, multiple tests, cascading | Medium |
+| **Tier 1 (Definitive)** | 500 errors, element removed, env < 0.3, cluster_investigation pod crash, backend_cross_check | High |
+| **Tier 2 (Strong)** | Selector mismatch, multiple tests, cascading, feature_grounding component match | Medium |
 | **Tier 3 (Supportive)** | Similar selectors, timing issues | Low |
 
 **Minimum requirement:** 1 Tier 1 + 1 Tier 2, OR 2 Tier 1, OR 3 Tier 2
 
 **Always attempt to gather Tier 1 evidence before accepting Tier 2/3 combinations.** If Tier 1 evidence is available but not gathered, the classification may be incorrect.
 
-### Step C2: Cascading Failure Detection
+### Phase C2: Cascading Failure Detection
 
 When Knowledge Graph is available:
 
@@ -420,7 +674,7 @@ RETURN common.label as common_dependency
 - All dependent failures are symptoms, not separate bugs
 - Single PRODUCT_BUG classification for root cause
 
-### Step C3: Pattern Correlation
+### Phase C3: Pattern Correlation
 
 Cross-reference with Phase A findings:
 
@@ -432,38 +686,197 @@ Cross-reference with Phase A findings:
 
 ## Phase D: 3-Path Classification Routing
 
-### Step D0: Routing Decision
+### Phase PR-1: Blank Page / No-JS Pre-Check (v3.2)
 
-Determine which path to follow based on failure characteristics:
+**CRITICAL: Check this BEFORE any other routing decision.**
+
+If a test's error shows a blank page (the HTML contains `class="no-js"`, or the page body is empty/missing expected content), the failure is NOT a selector mismatch — the entire page failed to render.
+
+**Detection criteria (any of these):**
+- Error message contains `no-js` or `class="no-js"`
+- Error mentions blank page, empty page, or page not loading
+- Test navigates to a feature page but finds zero interactive elements
+- Multiple tests for the same page ALL fail with element-not-found on different selectors
+
+**Routing logic:**
+
+| Condition | Classification | Confidence |
+|-----------|----------------|------------|
+| Blank page + test logs in as non-admin user (RBAC test) + IDP not configured | INFRASTRUCTURE | 0.90 |
+| Blank page + Automation page (`/automations`) + AAP operator not installed | INFRASTRUCTURE | 0.90 |
+| Blank page + Automation page + AAP operator installed but degraded | INFRASTRUCTURE | 0.85 |
+| Blank page + Automation page + AAP installed and healthy | AUTOMATION_BUG | 0.85 |
+| Blank page + Fleet Virt page + CNV operator not installed | INFRASTRUCTURE | 0.90 |
+| Blank page + feature prerequisite unmet (from playbook) | INFRASTRUCTURE | 0.90 |
+| Blank page + all prerequisites met + backend healthy | AUTOMATION_BUG | 0.80 |
+
+**Investigation steps when blank page detected:**
+1. Check which page URL the test navigates to
+2. Look up the feature area's prerequisites (from `feature_knowledge.feature_readiness`)
+3. If cluster access available, verify the prerequisite with live `oc` commands:
+   - For Automation: `oc get csv -A 2>/dev/null | grep -i 'aap\|ansible\|automation-platform'`
+   - For RBAC: `oc get oauth cluster -o jsonpath='{.spec.identityProviders}'`
+   - For Virtualization: `oc get csv -n openshift-cnv`
+4. Classify based on prerequisite status (see table above)
+
+**When this pre-check applies, SKIP standard D0 routing** — the blank page is the root cause, not the specific selector the test tried to find.
+
+---
+
+### Phase PR-2: Hook Failure Deduplication (v3.2)
+
+**Purpose:** Identify `after all` hook failures that are cascading consequences of a prior test failure, not independent bugs.
+
+**Detection criteria (all must be true):**
+1. Test name starts with `"after all" hook` or `"after each" hook`
+2. Another test in the same spec file (same `describe` block or same `.cy.ts` file) already failed
+3. The hook's error is a DOM/jQuery error (e.g., `$el.css is not a function`, `cy.within() failed`, `Cannot read properties of null`)
+
+**When detected:**
+- Classify as **NO_BUG** with confidence 0.90
+- Set reasoning: "Cascading cleanup failure — after-all hook failed because the prior test already failed and left no elements to clean up"
+- Set `is_cascading_hook_failure: true` in the per-test analysis
+- **SKIP standard D0 routing** — this is not an independent failure
+
+**When NOT to apply:**
+- `before all` hooks are NOT cascading — they are setup failures that prevented the test from running. Classify normally.
+- If the after-all hook has a different error type (e.g., API error, timeout to a backend service), investigate it independently.
+
+---
+
+### Phase PR-3: Temporal Evidence Check (v3.2)
+
+**Purpose:** Use `temporal_summary` data from extracted_context to detect potential PRODUCT_BUG when product files changed after test files.
+
+**Check for each test:**
+1. Read `extracted_context.temporal_summary.stale_test_signal`
+2. If `stale_test_signal == true`:
+   - Read `product_commit_message` and `days_difference`
+   - **If** `product_commit_message` mentions refactor, rename, PF6, PatternFly, migration, redesign, or removal → **strong signal for PRODUCT_BUG** (confidence 0.85)
+   - **If** `product_commit_message` mentions fix, bugfix, or patch → neutral (product was fixed, test may need update) → continue to standard routing
+   - **If** `days_difference > 30` → weaker signal (old change, test may already account for it) → continue to standard routing with note
+3. If `stale_test_signal == false` or `temporal_summary` is absent → continue to standard routing
+
+**This check does NOT short-circuit routing.** It sets a hypothesis that is validated through standard Path B2 investigation. Add `temporal_evidence` as an evidence source when it contributes to the classification.
+
+**For "new element shadows old" pattern:**
+When a test's `cy.contains()` or `cy.get()` matches a NEW element that didn't exist before (e.g., a Lightspeed AI popover button matching `'Resume cluster'` text), investigate whether the matching element is new in the product. This pattern indicates PRODUCT_BUG (new element introduced that conflicts with existing test expectations).
+
+---
+
+### Phase PR-5: Data Assertion Pre-Check (v3.3)
+
+**Purpose:** Detect failures where the UI rendered correctly but the data is wrong — API returned 200 OK with incorrect/empty data.
+
+**Detection criteria (all must be true):**
+1. `extracted_context.assertion_analysis.has_data_assertion == true`
+2. `extracted_context.failure_mode_category == 'data_incorrect'`
+3. No 500 errors in console log for this test's feature area
+4. `extracted_context.console_search.found == true` OR selector is not relevant (assertion is about data count/value)
+
+**When detected:**
+
+| Assertion Type | Classification | Confidence |
+|----------------|----------------|------------|
+| `count_mismatch` (expected N items, got 0) | PRODUCT_BUG | 0.85 |
+| `value_mismatch` (expected 'Ready', got 'Available') | PRODUCT_BUG | 0.80 |
+| `content_missing` (expected table to contain 'X') | PRODUCT_BUG | 0.80 |
+| `state_mismatch` (expected true, got false) | PRODUCT_BUG | 0.80 |
+| `property_missing` (expected object to have property 'X') | PRODUCT_BUG | 0.75 |
+
+**This check does NOT short-circuit routing.** It sets a strong PRODUCT_BUG hypothesis that is validated through Path B2 investigation. The data assertion itself is a Tier 1 evidence source.
+
+**Key insight:** When `failure_mode_category == 'data_incorrect'`, dominant signals like "pod instability" or "console restarts" cannot explain this failure — pod instability causes pages not to render, not pages that render correctly with wrong data. See Phase D4b.
+
+---
+
+### Phase PR-6: Backend Probe Source-of-Truth Check (v3.4)
+
+**Purpose:** When backend probes detected anomalies, use pre-computed `classification_hint` from source-of-truth validation to determine whether the anomaly is in the console backend code (PRODUCT_BUG) or the upstream cluster (INFRASTRUCTURE). This is a deterministic comparison, not AI judgment.
+
+**Check for each test whose feature area matches a probe with anomalies:**
+
+1. Read `backend_probes.<probe>.anomaly_source` and `classification_hint`
+2. If `anomaly_source == "console_backend"` AND `classification_hint == "PRODUCT_BUG"`:
+   - The Kubernetes API returns correct data but the console backend returns different data
+   - The console code is transforming/corrupting data
+   - Use as **Tier 1 evidence** for PRODUCT_BUG with confidence 0.85
+3. If `anomaly_source == "upstream"` AND `classification_hint == "INFRASTRUCTURE"`:
+   - Both K8s API and console return the same anomalous data — issue is upstream
+   - Use as **Tier 1 evidence** for INFRASTRUCTURE with confidence 0.80
+4. If `anomaly_source == "unknown"` or `classification_hint` is null:
+   - Cannot determine source — proceed with normal routing
+   - Add probe anomaly as supplementary evidence only
+
+**This check does NOT short-circuit routing** but provides strong directional evidence. The `classification_hint` should be trusted because it is based on a factual data comparison (console response vs cluster API response), not on AI inference.
+
+---
+
+### Phase PR-4: Feature Knowledge Override (v3.1)
+
+**CRITICAL: Check playbook/tiered investigation results BEFORE standard routing.**
+
+| Condition | Classification | Confidence |
+|-----------|----------------|------------|
+| Prerequisite unmet AND Tier 2 confirmed with live oc commands | Use playbook `suggested_classification` | 0.95 |
+| Tier 2 confirmed failure path (steps matched expected results) | Use failure path classification | Path confidence |
+| Tier 3 found data flow break | Classify based on break point | 0.85-0.90 |
+| Tier 4 KG found cascading failure | Classify based on upstream root cause | 0.90 |
+| Prerequisite disabled (MCH component off) — feature intentionally not enabled | NO_BUG | 0.90 |
+
+If none of these apply, proceed to D0 standard routing.
+
+### Phase PR-4b: Cluster Access Confidence Adjustment (v3.1)
+
+If `cluster_access_available == false` (oc login failed at start of Phase A): **reduce confidence by 0.15 on ALL classifications.** Tier 1-4 live commands were unavailable, so classifications rely on snapshot data only.
+
+### Phase D0: Routing Decision (Updated v3.0)
+
+**MANDATORY:** Before entering D0 routing, confirm B7 backend cross-check has been performed.
+If B7 was skipped (no cluster access), note this limitation in the analysis and
+reduce any AUTOMATION_BUG confidence by 0.10.
+
+**CRITICAL: Check backend cross-check override FIRST before routing.**
 
 ```
                          Failed Test Evidence
                                │
                                ▼
-                  ┌────────────────────────┐
-                  │  Selector mismatch?    │
-                  │  • element_not_found   │
-                  │  • console_search.found│
-                  │    == false            │
-                  │  • element_removed     │
-                  │    == true             │
-                  └───────────┬────────────┘
+                  ┌────────────────────────────┐
+                  │  D0a: Backend cross-check  │
+                  │  override?                 │
+                  │  backend_caused_ui_failure  │
+                  │  == true                   │
+                  └───────────┬────────────────┘
                               │
                ┌──────────────┴──────────────┐
                ▼ YES                         ▼ NO
-        ┌─────────────┐            ┌──────────────────┐
-        │   PATH A    │            │  Timeout (non-   │
-        │ AUTOMATION  │            │  selector)?      │
-        │   _BUG      │            └────────┬─────────┘
-        └─────────────┘                     │
-                              ┌─────────────┴─────────────┐
-                              ▼ YES                       ▼ NO
-                     ┌─────────────────┐        ┌─────────────────┐
-                     │    PATH B1      │        │    PATH B2      │
-                     │ INFRASTRUCTURE  │        │ JIRA-INFORMED   │
-                     │                 │        │ INVESTIGATION   │
-                     └─────────────────┘        └─────────────────┘
+        ┌─────────────────┐     ┌────────────────────────┐
+        │   PATH B2       │     │  Selector mismatch?    │
+        │ (backend broke  │     │  • element_not_found   │
+        │  the UI)        │     │  • console_search.found│
+        └─────────────────┘     │    == false            │
+                                │  • element_removed     │
+                                │    == true             │
+                                └───────────┬────────────┘
+                                            │
+                             ┌──────────────┴──────────────┐
+                             ▼ YES                         ▼ NO
+                      ┌─────────────┐            ┌──────────────────┐
+                      │   PATH A    │            │  Timeout (non-   │
+                      │ AUTOMATION  │            │  selector)?      │
+                      │   _BUG      │            └────────┬─────────┘
+                      └─────────────┘                     │
+                                            ┌─────────────┴─────────────┐
+                                            ▼ YES                       ▼ NO
+                                   ┌─────────────────┐        ┌─────────────────┐
+                                   │    PATH B1      │        │    PATH B2      │
+                                   │ INFRASTRUCTURE  │        │ JIRA-INFORMED   │
+                                   │                 │        │ INVESTIGATION   │
+                                   └─────────────────┘        └─────────────────┘
 ```
+
+**Backend cross-check override (v3.0):** If `backend_caused_ui_failure == true`, the element was not found because the backend broke (e.g., search-api crashed, search results never loaded), NOT because the selector changed. Route to Path B2 for JIRA-informed investigation → likely PRODUCT_BUG.
 
 **Important edge case:** A timeout caused by a missing selector (e.g., `cy.get('#missing-btn', {timeout: 30000})`) routes to **Path A**, not Path B1. Check whether the timed-out operation was waiting for a selector that doesn't exist in the product.
 
@@ -478,10 +891,11 @@ Determine which path to follow based on failure characteristics:
 
 **Classification:** AUTOMATION_BUG
 
-**Confidence:** 0.85 - 0.95
-- 0.95 if both `console_search.found == false` AND `element_removed == true`
-- 0.90 if `console_search.found == false` with similar_selectors available
-- 0.85 if only `element_not_found` without console_search confirmation
+**Confidence:** 0.75 - 0.90
+- 0.90 if `console_search.found == false` AND `element_removed == true` AND B7 confirms backend healthy
+- 0.85 if `console_search.found == false` with `similar_selectors` AND B7 confirms backend healthy
+- 0.80 if only `element_not_found` without console_search confirmation
+- 0.75 if `element_not_found` AND B7 was not performed (no cluster access)
 
 **Recommended fix format:**
 ```json
@@ -500,12 +914,17 @@ Determine which path to follow based on failure characteristics:
 
 All recommended fixes should be verified before applying.
 
+**Path A requires minimum 2 evidence sources:**
+  1. Selector evidence (console_search or timeline_evidence)
+  2. Backend health confirmation (B7 result OR cluster landscape data)
+Single-source Path A is NOT allowed — reduce to 0.70 if only one source.
+
 **Output fields:**
 ```json
 {
   "classification": "AUTOMATION_BUG",
   "classification_path": "A",
-  "confidence": 0.92
+  "confidence": 0.88
 }
 ```
 
@@ -520,11 +939,21 @@ All recommended fixes should be verified before applying.
 
 **Classification:** INFRASTRUCTURE
 
-**Confidence:** 0.75 - 0.90
-- 0.90 if multiple tests timeout AND environment_score < 0.5
-- 0.85 if multiple tests timeout
-- 0.80 if single test timeout AND environment_score < 0.5
-- 0.75 if single test timeout with healthy environment
+**Graduated health scoring (v3.3):** Use per-feature-area health scores instead of the global `environment_score` alone. The `ClusterInvestigationService.get_feature_area_health()` provides graduated infrastructure signal strength:
+
+| Feature Area Health Score | Infrastructure Signal | Confidence |
+|---|---|---|
+| < 0.3 (definitive) | Route to INFRASTRUCTURE | 0.90 |
+| 0.3-0.5 (strong) | Route to INFRASTRUCTURE if timeout present | 0.80 |
+| 0.5-0.7 (moderate) | Flag as "possible infra" — investigate per-test | 0.65 |
+| > 0.7 (none) | Don't attribute to infra unless direct evidence | N/A |
+
+**Confidence (using graduated scoring):** 0.65 - 0.90
+- 0.90 if multiple tests timeout AND feature area health < 0.3
+- 0.85 if multiple tests timeout AND feature area health < 0.5
+- 0.80 if single test timeout AND feature area health < 0.5
+- 0.75 if single test timeout AND global environment_score < 0.5
+- 0.65 if feature area health 0.5-0.7 (moderate — requires additional investigation)
 
 **Output fields:**
 ```json
@@ -588,6 +1017,7 @@ Read: summary, description, acceptance criteria, linked PRs, fix versions.
 | No JIRA context found, no 500 errors | UNKNOWN (insufficient evidence) |
 | Test passes on retry, no code changes explain failure | FLAKY |
 | Failure expected given intentional product change (story/PR confirms) | NO_BUG |
+| Feature prerequisite disabled (MCH component off, test expects feature not enabled) | NO_BUG |
 
 **Confidence:** 0.75 - 0.95
 - 0.95 if JIRA story clearly contradicts product behavior + 500 errors
@@ -618,7 +1048,7 @@ Read: summary, description, acceptance criteria, linked PRs, fix versions.
 
 ---
 
-### Step D4: Final Validation (All Paths)
+### Phase D4: Final Validation (All Paths)
 
 After routing through the appropriate path, validate:
 
@@ -633,7 +1063,7 @@ After routing through the appropriate path, validate:
 ```
 - JIRA correlation found (Phase E): +0.05
 - Feature story confirms classification (Phase E): +0.05
-- Feature story contradicts classification (Phase E): -0.10
+- Feature story contradicts classification (Phase E): -0.05
 - POR/linked PR provides regression evidence (Phase E): +0.10
 - Cascading failure confirmed: +0.05
 - Cross-test pattern match: +0.05
@@ -650,13 +1080,60 @@ After routing through the appropriate path, validate:
 | AUTOMATION_BUG | Backend 500 errors, environment issues |
 | INFRASTRUCTURE | Individual test bugs, product issues |
 
+### Phase D4b: Per-Test Causal Link Verification (v3.3 — MANDATORY)
+
+**Purpose:** Prevent over-attribution to a single dominant signal (e.g., "console pod instability" applied to all failures). Every test attributed to a shared pattern MUST have a direct causal mechanism linking the pattern to its specific error.
+
+**For each test classified under a dominant pattern or shared root cause:**
+
+1. **State the causal mechanism:** How does [dominant signal] cause [this test's specific error]?
+2. **Check failure_mode_category compatibility:**
+
+| Dominant Signal | Compatible Failure Modes | Incompatible Failure Modes |
+|-----------------|--------------------------|----------------------------|
+| Pod restarts / instability | `render_failure`, `timeout_general` | `data_incorrect`, `assertion_logic` |
+| Network errors | `render_failure`, `timeout_general`, `server_error` | `data_incorrect`, `element_missing` (unless server-rendered) |
+| Backend 500 errors | `server_error`, `render_failure`, `element_missing` | `data_incorrect` (unless the 500 caused empty data) |
+| Selector removed | `element_missing` | `data_incorrect`, `timeout_general`, `render_failure` |
+
+3. **If incompatible:** Re-classify this test independently, ignoring the dominant pattern. Example:
+   - Dominant: "console pod restarted 6 times"
+   - Test error: "expected 5 items, got 0" (`failure_mode_category: data_incorrect`)
+   - Question: "How does a pod restart cause a page to show 0 items instead of 5?"
+   - Answer: It doesn't — the page rendered (showing 0), so the pod was running. This is a data issue, not a render issue.
+   - Action: Re-investigate independently → likely PRODUCT_BUG (backend returned empty data)
+
+4. **3-test threshold rule:** If more than 3 tests share the same classification AND the same `root_cause` explanation, independently re-investigate at least 1 test from that group to verify the explanation holds. If the re-investigation reveals a different root cause, flag the entire group for review.
+
+**Output:** For each test, include a `causal_link` field in the reasoning:
+```json
+{
+  "reasoning": {
+    "summary": "...",
+    "evidence": ["..."],
+    "causal_link": "Pod restart at 14:32 caused page render timeout at 14:33 — 1 minute overlap confirms causal connection",
+    "conclusion": "..."
+  }
+}
+```
+
+### Phase D5: Counter-Bias Validation (v3.3)
+
+Before finalizing any classification, perform these mandatory checks:
+- If AUTOMATION_BUG: Was B7 performed? Could a backend failure explain the missing element?
+- If PRODUCT_BUG: Does the selector exist in console source? Is the test logic correct?
+- If INFRASTRUCTURE: Is only one test affected? (suggests PRODUCT_BUG or AUTOMATION_BUG instead)
+- If `failure_mode_category == 'data_incorrect'`: Have you verified the backend API response path? A data mismatch almost never results from infrastructure or selector issues.
+- **Dominant signal check:** If a signal (e.g., pod restarts) is cited in more than 5 test classifications, verify at least 2 tests have a direct `causal_link` documented. If not, the signal may be over-attributed.
+- Self-check: "If the first routing signal pointed to a DIFFERENT classification, would I reach the same conclusion?"
+
 ---
 
 ## Phase E: Feature Context & JIRA Correlation
 
 **Purpose:** Build feature understanding via Knowledge Graph + JIRA, validate classification against feature intent, then search for existing bugs.
 
-### Step E0: Build Subsystem Context (Knowledge Graph)
+### Phase E0: Build Subsystem Context (Knowledge Graph)
 
 For each `detected_components` entry from Phase B5, query Knowledge Graph to understand the subsystem and related components.
 
@@ -693,17 +1170,17 @@ mcp__neo4j-rhacm__read_neo4j_cypher({
 
 **Fallback (Knowledge Graph unavailable):** Use the `subsystem` field from ComponentExtractor's `detected_components` entries. This provides the subsystem name without the full component list or dependency chain.
 
-### Step E1: Carry Forward Path B2 Findings
+### Phase E1: Carry Forward Path B2 Findings
 
 If `classification_path == "B2"`, reuse the `jira_correlation` output from Phase D:
 - `related_issues` — already found via JIRA search
 - `match_confidence` — already assessed during classification
 
-Skip to Step E4 (bug search) since feature context was already gathered during Path B2 classification.
+Skip to Phase E4 (bug search) since feature context was already gathered during Path B2 classification.
 
-If classification was via Path A or Path B1, no B2 findings exist — proceed to Step E2 for fresh feature context search.
+If classification was via Path A or Path B1, no B2 findings exist — proceed to Phase E2 for fresh feature context search.
 
-### Step E2: Search for Feature Stories and PORs (JIRA)
+### Phase E2: Search for Feature Stories and PORs (JIRA)
 
 Search for the feature story that describes what the failing test validates. Use 3 strategies in order of specificity — stop when a relevant story is found. Max 3 JIRA search queries.
 
@@ -737,7 +1214,7 @@ mcp__jira__search_issues({
 })
 ```
 
-### Step E3: Read Feature Stories, Acceptance Criteria, Linked PRs
+### Phase E3: Read Feature Stories, Acceptance Criteria, Linked PRs
 
 For each relevant story found in E2, read the full details:
 
@@ -766,7 +1243,7 @@ mcp__jira__get_issue({ "issue_key": "ACM-20000" })
 | Linked PR recently merged, test started failing | Supports PRODUCT_BUG (regression) |
 | POR shows feature redesigned, test not updated | Supports AUTOMATION_BUG |
 
-### Step E4: Search for Related Bugs
+### Phase E4: Search for Related Bugs
 
 Search for existing bugs related to the failure. Use enriched search terms from E0 (subsystem name, other components in subsystem) when available.
 
@@ -785,7 +1262,7 @@ mcp__jira__search_issues({
 - Feature area
 - Error message keywords
 
-### Step E5: Known Issue Matching + Feature-Informed Validation
+### Phase E5: Known Issue Matching + Feature-Informed Validation
 
 If related JIRA bugs found, get full details:
 ```
@@ -815,7 +1292,7 @@ If matching JIRA exists:
 }
 ```
 
-### Step E6: Create/Link Issues (Optional)
+### Phase E6: Create/Link Issues (Optional)
 
 When a definitive new bug is found with no existing JIRA:
 ```
@@ -840,7 +1317,7 @@ mcp__jira__link_issue({
 
 ---
 
-## ACM-UI MCP Server Reference (20 Tools)
+## ACM-UI MCP Server Reference (19 Tools)
 
 ### Supported Versions
 
@@ -903,7 +1380,7 @@ ACM and CNV versions are **independent** - set each to match your target environ
 
 ---
 
-## JIRA MCP Server Reference (24 Tools)
+## JIRA MCP Server Reference (25 Tools)
 
 ### Issue Operations
 
@@ -943,7 +1420,7 @@ ACM and CNV versions are **independent** - set each to match your target environ
 
 ## Knowledge Graph MCP Reference (Optional)
 
-**Tool:** `mcp__neo4j-rhacm__read_neo4j_cypher` — may not be connected in all environments. Skip gracefully if unavailable.
+**Tool:** `mcp__neo4j-rhacm__read_neo4j_cypher` — may not be connected in all environments. Check `feature_knowledge.kg_status.available` in core-data.json. If `false`, flag the gap explicitly in analysis-results.json (do NOT silently skip). Report to user that KG is unavailable, Tier 3-4 investigation is degraded, and include the remediation from `feature_knowledge.kg_status.remediation`.
 
 ### Available Queries
 
@@ -989,7 +1466,7 @@ RETURN c.label
     "jenkins_url": "<URL>",
     "analyzed_at": "2026-02-04T15:00:00Z",
     "run_directory": "runs/<dir>",
-    "analyzer": "z-stream-analysis-agent-v2.5",
+    "analyzer": "z-stream-analysis-agent-v3.2",
     "investigation_framework": "5-phase-systematic"
   },
   "investigation_phases_completed": ["A", "B", "C", "D", "E"],
@@ -1013,8 +1490,16 @@ RETURN c.label
   "per_test_analysis": [
     {
       "test_name": "test_create_cluster",
+      "feature_area": "CLC",
       "classification": "AUTOMATION_BUG",
       "confidence": 0.92,
+      "backend_cross_check": {
+        "performed": true,
+        "backend_caused_ui_failure": false,
+        "failing_components": [],
+        "evidence": [],
+        "overrides_path_a": false
+      },
       "evidence_sources": [
         {"source": "console_search", "finding": "selector not found in product", "tier": 1},
         {"source": "timeline_evidence", "finding": "element_removed=true", "tier": 1}
@@ -1062,10 +1547,51 @@ RETURN c.label
         },
         "source": "knowledge_graph+jira"
       },
+      "prerequisite_analysis": {
+        "feature_area": "CLC",
+        "all_prerequisites_met": true,
+        "unmet_prerequisites": [],
+        "matched_failure_mode": null
+      },
+      "playbook_investigation": {
+        "failure_path_id": "clc-selector-rename",
+        "failure_path_description": "Selector renamed in console repo",
+        "steps_executed": [
+          {"step": "Check console_search.found", "result": "false", "matched_expectation": true}
+        ],
+        "path_confirmed": true,
+        "suggested_classification": "AUTOMATION_BUG",
+        "confidence": 0.92
+      },
+      "cluster_investigation_detail": {
+        "tier_reached": 2,
+        "key_findings": ["All CLC pods healthy", "No degraded operators"],
+        "commands_run": [
+          {"command": "oc get pods -n open-cluster-management -l app=cluster-curator", "output_summary": "1/1 Running"}
+        ]
+      },
+      "is_cascading_hook_failure": false,
+      "blank_page_detected": false,
       "owner": "Automation Team",
       "priority": "HIGH"
     }
   ],
+  "cluster_investigation_summary": {
+    "cluster_reauth_status": "authenticated",
+    "investigation_mode": "live",
+    "tier_0_health": {
+      "mch_status": "Running",
+      "degraded_operators": [],
+      "resource_pressure": {"memory": false, "cpu": false, "disk": false, "pid": false},
+      "non_healthy_pods_count": 0
+    },
+    "component_health_overview": [
+      {"feature_area": "CLC", "component": "cluster-curator", "status": "Running", "restart_count": 0, "key_finding": "Healthy"}
+    ],
+    "prerequisite_summary": [
+      {"feature_area": "Search", "prerequisite": "search component enabled in MCH", "met": true, "tests_affected": 2}
+    ]
+  },
   "feature_context_summary": {
     "subsystems_investigated": ["Search"],
     "feature_stories_read": ["ACM-22079"],
@@ -1080,6 +1606,8 @@ RETURN c.label
       "AUTOMATION_BUG": 2,
       "INFRASTRUCTURE": 0
     },
+    "cascading_hook_failures": 0,
+    "blank_page_failures": 0,
     "overall_classification": "MIXED",
     "overall_confidence": 0.88
   },
@@ -1140,20 +1668,31 @@ python -m src.scripts.report runs/<dir>
 
 ```
 runs/<job>_<timestamp>/
+│
+│  Created by Stage 1 (gather.py):
 ├── core-data.json              # Primary data (read first)
+├── run-metadata.json           # Run metadata (timing, version)
 ├── manifest.json               # File index
+├── console-log.txt             # Full Jenkins console output
+├── jenkins-build-info.json     # Build metadata (masked)
+├── test-report.json            # Per-test failure details
+├── environment-status.json     # Cluster health
 ├── element-inventory.json      # MCP element locations (if available)
 ├── repos/
 │   ├── automation/             # Full cloned automation repo
 │   ├── console/                # Full cloned console repo
 │   └── kubevirt-plugin/        # For VM tests only
-├── console-log.txt             # Full Jenkins console output
-├── jenkins-build-info.json     # Build metadata (masked)
-├── test-report.json            # Per-test failure details
-├── environment-status.json     # Cluster health
+│
+│  Created by Stage 2 (AI agent):
 ├── analysis-results.json       # YOUR OUTPUT
-├── Detailed-Analysis.md        # Report (created by report.py)
-└── SUMMARY.txt                 # Report (created by report.py)
+│
+│  Created by Stage 3 (report.py):
+├── Detailed-Analysis.md        # Report
+├── per-test-breakdown.json     # Structured data for tooling
+├── SUMMARY.txt                 # Brief summary
+│
+│  Created by feedback CLI (optional):
+└── feedback.json               # Classification feedback (v3.0)
 ```
 
 ---

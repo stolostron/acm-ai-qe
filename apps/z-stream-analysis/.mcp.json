@@ -11,6 +11,24 @@
       "cwd": "../../mcp/jira-mcp-server",
       "timeout": 60
     },
+    "jenkins": {
+      "command": "python",
+      "args": ["jenkins_mcp_server.py"],
+      "cwd": "../../mcp/jenkins-mcp",
+      "timeout": 60
+    },
+    "polarion": {
+      "command": "uvx",
+      "args": [
+        "--with", "polarion-mcp", "python",
+        "../../mcp/polarion/polarion-mcp-wrapper.py"
+      ],
+      "env": {
+        "POLARION_BASE_URL": "https://polarion.engineering.redhat.com/polarion",
+        "POLARION_PAT": "SET_VIA_ENV_OR_SETUP_SH"
+      },
+      "timeout": 90
+    },
     "neo4j-rhacm": {
       "command": "uvx",
       "args": [

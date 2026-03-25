@@ -6,9 +6,11 @@
 # Run from the repository root: bash mcp/setup.sh
 #
 # Servers set up by this script:
-#   [Required] acm-ui     -- Search ACM Console & Fleet Virt source code via GitHub
-#   [Required] jira       -- Search/create JIRA issues for bug correlation
-#   [Optional] neo4j-rhacm -- RHACM component dependency graph (needs Podman)
+#   [Required] acm-ui       -- Search ACM Console & Fleet Virt source code via GitHub
+#   [Required] jira         -- Search/create JIRA issues for bug correlation
+#   [Optional] jenkins      -- Jenkins pipeline analysis, build monitoring (needs VPN)
+#   [Optional] polarion     -- Polarion test case management (needs VPN + JWT)
+#   [Optional] neo4j-rhacm  -- RHACM component dependency graph (needs Podman)
 
 set -euo pipefail
 
@@ -26,6 +28,10 @@ info()  { echo -e "${BLUE}[INFO]${NC} $1"; }
 ok()    { echo -e "${GREEN}[OK]${NC} $1"; }
 warn()  { echo -e "${YELLOW}[WARN]${NC} $1"; }
 fail()  { echo -e "${RED}[FAIL]${NC} $1"; }
+
+SETUP_JENKINS=false
+SETUP_POLARION=false
+SETUP_NEO4J=false
 
 # -----------------------------------------------
 # Prerequisites Check
@@ -76,10 +82,10 @@ fi
 echo ""
 
 # -----------------------------------------------
-# [1] ACM UI MCP Server (Required)
+# [1/5] ACM UI MCP Server (Required)
 # -----------------------------------------------
 echo "--------------------------------------------"
-echo "  [1/3] ACM UI MCP Server (Required)"
+echo "  [1/5] ACM UI MCP Server (Required)"
 echo "--------------------------------------------"
 echo ""
 echo "  What: Searches ACM Console and Fleet Virtualization source code on GitHub."
@@ -105,10 +111,10 @@ fi
 echo ""
 
 # -----------------------------------------------
-# [2] JIRA MCP Server (Required)
+# [2/5] JIRA MCP Server (Required)
 # -----------------------------------------------
 echo "--------------------------------------------"
-echo "  [2/3] JIRA MCP Server (Required)"
+echo "  [2/5] JIRA MCP Server (Required)"
 echo "--------------------------------------------"
 echo ""
 echo "  What: Searches and manages JIRA issues."
@@ -171,29 +177,166 @@ fi
 echo ""
 
 # -----------------------------------------------
-# [3] Neo4j RHACM Knowledge Graph (Optional)
+# [3/5] Jenkins MCP Server (Optional)
 # -----------------------------------------------
 echo "--------------------------------------------"
-echo "  [3/3] Neo4j RHACM Knowledge Graph (Optional)"
+echo "  [3/5] Jenkins MCP Server (Optional)"
+echo "--------------------------------------------"
+echo ""
+echo "  What: Jenkins pipeline analysis, build monitoring, failure investigation."
+echo "  Used for: Analyzing CI/CD pipeline failures, fetching test results."
+echo "  Requires: Red Hat VPN for internal Jenkins access."
+echo ""
+
+read -p "  Set up Jenkins MCP? [Y/n] " -n 1 -r
+echo ""
+
+if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+    SETUP_JENKINS=true
+    JENKINS_DIR="$SCRIPT_DIR/jenkins-mcp"
+
+    info "Installing Jenkins MCP dependencies..."
+    pip3 install -r "$JENKINS_DIR/requirements.txt" --quiet 2>/dev/null
+    ok "Dependencies installed"
+
+    JENKINS_CONFIG="$HOME/.jenkins/config.json"
+    if [ -f "$JENKINS_CONFIG" ]; then
+        ok "Jenkins credentials found: $JENKINS_CONFIG"
+    else
+        echo ""
+        info "Jenkins credentials needed."
+        echo ""
+        echo "  To get your Jenkins API token:"
+        echo "    1. Log into Jenkins"
+        echo "    2. Click your username (top right) -> Configure"
+        echo "    3. Under 'API Token', click 'Add new Token'"
+        echo "    4. Copy the generated token"
+        echo ""
+
+        read -p "  Jenkins URL [https://jenkins-csb-rhacm-tests.dno.corp.redhat.com]: " JENKINS_URL_INPUT
+        JENKINS_URL_INPUT="${JENKINS_URL_INPUT:-https://jenkins-csb-rhacm-tests.dno.corp.redhat.com}"
+
+        read -p "  Jenkins Username: " JENKINS_USER_INPUT
+
+        read -p "  Jenkins API Token: " JENKINS_TOKEN_INPUT
+        if [ -z "$JENKINS_TOKEN_INPUT" ]; then
+            warn "No token provided. Creating config with placeholder."
+            JENKINS_TOKEN_INPUT="PASTE_YOUR_API_TOKEN_HERE"
+        fi
+
+        mkdir -p "$HOME/.jenkins"
+        cat > "$JENKINS_CONFIG" <<EOF
+{
+  "jenkins_url": "$JENKINS_URL_INPUT",
+  "jenkins_user": "$JENKINS_USER_INPUT",
+  "jenkins_token": "$JENKINS_TOKEN_INPUT"
+}
+EOF
+        ok "Created $JENKINS_CONFIG"
+        echo "  Edit this file later to update credentials: $JENKINS_CONFIG"
+    fi
+else
+    info "Skipping Jenkins. Set up later: pip install -r mcp/jenkins-mcp/requirements.txt"
+fi
+
+echo ""
+
+# -----------------------------------------------
+# [4/5] Polarion MCP (Optional)
+# -----------------------------------------------
+echo "--------------------------------------------"
+echo "  [4/5] Polarion MCP (Optional)"
+echo "--------------------------------------------"
+echo ""
+echo "  What: Read-only access to Polarion test cases (RHACM4K project)."
+echo "  Used for: Reading test case details, steps, and setup instructions."
+echo "  Requires: Red Hat VPN + Polarion JWT personal access token."
+echo "  No pip install needed (uses uvx to run polarion-mcp from PyPI)."
+echo ""
+
+read -p "  Set up Polarion MCP? [y/N] " -n 1 -r
+echo ""
+
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    SETUP_POLARION=true
+
+    if command -v uvx &>/dev/null; then
+        ok "uvx is available"
+    else
+        warn "uvx not found. Install: pip install uv"
+        echo "  Polarion will be added to .mcp.json but may not work until uvx is installed."
+    fi
+
+    echo ""
+    info "Polarion JWT token needed."
+    echo ""
+    echo "  To get your token:"
+    echo "    1. Connect to Red Hat VPN"
+    echo "    2. Go to https://polarion.engineering.redhat.com/polarion/"
+    echo "    3. Click your avatar -> My Account -> Personal Access Tokens"
+    echo "    4. Create a new token and copy it"
+    echo ""
+
+    read -p "  Polarion JWT Token (or press Enter to skip): " POLARION_TOKEN_INPUT
+    if [ -z "$POLARION_TOKEN_INPUT" ]; then
+        warn "No token provided. Set POLARION_PAT env var later or update .mcp.json."
+        POLARION_TOKEN_INPUT="PASTE_YOUR_JWT_TOKEN_HERE"
+    else
+        ok "Token received"
+    fi
+else
+    info "Skipping Polarion. You can set it up later manually (see mcp/polarion/README.md)."
+fi
+
+echo ""
+
+# -----------------------------------------------
+# [5/5] Neo4j RHACM Knowledge Graph (Optional)
+# -----------------------------------------------
+echo "--------------------------------------------"
+echo "  [5/5] Neo4j RHACM Knowledge Graph (Optional)"
 echo "--------------------------------------------"
 echo ""
 echo "  What: RHACM component dependency graph (291 components, 419 relationships)."
 echo "  Used for: Understanding which components depend on each other during analysis."
-echo "  Requires: Podman and Node.js"
+echo "  Requires: Podman (container runtime)"
 echo ""
 
 read -p "  Set up Neo4j RHACM? [y/N] " -n 1 -r
 echo ""
 
 if [[ $REPLY =~ ^[Yy]$ ]]; then
-    NEO4J_SETUP="$SCRIPT_DIR/neo4j-rhacm/setup.sh"
-    if [ -f "$NEO4J_SETUP" ]; then
-        bash "$NEO4J_SETUP"
+    SETUP_NEO4J=true
+
+    if command -v podman &>/dev/null; then
+        ok "Podman installed"
     else
-        fail "Setup script not found: $NEO4J_SETUP"
+        fail "Podman is required for Neo4j. Install: brew install podman (macOS)"
+        echo "  Skipping Neo4j setup."
+        SETUP_NEO4J=false
+    fi
+
+    if [ "$SETUP_NEO4J" = true ]; then
+        if podman ps -a --format '{{.Names}}' 2>/dev/null | grep -q neo4j-rhacm; then
+            ok "Neo4j container already exists"
+            echo "  Start it with: podman machine start && podman start neo4j-rhacm"
+        else
+            info "Neo4j container not found."
+            echo ""
+            echo "  To set up Neo4j manually:"
+            echo "    1. podman machine start"
+            echo "    2. podman run -d --name neo4j-rhacm \\"
+            echo "         -p 7474:7474 -p 7687:7687 \\"
+            echo "         -e NEO4J_AUTH=neo4j/rhacmgraph \\"
+            echo "         -e NEO4J_PLUGINS='[\"apoc\"]' \\"
+            echo "         neo4j:5-community"
+            echo "    3. Load the RHACM data (see mcp/neo4j-rhacm/README.md)"
+            echo ""
+            echo "  See mcp/neo4j-rhacm/Neo4j-RHACM-MCP-Complete-Guide.md for full instructions."
+        fi
     fi
 else
-    info "Skipping. You can set it up later: bash mcp/neo4j-rhacm/setup.sh"
+    info "Skipping. See mcp/neo4j-rhacm/README.md for manual setup."
 fi
 
 echo ""
@@ -208,35 +351,65 @@ echo ""
 
 MCP_JSON="$APP_DIR/.mcp.json"
 
-cat > "$MCP_JSON" <<'MCPEOF'
-{
-  "mcpServers": {
-    "acm-ui": {
-      "command": "python",
-      "args": ["-m", "acm_ui_mcp_server.main"],
-      "cwd": "../../mcp/acm-ui-mcp-server"
-    },
-    "jira": {
-      "command": "python",
-      "args": ["-m", "jira_mcp_server.main"],
-      "cwd": "../../mcp/jira-mcp-server",
-      "timeout": 60
-    },
-    "neo4j-rhacm": {
-      "command": "uvx",
-      "args": [
-        "--with", "fastmcp<3",
-        "mcp-neo4j-cypher",
-        "--db-url", "bolt://localhost:7687",
-        "--username", "neo4j",
-        "--password", "rhacmgraph",
-        "--read-only"
-      ],
-      "timeout": 60
-    }
-  }
+# Build the JSON dynamically based on what was set up
+python3 -c "
+import json
+
+config = {'mcpServers': {}}
+
+# Required: acm-ui
+config['mcpServers']['acm-ui'] = {
+    'command': 'python',
+    'args': ['-m', 'acm_ui_mcp_server.main'],
+    'cwd': '../../mcp/acm-ui-mcp-server'
 }
-MCPEOF
+
+# Required: jira
+config['mcpServers']['jira'] = {
+    'command': 'python',
+    'args': ['-m', 'jira_mcp_server.main'],
+    'cwd': '../../mcp/jira-mcp-server',
+    'timeout': 60
+}
+
+# Optional: jenkins
+if $( [ "$SETUP_JENKINS" = true ] && echo 'True' || echo 'False' ):
+    config['mcpServers']['jenkins'] = {
+        'command': 'python',
+        'args': ['jenkins_mcp_server.py'],
+        'cwd': '../../mcp/jenkins-mcp',
+        'timeout': 60
+    }
+
+# Optional: polarion
+if $( [ "$SETUP_POLARION" = true ] && echo 'True' || echo 'False' ):
+    config['mcpServers']['polarion'] = {
+        'command': 'uvx',
+        'args': ['--with', 'polarion-mcp', 'python',
+                 '../../mcp/polarion/polarion-mcp-wrapper.py'],
+        'env': {
+            'POLARION_BASE_URL': 'https://polarion.engineering.redhat.com/polarion',
+            'POLARION_PAT': '${POLARION_TOKEN_INPUT:-}'
+        },
+        'timeout': 90
+    }
+
+# Optional: neo4j-rhacm (always included -- harmless if not running)
+config['mcpServers']['neo4j-rhacm'] = {
+    'command': 'uvx',
+    'args': ['--with', 'fastmcp<3', 'mcp-neo4j-cypher',
+             '--db-url', 'bolt://localhost:7687',
+             '--username', 'neo4j',
+             '--password', 'rhacmgraph',
+             '--read-only'],
+    'timeout': 60
+}
+
+with open('$MCP_JSON', 'w') as f:
+    json.dump(config, f, indent=2)
+    f.write('\n')
+" 2>/dev/null
+
 ok "Updated $MCP_JSON"
 
 echo ""
@@ -263,7 +436,23 @@ else
     echo -e "    ${RED}FAIL${NC} jira         -- Not installed"
 fi
 
-if podman ps -a --format '{{.Names}}' 2>/dev/null | grep -q neo4j-mcp; then
+if [ "$SETUP_JENKINS" = true ]; then
+    if python3 -c "import mcp, httpx" 2>/dev/null; then
+        echo -e "    ${GREEN}OK${NC} jenkins      -- Jenkins pipeline analysis (11 tools)"
+    else
+        echo -e "    ${RED}FAIL${NC} jenkins      -- Dependencies not installed"
+    fi
+else
+    echo -e "    ${YELLOW}--${NC} jenkins      -- Not set up (optional)"
+fi
+
+if [ "$SETUP_POLARION" = true ]; then
+    echo -e "    ${GREEN}OK${NC} polarion     -- Polarion test cases (17+ tools)"
+else
+    echo -e "    ${YELLOW}--${NC} polarion     -- Not set up (optional)"
+fi
+
+if podman ps -a --format '{{.Names}}' 2>/dev/null | grep -q neo4j-rhacm; then
     echo -e "    ${GREEN}OK${NC} neo4j-rhacm  -- RHACM component dependency graph (3 tools)"
 else
     echo -e "    ${YELLOW}--${NC} neo4j-rhacm  -- Not set up (optional)"

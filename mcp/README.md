@@ -16,6 +16,7 @@ failures beyond what's in the gathered data files.
 |--------|-----------|--------------|-------|-------|
 | **acm-ui** | Yes | Searches ACM Console & Fleet Virt source code on GitHub | 20 | `gh` CLI authenticated |
 | **jira** | Yes | Searches/creates JIRA issues for bug correlation | 25 | Jira Cloud API token + email |
+| **jenkins** | No | Jenkins pipeline analysis, build monitoring, failure investigation | 11 | Jenkins API token + VPN |
 | **neo4j-rhacm** | No | Queries RHACM component dependency graph (291 components) | 3 | Podman + Node.js |
 | **polarion** | No | Reads Polarion test cases (RHACM4K project) | 17+ | Red Hat VPN + Polarion JWT token |
 
@@ -31,8 +32,10 @@ The script will:
 1. Check prerequisites (Python, `gh` CLI)
 2. Install ACM UI MCP server dependencies
 3. Install JIRA MCP server dependencies, prompt for your credentials
-4. Optionally set up the Neo4j knowledge graph (Podman containers)
-5. Generate `apps/z-stream-analysis/.mcp.json` with correct relative paths
+4. Optionally install Jenkins MCP server, prompt for credentials
+5. Optionally set up Polarion MCP (requires VPN + JWT token)
+6. Optionally set up the Neo4j knowledge graph (Podman containers)
+7. Generate `apps/z-stream-analysis/.mcp.json` with correct relative paths
 
 After the script finishes, restart Claude Code or Cursor to pick up the new config.
 
@@ -44,6 +47,7 @@ If you prefer to set things up individually:
 |--------|--------------------|
 | acm-ui | [mcp/acm-ui-mcp-server/README.md](acm-ui-mcp-server/README.md) |
 | jira | [mcp/jira-mcp-server/README.md](jira-mcp-server/README.md) |
+| jenkins | [mcp/jenkins-mcp/README.md](jenkins-mcp/README.md) |
 | neo4j-rhacm | [mcp/neo4j-rhacm/README.md](neo4j-rhacm/README.md) |
 | polarion | [mcp/polarion/README.md](polarion/README.md) |
 
@@ -75,6 +79,7 @@ claude mcp list
 Or ask the AI agent directly:
 - "List the MCP repos" -- tests acm-ui
 - "Search JIRA for project=ACM" -- tests jira
+- "Get all Jenkins jobs" -- tests jenkins
 - "Query the knowledge graph: MATCH (n) RETURN count(n)" -- tests neo4j-rhacm
 
 ## How it works
@@ -86,6 +91,8 @@ MCP servers to start. All paths are relative to the app directory:
 apps/z-stream-analysis/.mcp.json
   -> acm-ui:      ../../mcp/acm-ui-mcp-server     (Python package)
   -> jira:         ../../mcp/jira-mcp-server        (Python package)
+  -> jenkins:      ../../mcp/jenkins-mcp            (Python script)
+  -> polarion:     ../../mcp/polarion               (uvx wrapper)
   -> neo4j-rhacm:  uvx mcp-neo4j-cypher             (bolt://localhost:7687)
 ```
 
@@ -99,8 +106,8 @@ over stdin/stdout.
 podman machine start && podman start neo4j-rhacm neo4j-mcp
 ```
 
-The other servers (acm-ui, jira, polarion) start automatically when the AI agent
-launches -- no manual restart needed.
+The other servers (acm-ui, jira, jenkins, polarion) start automatically when the
+AI agent launches -- no manual restart needed.
 
 ---
 
@@ -131,6 +138,23 @@ from the `.env.example` template.
 watcher management, field clearing, and user search.
 
 **Detailed docs:** [mcp/jira-mcp-server/README.md](jira-mcp-server/README.md)
+
+### jenkins (`mcp/jenkins-mcp/`)
+
+Forked from [redhat-community-ai-tools/jenkins-mcp](https://github.com/redhat-community-ai-tools/jenkins-mcp)
+with upstream bug fixes (auth, log parsing, nested paths, trigger params) and
+specialized ACM CI/CD analysis tools.
+
+**Core tools (7):** `get_all_jobs`, `get_job`, `get_build`, `trigger_build`,
+`get_build_log`, `get_build_status`, `get_pipeline_stages`
+
+**Specialized tools (4):** `analyze_pipeline`, `get_downstream_tree`,
+`get_test_results`, `analyze_test_results` (wrap existing `jenkins-tools` scripts)
+
+**Credentials:** `~/.jenkins/config.json` with `jenkins_url`, `jenkins_user`,
+`jenkins_token`. Requires Red Hat VPN for internal Jenkins.
+
+**Detailed docs:** [mcp/jenkins-mcp/README.md](jenkins-mcp/README.md)
 
 ### neo4j-rhacm (`mcp/neo4j-rhacm/`)
 
@@ -171,6 +195,10 @@ mcp/
 |   +-- tests/                       <-- Unit tests
 |   +-- doc/                         <-- Feature documentation
 |   \-- examples/                    <-- Usage examples
++-- jenkins-mcp/                     <-- Jenkins CI/CD analysis (11 tools)
+|   +-- README.md
+|   +-- jenkins_mcp_server.py        <-- Single-file FastMCP server
+|   \-- requirements.txt             <-- Python dependencies
 +-- neo4j-rhacm/                     <-- RHACM dependency graph (3 tools)
 |   +-- README.md
 |   +-- QUICK-REFERENCE.md

@@ -1,6 +1,6 @@
 # AI Systems Suite
 
-Multi-app repository for Jenkins pipeline analysis and test generation tools.
+Multi-app repository for ACM quality engineering tools, built on Claude Code.
 
 ## Applications
 
@@ -15,6 +15,12 @@ Four-stage pipeline:
 3. **report.py** — Generates `Detailed-Analysis.md` from analysis results
 
 See `apps/z-stream-analysis/CLAUDE.md` for schema requirements, classification guide, and MCP tool reference.
+
+### ACM Hub Health Agent (`apps/acm-hub-health/`) — Active
+
+AI-powered diagnostic agent for ACM hub clusters. Uses Claude Code with embedded ACM domain knowledge to perform health checks at any depth -- from quick sanity checks to deep component-level investigations. Natural language driven, read-only, no dependencies beyond `oc` + `claude`.
+
+Usage: `cd apps/acm-hub-health && oc login <hub> && claude`
 
 ### Claude Test Generator (`apps/claude-test-generator/`) — In Progress
 
@@ -50,11 +56,11 @@ python -m src.scripts.report runs/<run_dir>
 
 ## MCP Servers (`mcp/`)
 
-Run `bash mcp/setup.sh` from repo root to configure all servers.
+Run `bash mcp/setup.sh` from repo root. The script prompts you to select which app(s) to configure and installs only the required MCP servers.
 
 | Server | Tools | Purpose |
 |--------|-------|---------|
-| ACM UI (`mcp/acm-ui-mcp-server/`) | 19 | ACM Console + kubevirt-plugin source code search via GitHub |
+| ACM UI (`mcp/acm-ui-mcp-server/`) | 20 | ACM Console + kubevirt-plugin source code search via GitHub |
 | Jenkins (`mcp/jenkins-mcp/`) | 11 | Jenkins pipeline API access for build data extraction |
 | JIRA (`mcp/jira-mcp-server/`) | 25 | Issue search, creation, management for bug correlation (Jira Cloud) |
 | Neo4j RHACM (`mcp/neo4j-rhacm/`) | 2 | Component dependency analysis via Cypher queries (optional) |
@@ -67,14 +73,18 @@ Run `bash mcp/setup.sh` from repo root to configure all servers.
 ```
 ai_systems_v2/
 ├── apps/
+│   ├── acm-hub-health/        # Active — hub health diagnostic agent
 │   ├── z-stream-analysis/     # Active — pipeline failure analysis
 │   └── claude-test-generator/ # In progress — not functional
-└── mcp/
-    ├── acm-ui-mcp-server/     # ACM UI MCP server
-    ├── jenkins-mcp/           # Jenkins pipeline MCP server
-    ├── jira-mcp-server/       # JIRA MCP server
-    ├── neo4j-rhacm/           # Knowledge graph MCP server
-    └── polarion/              # Polarion MCP server
+├── mcp/
+│   ├── setup.sh               # Interactive MCP setup script
+│   ├── acm-ui-mcp-server/     # ACM UI MCP server
+│   ├── jenkins-mcp/           # Jenkins pipeline MCP server
+│   ├── jira-mcp-server/       # JIRA MCP server
+│   ├── neo4j-rhacm/           # Knowledge graph MCP server
+│   └── polarion/              # Polarion MCP server
+├── CLAUDE.md                  # This file — Claude Code agent instructions
+└── README.md                  # User-facing setup and onboarding guide
 ```
 
 ## Tests

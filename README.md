@@ -1,111 +1,150 @@
-# AI Systems Suite (v3.5)
+# AI Systems Suite
 
-Multi-app repository for Jenkins pipeline analysis and test generation tools, built on Claude Code.
+Claude Code-powered tools for ACM (Advanced Cluster Management) quality engineering.
 
----
+## Apps
 
-## Z-Stream Analysis
-
-> Automated Jenkins pipeline failure analysis. Classifies each failed test as **PRODUCT_BUG**, **AUTOMATION_BUG**, **INFRASTRUCTURE**, **NO_BUG** — with evidence-backed reasoning and JIRA correlation.
-
-### Quick Start
-
-Open Claude Code in this repository (root or `apps/z-stream-analysis/`) and ask:
-
-```
-Analyze this run: <JENKINS_BUILD_URL>
-```
-
-That's it. Claude Code handles the full pipeline automatically:
-
-1. **Gather** -- Collects facts from Jenkins, validates cluster health, runs Environment Oracle (6-phase feature-aware dependency health + knowledge database), clones repos, searches product source for failing selectors, scans 200 commits for selector renames, probes backend API endpoints
-2. **Analyze** -- 5-phase AI investigation per test: assess environment, deep-dive with MCP tools (source code, JIRA, Knowledge Graph, Polarion), validate with 2+ evidence sources, classify via decision tree with oracle-informed dependency checks, correlate with JIRA
-3. **Report** -- Generates per-test markdown report, JSON breakdown, and summary
-
-### How It Works
-
-| Stage | What | How |
-|-------|------|-----|
-| **1. Gather** (Python, ~5-9 min) | Collect evidence | Jenkins data, cluster validation via `oc`, Environment Oracle (Polarion dependency discovery, KG feature learning, dependency chain synthesis, targeted cluster state collection), repo cloning, selector search, 200-commit git diff, backend API probing |
-| **2. Analyze** (AI, ~20-30 min) | Classify each failure | 5-phase investigation using ACM-UI MCP (selectors), JIRA MCP (known bugs), Neo4j KG (dependencies). Per-test causal verification, graduated infrastructure scoring |
-| **3. Report** (Python) | Generate deliverables | `Detailed-Analysis.md`, `per-test-breakdown.json`, `SUMMARY.txt` |
-
-### Classification Guide
-
-| Classification | Owner | Meaning | Example |
-|---------------|-------|---------|---------|
-| **PRODUCT_BUG** | Product Team | Product code is broken | 500 errors, feature doesn't render, API returns wrong data |
-| **AUTOMATION_BUG** | Automation Team | Test code is broken | Stale selector, wrong text case, missing fixture data |
-| **INFRASTRUCTURE** | Platform Team | Environment issue | Cluster unreachable, VM scheduling failure, pod crashes |
-| **NO_BUG** | N/A | Cascading failure from another test | After-all hook fails because the prior test already failed |
-
-Additional classifications available for edge cases: `FLAKY` (intermittent), `MIXED` (multiple root causes), `UNKNOWN` (insufficient evidence).
-
-### Manual Pipeline (Advanced)
-
-You can also run each stage individually:
-
-```bash
-cd apps/z-stream-analysis/
-
-# Stage 1: Gather data
-python -m src.scripts.gather "<JENKINS_URL>"
-python -m src.scripts.gather "<JENKINS_URL>" --skip-env    # Skip cluster validation
-python -m src.scripts.gather "<JENKINS_URL>" --skip-repo   # Skip repo cloning
-
-# Stage 2: AI analysis (read core-data.json, write analysis-results.json)
-
-# Stage 3: Generate reports
-python -m src.scripts.report runs/<run_dir>
-```
-
-See `apps/z-stream-analysis/CLAUDE.md` for the full classification guide, schema reference, and MCP tool documentation.
-
----
-
-## Claude Test Generator (In Progress)
-
-`apps/claude-test-generator/` — Test plan generation from JIRA tickets. Not currently functional.
-
----
-
-## MCP Servers
-
-Four MCP servers provide tools during analysis. Run `bash mcp/setup.sh` to configure.
-
-| Server | Tools | Purpose |
-|--------|-------|---------|
-| **ACM UI** | 20 | ACM Console + kubevirt-plugin source code search via GitHub |
-| **JIRA** | 25 | Issue search, creation, and management |
-| **Neo4j RHACM** | 3 | Component dependency analysis (optional) |
-| **Polarion** | 17 | Polarion test case access (optional) |
-
----
+| App | What It Does | Status |
+|-----|-------------|--------|
+| [ACM Hub Health](apps/acm-hub-health/) | Diagnose ACM hub clusters through natural language | Active |
+| [Z-Stream Analysis](apps/z-stream-analysis/) | Classify Jenkins pipeline failures (product bug, automation bug, infra) | Active |
+| [Claude Test Generator](apps/claude-test-generator/) | Generate test plans from JIRA tickets | In progress -- not functional |
 
 ## Prerequisites
 
-- [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code)
-- Python 3.10+
-- `gh` CLI (authenticated with GitHub)
-- `oc` CLI (optional, for cluster validation)
-- JIRA PAT (for JIRA MCP server)
+All apps require:
+- **Python 3.10+**
+- **Claude Code CLI** -- [install guide](https://docs.anthropic.com/en/docs/claude-code/getting-started)
+- **GitHub CLI (`gh`)** -- `brew install gh` (macOS) or `sudo dnf install gh` (RHEL/Fedora), then `gh auth login`
+
+App-specific:
+- **Hub Health**: `oc` CLI logged into an ACM hub cluster
+- **Z-Stream**: `oc` CLI, Red Hat VPN (for Jenkins/Polarion), JIRA API token
+
+## Quick Start: ACM Hub Health Agent
+
+Diagnose your ACM hub cluster -- health checks, deep investigations, root cause analysis.
+No Python scripts to run. Just Claude Code + `oc` + natural language.
+
+```bash
+# 1. Clone the repo
+git clone <repo-url>
+cd ai_systems_v2
+
+# 2. Set up MCP servers
+#    Select option 1 (ACM Hub Health Agent) when prompted
+bash mcp/setup.sh
+
+# 3. (Optional) Clone ACM docs for better self-healing knowledge
+cd apps/acm-hub-health
+git clone --depth 1 https://github.com/stolostron/rhacm-docs.git docs/rhacm-docs
+
+# 4. Log into your hub
+oc login https://api.my-hub.example.com:6443 -u admin -p ...
+
+# 5. Start the agent
+claude
+```
+
+Then use slash commands or natural language:
+```
+/sanity                              # Quick pulse check (~30s)
+/health-check                        # Standard health check (~2-3 min)
+/investigate observability           # Deep dive into a subsystem
+Why are my managed clusters Unknown? # Natural language works too
+```
+
+See [apps/acm-hub-health/README.md](apps/acm-hub-health/README.md) for full documentation.
+
+## Quick Start: Z-Stream Pipeline Analysis
+
+Classify Jenkins test failures as PRODUCT_BUG, AUTOMATION_BUG, or INFRASTRUCTURE.
+
+```bash
+# 1. Clone the repo
+git clone <repo-url>
+cd ai_systems_v2
+
+# 2. Set up MCP servers
+#    Select option 2 (Z-Stream Pipeline Analysis) when prompted
+#    You'll be asked for JIRA, Jenkins, and Polarion credentials
+bash mcp/setup.sh
+
+# 3. Start Claude Code
+cd apps/z-stream-analysis
+claude
+```
+
+Then paste a Jenkins URL:
+```
+Analyze this run: https://jenkins.example.com/job/pipeline/123/
+```
+
+Or run the pipeline manually:
+```bash
+python -m src.scripts.gather "https://jenkins.example.com/job/pipeline/123/"
+# Claude Code performs AI analysis (Stage 2)
+python -m src.scripts.report runs/<run_dir>
+```
+
+See [apps/z-stream-analysis/README.md](apps/z-stream-analysis/README.md) for full documentation.
+
+## MCP Setup
+
+Both apps use MCP (Model Context Protocol) servers to give Claude Code access to
+external tools. The setup script handles everything:
+
+```bash
+bash mcp/setup.sh
+```
+
+It asks which app you want to configure and only installs the servers that app needs:
+
+| App | MCP Servers Installed |
+|-----|----------------------|
+| Hub Health | acm-ui |
+| Z-Stream | acm-ui, jira, jenkins, polarion, neo4j-rhacm |
+
+Credentials are prompted only for the servers being installed. Press Enter to skip
+any you don't have yet -- placeholder files are created that you can fill in later.
+
+### MCP Server Reference
+
+| Server | Tools | Purpose |
+|--------|-------|---------|
+| ACM UI | 20 | ACM Console + kubevirt-plugin source code search via GitHub |
+| Jenkins | 11 | Jenkins pipeline API access for build data extraction |
+| JIRA | 25 | Issue search, creation, management for bug correlation |
+| Polarion | 25 | Polarion test case access (Red Hat VPN required) |
+| Neo4j RHACM | 2 | Component dependency graph via Cypher queries |
 
 ## Directory Structure
 
 ```
 ai_systems_v2/
 ├── apps/
-│   ├── z-stream-analysis/     # Pipeline failure analysis (active)
-│   └── claude-test-generator/ # Test generation (in progress)
-└── mcp/
-    ├── acm-ui-mcp-server/     # ACM UI MCP server
-    ├── jira-mcp-server/       # JIRA MCP server
-    ├── neo4j-rhacm/           # Knowledge graph MCP server
-    └── polarion/              # Polarion MCP server
+│   ├── acm-hub-health/        # Hub health diagnostic agent
+│   ├── z-stream-analysis/     # Pipeline failure analysis
+│   └── claude-test-generator/ # Test plan generation (WIP)
+├── mcp/
+│   ├── setup.sh               # Interactive MCP setup script
+│   ├── acm-ui-mcp-server/     # ACM UI source code search
+│   ├── jenkins-mcp/           # Jenkins pipeline access
+│   ├── jira-mcp-server/       # JIRA issue management
+│   ├── neo4j-rhacm/           # Component dependency graph
+│   └── polarion/              # Polarion test cases
+├── CLAUDE.md                  # Claude Code agent instructions
+└── README.md                  # This file
 ```
 
 ## Tests
 
 ```bash
-cd apps/z-stream-analysis/ && python -m pytest tests/ -q
+cd apps/z-stream-analysis/
+
+# Fast -- unit + regression (602+ tests, no external deps)
+python -m pytest tests/unit/ tests/regression/ -q
+
+# Full suite (652+ tests, requires Jenkins VPN for integration)
+python -m pytest tests/ -q --timeout=300
 ```

@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(oc get:*)",
+      "Bash(oc describe:*)",
+      "Bash(oc logs:*)",
+      "Bash(oc version:*)",
+      "Bash(oc whoami:*)",
+      "Bash(oc cluster-info:*)",
+      "Bash(oc api-resources:*)",
+      "Bash(oc adm top:*)",
+      "Bash(kubectl get:*)",
+      "Bash(kubectl describe:*)",
+      "Bash(grep:*)",
+      "Bash(jq:*)",
+      "Bash(wc:*)",
+      "Bash(sort:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(awk:*)",
+      "Bash(cut:*)",
+      "Bash(cat:*)",
+      "Bash(ls:*)",
+      "Bash(find:*)",
+      "Bash(git clone:*)",
+      "Read",
+      "Write(knowledge/learned/*)",
+      "mcp__acm-ui__*"
+    ]
+  }
+}

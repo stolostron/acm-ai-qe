@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(update-config)",
+      "Bash(bash -n mcp/setup.sh)",
+      "Bash(bash --version 2>&1)",
+      "Bash(/bin/bash --version 2>&1)",
+      "Bash(/opt/homebrew/bin/bash --version 2>&1)",
+      "Bash(/bin/bash -c 'declare -A arr; arr[foo]=1; echo ${arr[foo]}' 2>&1)",
+      "Bash(git check-ignore:*)",
+      "Bash(while IFS= read -r line)",
+      "Bash(do echo:*)",
+      "Bash(done)"
+    ]
+  }
+}

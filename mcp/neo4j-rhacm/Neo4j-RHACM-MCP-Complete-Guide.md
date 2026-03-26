@@ -126,7 +126,7 @@ This dependency graph:
 │                                                                              │
 │  ┌───────────────────────────────────────────────────────────────────────┐  │
 │  │  stolostron/knowledge-graph (Cloned Repository)                       │  │
-│  │  /Users/ashafi/Documents/work/tools/knowledge-graph/                  │  │
+│  │  <knowledge-graph-clone>/                  │  │
 │  │                                                                        │  │
 │  │  - rhacm_architecture_comprehensive_final.cypher (main data)          │  │
 │  │  - sample_queries.cypher (30+ analytics queries)                      │  │
@@ -246,7 +246,7 @@ This dependency graph:
 
 **What**: Source data for the RHACM architecture graph
 
-**Location**: `/Users/ashafi/Documents/work/tools/knowledge-graph/`
+**Location**: `<knowledge-graph-clone>/`
 
 **Key Files**:
 
@@ -352,7 +352,7 @@ podman machine list
 
 ```bash
 # Navigate to tools directory
-cd /Users/ashafi/Documents/work/tools
+cd <parent-directory>
 
 # Clone the repository
 git clone https://github.com/stolostron/knowledge-graph.git
@@ -400,7 +400,7 @@ podman logs neo4j-rhacm 2>&1 | tail -5
 
 ```bash
 # Copy the Cypher file into the container
-podman cp /Users/ashafi/Documents/work/tools/knowledge-graph/acm/agentic-docs/dependency-analysis/knowledge-graph/rhacm_architecture_comprehensive_final.cypher neo4j-rhacm:/tmp/
+podman cp <knowledge-graph-clone>/acm/agentic-docs/dependency-analysis/knowledge-graph/rhacm_architecture_comprehensive_final.cypher neo4j-rhacm:/tmp/
 
 # Execute the Cypher script
 podman exec neo4j-rhacm cypher-shell -u neo4j -p rhacmgraph -f /tmp/rhacm_architecture_comprehensive_final.cypher
@@ -802,7 +802,7 @@ To refresh the data from the latest repository:
 
 ```bash
 # Pull latest changes
-cd /Users/ashafi/Documents/work/tools/knowledge-graph
+cd <knowledge-graph-clone>
 git pull
 
 # Clear existing data
@@ -836,7 +836,7 @@ podman run -d \
 sleep 30
 
 # Load data
-podman cp /Users/ashafi/Documents/work/tools/knowledge-graph/acm/agentic-docs/dependency-analysis/knowledge-graph/rhacm_architecture_comprehensive_final.cypher neo4j-rhacm:/tmp/
+podman cp <knowledge-graph-clone>/acm/agentic-docs/dependency-analysis/knowledge-graph/rhacm_architecture_comprehensive_final.cypher neo4j-rhacm:/tmp/
 podman exec neo4j-rhacm cypher-shell -u neo4j -p rhacmgraph -f /tmp/rhacm_architecture_comprehensive_final.cypher
 
 # Get Neo4j IP
@@ -954,7 +954,7 @@ podman run -d --name neo4j-mcp -p 8000:8000 \
 ### Repository Structure
 
 ```
-/Users/ashafi/Documents/work/tools/knowledge-graph/
+<knowledge-graph-clone>/
 ├── acm/
 │   └── agentic-docs/
 │       └── dependency-analysis/

@@ -36,16 +36,17 @@ The wrapper exists because Red Hat's internal Polarion instance uses certificate
   "polarion": {
     "command": "uvx",
     "args": ["--with", "polarion-mcp", "python",
-             "/Users/ashafi/Documents/work/ai/tools/mcp/polarion/polarion-mcp-wrapper.py"],
-    "cwd": "/Users/ashafi",
+             "../../mcp/polarion/polarion-mcp-wrapper.py"],
+    "cwd": "../../mcp/polarion",
     "env": {
-      "POLARION_BASE_URL": "https://polarion.engineering.redhat.com/polarion",
-      "POLARION_PAT": "<JWT token -- set via env or set_polarion_token tool>"
+      "POLARION_BASE_URL": "https://polarion.engineering.redhat.com/polarion"
     },
     "timeout": 90
   }
 }
 ```
+
+The Polarion PAT is read from `mcp/polarion/.env` (not `.mcp.json`) to avoid committing secrets.
 
 **Key points:**
 - `uvx` creates an isolated Python environment with `polarion-mcp` installed
@@ -326,8 +327,6 @@ The test run read/write tools were inspired by the [`stolostron/acm-workflows`](
 
 | File | Purpose |
 |------|---------|
-| `~/.cursor/mcp.json` | MCP server configuration (path to wrapper) |
-| `/Users/ashafi/Documents/work/automation/.cursorrules` | AI rules referencing Polarion MCP (query syntax, defaults, behaviors) |
-| `~/.cursor/skills/write-testcase-console/SKILL.md` | Test case writing skill (uses Polarion MCP) |
-| `~/.cursor/skills/active-sprint-tasks/SKILL.md` | Sprint tasks skill (uses Polarion MCP) |
-| `/Users/ashafi/Documents/work/automation/tools/polarion/` | Older standalone CLI tool (not this MCP) |
+| `apps/z-stream-analysis/.mcp.json` | MCP server configuration (path to wrapper) |
+| `mcp/polarion/.env` | Polarion credentials (PAT token) |
+| `mcp/polarion/.env.example` | Template for credentials file |

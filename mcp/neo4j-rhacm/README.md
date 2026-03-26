@@ -131,9 +131,8 @@ ORDER BY Dependencies DESC;
 
 | Resource | Path |
 |----------|------|
-| Cloned Repository | `/Users/ashafi/Documents/work/tools/knowledge-graph/` |
-| Cursor MCP Config | `~/.cursor/mcp.json` |
-| MCP Tool Descriptors | `~/.cursor/projects/Users-ashafi-Documents-work-automation/mcps/user-neo4j-rhacm/tools/` |
+| Knowledge Graph Repo | Clone from `https://github.com/stolostron/knowledge-graph` |
+| MCP Config | `apps/z-stream-analysis/.mcp.json` |
 
 ---
 
@@ -142,7 +141,7 @@ ORDER BY Dependencies DESC;
 ### Update Data from Repository
 
 ```bash
-cd /Users/ashafi/Documents/work/tools/knowledge-graph
+cd <path-to-knowledge-graph-clone>
 git pull
 
 # Reload data

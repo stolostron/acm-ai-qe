@@ -10,15 +10,22 @@ and query component dependency graphs -- without needing API keys embedded in pr
 Without MCP servers configured, the z-stream-analysis AI agent cannot investigate
 failures beyond what's in the gathered data files.
 
+## Prerequisites
+
+- **Python 3.10+** (required) -- `brew install python3` (macOS) or `sudo dnf install python3` (Fedora/RHEL)
+- **`gh` CLI** (optional, needed for acm-ui) -- `brew install gh` (macOS) or `sudo dnf install gh` (Fedora/RHEL)
+- **`uvx`** (optional, needed for polarion + neo4j) -- `pip install uv`
+- **Podman** (optional, needed for neo4j-rhacm) -- `brew install podman` (macOS)
+
 ## Which servers do I need?
 
-| Server | Required? | What it does | Tools | Needs |
-|--------|-----------|--------------|-------|-------|
-| **acm-ui** | Yes | Searches ACM Console & Fleet Virt source code on GitHub | 20 | `gh` CLI authenticated |
+| Server | Required? | What it does | Tools | Credentials |
+|--------|-----------|--------------|-------|-------------|
+| **acm-ui** | Yes | Searches ACM Console & Fleet Virt source code on GitHub | 20 | `gh auth login` |
 | **jira** | Yes | Searches/creates JIRA issues for bug correlation | 25 | Jira Cloud API token + email |
 | **jenkins** | No | Jenkins pipeline analysis, build monitoring, failure investigation | 11 | Jenkins API token + VPN |
-| **neo4j-rhacm** | No | Queries RHACM component dependency graph (291 components) | 3 | Podman + Node.js |
 | **polarion** | No | Reads Polarion test cases (RHACM4K project) | 17+ | Red Hat VPN + Polarion JWT token |
+| **neo4j-rhacm** | No | Queries RHACM component dependency graph (291 components) | 3 | Podman containers |
 
 ## Quick Setup
 
@@ -28,17 +35,16 @@ From the repository root, run:
 bash mcp/setup.sh
 ```
 
-The script sets up all 5 servers and will:
-1. Check prerequisites (Python, `gh` CLI)
-2. Install ACM UI MCP server dependencies
-3. Install JIRA MCP server dependencies, prompt for credentials
-4. Install Jenkins MCP server dependencies, prompt for credentials
-5. Set up Polarion MCP, prompt for JWT token
-6. Check Neo4j RHACM knowledge graph (Podman containers)
-7. Generate `apps/z-stream-analysis/.mcp.json` with all servers configured
+The script:
+1. Checks prerequisites (Python 3.10+, optionally `gh` CLI)
+2. Creates a Python virtual environment for each server (in `mcp/<server>/.venv/`)
+3. Installs dependencies into each venv
+4. Prompts for credentials (API tokens, emails) -- press Enter to skip any
+5. Writes credential `.env` files (gitignored, never committed)
+6. Generates `apps/z-stream-analysis/.mcp.json` pointing to each venv
 
-If you don't have credentials for a server, press Enter to skip -- a placeholder
-will be created that you can fill in later.
+Credentials can be skipped during setup and filled in later by editing the `.env`
+files. Re-running the script will re-prompt for any missing credentials.
 
 After the script finishes, restart Claude Code or Cursor to pick up the new config.
 
@@ -56,7 +62,11 @@ If you prefer to set things up individually:
 
 ### Manual JIRA Setup
 
-1. Install dependencies: `pip install -e mcp/jira-mcp-server/`
+1. Create a venv and install:
+   ```bash
+   python3 -m venv mcp/jira-mcp-server/.venv
+   mcp/jira-mcp-server/.venv/bin/pip install -e mcp/jira-mcp-server/
+   ```
 2. Copy the example env: `cp mcp/jira-mcp-server/.env.example mcp/jira-mcp-server/.env`
 3. Edit `mcp/jira-mcp-server/.env` with your credentials:
    ```
@@ -68,6 +78,15 @@ If you prefer to set things up individually:
 
 The `.env` file uses `override=True` so it always takes precedence over any
 pre-existing shell environment variables (e.g., from `jira-cli`).
+
+### Manual Polarion Setup
+
+1. Copy the example env: `cp mcp/polarion/.env.example mcp/polarion/.env`
+2. Edit `mcp/polarion/.env` with your JWT token:
+   ```
+   POLARION_PAT=<your-jwt-token>
+   ```
+3. Get a token at: Polarion > My Account > Personal Access Tokens (requires VPN)
 
 ## Verifying Setup
 
@@ -88,19 +107,29 @@ Or ask the AI agent directly:
 ## How it works
 
 The z-stream analysis app has a `.mcp.json` file that tells Claude Code which
-MCP servers to start. All paths are relative to the app directory:
+MCP servers to start. Each server uses a local `.venv/` for isolation:
 
 ```
 apps/z-stream-analysis/.mcp.json
-  -> acm-ui:      ../../mcp/acm-ui-mcp-server     (Python package)
-  -> jira:         ../../mcp/jira-mcp-server        (Python package)
-  -> jenkins:      ../../mcp/jenkins-mcp            (Python script)
-  -> polarion:     ../../mcp/polarion               (uvx wrapper)
-  -> neo4j-rhacm:  uvx mcp-neo4j-cypher             (bolt://localhost:7687)
+  -> acm-ui:      .venv/bin/python -m acm_ui_mcp_server.main   (cwd: mcp/acm-ui-mcp-server)
+  -> jira:         .venv/bin/python -m jira_mcp_server.main      (cwd: mcp/jira-mcp-server)
+  -> jenkins:      .venv/bin/python jenkins_mcp_server.py        (cwd: mcp/jenkins-mcp)
+  -> polarion:     uvx --with polarion-mcp python wrapper.py     (cwd: mcp/polarion)
+  -> neo4j-rhacm:  uvx mcp-neo4j-cypher bolt://localhost:7687
 ```
 
-Each server runs as a subprocess that communicates with the AI agent via JSON-RPC
-over stdin/stdout.
+All paths in `.mcp.json` are relative -- no machine-specific paths. Each server
+runs as a subprocess communicating via JSON-RPC over stdin/stdout.
+
+### Credential storage
+
+| Server | Credential file | Gitignored? |
+|--------|----------------|-------------|
+| acm-ui | `gh auth` (system) | N/A |
+| jira | `mcp/jira-mcp-server/.env` | Yes (`*.env`) |
+| jenkins | `~/.jenkins/config.json` | N/A (home dir) |
+| polarion | `mcp/polarion/.env` | Yes (`*.env`) |
+| neo4j-rhacm | None (local container) | N/A |
 
 ## After a reboot
 

@@ -24,10 +24,7 @@ from mcp.server.fastmcp import FastMCP
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 JENKINS_CONFIG_PATH = Path.home() / ".jenkins" / "config.json"
-JENKINS_TOOLS_DIR = os.environ.get(
-    "JENKINS_TOOLS_DIR",
-    str(Path.home() / "Documents/work/ai/tools/jenkins-tools"),
-)
+JENKINS_TOOLS_DIR = os.environ.get("JENKINS_TOOLS_DIR", "")
 
 
 def _load_config() -> dict:
@@ -108,6 +105,17 @@ async def jenkins_api(
             resp = await client.request(method, url, headers=headers, data=data)
         resp.raise_for_status()
         return resp.json() if expect_json else resp.text
+
+
+def _check_tools_dir() -> Optional[str]:
+    """Return error message if JENKINS_TOOLS_DIR is not configured."""
+    if not JENKINS_TOOLS_DIR or not Path(JENKINS_TOOLS_DIR).is_dir():
+        return (
+            "JENKINS_TOOLS_DIR is not configured or does not exist. "
+            "Set the JENKINS_TOOLS_DIR environment variable to the path of your "
+            "jenkins-tools repository clone."
+        )
+    return None
 
 
 def _run_tool(args: list[str], timeout: int = 120) -> str:
@@ -264,6 +272,8 @@ async def analyze_pipeline(
         max_depth: Downstream recursion depth (default 10).
         console_lines: Console lines to analyze per job (default 200).
     """
+    if err := _check_tools_dir():
+        return err
     script = f"{JENKINS_TOOLS_DIR}/skills/jenkins-pipeline-analyzer/scripts/jenkins_pipeline_analyzer.py"
     args = [
         sys.executable, script,
@@ -289,6 +299,8 @@ async def get_downstream_tree(
         max_depth: Recursion depth (default 5).
         output_format: 'tree' (ASCII), 'markdown', or 'json'.
     """
+    if err := _check_tools_dir():
+        return err
     script = f"{JENKINS_TOOLS_DIR}/skills/jenkins-downstream-tree/scripts/jenkins_downstream_tree.py"
     args = [
         sys.executable, script,
@@ -313,6 +325,8 @@ async def get_test_results(
         build_number: Build number, or omit for latest.
         mode: 'summary', 'full', or 'failures'.
     """
+    if err := _check_tools_dir():
+        return err
     script = f"{JENKINS_TOOLS_DIR}/skills/jenkins-result-summary/scripts/fetch_jenkins_results.py"
     args = [
         sys.executable, script,
@@ -341,6 +355,8 @@ async def analyze_test_results(
         failures_only: Only show components with failures.
         output_format: 'markdown', 'summary', 'json', or 'slack'.
     """
+    if err := _check_tools_dir():
+        return err
     fetch_script = f"{JENKINS_TOOLS_DIR}/skills/jenkins-result-summary/scripts/fetch_jenkins_results.py"
     fetch_args = [
         sys.executable, fetch_script,

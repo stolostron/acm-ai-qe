@@ -96,7 +96,8 @@
       "mcp__polarion__get_polarion_setup_html",
       "mcp__polarion__set_polarion_token",
       "Bash(sort -t: -k2 -rn)",
-      "Bash(.venv/bin/pip install:*)"
+      "Bash(.venv/bin/pip install:*)",
+      "Bash(bash -n /Users/ashafi/Documents/work/ai/ai_systems_v2/mcp/setup.sh)"
     ],
     "deny": []
   }

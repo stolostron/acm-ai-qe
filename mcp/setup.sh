@@ -33,8 +33,6 @@ ok()    { echo -e "${GREEN}[OK]${NC} $1"; }
 warn()  { echo -e "${YELLOW}[WARN]${NC} $1"; }
 fail()  { echo -e "${RED}[FAIL]${NC} $1"; }
 
-POLARION_TOKEN_INPUT=""
-
 # -----------------------------------------------
 # Prerequisites Check
 # -----------------------------------------------
@@ -55,7 +53,7 @@ if command -v python3 &>/dev/null; then
     PY_VERSION=$(python3 --version 2>&1 | awk '{print $2}')
     ok "Python $PY_VERSION"
 else
-    fail "Python 3.10+ is required. Install: brew install python3"
+    fail "Python 3.10+ is required. Install: brew install python3 (macOS) or sudo dnf install python3 (Fedora/RHEL)"
     exit 1
 fi
 
@@ -79,10 +77,9 @@ if command -v gh &>/dev/null; then
         fi
     fi
 else
-    fail "GitHub CLI (gh) is required."
+    warn "GitHub CLI (gh) not found. ACM UI MCP server will not work."
     echo "  Install: brew install gh  (macOS) or sudo dnf install gh (Fedora/RHEL)"
     echo "  Then run: gh auth login"
-    exit 1
 fi
 
 echo ""
@@ -99,19 +96,21 @@ echo "  Used for: Finding UI selectors, component source, translations during an
 echo ""
 
 ACM_UI_DIR="$SCRIPT_DIR/acm-ui-mcp-server"
+ACM_UI_VENV="$ACM_UI_DIR/.venv"
 
-if python3 -c "import acm_ui_mcp_server" 2>/dev/null; then
+if [ ! -d "$ACM_UI_VENV" ]; then
+    info "Creating virtual environment..."
+    python3 -m venv "$ACM_UI_VENV"
+    ok "Virtual environment created"
+fi
+
+if "$ACM_UI_VENV/bin/python" -c "import acm_ui_mcp_server" 2>/dev/null; then
     ok "Already installed"
 else
-    info "Installing dependencies..."
-    pip3 install -r <(python3 -c "
-import tomllib, pathlib
-data = tomllib.loads(pathlib.Path('$ACM_UI_DIR/pyproject.toml').read_text())
-for dep in data.get('project', {}).get('dependencies', []):
-    print(dep)
-") --quiet 2>/dev/null || pip3 install mcp pydantic pydantic-settings python-dotenv --quiet
-    ok "Dependencies installed"
-    info "Note: The .mcp.json cwd field handles module discovery at runtime."
+    info "Installing ACM UI MCP server..."
+    "$ACM_UI_VENV/bin/pip" install -e "$ACM_UI_DIR" --quiet 2>/dev/null || \
+    "$ACM_UI_VENV/bin/pip" install mcp pydantic pydantic-settings python-dotenv --quiet
+    ok "Dependencies installed (in venv)"
 fi
 
 echo ""
@@ -128,23 +127,28 @@ echo "  Used for: Finding related bugs, reading feature stories during analysis.
 echo ""
 
 JIRA_DIR="$SCRIPT_DIR/jira-mcp-server"
+JIRA_VENV="$JIRA_DIR/.venv"
 
-if python3 -c "import jira_mcp_server" 2>/dev/null; then
+if [ ! -d "$JIRA_VENV" ]; then
+    info "Creating virtual environment..."
+    python3 -m venv "$JIRA_VENV"
+    ok "Virtual environment created"
+fi
+
+if "$JIRA_VENV/bin/python" -c "import jira_mcp_server" 2>/dev/null; then
     ok "Already installed"
 else
-    info "Installing dependencies..."
-    pip3 install -r <(python3 -c "
-import tomllib, pathlib
-data = tomllib.loads(pathlib.Path('$JIRA_DIR/pyproject.toml').read_text())
-for dep in data.get('project', {}).get('dependencies', []):
-    print(dep)
-") --quiet 2>/dev/null || pip3 install jira mcp pydantic pydantic-settings python-dotenv --quiet
-    ok "Dependencies installed"
+    info "Installing JIRA MCP server..."
+    "$JIRA_VENV/bin/pip" install -e "$JIRA_DIR" --quiet 2>/dev/null || \
+    "$JIRA_VENV/bin/pip" install fastmcp jira pydantic asyncio-throttle python-dotenv uvicorn --quiet
+    ok "Dependencies installed (in venv)"
 fi
 
 # Check for .env
 JIRA_ENV="$JIRA_DIR/.env"
-if [ ! -f "$JIRA_ENV" ]; then
+if [ -f "$JIRA_ENV" ] && ! grep -q "PASTE_YOUR" "$JIRA_ENV" 2>/dev/null; then
+    ok "Credentials file exists: $JIRA_ENV"
+else
     echo ""
     info "JIRA credentials needed."
     echo ""
@@ -161,7 +165,8 @@ if [ ! -f "$JIRA_ENV" ]; then
 
     read -p "  JIRA Email (your Atlassian account email): " JIRA_EMAIL_INPUT
 
-    read -p "  JIRA API Token (or Enter to skip): " JIRA_TOKEN
+    read -sp "  JIRA API Token (or Enter to skip): " JIRA_TOKEN
+    echo ""
     if [ -z "$JIRA_TOKEN" ]; then
         warn "No token provided. Creating .env with placeholder -- update later."
         JIRA_TOKEN="PASTE_YOUR_API_TOKEN_HERE"
@@ -176,8 +181,6 @@ JIRA_MAX_RESULTS=100
 EOF
     ok "Created $JIRA_ENV"
     echo "  Edit this file later to update credentials: $JIRA_ENV"
-else
-    ok "Credentials file exists: $JIRA_ENV"
 fi
 
 echo ""
@@ -205,7 +208,7 @@ if [ ! -d "$JENKINS_VENV" ]; then
 fi
 
 info "Installing Jenkins MCP dependencies..."
-"$JENKINS_VENV/bin/pip" install -r "$JENKINS_DIR/requirements.txt" --quiet 2>/dev/null
+"$JENKINS_VENV/bin/pip" install -r "$JENKINS_DIR/requirements.txt" --quiet
 ok "Dependencies installed (in venv)"
 
 JENKINS_CONFIG="$HOME/.jenkins/config.json"
@@ -228,7 +231,8 @@ else
     read -p "  Jenkins Username (or Enter to skip): " JENKINS_USER_INPUT
 
     if [ -n "$JENKINS_USER_INPUT" ]; then
-        read -p "  Jenkins API Token (or Enter to skip): " JENKINS_TOKEN_INPUT
+        read -sp "  Jenkins API Token (or Enter to skip): " JENKINS_TOKEN_INPUT
+        echo ""
         if [ -z "$JENKINS_TOKEN_INPUT" ]; then
             warn "No token provided. Creating config with placeholder -- update later."
             JENKINS_TOKEN_INPUT="PASTE_YOUR_API_TOKEN_HERE"
@@ -273,22 +277,35 @@ else
     echo "  Polarion will be added to .mcp.json but may not work until uvx is installed."
 fi
 
-echo ""
-info "Polarion JWT token needed."
-echo ""
-echo "  To get your token:"
-echo "    1. Connect to Red Hat VPN"
-echo "    2. Go to https://polarion.engineering.redhat.com/polarion/"
-echo "    3. Click your avatar -> My Account -> Personal Access Tokens"
-echo "    4. Create a new token and copy it"
-echo ""
+POLARION_DIR="$SCRIPT_DIR/polarion"
+POLARION_ENV="$POLARION_DIR/.env"
 
-read -p "  Polarion JWT Token (or Enter to skip): " POLARION_TOKEN_INPUT
-if [ -z "$POLARION_TOKEN_INPUT" ]; then
-    warn "No token provided. Set POLARION_PAT in .mcp.json later."
-    POLARION_TOKEN_INPUT="PASTE_YOUR_JWT_TOKEN_HERE"
+if [ -f "$POLARION_ENV" ] && ! grep -q "PASTE_YOUR" "$POLARION_ENV" 2>/dev/null; then
+    ok "Credentials file exists: $POLARION_ENV"
 else
-    ok "Token received"
+    echo ""
+    info "Polarion JWT token needed."
+    echo ""
+    echo "  To get your token:"
+    echo "    1. Connect to Red Hat VPN"
+    echo "    2. Go to https://polarion.engineering.redhat.com/polarion/"
+    echo "    3. Click your avatar -> My Account -> Personal Access Tokens"
+    echo "    4. Create a new token and copy it"
+    echo ""
+
+    read -sp "  Polarion JWT Token (or Enter to skip): " POLARION_TOKEN_INPUT
+    echo ""
+    if [ -z "$POLARION_TOKEN_INPUT" ]; then
+        warn "No token provided. Creating .env with placeholder -- update later."
+        POLARION_TOKEN_INPUT="PASTE_YOUR_JWT_TOKEN_HERE"
+    fi
+
+    cat > "$POLARION_ENV" <<EOF
+POLARION_BASE_URL=https://polarion.engineering.redhat.com/polarion
+POLARION_PAT=$POLARION_TOKEN_INPUT
+EOF
+    ok "Created $POLARION_ENV"
+    echo "  Edit this file later to update credentials: $POLARION_ENV"
 fi
 
 echo ""
@@ -343,33 +360,37 @@ echo ""
 
 MCP_JSON="$APP_DIR/.mcp.json"
 
+# Use absolute paths so the config survives 'claude mcp add' which strips cwd fields.
+# Each venv python binary is referenced by absolute path — no cwd dependency.
+MCP_DIR="$SCRIPT_DIR"
+
 python3 -c "
-import json
+import json, sys
+
+mcp_dir = sys.argv[1]
 
 config = {'mcpServers': {
     'acm-ui': {
-        'command': 'python',
+        'command': f'{mcp_dir}/acm-ui-mcp-server/.venv/bin/python',
         'args': ['-m', 'acm_ui_mcp_server.main'],
-        'cwd': '../../mcp/acm-ui-mcp-server'
+        'timeout': 30
     },
     'jira': {
-        'command': 'python',
+        'command': f'{mcp_dir}/jira-mcp-server/.venv/bin/python',
         'args': ['-m', 'jira_mcp_server.main'],
-        'cwd': '../../mcp/jira-mcp-server',
         'timeout': 60
     },
     'jenkins': {
-        'command': '$JENKINS_VENV/bin/python',
-        'args': ['$JENKINS_DIR/jenkins_mcp_server.py'],
+        'command': f'{mcp_dir}/jenkins-mcp/.venv/bin/python',
+        'args': [f'{mcp_dir}/jenkins-mcp/jenkins_mcp_server.py'],
         'timeout': 60
     },
     'polarion': {
         'command': 'uvx',
         'args': ['--with', 'polarion-mcp', 'python',
-                 '../../mcp/polarion/polarion-mcp-wrapper.py'],
+                 f'{mcp_dir}/polarion/polarion-mcp-wrapper.py'],
         'env': {
-            'POLARION_BASE_URL': 'https://polarion.engineering.redhat.com/polarion',
-            'POLARION_PAT': '${POLARION_TOKEN_INPUT}'
+            'POLARION_BASE_URL': 'https://polarion.engineering.redhat.com/polarion'
         },
         'timeout': 90
     },
@@ -384,10 +405,10 @@ config = {'mcpServers': {
     }
 }}
 
-with open('$MCP_JSON', 'w') as f:
+with open(sys.argv[2], 'w') as f:
     json.dump(config, f, indent=2)
     f.write('\n')
-" 2>/dev/null
+" "$MCP_DIR" "$MCP_JSON"
 
 ok "Updated $MCP_JSON"
 
@@ -402,16 +423,16 @@ echo "============================================"
 echo ""
 echo "  Server status:"
 
-if python3 -c "import acm_ui_mcp_server" 2>/dev/null; then
+if [ -f "$ACM_UI_VENV/bin/python" ] && "$ACM_UI_VENV/bin/python" -c "import acm_ui_mcp_server" 2>/dev/null; then
     echo -e "    ${GREEN}OK${NC}   acm-ui       -- ACM Console & Fleet Virt source code (20 tools)"
 else
-    echo -e "    ${YELLOW}DEPS${NC} acm-ui       -- Run: pip install -e mcp/acm-ui-mcp-server/"
+    echo -e "    ${YELLOW}DEPS${NC} acm-ui       -- Run: bash mcp/setup.sh to create venv"
 fi
 
-if python3 -c "import jira_mcp_server" 2>/dev/null; then
+if [ -f "$JIRA_VENV/bin/python" ] && "$JIRA_VENV/bin/python" -c "import jira_mcp_server" 2>/dev/null; then
     echo -e "    ${GREEN}OK${NC}   jira         -- JIRA issue management (25 tools)"
 else
-    echo -e "    ${YELLOW}DEPS${NC} jira         -- Run: pip install -e mcp/jira-mcp-server/"
+    echo -e "    ${YELLOW}DEPS${NC} jira         -- Run: bash mcp/setup.sh to create venv"
 fi
 
 if [ -f "$JENKINS_VENV/bin/python" ] && "$JENKINS_VENV/bin/python" -c "import mcp, httpx" 2>/dev/null; then
@@ -449,10 +470,10 @@ else
     echo -e "    ${YELLOW}TODO${NC} jenkins      -- Create/edit ~/.jenkins/config.json"
 fi
 
-if [ "$POLARION_TOKEN_INPUT" != "PASTE_YOUR_JWT_TOKEN_HERE" ] && [ -n "$POLARION_TOKEN_INPUT" ]; then
-    echo -e "    ${GREEN}OK${NC}   polarion     -- Token set in .mcp.json"
+if [ -f "$SCRIPT_DIR/polarion/.env" ] && ! grep -q "PASTE_YOUR" "$SCRIPT_DIR/polarion/.env" 2>/dev/null; then
+    echo -e "    ${GREEN}OK${NC}   polarion     -- $SCRIPT_DIR/polarion/.env"
 else
-    echo -e "    ${YELLOW}TODO${NC} polarion     -- Set POLARION_PAT in apps/z-stream-analysis/.mcp.json"
+    echo -e "    ${YELLOW}TODO${NC} polarion     -- Edit $SCRIPT_DIR/polarion/.env with your JWT token"
 fi
 
 echo ""

@@ -91,7 +91,12 @@
       "Bash(bash /Users/ashafi/Documents/work/ai/tools/mcp/sync-to-git.sh 2>&1)",
       "Read(//Users/ashafi/Documents/work/ai/tools/mcp/acm-ui-mcp-server/acm_ui_mcp_server/**)",
       "Read(//Users/ashafi/Documents/work/ai/tools/mcp/neo4j-rhacm/**)",
-      "Read(//Users/ashafi/Documents/work/ai/tools/mcp/polarion/**)"
+      "Read(//Users/ashafi/Documents/work/ai/tools/mcp/polarion/**)",
+      "mcp__polarion__check_polarion_status",
+      "mcp__polarion__get_polarion_setup_html",
+      "mcp__polarion__set_polarion_token",
+      "Bash(sort -t: -k2 -rn)",
+      "Bash(.venv/bin/pip install:*)"
     ],
     "deny": []
   }

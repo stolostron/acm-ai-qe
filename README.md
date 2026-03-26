@@ -1,4 +1,4 @@
-# AI Systems Suite (v3.3)
+# AI Systems Suite (v3.5)
 
 Multi-app repository for Jenkins pipeline analysis and test generation tools, built on Claude Code.
 
@@ -18,15 +18,15 @@ Analyze this run: <JENKINS_BUILD_URL>
 
 That's it. Claude Code handles the full pipeline automatically:
 
-1. **Gather** -- Collects facts from Jenkins, validates cluster health, clones repos, searches product source for failing selectors, scans 200 commits for selector renames, probes backend API endpoints
-2. **Analyze** -- 5-phase AI investigation per test: assess environment, deep-dive with MCP tools (source code, JIRA, Knowledge Graph), validate with 2+ evidence sources, classify via decision tree, correlate with JIRA
+1. **Gather** -- Collects facts from Jenkins, validates cluster health, runs Environment Oracle (6-phase feature-aware dependency health + knowledge database), clones repos, searches product source for failing selectors, scans 200 commits for selector renames, probes backend API endpoints
+2. **Analyze** -- 5-phase AI investigation per test: assess environment, deep-dive with MCP tools (source code, JIRA, Knowledge Graph, Polarion), validate with 2+ evidence sources, classify via decision tree with oracle-informed dependency checks, correlate with JIRA
 3. **Report** -- Generates per-test markdown report, JSON breakdown, and summary
 
 ### How It Works
 
 | Stage | What | How |
 |-------|------|-----|
-| **1. Gather** (Python, ~3 min) | Collect evidence | Jenkins data, cluster validation via `oc`, repo cloning, selector search in product source, 200-commit git diff for renames, backend API probing with cluster ground truth cross-reference |
+| **1. Gather** (Python, ~5-9 min) | Collect evidence | Jenkins data, cluster validation via `oc`, Environment Oracle (Polarion dependency discovery, KG feature learning, dependency chain synthesis, targeted cluster state collection), repo cloning, selector search, 200-commit git diff, backend API probing |
 | **2. Analyze** (AI, ~20-30 min) | Classify each failure | 5-phase investigation using ACM-UI MCP (selectors), JIRA MCP (known bugs), Neo4j KG (dependencies). Per-test causal verification, graduated infrastructure scoring |
 | **3. Report** (Python) | Generate deliverables | `Detailed-Analysis.md`, `per-test-breakdown.json`, `SUMMARY.txt` |
 

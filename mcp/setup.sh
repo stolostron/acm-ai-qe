@@ -195,10 +195,18 @@ echo "  Requires: Red Hat VPN for internal Jenkins access."
 echo ""
 
 JENKINS_DIR="$SCRIPT_DIR/jenkins-mcp"
+JENKINS_VENV="$JENKINS_DIR/.venv"
+
+# Create venv if it doesn't exist
+if [ ! -d "$JENKINS_VENV" ]; then
+    info "Creating virtual environment..."
+    python3 -m venv "$JENKINS_VENV"
+    ok "Virtual environment created: $JENKINS_VENV"
+fi
 
 info "Installing Jenkins MCP dependencies..."
-pip3 install -r "$JENKINS_DIR/requirements.txt" --quiet 2>/dev/null
-ok "Dependencies installed"
+"$JENKINS_VENV/bin/pip" install -r "$JENKINS_DIR/requirements.txt" --quiet 2>/dev/null
+ok "Dependencies installed (in venv)"
 
 JENKINS_CONFIG="$HOME/.jenkins/config.json"
 if [ -f "$JENKINS_CONFIG" ]; then
@@ -351,9 +359,8 @@ config = {'mcpServers': {
         'timeout': 60
     },
     'jenkins': {
-        'command': 'python',
-        'args': ['jenkins_mcp_server.py'],
-        'cwd': '../../mcp/jenkins-mcp',
+        'command': '$JENKINS_VENV/bin/python',
+        'args': ['$JENKINS_DIR/jenkins_mcp_server.py'],
         'timeout': 60
     },
     'polarion': {
@@ -407,10 +414,10 @@ else
     echo -e "    ${YELLOW}DEPS${NC} jira         -- Run: pip install -e mcp/jira-mcp-server/"
 fi
 
-if python3 -c "import mcp, httpx" 2>/dev/null; then
+if [ -f "$JENKINS_VENV/bin/python" ] && "$JENKINS_VENV/bin/python" -c "import mcp, httpx" 2>/dev/null; then
     echo -e "    ${GREEN}OK${NC}   jenkins      -- Jenkins pipeline analysis (11 tools)"
 else
-    echo -e "    ${YELLOW}DEPS${NC} jenkins      -- Run: pip install -r mcp/jenkins-mcp/requirements.txt"
+    echo -e "    ${YELLOW}DEPS${NC} jenkins      -- Run: bash mcp/setup.sh to create venv"
 fi
 
 if command -v uvx &>/dev/null; then

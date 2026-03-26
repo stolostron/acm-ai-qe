@@ -1,6 +1,6 @@
 # MCP Integration Guide
 
-How the three MCP (Model Context Protocol) servers connect Z-Stream Analysis to external systems for failure investigation.
+How the five MCP (Model Context Protocol) servers connect Z-Stream Analysis to external systems for failure investigation.
 
 ---
 
@@ -8,7 +8,7 @@ How the three MCP (Model Context Protocol) servers connect Z-Stream Analysis to 
 
 Model Context Protocol (MCP) is a JSON-RPC protocol that allows AI agents to call external tools at runtime. Instead of the agent guessing or relying on pre-fetched data, MCP lets the agent query live systems during investigation.
 
-Z-Stream Analysis uses three MCP servers:
+Z-Stream Analysis uses five MCP servers:
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
@@ -691,6 +691,57 @@ RETURN [n in nodes(path) | n.label] as chain
 
 ---
 
+## MCP Server 4: Polarion (25 Tools)
+
+### What It Is
+
+A Polarion ALM integration server for accessing RHACM test cases in the RHACM4K project. The wrapper (`polarion-mcp-wrapper.py`) patches SSL for Red Hat internal Polarion and adds tools for test case content retrieval, setup section parsing, and test run management.
+
+**Tool prefix:** `mcp__polarion__`
+
+**Authentication:** Requires a Polarion Personal Access Token (PAT) stored in `mcp/polarion/.env` as `POLARION_PAT`. Run `bash mcp/setup.sh` or see `mcp/polarion/README.md`.
+
+### Why It Matters
+
+The Environment Oracle (Phase B) uses Polarion to discover infrastructure dependencies that are not captured in feature playbooks. Each RHACM test case has a setup section describing prerequisites (operators, addons, CRDs, infrastructure requirements). By parsing these setup sections, the oracle can discover dependencies that playbooks miss, merge them with playbook dependencies, and check them on the cluster.
+
+During Stage 2, the agent can also use Polarion MCP tools directly for deeper queries -- reading full test case steps, checking test run results, or retrieving test case summaries.
+
+### How It Is Used: Stage 1 (Environment Oracle Phase B)
+
+```
+gather.py → EnvironmentOracleService
+    │
+    ├── Phase B: Polarion Dependency Discovery
+    │   ├── Extract Polarion IDs (RHACM4K-XXXX) from failed test names
+    │   ├── Fetch setup HTML for each test case via Polarion REST API
+    │   ├── Parse setup HTML for dependency keywords:
+    │   │   - Operator references (e.g., "AAP operator", "CNV operator")
+    │   │   - Addon references (e.g., "search-collector", "observability")
+    │   │   - Infrastructure requirements (e.g., "IDP configured", "3+ managed clusters")
+    │   └── Output: discovered dependencies per test
+    │
+    └── Phase 5: Merge Dependencies
+        └── Playbook dependencies + Polarion dependencies → unified target list
+```
+
+### How It Is Used: Stage 2
+
+The AI agent can call Polarion tools directly during investigation:
+
+| Trigger | Tool | Call |
+|---------|------|------|
+| Polarion ID found in test name | `get_polarion_setup_html` | `mcp__polarion__get_polarion_setup_html(project_id='RHACM4K', work_item_id='RHACM4K-XXXX')` |
+| Need test case steps | `get_polarion_test_steps` | `mcp__polarion__get_polarion_test_steps(project_id='RHACM4K', work_item_id='RHACM4K-XXXX')` |
+| Need test case summary | `get_polarion_test_case_summary` | `mcp__polarion__get_polarion_test_case_summary(project_id='RHACM4K', work_item_id='RHACM4K-XXXX')` |
+| Need full work item | `get_polarion_work_item` | `mcp__polarion__get_polarion_work_item(project_id='RHACM4K', work_item_id='RHACM4K-XXXX')` |
+
+### Graceful Degradation
+
+If Polarion MCP is unavailable, the Environment Oracle Phase B is skipped. Dependency discovery falls back to playbook-only sources (Phase 1). Classification accuracy is not significantly affected unless tests have prerequisites not captured in playbooks.
+
+---
+
 ## MCP Trigger Matrix
 
 When should the agent call which MCP tool? This matrix maps investigation triggers to tool calls:
@@ -774,13 +825,14 @@ Each MCP server can be unavailable. The system is designed to work without any M
 | **ACM-UI MCP** | Use `console_search` from core-data.json (pre-computed grep), cloned repos in `repos/` directory | Loses cross-branch search, QE selector catalogs, translations |
 | **JIRA MCP** | Skip Phases D-B2 and E2-E6; classify on error evidence alone | Loses feature intent, known bug correlation, bug filing |
 | **Knowledge Graph** | Use `subsystem` field from `ComponentExtractor.detected_components`; skip cascading failure detection | Loses dependency chains, cascading failure grouping, subsystem peer lists |
-| **All three down** | Full classification still works using core-data.json (extracted_context, timeline_evidence, console_log, environment) | Selector mismatches and infrastructure failures still classified accurately; Path B2 cases may get UNKNOWN |
+| **Polarion MCP** | Environment Oracle Phase B skipped; dependency discovery uses playbook-only sources | Loses Polarion-sourced dependencies not captured in playbooks |
+| **All four down** | Full classification still works using core-data.json (extracted_context, timeline_evidence, console_log, environment) | Selector mismatches and infrastructure failures still classified accurately; Path B2 cases may get UNKNOWN |
 
 ---
 
 ## End-to-End MCP Flow Example
 
-A complete example showing all three MCP servers working together on a single test failure:
+A complete example showing MCP servers working together on a single test failure:
 
 ```
 Test: "RHACM4K-3046 - Verify search results display"

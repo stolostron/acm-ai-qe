@@ -1,6 +1,6 @@
-# Z-Stream Pipeline Analysis (v3.3)
+# Z-Stream Pipeline Analysis (v3.5)
 
-Enterprise Jenkins pipeline failure analysis with definitive PRODUCT BUG | AUTOMATION BUG | INFRASTRUCTURE classification. v3.3 adds assertion value extraction (expected vs actual), per-feature-area graduated infrastructure health scoring, per-test causal link verification, and failure mode categorization.
+Enterprise Jenkins pipeline failure analysis with definitive PRODUCT BUG | AUTOMATION BUG | INFRASTRUCTURE classification. v3.5 adds environment oracle with feature-aware dependency health checking, Polarion test case context, KG-driven dependency learning, and oracle-informed classification routing.
 
 ## Quick Start
 
@@ -25,16 +25,19 @@ Before writing analysis-results.json, ALWAYS read `src/schemas/analysis_results_
 ## Architecture
 
 ```
-STAGE 1: gather.py    → core-data.json + repos/
+STAGE 0: gather.py    → cluster_oracle (environment oracle + knowledge database)
+STAGE 1: gather.py    → core-data.json + cluster.kubeconfig + repos/
 STAGE 2: AI Analysis  → analysis-results.json (5-phase investigation)
 STAGE 3: report.py    → Detailed-Analysis.md + per-test-breakdown.json + SUMMARY.txt
 ```
+
+Stage 0 runs inside gather.py (Step 5) after environment data is collected. Stage 1 covers the remaining gather steps. The terminal shows distinct banners for each stage.
 
 See `docs/00-OVERVIEW.md` for detailed diagrams.
 
 ## Run Directory
 
-See `docs/00-OVERVIEW.md` for full run directory structure. Key files: `core-data.json` (primary AI input), `analysis-results.json` (AI output), `Detailed-Analysis.md` (final report).
+See `docs/00-OVERVIEW.md` for full run directory structure. Key files: `core-data.json` (primary AI input), `cluster.kubeconfig` (persisted cluster auth for Stage 2), `analysis-results.json` (AI output), `Detailed-Analysis.md` (final report).
 
 ## Classification Guide
 
@@ -50,6 +53,7 @@ See `docs/00-OVERVIEW.md` for the full decision routing table. Summary:
 - **PR-3** Temporal evidence — if `stale_test_signal=true` with refactor/rename commit, signal PRODUCT_BUG (v3.2)
 - **PR-5** Data assertion pre-check — if `failure_mode_category=data_incorrect` with assertion values extracted, signal PRODUCT_BUG (v3.3)
 - **PR-6** Backend probe source-of-truth — if probe has `classification_hint`, use deterministic K8s-vs-console comparison to route PRODUCT_BUG or INFRASTRUCTURE (v3.4)
+- **PR-7** Environment Oracle dependency check — if oracle detects broken dependency (operator missing, addon degraded, component not running), route to INFRASTRUCTURE with Tier 1 evidence (v3.5)
 - **PR-4** Check feature knowledge override FIRST — if tiered investigation confirmed a playbook failure path, use playbook classification (v3.1)
 - **D0** Check backend cross-check — if backend caused UI failure, route to Path B2
 - **Path A** (selector mismatch, no backend issue) → AUTOMATION_BUG
@@ -73,6 +77,18 @@ See `docs/00-OVERVIEW.md` for the full decision routing table. Summary:
   {"source": "timeline_evidence", "finding": "element_removed", "tier": 1}
 ]
 ```
+
+## New in v3.5
+
+Four implementation phases (A through D) build a comprehensive environment oracle:
+
+- **Phase A: Playbook-based dependency health checking** — resolves the `met=None` gap in FeatureKnowledgeService for addon, operator, and CRD prerequisites. Discovers dependencies from feature playbooks (base.yaml), then runs targeted read-only `oc get` commands against the live cluster to check their health. Uses strict `_validate_readonly` with `ALLOWED_COMMANDS` whitelist (get, describe, api-resources only). Graceful degradation when cluster access is unavailable (dependency targets still extracted from playbooks; cluster checks skipped, prerequisites fall back to `met=None`).
+- **Phase B: Polarion test case context** — fetches Polarion test case description, setup, and steps for each failed test's Polarion ID via the Polarion REST API. Parses setup HTML for dependency keywords (operators, addons, infrastructure requirements). Discovered dependencies are merged with playbook dependencies and checked on the cluster. Polarion MCP also available during Stage 2 for deeper queries. Requires `POLARION_PAT` in `mcp/polarion/.env`.
+- **Phase C: KG-driven feature and dependency learning** — queries the Knowledge Graph for each feature area's component topology (internal data flow, cross-subsystem dependencies, transitive dependency chains up to depth 3) and for each individual dependency's architecture (subsystem, what it depends on, what depends on it). Includes rhacm-docs path resolution for documentation context. Stored in `cluster_oracle.knowledge_context` for AI-driven dependency chain walking during classification. Playbook architecture summaries included as context.
+- **Phase D: Agent integration** — new pre-routing check PR-7 combines all oracle data (playbook health, Polarion context, KG topology) as Tier 1 evidence in Phase D classification. If oracle detects a broken dependency (operator missing, addon degraded, CRD absent), tests in that feature area get routed to INFRASTRUCTURE.
+- **Pipeline expanded to 11 steps** — new Step 5 (Environment Oracle) runs after Step 4 (environment check) and before Step 6 (repository cloning). Oracle output stored in `cluster_oracle` key of core-data.json.
+- **Prerequisite resolution** — `FeatureKnowledgeService.check_prerequisites()` accepts `oracle_data` parameter, replacing previously hardcoded `met=None` results.
+- **New schema fields** — `cluster_oracle` in core-data.json with `dependency_health`, `overall_feature_health`, `dependency_targets`, `feature_areas`, `knowledge_context`
 
 ## New in v3.3
 
@@ -106,7 +122,7 @@ See `docs/00-OVERVIEW.md` for the full decision routing table. Summary:
 - **FeatureKnowledgeService** — loads playbooks, checks MCH prerequisites, matches error symptoms to known failure paths
 - **Tiered cluster investigation** (Tiers 0-4) — SRE debugging methodology from health snapshot to deep investigation
 - **MCH component extraction** — `mch_enabled_components` and `mch_version` in `cluster_landscape`
-- **Cluster credential persistence** — `cluster_access` in core-data.json for Stage 2 re-authentication
+- **Cluster kubeconfig persistence** — `cluster.kubeconfig` saved in run directory for Stage 2 re-authentication (passwords masked in core-data.json, agent uses `--kubeconfig` instead of `oc login`)
 - **Feature knowledge in core-data** — `feature_knowledge` section with readiness, playbooks, KG status
 
 ### From v3.0
@@ -148,12 +164,13 @@ Skipped when `--skip-env` is used or cluster access is unavailable.
 
 ## MCP Servers Available
 
-Three MCP servers provide tools during Stage 2 (AI Analysis). New users: run `bash mcp/setup.sh` from the repo root to configure all servers.
+Five MCP servers provide tools during Stage 2 (AI Analysis). New users: run `bash mcp/setup.sh` from the repo root to configure all servers.
 
 | Server | Tools | Purpose |
 |--------|-------|---------|
 | ACM-UI | 19 | ACM Console + kubevirt-plugin source code search via GitHub |
 | JIRA | 25 | Issue search, creation, management for bug correlation (Jira Cloud) |
+| Polarion | 25 | Polarion test case access + dependency discovery |
 | Knowledge Graph (Neo4j RHACM) | 2 | Component dependency analysis via Cypher queries (optional) |
 
 **JIRA Cloud:** Uses basic auth (email + API token). Create `mcp/jira-mcp-server/.env` from `.env.example` with your credentials, or run `bash mcp/setup.sh`. The config uses `load_dotenv(override=True)` so `.env` always takes precedence over shell vars. API token: https://id.atlassian.com/manage-profile/security/api-tokens
@@ -179,7 +196,7 @@ Understanding what a feature SHOULD do is key to classifying what went WRONG.
 | Topic | File |
 |-------|------|
 | Pipeline overview & classification guide | `docs/00-OVERVIEW.md` |
-| Stage 1: Data gathering (Steps 1-10) | `docs/01-STAGE1-DATA-GATHERING.md` |
+| Stage 1: Data gathering (Steps 1-11) | `docs/01-STAGE1-DATA-GATHERING.md` |
 | Stage 2: AI analysis (Phases A-E) | `docs/02-STAGE2-AI-ANALYSIS.md` |
 | Stage 3: Report generation | `docs/03-STAGE3-REPORT-GENERATION.md` |
 | All services reference | `docs/04-SERVICES-REFERENCE.md` |
@@ -203,22 +220,22 @@ python -m src.scripts.feedback --stats           # View accuracy stats
 # Regression tests (fast, no external deps — 47 tests):
 python -m pytest tests/regression/ -v
 
-# Unit tests (478 tests):
+# Unit tests (555+ tests):
 python -m pytest tests/unit/ -v
 
-# Unit + regression (525 tests):
+# Unit + regression (602+ tests):
 python -m pytest tests/unit/ tests/regression/ -v
 
 # Integration tests (requires Jenkins VPN — 50 tests):
 python -m pytest tests/integration/ -v --timeout=300
 
-# All tests (575 total):
+# All tests (652+ total):
 python -m pytest tests/ -v --timeout=300
 ```
 
 ### Test Structure
 
-- `tests/unit/` — 478 unit tests across 17 service/script files
+- `tests/unit/` — 555+ unit tests across 18 service/script files (includes 77 oracle tests)
 - `tests/regression/` — 47 regression tests for cross-module consistency, playbook quality, AI instructions, schema coverage
 - `tests/integration/` — 50 integration tests for Stage 1 gather, Stage 3 report, and cross-stage data contracts
 - `tests/fixtures/` — Synthetic analysis-results.json exercising v3.2+ schema fields
@@ -233,13 +250,13 @@ z-stream-analysis/
 │   ├── gather.py          # Stage 1: Data collection
 │   ├── report.py          # Stage 3: Report generation
 │   └── feedback.py        # Classification feedback CLI
-├── src/services/          # 16 Python service modules
+├── src/services/          # 18 Python service modules
 ├── src/schemas/           # JSON Schema validation
 ├── src/data/
 │   └── feature_playbooks/ # YAML investigation playbooks (base.yaml, acm-2.16.yaml)
 ├── tests/
 │   ├── conftest.py        # Shared fixtures
-│   ├── unit/              # Unit tests (478)
+│   ├── unit/              # Unit tests (555+)
 │   ├── regression/        # Regression tests (47)
 │   ├── integration/       # Integration tests (50)
 │   └── fixtures/          # Test data (synthetic analysis-results.json)

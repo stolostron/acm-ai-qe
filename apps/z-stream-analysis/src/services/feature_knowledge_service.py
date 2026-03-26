@@ -147,18 +147,22 @@ class FeatureKnowledgeService:
         feature_area: str,
         mch_components: Optional[Dict[str, bool]] = None,
         cluster_landscape: Optional[dict] = None,
+        oracle_data: Optional[dict] = None,
     ) -> List[PrerequisiteCheck]:
         """
         Check each prerequisite against cluster state.
 
         mch_component type checks mch_components dict.
-        addon, operator, crd types return met=None (checked by AI at runtime).
+        addon, operator, crd types use oracle results when available,
+        otherwise return met=None (checked by AI at runtime).
         informational always returns met=None.
 
         Args:
             feature_area: Feature area name (e.g., 'Search', 'RBAC')
             mch_components: Dict of MCH component name -> enabled bool
             cluster_landscape: Cluster landscape dict (optional, for future use)
+            oracle_data: Environment Oracle results (v3.5) for resolving
+                         addon/operator/crd prerequisites
 
         Returns:
             List of PrerequisiteCheck results.
@@ -203,9 +207,14 @@ class FeatureKnowledgeService:
                     check.detail = "MCH components not available for checking"
 
             elif prereq_type in ('addon', 'operator', 'crd'):
-                # These require live cluster access — flagged for AI
-                check.met = None
-                check.detail = f"Requires live cluster check (type={prereq_type})"
+                # Try oracle results first (v3.5)
+                oracle_result = self._lookup_oracle(oracle_data, prereq_id, prereq_type)
+                if oracle_result is not None:
+                    check.met, check.detail = oracle_result
+                else:
+                    # No oracle data — flagged for AI
+                    check.met = None
+                    check.detail = f"Requires live cluster check (type={prereq_type})"
 
             elif prereq_type == 'informational':
                 check.met = None
@@ -214,6 +223,37 @@ class FeatureKnowledgeService:
             checks.append(check)
 
         return checks
+
+    @staticmethod
+    def _lookup_oracle(
+        oracle_data: Optional[dict],
+        prereq_id: str,
+        prereq_type: str,
+    ) -> Optional[tuple]:
+        """
+        Look up a prerequisite's health from oracle results.
+
+        Returns:
+            Tuple of (met: bool, detail: str) or None if not available.
+        """
+        if not oracle_data:
+            return None
+
+        dependency_health = oracle_data.get('dependency_health', {})
+        health = dependency_health.get(prereq_id)
+
+        if not health:
+            return None
+
+        status = health.get('status', 'unknown')
+        detail = health.get('detail', '')
+
+        if status == 'healthy':
+            return True, f"Oracle: {detail}"
+        elif status in ('degraded', 'missing'):
+            return False, f"Oracle: {detail}"
+        else:
+            return None
 
     def match_symptoms(
         self,
@@ -269,6 +309,7 @@ class FeatureKnowledgeService:
         mch_components: Optional[Dict[str, bool]] = None,
         cluster_landscape: Optional[dict] = None,
         error_messages: Optional[List[str]] = None,
+        oracle_data: Optional[dict] = None,
     ) -> FeatureReadiness:
         """
         Combine prerequisite checks + symptom matching into a
@@ -279,6 +320,7 @@ class FeatureKnowledgeService:
             mch_components: MCH component states
             cluster_landscape: Cluster landscape dict
             error_messages: Error messages from failed tests
+            oracle_data: Environment Oracle results (v3.5)
 
         Returns:
             FeatureReadiness with checks, unmet prereqs, and matched paths.
@@ -289,9 +331,10 @@ class FeatureKnowledgeService:
 
         architecture = profile.get('architecture', {})
 
-        # Check prerequisites
+        # Check prerequisites (with oracle data for addon/operator/crd)
         checks = self.check_prerequisites(
-            feature_area, mch_components, cluster_landscape
+            feature_area, mch_components, cluster_landscape,
+            oracle_data=oracle_data,
         )
 
         # Determine unmet prerequisites

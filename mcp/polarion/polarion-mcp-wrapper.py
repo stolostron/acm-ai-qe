@@ -17,6 +17,18 @@ import json
 import re
 import warnings
 from datetime import datetime, timezone
+from pathlib import Path
+
+# Load .env file if present (so token doesn't need to be in .mcp.json)
+_env_file = Path(__file__).parent / '.env'
+if _env_file.exists():
+    for line in _env_file.read_text().splitlines():
+        line = line.strip()
+        if line and not line.startswith('#') and '=' in line:
+            key, _, value = line.partition('=')
+            key, value = key.strip(), value.strip()
+            if key and value and key not in os.environ:
+                os.environ[key] = value
 
 # Suppress SSL warnings
 import urllib3

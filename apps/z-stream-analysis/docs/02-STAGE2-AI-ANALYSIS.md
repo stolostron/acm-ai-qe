@@ -128,7 +128,7 @@ The agent reads `core-data.json` which contains:
 | `console_log` | Error patterns (has_500_errors, has_network_errors, etc.), key_errors | Phase A, B |
 | `feature_grounding` | Tests grouped by feature area with subsystem/component context | Phase A |
 | `feature_knowledge` | Playbook readiness, prerequisites, failure paths, KG dependency context, KG status | Phase A, B, D |
-| `cluster_access` | API URL, username, password for re-authentication | Phase A (cluster login) |
+| `cluster_access` | API URL, username, `kubeconfig_path` for re-authentication | Phase A (cluster login) |
 | `backend_probes` | Per-endpoint probe results: `response_valid`, `anomalies`, `error` | Phase B (B7c) |
 | `investigation_hints.timeline_evidence` | Element history, modification dates | Phase B |
 | `investigation_hints.failed_test_locations` | File paths for failed tests | Phase B |
@@ -142,11 +142,11 @@ The agent reads `core-data.json` which contains:
 ```
 core-data.json
       │
-      ├── A-1: Cluster re-authentication (v3.1)
-      │   Read cluster_access from core-data.json
-      │   Run: oc login <api_url> --username <user> --password <password>
-      │   Verify: oc whoami
-      │   If fails: proceed with snapshot data only, reduce confidence by 0.15
+      ├── A-1: Cluster re-authentication (v3.5)
+      │   Read cluster_access.kubeconfig_path from core-data.json
+      │   Verify: oc whoami --kubeconfig <kubeconfig_path>
+      │   Use --kubeconfig on ALL oc commands throughout Stage 2
+      │   If kubeconfig_path is null or oc whoami fails: proceed with snapshot data only, reduce confidence by 0.15
       │
       ├── A0: Feature area grounding (v3.0)
       │   Read feature_grounding → map tests to subsystems/components

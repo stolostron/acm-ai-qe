@@ -21,6 +21,7 @@ gather.py ──┬── JenkinsAPIClient ──────────── 
             ├── ClusterInvestigationService ── Cluster landscape + pod diagnostics (v3.0)
             ├── FeatureAreaService ────────── Test-to-feature-area mapping (v3.0)
             ├── FeatureKnowledgeService ──── Playbook loading + symptom matching (v3.1)
+            ├── EnvironmentOracleService ── Feature-aware dependency health (v3.5)
             └── shared_utils ──────────────── Config, subprocess, credentials
 
 report.py ── ReportFormatter ─────────────── Markdown/JSON/text output
@@ -99,6 +100,8 @@ Stage 1+2 ─── KnowledgeGraphClient ─────────── Neo4j
 | `check_specific_resource(resource_type, name, namespace)` | Check a specific k8s resource |
 | `to_dict(result)` | Convert result to dictionary |
 | `cleanup()` | Remove temporary kubeconfig |
+
+**Kubeconfig persistence (v3.5):** After `validate_environment()`, `gather.py` calls `_persist_cluster_kubeconfig()` to create a persistent `cluster.kubeconfig` in the run directory. This kubeconfig is used by the AI agent in Stage 2 (via `--kubeconfig`) instead of re-authenticating with the masked password.
 
 **Safety:** Only whitelisted READ-ONLY commands (`oc get`, `oc describe`, `oc whoami`, `oc version`). No write operations.
 
@@ -416,7 +419,36 @@ See [03-STAGE3-REPORT-GENERATION.md](03-STAGE3-REPORT-GENERATION.md) for details
 
 ---
 
-### 17. FeedbackService (v3.0)
+### 17. EnvironmentOracleService (v3.5)
+
+| Property | Value |
+|----------|-------|
+| **File** | `src/services/environment_oracle_service.py` |
+| **Purpose** | Feature-aware dependency health checking via a 6-phase pipeline: identify feature areas, discover Polarion test case context, learn feature architecture from KG + docs, learn dependency architecture, synthesize collection plan, collect cluster state |
+| **Used by** | Stage 1, Step 5 (oracle output stored in `cluster_oracle` key of core-data.json) |
+
+**Key exports:** `EnvironmentOracleService`, `DependencyTarget`, `DependencyHealth`, `PolarionDiscovery`
+
+**Key methods:**
+
+| Method | Description |
+|--------|-------------|
+| `run_oracle(jenkins_data, test_report, cluster_landscape, ...)` | Execute full 6-phase pipeline, returns `cluster_oracle` dict |
+| `_phase1_identify(test_report, jenkins_data)` | Extract feature areas, failed test names, Polarion IDs |
+| `_phase2_discover_from_polarion(polarion_ids)` | Fetch Polarion test case setup/steps, extract dependency keywords |
+| `_phase3_learn_feature(identification, kg_client)` | Query KG for component topology + search rhacm-docs for architecture context |
+| `_phase4_learn_dependencies_comprehensive(identification, knowledge_context, kg_client)` | Query KG for each dependency's architecture (subsystem, what depends on it) |
+| `_phase5_synthesize_collection_plan(identification, polarion_discovery, knowledge_context)` | Merge playbook prereqs + KG components + Polarion deps into dependency targets |
+| `_phase6_collect_cluster_state(targets, cluster_credentials, skip_cluster)` | Run read-only `oc get` commands against live cluster for each target |
+| `_load_polarion_token()` | Load Polarion PAT from `mcp/polarion/.env` (repo root or app root fallback) |
+
+**Dependency target types:** `operator`, `addon`, `crd`, `deployment`, `managed_clusters`
+
+**Health statuses:** `healthy`, `degraded`, `missing`, `unknown`
+
+---
+
+### 18. FeedbackService (v3.0)
 
 | Property | Value |
 |----------|-------|
@@ -439,7 +471,7 @@ See [03-STAGE3-REPORT-GENERATION.md](03-STAGE3-REPORT-GENERATION.md) for details
 
 ---
 
-### 18. DataGatherer (gather.py)
+### 19. DataGatherer (gather.py)
 
 | Property | Value |
 |----------|-------|
@@ -482,6 +514,7 @@ See [03-STAGE3-REPORT-GENERATION.md](03-STAGE3-REPORT-GENERATION.md) for details
 | ClusterInvestigationService | Step 4 | Phase B5b | |
 | FeatureAreaService | Step 7 | | |
 | FeatureKnowledgeService | Step 8 | | |
+| EnvironmentOracleService | Step 5 | Phase PR-7 | Dependency health |
 | SchemaValidationService | | | Input validation |
 | shared_utils | All steps | | |
 | ReportFormatter | | | All output |

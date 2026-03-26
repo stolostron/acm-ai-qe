@@ -1,23 +1,24 @@
 #!/usr/bin/env python3
 """
-Data Gathering Script (v3.3)
+Data Gathering Script (v3.5)
 
 Collects FACTUAL DATA from Jenkins, environment, and repository.
 Clones repositories to persistent location for AI to access during analysis.
 Pre-computes evidence to accelerate Stage 2 AI analysis.
 Extracts complete test context upfront for systematic AI analysis.
 
-10-step pipeline:
+11-step pipeline:
     Step 1:  Jenkins build info
     Step 2:  Console log
     Step 3:  Test report
-    Step 4:  Environment check + cluster landscape
-    Step 5:  Clone repositories
-    Step 6:  Extract test context (code, selectors, imports)
-    Step 7:  Feature area grounding
-    Step 8:  Feature knowledge + KG dependency context
-    Step 9:  Element inventory
-    Step 10: Investigation hints + temporal summaries
+    Step 4:  Environment check + cluster landscape + backend probes
+    Step 5:  Environment Oracle — feature-aware dependency health (v3.5)
+    Step 6:  Clone repositories
+    Step 7:  Extract test context (code, selectors, imports)
+    Step 8:  Feature area grounding
+    Step 9:  Feature knowledge + KG dependency context
+    Step 10: Element inventory
+    Step 11: Investigation hints + temporal summaries
 
 Usage:
     python -m src.scripts.gather <jenkins_url>
@@ -41,6 +42,8 @@ import json
 import logging
 import os
 import re
+import shutil
+import subprocess
 import sys
 import time
 from datetime import datetime
@@ -75,19 +78,20 @@ from src.services.knowledge_graph_client import (
 from src.services.cluster_investigation_service import ClusterInvestigationService
 from src.services.feature_area_service import FeatureAreaService
 from src.services.feature_knowledge_service import FeatureKnowledgeService
+from src.services.environment_oracle_service import EnvironmentOracleService
 
 
 class DataGatherer:
     """
-    Data Gatherer v3.3 - Collects factual data and clones repos for AI access.
+    Data Gatherer v3.5 - Collects factual data and clones repos for AI access.
 
     This class performs MECHANICAL data collection only.
     NO classification or reasoning is done here - that's the AI's job.
 
-    Gathers data in 10 steps: Jenkins info, console log, test report,
-    environment + cluster landscape, repo cloning, context extraction,
-    feature grounding, feature knowledge, element inventory, and
-    investigation hints.
+    Gathers data in 11 steps: Jenkins info, console log, test report,
+    environment + cluster landscape, environment oracle, repo cloning,
+    context extraction, feature grounding, feature knowledge, element
+    inventory, and investigation hints.
     """
 
     def __init__(self, output_dir: str = './runs', verbose: bool = False):
@@ -130,6 +134,9 @@ class DataGatherer:
         # Feature knowledge playbooks (v3.1)
         self.feature_knowledge_service = FeatureKnowledgeService()
 
+        # Environment Oracle (v3.5) — feature-aware dependency health
+        self.environment_oracle_service = EnvironmentOracleService()
+
         # Knowledge Graph client (optional - for dependency queries in Phase 2)
         self.knowledge_graph_client: Optional[KnowledgeGraphClient] = None
         if is_knowledge_graph_available():
@@ -163,7 +170,51 @@ class DataGatherer:
 
     def _print_step(self, step: int, total: int, message: str):
         """Print progress step to user."""
-        print(f"\n[{step}/{total}] {message}", flush=True)
+        print(f"\n  [{step}/{total}] {message}", flush=True)
+
+    def _print_stage(self, stage_num: int, title: str, subtitle: str = ''):
+        """Print a stage banner to the terminal."""
+        print(f"\n{'=' * 60}", flush=True)
+        print(f"  STAGE {stage_num}: {title}", flush=True)
+        if subtitle:
+            print(f"  {subtitle}", flush=True)
+        print(f"{'=' * 60}", flush=True)
+
+    def _persist_cluster_kubeconfig(self, run_dir: Path, api_url: str,
+                                     username: str, password: str) -> Optional[str]:
+        """
+        Create a persistent kubeconfig in the run directory for Stage 2.
+
+        This avoids the problem of masked passwords in core-data.json
+        by storing an authenticated kubeconfig that the AI agent can
+        use directly with --kubeconfig.
+        """
+        kubeconfig_path = run_dir / 'cluster.kubeconfig'
+        try:
+            cmd = [
+                self.env_service.cli,
+                'login', api_url,
+                '--username', username,
+                '--password', password,
+                '--insecure-skip-tls-verify=true',
+                '--kubeconfig', str(kubeconfig_path)
+            ]
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=30
+            )
+            if result.returncode == 0:
+                self.logger.info(
+                    f"Persisted cluster kubeconfig for Stage 2: {kubeconfig_path.name}"
+                )
+                return str(kubeconfig_path)
+            else:
+                self.logger.warning(
+                    f"Failed to persist kubeconfig: {result.stderr.strip()}"
+                )
+                return None
+        except Exception as e:
+            self.logger.warning(f"Failed to persist kubeconfig: {e}")
+            return None
 
     def gather_all(self, jenkins_url: str,
                    skip_environment: bool = False,
@@ -199,7 +250,7 @@ class DataGatherer:
             'metadata': {
                 'jenkins_url': jenkins_url,
                 'gathered_at': datetime.now().isoformat(),
-                'gatherer_version': '3.3.0',
+                'gatherer_version': '3.5.0',
                 'jenkins_api_available': is_jenkins_available(),
                 'acm_ui_mcp_available': True,  # Always available to Claude Code agent via native MCP
                 'knowledge_graph_available': None,  # Updated after _check_feature_knowledge()
@@ -214,11 +265,20 @@ class DataGatherer:
             'errors': []
         }
 
-        total_steps = 10
+        total_steps = 11
+
+        # ── STAGE 1: DATA GATHERING ──
+        self._print_stage(1, 'DATA GATHERING',
+                          'Fetching Jenkins data, cluster health, and test reports')
 
         # Step 1: Gather Jenkins build info
         self._print_step(1, total_steps, "Fetching Jenkins build info...")
         self._gather_jenkins_build_info(jenkins_url, run_dir)
+        # Show build result immediately
+        build_result = self.gathered_data.get('jenkins', {}).get('build_result', '?')
+        job_name = self.gathered_data.get('jenkins', {}).get('job_name', '?')
+        build_num = self.gathered_data.get('jenkins', {}).get('build_number', '?')
+        print(f"  Build: {job_name} #{build_num} — {build_result}", flush=True)
 
         # Step 2: Gather console log
         self._print_step(2, total_steps, "Downloading console log...")
@@ -227,6 +287,13 @@ class DataGatherer:
         # Step 3: Gather test report (CRITICAL for per-test analysis)
         self._print_step(3, total_steps, "Extracting test report...")
         self._gather_test_report(jenkins_url, run_dir)
+        # Show test summary
+        test_summary = self.gathered_data.get('test_report', {}).get('summary', {})
+        total_tests = test_summary.get('total_tests', 0)
+        failed_count = test_summary.get('failed_count', 0)
+        pass_rate = test_summary.get('pass_rate', 0)
+        if total_tests > 0:
+            print(f"  Tests: {total_tests} total, {failed_count} failed ({pass_rate:.0f}% pass rate)", flush=True)
 
         # Step 4: Environment check + cluster landscape + backend probes (optional)
         if not skip_environment:
@@ -234,42 +301,74 @@ class DataGatherer:
             self._gather_environment_status(run_dir)
             self._gather_cluster_landscape()
             self._probe_backend_apis()
+            # Show environment score
+            env_score = self.gathered_data.get('environment', {}).get('environment_score')
+            if env_score is not None:
+                print(f"  Environment score: {env_score:.0%}", flush=True)
         else:
             self._print_step(4, total_steps, "Skipping environment check (--skip-env)")
             self.gathered_data['cluster_landscape'] = {'skipped': True}
 
-        # Step 5: Clone repositories to run directory (optional)
+        # ── STAGE 0: ENVIRONMENT ORACLE ──
+        if not skip_environment:
+            self._print_stage(0, 'ENVIRONMENT ORACLE',
+                              'Feature-aware dependency health & knowledge database')
+            self._print_step(5, total_steps, "Running environment oracle...")
+            self._run_environment_oracle(skip_cluster=skip_environment)
+            # Show oracle summary
+            oracle = self.gathered_data.get('cluster_oracle', {})
+            overall = oracle.get('overall_feature_health', {})
+            healthy = overall.get('healthy_count', 0)
+            total_deps = overall.get('total_dependencies', 0)
+            issues = overall.get('blocking_issues', [])
+            if total_deps > 0:
+                print(f"  Dependencies: {healthy}/{total_deps} healthy", flush=True)
+            for issue in issues[:3]:
+                print(f"  Issue: {issue}", flush=True)
+            if len(issues) > 3:
+                print(f"  ... and {len(issues) - 3} more issues", flush=True)
+        else:
+            self._print_step(5, total_steps, "Skipping environment oracle (--skip-env)")
+            self.gathered_data['cluster_oracle'] = {'status': 'skipped'}
+
+        # ── STAGE 1: DATA GATHERING (continued) ──
+        if not skip_environment:
+            self._print_stage(1, 'DATA GATHERING (continued)',
+                              'Repository cloning, context extraction, feature grounding')
+
+        # Step 6: Clone repositories to run directory (optional)
         if not skip_repository:
-            self._print_step(5, total_steps, "Cloning repositories...")
+            self._print_step(6, total_steps, "Cloning repositories...")
             self._clone_repositories(jenkins_url, run_dir)
         else:
-            self._print_step(5, total_steps, "Skipping repository clone (--skip-repo)")
+            self._print_step(6, total_steps, "Skipping repository clone (--skip-repo)")
 
-        # Step 6: Extract complete test context (AFTER repos are cloned)
+        # Step 7: Extract complete test context (AFTER repos are cloned)
         # This provides AI with all needed context upfront
         if not skip_repository:
-            self._print_step(6, total_steps, "Extracting test context (code, selectors, imports)...")
+            self._print_step(7, total_steps, "Extracting test context (code, selectors, imports)...")
             self._extract_complete_test_context(run_dir)
         else:
-            self._print_step(6, total_steps, "Skipping context extraction (no repos)")
+            self._print_step(7, total_steps, "Skipping context extraction (no repos)")
 
-        # Step 7: Feature area grounding (v3.0)
-        self._print_step(7, total_steps, "Grounding feature areas...")
+        # Step 8: Feature area grounding (v3.0)
+        self._print_step(8, total_steps, "Grounding feature areas...")
         self._ground_feature_areas()
 
-        # Step 8: Feature knowledge playbooks + KG dependency context (v3.1)
-        self._print_step(8, total_steps, "Loading feature knowledge...")
+        # Step 9: Feature knowledge playbooks + KG dependency context (v3.1)
+        # Now uses oracle results to resolve addon/operator/crd prerequisites
+        self._print_step(9, total_steps, "Loading feature knowledge...")
         self._check_feature_knowledge()
 
-        # Step 9: Build element inventory from cloned repos (optional)
+        # Step 10: Build element inventory from cloned repos (optional)
         if not skip_repository:
-            self._print_step(9, total_steps, "Building element inventory...")
+            self._print_step(10, total_steps, "Building element inventory...")
             self._gather_element_inventory(run_dir)
         else:
-            self._print_step(9, total_steps, "Skipping element inventory (no repos)")
+            self._print_step(10, total_steps, "Skipping element inventory (no repos)")
 
-        # Step 10: Build investigation hints + temporal summaries
-        self._print_step(10, total_steps, "Building investigation hints...")
+        # Step 11: Build investigation hints + temporal summaries
+        self._print_step(11, total_steps, "Building investigation hints...")
         self._build_investigation_hints(run_dir)
         self._inject_temporal_summaries()
 
@@ -540,6 +639,23 @@ class DataGatherer:
 
             env_data = self.env_service.to_dict(result)
             self.gathered_data['environment'] = env_data
+
+            # Persist kubeconfig for Stage 2 re-authentication.
+            # The env_service creates a temp kubeconfig during validation
+            # but cleans it up afterwards. We create a separate persistent
+            # kubeconfig so Stage 2 can authenticate without needing
+            # the (now-masked) password from core-data.json.
+            kubeconfig_path = None
+            if api_url and username and password:
+                kubeconfig_path = self._persist_cluster_kubeconfig(
+                    run_dir, api_url, username, password
+                )
+                if kubeconfig_path:
+                    # Make kubeconfig available for subsequent gather steps
+                    # (cluster landscape, backend probes, oracle)
+                    self.env_service.kubeconfig = kubeconfig_path
+                    print(f"  Cluster kubeconfig persisted for Stage 2", flush=True)
+            self.gathered_data['cluster_access']['kubeconfig_path'] = kubeconfig_path
 
             # Save to file
             output_path = run_dir / 'environment-status.json'
@@ -1429,9 +1545,57 @@ class DataGatherer:
             self.logger.warning(error_msg)
             self.gathered_data['feature_grounding'] = {'error': error_msg}
 
+    def _run_environment_oracle(self, skip_cluster: bool = False):
+        """
+        Step 5: Run Environment Oracle (v3.5) — feature-aware dependency health.
+
+        Discovers feature dependencies from playbooks and checks their health
+        on the live cluster. Results are used by Step 9 (feature knowledge)
+        to resolve addon/operator/crd prerequisites that were previously
+        hardcoded to met=None.
+        """
+        self.logger.info("Running environment oracle...")
+        try:
+            jenkins_data = self.gathered_data.get('jenkins', {})
+            test_report = self.gathered_data.get('test_report', {})
+            cluster_landscape = self.gathered_data.get('cluster_landscape', {})
+            cluster_credentials = self.gathered_data.get('cluster_access')
+
+            oracle_result = self.environment_oracle_service.run_oracle(
+                jenkins_data=jenkins_data,
+                test_report=test_report,
+                cluster_landscape=cluster_landscape,
+                cluster_credentials=cluster_credentials,
+                skip_cluster=skip_cluster,
+                knowledge_graph_client=self.knowledge_graph_client,
+            )
+
+            self.gathered_data['cluster_oracle'] = oracle_result
+
+            # Log summary
+            dep_health = oracle_result.get('dependency_health', {})
+            overall = oracle_result.get('overall_feature_health', {})
+            healthy = overall.get('healthy_count', 0)
+            total = overall.get('total_dependencies', 0)
+            issues = overall.get('blocking_issues', [])
+
+            if total > 0:
+                self.logger.info(
+                    f"Oracle: {healthy}/{total} dependencies healthy"
+                )
+            if issues:
+                for issue in issues:
+                    self.logger.warning(f"Oracle issue: {issue}")
+
+        except Exception as e:
+            error_msg = f"Environment oracle failed: {str(e)}"
+            self.logger.warning(error_msg)
+            self.gathered_data['cluster_oracle'] = {'error': error_msg}
+            self.gathered_data['errors'].append(error_msg)
+
     def _check_feature_knowledge(self):
         """
-        Step 8: Load feature investigation playbooks, check MCH prerequisites,
+        Step 9: Load feature investigation playbooks, check MCH prerequisites,
         pre-match test error messages against known failure paths, and query
         Knowledge Graph for dependency context.
 
@@ -1500,12 +1664,14 @@ class DataGatherer:
                     test_errors[t] for t in area_tests if t in test_errors
                 ]
 
-                # Get readiness
+                # Get readiness (pass oracle data to resolve addon/operator/crd)
+                oracle_data = self.gathered_data.get('cluster_oracle', {})
                 readiness = self.feature_knowledge_service.get_feature_readiness(
                     area,
                     mch_components=mch_components,
                     cluster_landscape=landscape,
                     error_messages=area_errors,
+                    oracle_data=oracle_data,
                 )
                 feature_readiness[area] = self.feature_knowledge_service.to_dict(readiness)
 
@@ -3108,7 +3274,7 @@ class DataGatherer:
 
         # Finalize metadata
         self.gathered_data['metadata']['status'] = 'complete'
-        self.gathered_data['metadata']['data_version'] = '3.0.0'
+        self.gathered_data['metadata']['data_version'] = '3.5.0'
 
         # Mask sensitive data
         masked_data = self._mask_sensitive_data(self.gathered_data)
@@ -3126,6 +3292,7 @@ class DataGatherer:
             'feature_grounding': masked_data.get('feature_grounding', {}),
             'feature_knowledge': masked_data.get('feature_knowledge', {}),
             'cluster_access': masked_data.get('cluster_access', {}),
+            'cluster_oracle': masked_data.get('cluster_oracle', {}),
             'errors': masked_data.get('errors', []),
             'ai_instructions': self._build_ai_instructions()
         }
@@ -3145,7 +3312,7 @@ class DataGatherer:
     def _build_manifest(self, run_dir: Path) -> Dict[str, Any]:
         """Build manifest.json index file."""
         manifest = {
-            'version': '3.3.0',
+            'version': '3.5.0',
             'file_structure': 'multi-file-with-repos',
             'created_at': datetime.now().isoformat(),
             'acm_ui_mcp_available': True,  # Always available via Claude Code native MCP
@@ -3197,18 +3364,19 @@ class DataGatherer:
     def _build_ai_instructions(self) -> Dict[str, Any]:
         """Build AI instructions for 5-phase systematic investigation framework."""
         return {
-            'version': '3.3.0',
+            'version': '3.5.0',
             'architecture': '5-phase-systematic-investigation-with-playbooks',
             'purpose': 'Systematic deep investigation through 5 mandatory phases with feature playbooks, tiered cluster investigation, and KG dependency analysis',
 
             # Cluster Re-Authentication
             'cluster_access': {
-                'description': 'Re-authenticate to the cluster at the start of Stage 2 for live investigation',
+                'description': 'Re-authenticate to the cluster at the start of Stage 2 using the persisted kubeconfig',
                 'steps': [
-                    'A-1a. Read cluster_access from core-data.json (api_url, username, password)',
-                    'A-1b. Run: oc login <api_url> --username <user> --password <password> --insecure-skip-tls-verify=true',
-                    'A-1c. Verify: oc whoami → confirms authentication',
-                    'A-1d. If login fails: log warning, set cluster_access_available=false, proceed with snapshot data only (reduce confidence by 0.15 on all classifications)',
+                    'A-1a. Read cluster_access from core-data.json — check kubeconfig_path',
+                    'A-1b. If kubeconfig_path exists: Run oc whoami --kubeconfig <kubeconfig_path> to verify authentication',
+                    'A-1c. If kubeconfig_path is null: credentials were unavailable during Stage 1 — set cluster_access_available=false',
+                    'A-1d. If oc whoami fails: kubeconfig expired — set cluster_access_available=false, proceed with snapshot data only (reduce confidence by 0.15)',
+                    'A-1e. IMPORTANT: Use --kubeconfig <kubeconfig_path> on ALL oc commands throughout Stage 2',
                 ],
             },
 
@@ -3280,7 +3448,7 @@ class DataGatherer:
                         'name': 'Initial Assessment',
                         'purpose': 'Re-authenticate cluster, review feature knowledge, detect global patterns',
                         'steps': [
-                            'A-1. Cluster re-authentication: Read cluster_access from core-data.json, run oc login, verify with oc whoami. If fails, proceed in degraded mode (snapshot only, reduced confidence).',
+                            'A-1. Cluster re-authentication: Read cluster_access.kubeconfig_path from core-data.json, verify with oc whoami --kubeconfig <path>. If fails or null, proceed in degraded mode (snapshot only, reduced confidence).',
                             'A0. Read feature_grounding from core-data.json - note subsystem and key components per test group',
                             'A0b. Read feature_knowledge from core-data.json - review architecture summaries, key insights, prerequisite status, pre-matched failure paths, and KG dependency context for each feature area',
                             'A0c. Run Tier 0 health snapshot (tiered_investigation.tier_0_health_snapshot) - compare live state against cluster_landscape snapshot',
@@ -3362,7 +3530,7 @@ class DataGatherer:
                 }
             },
 
-            # MCP Tool Integration - Three MCP servers available for Phase 2 AI analysis
+            # MCP Tool Integration - Five MCP servers available for Phase 2 AI analysis
             # These tools are called natively by the Claude Code agent (not via Python).
             # Tool names use the format: mcp__<server>__<tool_name>
             'mcp_integration': {
@@ -3810,13 +3978,13 @@ def gather_all_data(jenkins_url: str, output_dir: str = './runs',
 def main():
     """CLI entry point."""
     parser = argparse.ArgumentParser(
-        description='Z-Stream Analysis - Data Gathering Script (v3.3)',
+        description='Z-Stream Analysis - Data Gathering Script (v3.5)',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 This script gathers FACTUAL DATA and clones repos for AI analysis.
 NO classification is performed - AI handles all classification.
 
-Key Features (v3.3):
+Key Features (v3.5):
   - 5-Phase systematic investigation framework
   - Complete context extraction upfront
   - Multi-evidence validation requirements
@@ -3867,50 +4035,34 @@ Examples:
             skip_repository=args.skip_repo
         )
 
-        # Print summary
-        print("\n" + "=" * 60)
-        print("DATA GATHERING COMPLETE (v3.3)")
-        print("=" * 60)
-        print(f"\nOutput directory: {run_dir}")
+        # Stage 1 completion summary
+        print(f"\n{'=' * 60}")
+        print(f"  STAGE 1: DATA GATHERING COMPLETE")
+        print(f"{'=' * 60}")
+        print(f"  Output: {run_dir}")
 
-        # Show integration status
-        print(f"\nIntegrations:")
-        print(f"  - ACM UI MCP: Available for Phase 2 AI analysis (19 tools)")
-        print(f"  - Knowledge Graph: Available for Phase 2 AI analysis")
-        print(f"  - JIRA MCP: Available for Phase 2 AI analysis (25 tools)")
-
-        print(f"\nFiles generated:")
-        print(f"  - core-data.json (primary data for AI)")
-        print(f"  - manifest.json (file index)")
-        if (run_dir / 'element-inventory.json').exists():
-            print(f"  - element-inventory.json (element locations from cloned repos)")
-        print(f"  - repos/automation/ (full cloned automation repo)")
-        print(f"  - repos/console/ (full cloned console repo)")
-        print(f"  - repos/kubevirt-plugin/ (cloned for VM tests only)")
-        print(f"  - console-log.txt")
-        print(f"  - jenkins-build-info.json")
-        print(f"  - test-report.json")
-
-        # Summary stats
+        # Key stats
         test_report = data.get('test_report', {})
         summary = test_report.get('summary', {})
         if summary.get('total_tests', 0) > 0:
-            print(f"\nTest Summary:")
-            print(f"  Total: {summary.get('total_tests', 0)}")
-            print(f"  Failed: {summary.get('failed_count', 0)}")
-            print(f"  Pass Rate: {summary.get('pass_rate', 0):.1f}%")
+            print(f"  Tests: {summary.get('total_tests', 0)} total, "
+                  f"{summary.get('failed_count', 0)} failed "
+                  f"({summary.get('pass_rate', 0):.0f}% pass rate)")
 
-        failed_tests = test_report.get('failed_tests', [])
-        if failed_tests:
-            print(f"\nFailed Tests ({len(failed_tests)}):")
-            for test in failed_tests[:5]:
-                print(f"  - {test.get('test_name', 'Unknown')}")
-            if len(failed_tests) > 5:
-                print(f"  ... and {len(failed_tests) - 5} more")
+        gathering_time = data.get('metadata', {}).get('gathering_time_seconds', 0)
+        print(f"  Duration: {gathering_time:.1f}s")
 
-        print("\n" + "=" * 60)
-        print("NEXT STEP: AI reads core-data.json and investigates repos/")
-        print("=" * 60 + "\n")
+        # Cluster access status
+        cluster_access = data.get('cluster_access', {})
+        if cluster_access.get('kubeconfig_path'):
+            print(f"  Cluster: kubeconfig persisted for Stage 2")
+        elif cluster_access.get('has_credentials'):
+            print(f"  Cluster: credentials found but kubeconfig not persisted")
+        else:
+            print(f"  Cluster: no credentials available")
+
+        print(f"\n  Next: Stage 2 (AI Analysis) → Stage 3 (Report)")
+        print(f"{'=' * 60}\n")
 
         sys.exit(0)
 

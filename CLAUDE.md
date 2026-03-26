@@ -6,10 +6,11 @@ Multi-app repository for Jenkins pipeline analysis and test generation tools.
 
 ### Z-Stream Analysis (`apps/z-stream-analysis/`) — Active
 
-Jenkins pipeline failure analysis (v3.3) with classification: PRODUCT_BUG | AUTOMATION_BUG | INFRASTRUCTURE | FLAKY | NO_BUG | MIXED | UNKNOWN. Includes assertion value extraction, per-feature-area graduated infrastructure scoring, per-test causal link verification, failure mode categorization, blank page pre-routing, hook failure deduplication, temporal evidence routing, feature investigation playbooks, tiered cluster investigation, and classification feedback.
+Jenkins pipeline failure analysis (v3.5) with classification: PRODUCT_BUG | AUTOMATION_BUG | INFRASTRUCTURE | FLAKY | NO_BUG | MIXED | UNKNOWN. Includes assertion value extraction, per-feature-area graduated infrastructure scoring, per-test causal link verification, failure mode categorization, blank page pre-routing, hook failure deduplication, temporal evidence routing, feature investigation playbooks, tiered cluster investigation, and classification feedback.
 
-Three-stage pipeline:
-1. **gather.py** — Extracts test data from Jenkins (builds `core-data.json` with cluster landscape, backend API probes, and feature grounding)
+Four-stage pipeline:
+0. **Environment Oracle** (inside gather.py) — Feature-aware dependency health & knowledge database (`cluster_oracle`)
+1. **gather.py** — Extracts test data from Jenkins (builds `core-data.json` with cluster landscape, backend API probes, and feature grounding; persists `cluster.kubeconfig` for Stage 2)
 2. **AI Analysis** — 5-phase investigation with backend cross-check producing `analysis-results.json`
 3. **report.py** — Generates `Detailed-Analysis.md` from analysis results
 
@@ -53,8 +54,9 @@ Run `bash mcp/setup.sh` from repo root to configure all servers.
 
 | Server | Tools | Purpose |
 |--------|-------|---------|
-| ACM UI (`mcp/acm-ui/`) | 19 | ACM Console + kubevirt-plugin source code search via GitHub |
-| JIRA (`mcp/jira/`) | 25 | Issue search, creation, management for bug correlation (Jira Cloud) |
+| ACM UI (`mcp/acm-ui-mcp-server/`) | 19 | ACM Console + kubevirt-plugin source code search via GitHub |
+| Jenkins (`mcp/jenkins-mcp/`) | 11 | Jenkins pipeline API access for build data extraction |
+| JIRA (`mcp/jira-mcp-server/`) | 25 | Issue search, creation, management for bug correlation (Jira Cloud) |
 | Neo4j RHACM (`mcp/neo4j-rhacm/`) | 2 | Component dependency analysis via Cypher queries (optional) |
 | Polarion (`mcp/polarion/`) | 25 | Polarion test case access (optional) |
 
@@ -68,8 +70,9 @@ ai_systems_v2/
 │   ├── z-stream-analysis/     # Active — pipeline failure analysis
 │   └── claude-test-generator/ # In progress — not functional
 └── mcp/
-    ├── acm-ui/                # ACM UI MCP server
-    ├── jira/                  # JIRA MCP server
+    ├── acm-ui-mcp-server/     # ACM UI MCP server
+    ├── jenkins-mcp/           # Jenkins pipeline MCP server
+    ├── jira-mcp-server/       # JIRA MCP server
     ├── neo4j-rhacm/           # Knowledge graph MCP server
     └── polarion/              # Polarion MCP server
 ```
@@ -80,9 +83,9 @@ ai_systems_v2/
 # Z-stream analysis tests (from app directory)
 cd apps/z-stream-analysis/
 
-# Fast — unit + regression (525 tests, no external deps):
+# Fast — unit + regression (602+ tests, no external deps):
 python -m pytest tests/unit/ tests/regression/ -q
 
-# Full suite (575 tests, requires Jenkins VPN for integration):
+# Full suite (652+ tests, requires Jenkins VPN for integration):
 python -m pytest tests/ -q --timeout=300
 ```

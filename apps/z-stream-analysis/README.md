@@ -1,4 +1,4 @@
-# Z-Stream Pipeline Analysis (v3.3)
+# Z-Stream Pipeline Analysis (v3.5)
 
 Jenkins pipeline failure analysis with definitive PRODUCT_BUG | AUTOMATION_BUG | INFRASTRUCTURE classification.
 
@@ -6,7 +6,8 @@ Jenkins pipeline failure analysis with definitive PRODUCT_BUG | AUTOMATION_BUG |
 
 When Jenkins tests fail, you need to know: **Is it a PRODUCT BUG, AUTOMATION BUG, or INFRASTRUCTURE issue?**
 
-This 3-Stage Pipeline provides:
+This 4-Stage Pipeline provides:
+0. **Environment Oracle** (inside gather.py): Feature-aware dependency health & knowledge database
 1. **Data Gathering** (`gather.py`): Factual data collection from Jenkins, environment, repositories, and Knowledge Graph
 2. **AI Analysis** (Claude Code agent): 5-phase investigation with full repo access and MCP integration
 3. **Report Generation** (`report.py`): Human-readable reports from AI analysis
@@ -34,7 +35,8 @@ Analyze this run: <JENKINS_URL>
 ## Architecture
 
 ```
-STAGE 1: gather.py    -> core-data.json + repos/
+STAGE 0: gather.py    -> cluster_oracle (environment oracle + knowledge database)
+STAGE 1: gather.py    -> core-data.json + cluster.kubeconfig + repos/
 STAGE 2: AI Analysis  -> analysis-results.json (5-phase investigation)
 STAGE 3: report.py    -> Detailed-Analysis.md + per-test-breakdown.json + SUMMARY.txt
 ```
@@ -51,7 +53,7 @@ STAGE 3: report.py    -> Detailed-Analysis.md + per-test-breakdown.json + SUMMAR
 - Backend API probing (5 console endpoints validated against cluster state)
 - Feature knowledge (playbook-driven prerequisites, failure paths, KG dependency context)
 - Temporal evidence (git timeline comparison between product and test changes)
-- Cluster credentials (persisted for Stage 2 re-authentication)
+- Cluster kubeconfig (persisted `cluster.kubeconfig` for Stage 2 re-authentication)
 
 ### Stage 2: AI Analysis
 
@@ -108,6 +110,7 @@ Claude Code agent performs 5-phase investigation:
 ```
 runs/<job>_<timestamp>/
 ├── core-data.json              <- Primary data for AI (read first)
+├── cluster.kubeconfig          <- Persisted cluster auth for Stage 2
 ├── run-metadata.json           <- Run metadata (timing, version)
 ├── manifest.json               <- File index
 ├── console-log.txt             <- Full Jenkins console output
@@ -126,15 +129,16 @@ runs/<job>_<timestamp>/
 └── feedback.json               <- Classification feedback (optional)
 ```
 
-## Services (16 Python Modules)
+## Services (19 Python Modules)
 
 | Service | Purpose |
 |---------|---------|
+| `EnvironmentOracleService` | 6-phase feature-aware dependency health & knowledge database (v3.5) |
 | `JenkinsIntelligenceService` | Build info extraction, console log parsing, test report analysis |
 | `JenkinsAPIClient` | Direct Jenkins REST API client with authentication |
 | `EnvironmentValidationService` | Real oc/kubectl cluster validation (READ-ONLY) |
 | `RepositoryAnalysisService` | Git clone to run directory, test file indexing |
-| `TimelineComparisonService` | Git date comparison between repos |
+| `TimelineComparisonService` | Git date comparison between repos, 200-commit selector drift detection |
 | `StackTraceParser` | Parse JS/TS stack traces to file:line |
 | `ACMConsoleKnowledge` | ACM console directory structure and feature mapping |
 | `ACMUIMCPClient` | ACM UI MCP Server integration for element discovery |
@@ -142,7 +146,7 @@ runs/<job>_<timestamp>/
 | `KnowledgeGraphClient` | Neo4j RHACM Knowledge Graph queries via HTTP API |
 | `ClusterInvestigationService` | Targeted component diagnostics and cluster landscape |
 | `FeatureAreaService` | Map tests to feature areas with subsystem context |
-| `FeatureKnowledgeService` | Load playbooks, check prerequisites, match failure paths |
+| `FeatureKnowledgeService` | Load playbooks, check prerequisites (oracle-aware), match failure paths |
 | `FeedbackService` | Classification accuracy tracking and feedback |
 | `SchemaValidationService` | JSON Schema validation for analysis results |
 | `shared_utils` | Common functions (subprocess, curl, masking, dataclass_to_dict, command validation) |
@@ -153,6 +157,8 @@ runs/<job>_<timestamp>/
 |--------|-------|---------|
 | ACM-UI | 20 | ACM Console + kubevirt-plugin source code search via GitHub |
 | JIRA | 25 | Issue search, creation, management for bug correlation |
+| Jenkins | 11 | Pipeline analysis, build monitoring, test results |
+| Polarion | 17+ | Test case content, setup sections, dependency discovery |
 | Knowledge Graph (Neo4j) | 3 | Component dependency analysis via Cypher queries |
 
 Run `bash mcp/setup.sh` from the repo root to configure all servers.
@@ -160,7 +166,7 @@ Run `bash mcp/setup.sh` from the repo root to configure all servers.
 ## Tests
 
 ```bash
-# Unit + regression (529 tests, no external deps):
+# Unit + regression (602+ tests, no external deps):
 python -m pytest tests/unit/ tests/regression/ -q
 
 # Integration (requires Jenkins VPN):

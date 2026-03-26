@@ -12,9 +12,8 @@
       "timeout": 60
     },
     "jenkins": {
-      "command": "python",
-      "args": ["jenkins_mcp_server.py"],
-      "cwd": "../../mcp/jenkins-mcp",
+      "command": "bash",
+      "args": ["-c", "cd ../../mcp/jenkins-mcp && exec python jenkins_mcp_server.py"],
       "timeout": 60
     },
     "polarion": {
@@ -23,9 +22,9 @@
         "--with", "polarion-mcp", "python",
         "../../mcp/polarion/polarion-mcp-wrapper.py"
       ],
+      "cwd": "../../mcp/polarion",
       "env": {
-        "POLARION_BASE_URL": "https://polarion.engineering.redhat.com/polarion",
-        "POLARION_PAT": "SET_VIA_ENV_OR_SETUP_SH"
+        "POLARION_BASE_URL": "https://polarion.engineering.redhat.com/polarion"
       },
       "timeout": 90
     },

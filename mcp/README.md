@@ -175,6 +175,12 @@ Custom wrapper (`polarion-mcp-wrapper.py`) around the `polarion-mcp` PyPI packag
 Patches SSL for Red Hat internal Polarion and adds enhanced tools for test case
 content retrieval. 17+ tools total.
 
+**Setup:** Run `bash mcp/setup.sh` or manually create `mcp/polarion/.env` with your
+Polarion Personal Access Token:
+```
+POLARION_PAT=<your-polarion-pat>
+```
+
 **Detailed docs:** [mcp/polarion/README.md](polarion/README.md)
 
 ---

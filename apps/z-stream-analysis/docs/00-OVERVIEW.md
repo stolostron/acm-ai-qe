@@ -1,4 +1,4 @@
-# Z-Stream Analysis Overview (v3.3)
+# Z-Stream Analysis Overview (v3.5)
 
 Jenkins pipeline failure analysis with definitive classification of each test failure.
 
@@ -7,25 +7,27 @@ Jenkins pipeline failure analysis with definitive classification of each test fa
 
 ---
 
-## Three-Stage Pipeline
+## Four-Stage Pipeline
 
 ```
-     STAGE 1                 STAGE 2                  STAGE 3
-  ┌──────────┐           ┌──────────┐            ┌──────────┐
-  │  GATHER  │    ───►   │ ANALYZE  │    ───►    │  REPORT  │
-  │  (Python)│           │   (AI)   │            │ (Python) │
-  └──────────┘           └──────────┘            └──────────┘
-       │                      │                       │
-       ▼                      ▼                       ▼
-  core-data.json      analysis-results.json    Detailed-Analysis.md
-  repos/                                       per-test-breakdown.json
-                                               SUMMARY.txt
+  STAGE 0              STAGE 1                 STAGE 2                  STAGE 3
+┌──────────┐        ┌──────────┐           ┌──────────┐            ┌──────────┐
+│  ORACLE  │  ───►  │  GATHER  │    ───►   │ ANALYZE  │    ───►    │  REPORT  │
+│(inside   │        │  (Python)│           │   (AI)   │            │ (Python) │
+│ gather)  │        │          │           │          │            │          │
+└──────────┘        └──────────┘           └──────────┘            └──────────┘
+     │                    │                      │                       │
+     ▼                    ▼                      ▼                       ▼
+cluster_oracle      core-data.json      analysis-results.json    Detailed-Analysis.md
+                    cluster.kubeconfig                           per-test-breakdown.json
+                    repos/                                       SUMMARY.txt
 ```
 
 | Stage | Command | What It Does |
 |-------|---------|--------------|
-| 1 | `python -m src.scripts.gather "<URL>"` | Collect data from Jenkins, cluster, and repos |
-| 2 | AI agent reads core-data.json | 5-phase systematic investigation per test |
+| 0 | (inside gather.py, Step 5) | Environment oracle: feature-aware dependency health & knowledge database |
+| 1 | `python -m src.scripts.gather "<URL>"` | Collect data from Jenkins, cluster, and repos; persist kubeconfig |
+| 2 | AI agent reads core-data.json | 5-phase systematic investigation per test (uses kubeconfig for cluster access) |
 | 3 | `python -m src.scripts.report runs/<dir>` | Generate human-readable reports |
 
 ---
@@ -39,9 +41,10 @@ USER                     STAGE 1                STAGE 2              STAGE 3
   │  Jenkins URL            │                    │                    │
   │─────────────────────────►                    │                    │
   │                         │                    │                    │
-  │                    Steps 1-8:                │                    │
+  │                    Steps 1-11:                │                    │
   │                    Fetch Jenkins data        │                    │
   │                    Check cluster health      │                    │
+  │                    Run environment oracle    │                    │
   │                    Clone repos               │                    │
   │                    Extract context           │                    │
   │                         │                    │                    │
@@ -72,6 +75,7 @@ runs/<job>_<timestamp>/
 │
 │  Created by Stage 1 (gather.py):
 ├── core-data.json              ← Primary data for AI
+├── cluster.kubeconfig          ← Persisted cluster auth for Stage 2
 ├── run-metadata.json           ← Run metadata (timing, version)
 ├── manifest.json               ← File index with workflow
 ├── console-log.txt             ← Full Jenkins console output
@@ -109,7 +113,7 @@ runs/<job>_<timestamp>/
 
 ### Decision Quick Reference (Pre-Routing + 3-Path Routing in Phase D)
 
-**Pre-routing checks:** **PR-1** blank page / no-js detection (missing prerequisite → INFRASTRUCTURE), **PR-2** hook failure deduplication (cascading after-all hooks → NO_BUG), **PR-3** temporal evidence (stale_test_signal with refactor commit → signals PRODUCT_BUG), **PR-5** data assertion extraction (expected vs actual value mismatch → signals PRODUCT_BUG or AUTOMATION_BUG based on value source) (v3.3).
+**Pre-routing checks:** **PR-1** blank page / no-js detection (missing prerequisite → INFRASTRUCTURE), **PR-2** hook failure deduplication (cascading after-all hooks → NO_BUG), **PR-3** temporal evidence (stale_test_signal with refactor commit → signals PRODUCT_BUG), **PR-5** data assertion extraction (expected vs actual value mismatch → signals PRODUCT_BUG or AUTOMATION_BUG based on value source) (v3.3), **PR-7** Environment Oracle dependency check — if oracle detects broken dependency (operator, addon, component), route to INFRASTRUCTURE (v3.5).
 
 **3-path routing:** **Path A** (selector mismatch → AUTOMATION_BUG), **Path B1** (non-selector timeout → INFRASTRUCTURE, graduated health scoring with definitive/strong/moderate bands) (v3.3), **Path B2** (everything else → JIRA-informed investigation). **PR-4** checks feature knowledge override first (unmet prerequisites, playbook-confirmed failure paths). **D0** checks backend cross-check — if a backend issue caused the UI failure, routes to Path B2 regardless.
 
@@ -147,7 +151,7 @@ Every classification requires 2+ evidence sources.
 
 ## MCP Servers
 
-Three MCP servers provide tools during Stage 2 (AI Analysis). The Knowledge Graph is also queried directly via HTTP API during Stage 1 (gather.py) for dependency context.
+Five MCP servers provide tools during Stage 2 (AI Analysis). The Knowledge Graph is also queried directly via HTTP API during Stage 1 (gather.py) for dependency context.
 
 ```
 ┌─────────────────────┐  ┌─────────────────────┐  ┌─────────────────────┐
@@ -163,6 +167,18 @@ Three MCP servers provide tools during Stage 2 (AI Analysis). The Knowledge Grap
 │  ACM: 2.11-2.17     │  │                     │  │                     │
 │  CNV: 4.14-4.22     │  │                     │  │                     │
 └─────────────────────┘  └─────────────────────┘  └─────────────────────┘
+
+┌─────────────────────┐  ┌─────────────────────┐
+│  Polarion MCP (25)  │  │  Jenkins MCP (11)   │
+│  ─────────────────  │  │  ─────────────────  │
+│  Test case access   │  │  Build info         │
+│  Test run info      │  │  Console logs       │
+│  Work items         │  │  Test reports        │
+│  Test steps         │  │  Job management     │
+│  Requirements       │  │  Build parameters   │
+│  Document access    │  │  Pipeline status    │
+│  Test results       │  │                     │
+└─────────────────────┘  └─────────────────────┘
 ```
 
 See [05-MCP-INTEGRATION.md](05-MCP-INTEGRATION.md) for detailed tool usage and [04-SERVICES-REFERENCE.md](04-SERVICES-REFERENCE.md) for method signatures.
@@ -194,6 +210,7 @@ python -m src.scripts.report <dir> --keep-repos    # Don't delete repos/
 | File | Created By | Purpose |
 |------|------------|---------|
 | `core-data.json` | Stage 1 | All gathered data (read first) |
+| `cluster.kubeconfig` | Stage 1 | Persisted cluster auth for Stage 2 |
 | `analysis-results.json` | Stage 2 | AI classifications |
 | `Detailed-Analysis.md` | Stage 3 | Human-readable report |
 | `per-test-breakdown.json` | Stage 3 | Structured data for tooling |
@@ -215,7 +232,7 @@ python -m src.scripts.report <dir> --keep-repos    # Don't delete repos/
 
 | Topic | File |
 |-------|------|
-| Stage 1: Data gathering (Steps 1-10) | [01-STAGE1-DATA-GATHERING.md](01-STAGE1-DATA-GATHERING.md) |
+| Stage 1: Data gathering (Steps 1-11) | [01-STAGE1-DATA-GATHERING.md](01-STAGE1-DATA-GATHERING.md) |
 | Stage 2: AI analysis (Phases A-E) | [02-STAGE2-AI-ANALYSIS.md](02-STAGE2-AI-ANALYSIS.md) |
 | Stage 3: Report generation | [03-STAGE3-REPORT-GENERATION.md](03-STAGE3-REPORT-GENERATION.md) |
 | All services reference | [04-SERVICES-REFERENCE.md](04-SERVICES-REFERENCE.md) |
@@ -227,9 +244,10 @@ python -m src.scripts.report <dir> --keep-repos    # Don't delete repos/
 
 | Version | Changes |
 |---------|---------|
+| v3.5 | Environment Oracle (Step 5) — feature-aware dependency health checking via `EnvironmentOracleService`. Phase 1 identifies feature areas from pipeline/test names and extracts Polarion IDs, Phase 5 synthesizes dependency model from feature playbooks, Phase 6 runs targeted read-only `oc` commands (operator CSV, addon, CRD checks). Output stored in `cluster_oracle` key in core-data.json. Skipped with `--skip-env`. |
 | v3.3 | Backend API probing (Step 4c) with 5 endpoint checks (`/authenticated`, `/hub`, `/username`, `/ansibletower`, `/proxy/search`) stored in `backend_probes`, `FEATURE_AREA_PROBE_MAP` linking feature areas to relevant probes, assertion value extraction (PR-5) with `assertion_analysis` per test, failure mode categorization (`failure_mode_category`: render_failure/element_missing/data_incorrect/timeout_general/assertion_logic/server_error/unknown), refined failure types (`assertion_data`/`assertion_selector`), per-feature-area health scoring (GAP-04) with graduated bands (definitive <0.3, strong 0.3-0.5, moderate 0.5-0.7, none >=0.7), per-test causal link verification (D4b), counter-bias 3-test threshold rule (D5 strengthened), new schema fields (`failure_mode_category`, `assertion_analysis`, `data_assertion_failures`, `feature_area_health`, `backend_probes`), graduated infrastructure thresholds (`INFRA_DEFINITIVE`/`INFRA_STRONG`/`INFRA_MODERATE`), schema version 3.3.0 |
 | v3.2 | Blank page / no-js pre-routing (PR-1), hook failure deduplication (PR-2), temporal evidence routing (PR-3), Automation/AAP playbook and feature area, KnowledgeGraphClient rewritten with direct Neo4j HTTP API (fixes always-unavailable bug), new schema fields (`is_cascading_hook_failure`, `blank_page_detected`, `cascading_hook_failures`, `blank_page_failures`), counter-bias validation (D5) |
-| v3.1 | Feature investigation playbooks (YAML), FeatureKnowledgeService, MCH component extraction (`mch_enabled_components`, `mch_version`), cluster credential persistence (`cluster_access`), tiered investigation (Tiers 0-4), `feature_knowledge` in core-data.json, new schema fields (`prerequisite_analysis`, `playbook_investigation`, `cluster_investigation_detail`, `cluster_investigation_summary`), feedback CLI |
+| v3.1 | Feature investigation playbooks (YAML), FeatureKnowledgeService, MCH component extraction (`mch_enabled_components`, `mch_version`), cluster kubeconfig persistence (`cluster.kubeconfig` for Stage 2 re-authentication), tiered investigation (Tiers 0-4), `feature_knowledge` in core-data.json, new schema fields (`prerequisite_analysis`, `playbook_investigation`, `cluster_investigation_detail`, `cluster_investigation_summary`), feedback CLI |
 | v3.0 | Cluster investigation, feature area grounding, backend cross-check (B7/D0), targeted pod investigation (B5b) |
 | v2.5 | 5-Phase Systematic Investigation Framework, multi-evidence requirement |
 | v2.4 | Complete Context Upfront, extracted_context per test |

@@ -1,6 +1,6 @@
-# Diagnostic Pipeline: 5-Phase Methodology
+# Diagnostic Pipeline: 6-Phase Methodology
 
-The agent uses a 5-phase diagnostic pipeline to investigate hub health. Each
+The agent uses a 6-phase diagnostic pipeline to investigate hub health. Each
 phase builds on the previous one's findings.
 
 ---
@@ -8,28 +8,40 @@ phase builds on the previous one's findings.
 ## Overview
 
 ```
-  PHASE 1              PHASE 2              PHASE 3              PHASE 4              PHASE 5
-┌──────────┐        ┌──────────┐        ┌──────────┐        ┌──────────┐        ┌──────────┐
-│ DISCOVER │  ───►  │  LEARN   │  ───►  │  CHECK   │  ───►  │CORRELATE │  ───►  │  DEEP    │
-│          │        │          │        │          │        │          │        │INVESTIGATE│
-│ What's   │        │ What do  │        │ Is each  │        │ Are      │        │          │
-│ deployed?│        │ I know   │        │ component│        │ issues   │        │ Dig into │
-│          │        │ about it?│        │ healthy? │        │ related? │        │ specifics│
-└──────────┘        └──────────┘        └──────────┘        └──────────┘        └──────────┘
-     │                    │                   │                   │                    │
-     ▼                    ▼                   ▼                   ▼                    ▼
-  Inventory          Knowledge           Component           Root cause           Detailed
-  of hub             gaps filled          status              hypotheses           findings
-  components                              verdicts
+  PHASE 1              PHASE 2              PHASE 3
+┌──────────┐        ┌──────────┐        ┌──────────┐
+│ DISCOVER │  ───►  │  LEARN   │  ───►  │  CHECK   │
+│          │        │          │        │          │
+│ What's   │        │ What do  │        │ Is each  │
+│ deployed?│        │ I know   │        │ component│
+│          │        │ about it?│        │ healthy? │
+└──────────┘        └──────────┘        └──────────┘
+                                              │
+                    ┌─────────────────────────┘
+                    │
+               PHASE 4              PHASE 5              PHASE 6
+            ┌──────────┐        ┌──────────┐        ┌──────────┐
+            │ PATTERN  │  ───►  │CORRELATE │  ───►  │  DEEP    │
+            │ MATCH    │        │          │        │INVESTIGATE│
+            │          │        │ Are      │        │          │
+            │ Known    │        │ issues   │        │ Dig into │
+            │ bug?     │        │ related? │        │ specifics│
+            └──────────┘        └──────────┘        └──────────┘
+     │                    │                   │                    │
+     ▼                    ▼                   ▼                    ▼
+  Inventory          Known issue          Root cause           Detailed
+  of hub             matches w/           hypotheses           findings
+  components         JIRA refs
 ```
 
 | Phase | Run When | Purpose |
 |-------|----------|---------|
 | 1 - Discover | Always | Inventory what's deployed on this specific hub |
-| 2 - Learn | Standard+ | Consult knowledge base, fill gaps via self-healing |
+| 2 - Learn | Standard+ | Consult architecture knowledge, fill gaps via self-healing |
 | 3 - Check | Standard+ | Systematically verify health of each component |
-| 4 - Correlate | Deep / Targeted | Cross-reference findings to find root causes |
-| 5 - Deep Investigate | Deep / Targeted | Dig into logs, events, storage for critical findings |
+| 4 - Pattern Match | Standard+ | Match symptoms against known bugs (version-aware) |
+| 5 - Correlate | Deep / Targeted | Trace dependency chains to find root causes |
+| 6 - Deep Investigate | Deep / Targeted | Dig into logs, events, storage for critical findings |
 
 ---
 
@@ -87,8 +99,8 @@ oc whoami --show-server                         # Cluster identity
 
 ## Phase 2: Learn (Standard+)
 
-**Purpose:** For each component discovered in Phase 1, consult the knowledge
-base and fill any gaps.
+**Purpose:** For each component discovered in Phase 1, consult the architecture
+knowledge and fill any gaps.
 
 ### Process Per Component
 
@@ -97,10 +109,8 @@ base and fill any gaps.
           │
           ▼
   ┌───────────────────┐
-  │ Check static      │
-  │ knowledge          │     knowledge/component-registry.md
-  │ (component-        │
-  │  registry.md)      │
+  │ Read architecture │     knowledge/architecture/<component>/
+  │ knowledge         │     architecture.md, data-flow.md, known-issues.md
   └────────┬──────────┘
            │
            ▼
@@ -127,7 +137,7 @@ base and fill any gaps.
 
 ### What Triggers Self-Healing
 
-- A component is deployed that isn't in `component-registry.md`
+- A component is deployed that isn't in the knowledge base
 - A namespace is different from what the knowledge says
 - Pod naming or labeling doesn't match the reference
 - A new CRD, addon, or operator is discovered
@@ -142,22 +152,7 @@ See [03-KNOWLEDGE-SYSTEM.md](03-KNOWLEDGE-SYSTEM.md) for the full self-healing p
 
 **Purpose:** Systematically verify the health of each discovered component.
 
-### Checks Per Component
-
-For each component identified in Phase 1:
-
-| Check | Method | What It Reveals |
-|-------|--------|-----------------|
-| Pod status | `oc get pods -n <ns> --field-selector=status.phase!=Running,status.phase!=Succeeded` | Pods not in expected state |
-| Restart count | Pod `.status.containerStatuses[].restartCount` | CrashLoop indicators |
-| Resource conditions | `oc get <resource> -o yaml` conditions array | Available, Degraded, Progressing |
-| Recent events | `oc get events -n <ns> --sort-by=.lastTimestamp` | Scheduling failures, OOM, image pull errors |
-| Anomalies | Comparison with knowledge reference | Unexpected state vs documented behavior |
-
-### Batch Check Strategy
-
-The agent checks efficiently -- batching related commands rather than running
-them one pod at a time:
+### Pod-Level Checks (batch by namespace)
 
 ```bash
 # Check all non-running pods across key namespaces (use MCH namespace from Phase 1)
@@ -170,6 +165,20 @@ oc get pods -n hive --no-headers
 # Check all add-on status across all managed clusters in one command
 oc get managedclusteraddons -A
 ```
+
+### Operator Log Scanning
+
+Check for these patterns in controller logs:
+
+| Pattern | Indicates |
+|---------|-----------|
+| `"failed to wait for caches to sync"` | Controller cache timeout (Hive) |
+| `"context deadline exceeded"` | Backend connectivity failure |
+| `"conflict"` | Concurrent update conflict (MCRA controller) |
+| `"nil pointer"` | Uninstall race condition |
+| `"template-error"` | Policy template namespace mismatch |
+| `"OOMKilled"` or exit code 137 | Memory pressure |
+| Rapid log entries for same resource | Reconciliation hot-loop |
 
 ### Namespace Discovery
 
@@ -196,43 +205,112 @@ Each component gets a verdict:
 
 ---
 
-## Phase 4: Correlate (Deep / Targeted)
+## Phase 4: Pattern Match (Standard+)
 
-**Purpose:** When multiple issues are found, look for connections between them.
-Identify root causes rather than treating each symptom independently.
+**Purpose:** Match observed symptoms against known bug patterns. Many issues
+are documented bugs with known fixes -- matching before reasoning avoids
+reinventing the diagnosis.
+
+### Process
+
+```
+  Phase 3 Findings
+  (symptoms observed)
+          │
+          ▼
+  ┌───────────────────┐
+  │ Read known-issues │     knowledge/architecture/<component>/known-issues.md
+  │ for each affected │
+  │ component          │
+  └────────┬──────────┘
+           │
+           ▼
+  ┌───────────────────┐
+  │ Compare symptoms, │     Log patterns, error messages, pod behavior
+  │ log patterns, and │     matched against documented signatures
+  │ version            │
+  └────────┬──────────┘
+           │
+           ▼
+  ┌───────────────────┐
+  │ Match found?       │──── Yes ──► Note JIRA ref, fix version,
+  │                    │             cluster-fixable status
+  └────────┬──────────┘
+           │ No
+           ▼
+  Continue to Phase 5
+  (reason from evidence)
+```
+
+### Version-Aware Matching
+
+Many bugs are version-specific. Always check the exact version:
+
+```bash
+oc get mch -A -o jsonpath='{.items[0].status.currentVersion}'
+oc get csv -n multicluster-engine -o jsonpath='{.items[0].spec.version}'
+```
+
+A bug in ACM 2.15.0 may be fixed in 2.15.1. The agent checks whether the
+cluster's version falls within the affected range before reporting a match.
+
+### Match Output
+
+When a known issue matches, the finding includes:
+
+| Field | Example |
+|-------|---------|
+| **Known Issue** | ACM-12345 |
+| **Fix Version** | 2.15.1 |
+| **Cluster-Fixable** | Yes -- apply workaround X / No -- requires upgrade |
+
+---
+
+## Phase 5: Correlate (Deep / Targeted)
+
+**Purpose:** When multiple issues are found, trace dependency chains to find
+the root cause rather than treating each symptom independently.
 
 ### Correlation Process
 
 ```
-  Phase 3 Findings
+  Phase 3-4 Findings
   (multiple issues)
           │
           ▼
   ┌───────────────────┐
-  │ Check failure-    │     knowledge/failure-patterns.md
-  │ patterns.md for   │
-  │ known patterns    │
+  │ Read dependency   │     knowledge/diagnostics/dependency-chains.md
+  │ chains -- trace   │     6 critical cascade paths
+  │ upstream           │
   └────────┬──────────┘
            │
            ▼
   ┌───────────────────┐
-  │ Check shared      │     Same storage class? Same node?
-  │ dependencies      │     Same network path?
+  │ Weight evidence   │     knowledge/diagnostics/evidence-tiers.md
+  │ (Tier 1/2/3)      │     Tier 1 = definitive, Tier 3 = circumstantial
   └────────┬──────────┘
            │
            ▼
   ┌───────────────────┐
-  │ Check timeline    │     Did failures happen at the same time?
-  │ correlation       │     Is there a cascade pattern?
+  │ Apply cross-chain │     Shared dependency? (klusterlet, storage,
+  │ patterns           │     addon-manager as common cause)
   └────────┬──────────┘
            │
            ▼
   Root cause hypothesis
+  with confidence level
 ```
 
-### Common Correlation Patterns
+### Evidence Requirements
 
-These patterns are documented in `knowledge/failure-patterns.md`:
+From `knowledge/diagnostics/evidence-tiers.md`:
+
+- Every conclusion needs **2+ evidence sources**
+- At least one should be **Tier 1** (definitive: error message, crash log, resource status)
+- State **confidence level** based on evidence combination
+- Rule out alternatives before concluding
+
+### Common Correlation Patterns
 
 | Pattern | Symptoms | Likely Root Cause |
 |---------|----------|-------------------|
@@ -241,6 +319,18 @@ These patterns are documented in `knowledge/failure-patterns.md`:
 | Multiple addons unavailable on same spoke | Several independent addons fail together | Klusterlet or addon-manager issue, not individual addons |
 | Console 500 across all features | All UI features broken simultaneously | Console-api pod down (single backend) |
 | Components degraded after OCP upgrade | Multiple pods restarting post-upgrade | OCP upgrade disruption (may self-resolve) |
+
+### 6 Dependency Chains
+
+The agent traces through these cascade paths (documented in
+`knowledge/diagnostics/dependency-chains.md` and `knowledge/dependency-chains.yaml`):
+
+1. **Console → Search → Managed Clusters** -- search-collector down on spoke = resources missing; search-postgres down = ALL search fails
+2. **Governance → Framework Addon → Config Policy → Clusters** -- propagator down = no new policies; framework addon missing = policies don't reach spoke
+3. **MCH Operator → Backplane → Component Operators** -- operator hierarchy; MCH down = ACM lifecycle stops
+4. **HyperShift Addon → Import Controller → Klusterlet** -- hosted cluster import chain
+5. **MCRA → ClusterPermission → ManifestWork → RBAC** -- fine-grained RBAC propagation to spokes
+6. **Observability Operator → Addon → Thanos** -- S3 misconfigured = thanos-store crashes; metrics-collector missing = no spoke metrics
 
 ### Anti-Patterns
 
@@ -252,7 +342,7 @@ Things that look related but usually aren't:
 
 ---
 
-## Phase 5: Deep Investigate (Deep / Targeted)
+## Phase 6: Deep Investigate (Deep / Targeted)
 
 **Purpose:** For critical findings or targeted investigations, dig into the
 details -- logs, events, storage, networking.
@@ -261,7 +351,7 @@ details -- logs, events, storage, networking.
 
 | Tool | Command Pattern | What It Reveals |
 |------|-----------------|-----------------|
-| Pod logs | `oc logs -n <ns> <pod> --tail=50` | Error messages, stack traces |
+| Pod logs | `oc logs -n <ns> <pod> --tail=100` | Error messages, stack traces |
 | Previous crash logs | `oc logs -n <ns> <pod> --previous --tail=30` | Why the pod crashed last time |
 | Namespace events | `oc get events -n <ns> --sort-by=.lastTimestamp` | Scheduling, OOM, image pull |
 | Resource details | `oc describe <resource> -n <ns>` | Conditions, events, owner refs |
@@ -272,29 +362,35 @@ details -- logs, events, storage, networking.
 
 ### Per-Subsystem Playbooks
 
-The agent follows investigation procedures from `knowledge/diagnostic-playbooks.md`.
-Each subsystem has a documented procedure:
+The agent follows investigation procedures from
+`knowledge/diagnostics/diagnostic-playbooks.md`. Each subsystem has a
+documented procedure:
 
-| Subsystem | Playbook Section | Key Investigation Steps |
-|-----------|-----------------|------------------------|
-| MCH / MCE Lifecycle | "MCH / MCE Lifecycle" | Check `.status.components`, operator logs, install plans |
-| Managed Cluster Connectivity | "Managed Cluster Connectivity" | Check lease renewal, cluster events, registration controller |
-| Search | "Search Subsystem" | Check search pods, postgres PVC, search-collector addon |
-| Observability | "Observability Stack" | Check MCO CR, Thanos components, S3 config, PVCs, store logs |
-| Governance / Policy | "Governance / Policy Framework" | Check propagator, policy compliance, work-manager |
-| Application Lifecycle | "Application Lifecycle" | Check subscription controller, channels, placement decisions |
-| Console & UI | "Console & UI" | Check console pods, ConsolePlugin CRs, routes, OAuth |
-| Node & Infrastructure | "Node & Infrastructure" | Check node conditions, resource usage, etcd |
-| Certificates | "Certificates" | Check TLS secrets, expiration dates, webhook configs |
-| Add-ons | "Add-ons (General)" | Check addon status, ClusterManagementAddon, addon-manager |
+| Subsystem | Key Investigation Steps |
+|-----------|------------------------|
+| MCH / MCE Lifecycle | Check `.status.components`, operator logs, install plans |
+| Managed Cluster Connectivity | Check lease renewal, cluster events, registration controller |
+| Search | Check search pods, postgres PVC, search-collector addon |
+| Observability | Check MCO CR, Thanos components, S3 config, PVCs, store logs |
+| Governance / Policy | Check propagator, policy compliance, work-manager |
+| Application Lifecycle | Check subscription controller, channels, placement decisions |
+| Console & UI | Check console pods, ConsolePlugin CRs, routes, OAuth |
+| Node & Infrastructure | Check node conditions, resource usage, etcd |
+| Certificates | Check TLS secrets, expiration dates, webhook configs |
+| Add-ons | Check addon status, ClusterManagementAddon, addon-manager |
+
+### Data Flow Tracing
+
+For each affected component, read `knowledge/architecture/<component>/data-flow.md`
+to understand the data path and identify where the flow is broken.
 
 ### Investigation Output
 
-Phase 5 findings are presented in narrative format:
+Phase 6 findings are presented in narrative format:
 
 1. **What was checked** -- the specific commands and resources examined
 2. **What was found** -- the actual state observed on the cluster
-3. **What it means** -- interpretation of the findings with uncertainty noted
+3. **What it means** -- interpretation of the findings with confidence level
 4. **What to do** -- recommended remediation actions (never executed by the agent)
 
 ---
@@ -302,20 +398,21 @@ Phase 5 findings are presented in narrative format:
 ## Phase Execution by Depth
 
 ```
-              Phase 1    Phase 2    Phase 3    Phase 4    Phase 5
-              Discover   Learn      Check      Correlate  Investigate
-  ───────────────────────────────────────────────────────────────────
+              Phase 1    Phase 2    Phase 3    Phase 4    Phase 5    Phase 6
+              Discover   Learn      Check      Pattern    Correlate  Deep
+                                               Match                Investigate
+  ───────────────────────────────────────────────────────────────────────────────
   Quick       ████████
   Pulse
 
-  Standard    ████████   ████████   ████████
+  Standard    ████████   ████████   ████████   ████████
   Check
 
-  Deep        ████████   ████████   ████████   ████████   ████████
+  Deep        ████████   ████████   ████████   ████████   ████████   ████████
   Audit
 
-  Targeted    ████████   ████████   ████████   ████████   ████████
-  Invest.     (full)     (scoped)   (scoped)   (w/ deps)  (focused)
+  Targeted    ████████   ████████   ████████   ████████   ████████   ████████
+  Invest.     (full)     (scoped)   (scoped)   (scoped)   (w/ deps)  (focused)
 ```
 
 ---

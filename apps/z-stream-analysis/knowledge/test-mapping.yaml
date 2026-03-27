@@ -1,0 +1,110 @@
+# Test Suite to Feature Area Mapping -- Z-Stream Analysis
+# Maps test suite names and patterns to feature areas, dependencies,
+# and known issues. Used by the AI agent to quickly scope investigation.
+#
+# Populated by: manual + refresh.py (Polarion query + test suite analysis)
+# Refresh frequency: on test suite changes
+
+test_suites:
+
+  # --- Search test suites ---
+  - pattern: "(?i)search.*e2e|e2e.*search"
+    feature_area: Search
+    dependencies: [search-api, search-postgres, search-collector]
+    known_issues: []
+
+  - pattern: "(?i)search.*api|api.*search"
+    feature_area: Search
+    dependencies: [search-api, search-postgres]
+    known_issues: []
+
+  # --- Governance test suites ---
+  - pattern: "(?i)governance.*e2e|grc.*e2e|policy.*e2e"
+    feature_area: GRC
+    dependencies: [grc-policy-propagator, config-policy-controller, governance-policy-framework]
+    known_issues: []
+
+  # --- Cluster Lifecycle test suites ---
+  - pattern: "(?i)cluster.*create|cluster.*provision"
+    feature_area: CLC
+    dependencies: [hive-controllers, managedcluster-import-controller]
+    known_issues: []
+
+  - pattern: "(?i)cluster.*import"
+    feature_area: CLC
+    dependencies: [managedcluster-import-controller, klusterlet]
+    known_issues: []
+
+  - pattern: "(?i)cluster.*upgrade|cluster.*curator"
+    feature_area: CLC
+    dependencies: [cluster-curator]
+    known_issues:
+      - id: curator-digest-upgrade
+        description: "ClusterCurator digest-based upgrades may timeout on slow networks"
+        jira: "ACM-22079"
+
+  # --- Application test suites ---
+  - pattern: "(?i)application.*e2e|app.*e2e|subscription.*e2e"
+    feature_area: Application
+    dependencies: [subscription-controller, application-manager]
+    known_issues: []
+
+  - pattern: "(?i)gitops|argo"
+    feature_area: Application
+    dependencies: [subscription-controller]
+    external_dependencies: ["OpenShift GitOps Operator"]
+    known_issues: []
+
+  # --- Console test suites ---
+  - pattern: "(?i)console.*e2e|ui.*e2e|overview|welcome|credential"
+    feature_area: Console
+    dependencies: [console-chart-console-v2, console-api]
+    known_issues: []
+
+  # --- RBAC test suites ---
+  - pattern: "(?i)rbac.*e2e|user.*management|access.*control|mcra"
+    feature_area: RBAC
+    dependencies: [console-api, cluster-permission]
+    prerequisites:
+      - "fine-grained-rbac MCH component must be enabled"
+      - "IDP must be configured"
+    known_issues: []
+
+  # --- Virtualization test suites ---
+  - pattern: "(?i)virt.*e2e|kubevirt|fleet.*virt|vm.*e2e"
+    feature_area: Virtualization
+    dependencies: [virt-api, kubevirt-operator]
+    prerequisites:
+      - "cnv-mtv-integrations MCH component must be enabled"
+      - "CNV operator must be installed on spoke"
+    known_issues: []
+
+  # --- Automation test suites ---
+  - pattern: "(?i)automation.*e2e|ansible|aap|tower"
+    feature_area: Automation
+    dependencies: []
+    external_dependencies: ["AAP operator"]
+    prerequisites:
+      - "AAP operator must be installed"
+    known_issues: []
+
+  # --- Observability test suites ---
+  - pattern: "(?i)observability.*e2e|metrics|grafana"
+    feature_area: Observability
+    dependencies: [multicluster-observability-operator, thanos-query, grafana]
+    prerequisites:
+      - "Observability MCH component must be enabled"
+      - "S3 storage must be configured"
+    known_issues: []
+
+  # --- Cross-Cluster Migration test suites ---
+  - pattern: "(?i)migration.*e2e|cross.*cluster|mtv|cclm"
+    feature_area: CrossClusterMigration
+    dependencies: [forklift-controller, kubevirt-operator]
+    prerequisites:
+      - "cnv-mtv-integrations MCH component enabled"
+      - "CNV on source and target clusters"
+      - "MTV operator installed"
+      - "Submariner addon deployed"
+      - "RWX storage available"
+    known_issues: []

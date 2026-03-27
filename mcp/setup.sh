@@ -184,6 +184,10 @@ JIRA_BRANCH="feat/redhat-fields"
 JENKINS_REPO="https://github.com/atifshafi/jenkins-mcp.git"
 JENKINS_BRANCH="fix/auth-logs-paths"
 
+# Knowledge Graph: https://github.com/stolostron/knowledge-graph/pull/19
+KG_REPO="https://github.com/atifshafi/knowledge-graph.git"
+KG_BRANCH="atif-virt-extension"
+
 EXTERNAL_DIR="$MCP_DIR/.external"
 
 clone_external() {
@@ -436,35 +440,137 @@ setup_neo4j() {
     echo "  [$CURRENT_MCP/$TOTAL_MCPS] Neo4j RHACM Knowledge Graph"
     echo "--------------------------------------------"
     echo ""
-    echo "  What: RHACM component dependency graph (291 components, 419 relationships)."
+    echo "  What: RHACM component dependency graph (339 components, 479 relationships)."
     echo "  Used for: Understanding which components depend on each other during analysis."
     echo "  Requires: Podman (container runtime)"
+    echo "  Credentials: None (local container, password set automatically)."
     echo ""
 
-    if command -v podman &>/dev/null; then
-        ok "Podman installed"
+    if ! command -v podman &>/dev/null; then
+        warn "Podman not found. Install: brew install podman (macOS) or sudo dnf install podman (Fedora/RHEL)"
+        echo "  Neo4j will be added to .mcp.json but won't work until Podman is installed."
+        echo "  Re-run this script after installing Podman to complete setup."
+        echo ""
+        return
+    fi
 
-        if podman ps -a --format '{{.Names}}' 2>/dev/null | grep -q neo4j-rhacm; then
-            ok "Neo4j container already exists"
-            echo "  Start it with: podman machine start && podman start neo4j-rhacm"
-        else
-            info "Neo4j container not found."
-            echo ""
-            echo "  To set up Neo4j:"
-            echo "    1. podman machine start"
-            echo "    2. podman run -d --name neo4j-rhacm \\"
-            echo "         -p 7474:7474 -p 7687:7687 \\"
-            echo "         -e NEO4J_AUTH=neo4j/rhacmgraph \\"
-            echo "         -e NEO4J_PLUGINS='[\"apoc\"]' \\"
-            echo "         neo4j:5-community"
-            echo "    3. Load the RHACM data from stolostron/knowledge-graph"
-            echo ""
-            echo "  Docs: https://github.com/stolostron/knowledge-graph/tree/main/acm/agentic-docs/dependency-analysis"
+    ok "Podman installed"
+
+    # Ensure podman machine is running (macOS only; Linux runs natively)
+    if [[ "$(uname)" == "Darwin" ]]; then
+        if ! podman machine info &>/dev/null 2>&1; then
+            info "Initializing Podman machine (first-time setup, may take a minute)..."
+            podman machine init --cpus 2 --memory 2048 --disk-size 20 2>/dev/null || true
         fi
+        if ! podman info &>/dev/null 2>&1; then
+            info "Starting Podman machine..."
+            podman machine start 2>/dev/null || true
+        fi
+        if podman info &>/dev/null 2>&1; then
+            ok "Podman machine running"
+        else
+            warn "Could not start Podman machine. Run 'podman machine start' manually."
+            echo ""
+            return
+        fi
+    fi
+
+    # Clone the knowledge graph repo (contains Cypher data files)
+    clone_external "knowledge-graph" "$KG_REPO" "$KG_BRANCH"
+    KG_DATA_DIR="$EXTERNAL_DIR/knowledge-graph/acm/agentic-docs/dependency-analysis/knowledge-graph"
+
+    # Create or start the Neo4j container
+    if podman ps --format '{{.Names}}' 2>/dev/null | grep -q neo4j-rhacm; then
+        ok "Neo4j container running"
+    elif podman ps -a --format '{{.Names}}' 2>/dev/null | grep -q neo4j-rhacm; then
+        info "Starting existing Neo4j container..."
+        podman start neo4j-rhacm >/dev/null
+        ok "Neo4j container started"
     else
-        warn "Podman not found. Install: brew install podman (macOS)"
-        echo "  Neo4j will be added to .mcp.json but needs Podman to run."
-        echo "  Docs: https://github.com/stolostron/knowledge-graph"
+        info "Creating Neo4j container..."
+        if podman run -d --name neo4j-rhacm \
+            -p 7474:7474 -p 7687:7687 \
+            -e NEO4J_AUTH=neo4j/rhacmgraph \
+            -e 'NEO4J_PLUGINS=["apoc"]' \
+            neo4j:5-community >/dev/null 2>&1; then
+            ok "Neo4j container created"
+        else
+            fail "Failed to create Neo4j container"
+            echo "  Try manually: podman run -d --name neo4j-rhacm -p 7474:7474 -p 7687:7687 -e NEO4J_AUTH=neo4j/rhacmgraph neo4j:5-community"
+            echo ""
+            return
+        fi
+    fi
+
+    # Wait for Neo4j to be ready (accepts connections)
+    info "Waiting for Neo4j to be ready..."
+    NEO4J_READY=false
+    for i in $(seq 1 30); do
+        if podman exec neo4j-rhacm cypher-shell -u neo4j -p rhacmgraph "RETURN 1" >/dev/null 2>&1; then
+            NEO4J_READY=true
+            break
+        fi
+        sleep 2
+    done
+
+    if [ "$NEO4J_READY" = false ]; then
+        warn "Neo4j not ready after 60s. It may still be starting."
+        echo "  Check status: podman logs neo4j-rhacm"
+        echo "  Re-run this script once it's ready to load the graph data."
+        echo ""
+        return
+    fi
+    ok "Neo4j accepting connections"
+
+    # Check if graph data is already loaded
+    NODE_COUNT=$(podman exec neo4j-rhacm cypher-shell -u neo4j -p rhacmgraph \
+        "MATCH (n) RETURN count(n) AS c" --format plain 2>/dev/null | tail -1 | tr -d ' ')
+
+    if [ -n "$NODE_COUNT" ] && [ "$NODE_COUNT" -gt 200 ] 2>/dev/null; then
+        ok "Knowledge graph already loaded ($NODE_COUNT nodes)"
+    else
+        # Load base graph
+        BASE_CYPHER="$KG_DATA_DIR/rhacm_architecture_comprehensive_final.cypher"
+        if [ -f "$BASE_CYPHER" ]; then
+            info "Loading base graph (291 components)..."
+            if podman exec -i neo4j-rhacm cypher-shell -u neo4j -p rhacmgraph < "$BASE_CYPHER" >/dev/null 2>&1; then
+                ok "Base graph loaded"
+            else
+                fail "Failed to load base graph"
+                echo "  Try manually: cat $BASE_CYPHER | podman exec -i neo4j-rhacm cypher-shell -u neo4j -p rhacmgraph"
+                echo ""
+                return
+            fi
+        else
+            fail "Base graph file not found: $BASE_CYPHER"
+            echo ""
+            return
+        fi
+
+        # Load extensions (Virtualization, etc.)
+        EXT_DIR="$KG_DATA_DIR/extensions"
+        if [ -d "$EXT_DIR" ]; then
+            EXT_COUNT=0
+            for ext in "$EXT_DIR"/*.cypher; do
+                [ -f "$ext" ] || continue
+                EXT_NAME=$(basename "$ext" .cypher)
+                info "Loading extension: $EXT_NAME..."
+                if podman exec -i neo4j-rhacm cypher-shell -u neo4j -p rhacmgraph < "$ext" >/dev/null 2>&1; then
+                    ok "Extension loaded: $EXT_NAME"
+                    EXT_COUNT=$((EXT_COUNT + 1))
+                else
+                    warn "Failed to load extension: $EXT_NAME (non-fatal, continuing)"
+                fi
+            done
+            if [ "$EXT_COUNT" -gt 0 ]; then
+                ok "Loaded $EXT_COUNT extension(s)"
+            fi
+        fi
+
+        # Verify final count
+        FINAL_COUNT=$(podman exec neo4j-rhacm cypher-shell -u neo4j -p rhacmgraph \
+            "MATCH (n) RETURN count(n) AS c" --format plain 2>/dev/null | tail -1 | tr -d ' ')
+        ok "Knowledge graph ready: $FINAL_COUNT nodes"
     fi
 
     echo ""
@@ -490,6 +596,8 @@ echo ""
 
 # MCP config definitions as JSON fragments, assembled per app.
 # All paths are resolved from $MCP_DIR at generation time.
+# Credentials are read from .env files and injected into the config's "env"
+# field so the MCP server process receives them regardless of working directory.
 generate_mcp_json() {
     local app_dir="$1"
     shift
@@ -503,11 +611,30 @@ generate_mcp_json() {
     fi
 
     python3 -c "
-import json, sys
+import json, os, sys
 
 mcp_dir = sys.argv[1]
 mcps = sys.argv[2:-1]  # MCP names between mcp_dir and output path
 ext_dir = f'{mcp_dir}/.external'
+
+def read_env_file(path):
+    \"\"\"Read a .env file and return a dict of key=value pairs.\"\"\"
+    env = {}
+    if not os.path.isfile(path):
+        return env
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            if '=' in line:
+                key, _, value = line.partition('=')
+                env[key.strip()] = value.strip()
+    return env
+
+# Read credential .env files
+jira_env = read_env_file(f'{ext_dir}/jira-mcp-server/.env')
+polarion_env = read_env_file(f'{mcp_dir}/polarion/.env')
 
 # MCP server definitions
 # - acm-ui, polarion: local (our code, in this repo)
@@ -522,6 +649,7 @@ all_servers = {
     'jira': {
         'command': f'{ext_dir}/jira-mcp-server/.venv/bin/python',
         'args': ['-m', 'jira_mcp_server.main'],
+        'env': {k: v for k, v in jira_env.items() if v and 'PASTE_YOUR' not in v},
         'timeout': 60
     },
     'jenkins': {
@@ -534,7 +662,11 @@ all_servers = {
         'args': ['--with', 'polarion-mcp', 'python',
                  f'{mcp_dir}/polarion/polarion-mcp-wrapper.py'],
         'env': {
-            'POLARION_BASE_URL': 'https://polarion.engineering.redhat.com/polarion'
+            'POLARION_BASE_URL': polarion_env.get('POLARION_BASE_URL',
+                'https://polarion.engineering.redhat.com/polarion'),
+            **({} if not polarion_env.get('POLARION_PAT') or
+               'PASTE_YOUR' in polarion_env.get('POLARION_PAT', '')
+               else {'POLARION_PAT': polarion_env['POLARION_PAT']})
         },
         'timeout': 90
     },
@@ -551,6 +683,11 @@ all_servers = {
 
 # Build config with only the requested MCPs
 config = {'mcpServers': {name: all_servers[name] for name in mcps if name in all_servers}}
+
+# Remove empty env dicts
+for name, server in config['mcpServers'].items():
+    if 'env' in server and not server['env']:
+        del server['env']
 
 with open(sys.argv[-1], 'w') as f:
     json.dump(config, f, indent=2)
@@ -623,10 +760,12 @@ if needs_mcp "polarion"; then
 fi
 
 if needs_mcp "neo4j-rhacm"; then
-    if podman ps -a --format '{{.Names}}' 2>/dev/null | grep -q neo4j-rhacm; then
-        echo -e "    ${GREEN}OK${NC}   neo4j-rhacm  -- RHACM dependency graph (3 tools)"
+    if podman ps --format '{{.Names}}' 2>/dev/null | grep -q neo4j-rhacm; then
+        echo -e "    ${GREEN}OK${NC}   neo4j-rhacm  -- RHACM dependency graph (2 tools, container running)"
+    elif podman ps -a --format '{{.Names}}' 2>/dev/null | grep -q neo4j-rhacm; then
+        echo -e "    ${YELLOW}STOP${NC} neo4j-rhacm  -- Container exists but stopped. Run: podman start neo4j-rhacm"
     else
-        echo -e "    ${YELLOW}SETUP${NC} neo4j-rhacm  -- See stolostron/knowledge-graph repo"
+        echo -e "    ${YELLOW}SETUP${NC} neo4j-rhacm  -- Needs Podman. Re-run setup after installing."
     fi
 fi
 
@@ -692,4 +831,7 @@ done
 echo ""
 echo "  To verify MCP connections in Claude Code:"
 echo "    Run: claude mcp list"
+echo ""
+echo "  If you update credentials in .env files later,"
+echo "  re-run this script to regenerate .mcp.json."
 echo ""

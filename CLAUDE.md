@@ -6,7 +6,7 @@ Multi-app repository for ACM quality engineering tools, built on Claude Code.
 
 ### Z-Stream Analysis (`apps/z-stream-analysis/`) — Active
 
-Jenkins pipeline failure analysis (v3.5) with classification: PRODUCT_BUG | AUTOMATION_BUG | INFRASTRUCTURE | FLAKY | NO_BUG | MIXED | UNKNOWN. Includes assertion value extraction, per-feature-area graduated infrastructure scoring, per-test causal link verification, failure mode categorization, blank page pre-routing, hook failure deduplication, temporal evidence routing, feature investigation playbooks, tiered cluster investigation, and classification feedback.
+Jenkins pipeline failure analysis (v3.5) with classification: PRODUCT_BUG | AUTOMATION_BUG | INFRASTRUCTURE | FLAKY | NO_BUG | MIXED | UNKNOWN. Includes assertion value extraction, per-feature-area graduated infrastructure scoring, per-test causal link verification, failure mode categorization, blank page pre-routing, hook failure deduplication, temporal evidence routing, feature investigation playbooks, tiered cluster investigation, classification feedback, and standalone knowledge database (`knowledge/`).
 
 Four-stage pipeline:
 0. **Environment Oracle** (inside gather.py) — Feature-aware dependency health & knowledge database (`cluster_oracle`)
@@ -18,9 +18,9 @@ See `apps/z-stream-analysis/CLAUDE.md` for schema requirements, classification g
 
 ### ACM Hub Health Agent (`apps/acm-hub-health/`) — Active
 
-AI-powered diagnostic agent for ACM hub clusters. Uses Claude Code with embedded ACM domain knowledge to perform health checks at any depth -- from quick sanity checks to deep component-level investigations. Natural language driven, read-only, no dependencies beyond `oc` + `claude`.
+AI-powered diagnostic agent for ACM hub clusters. Uses Claude Code with embedded ACM domain knowledge to perform health checks at any depth -- from quick sanity checks to deep component-level investigations. Natural language driven, read-only, no dependencies beyond `oc` + `claude`. Includes structured knowledge database (`knowledge/`) with baseline, dependency chains, webhooks, certificates, and addon catalog.
 
-Usage: `cd apps/acm-hub-health && oc login <hub> && claude`
+Usage: `cd apps/acm-hub-health && bash setup.sh && oc login <hub> && claude`
 
 ### Claude Test Generator (`apps/claude-test-generator/`) — In Progress
 

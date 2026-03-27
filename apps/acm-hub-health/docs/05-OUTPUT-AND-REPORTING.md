@@ -73,15 +73,19 @@ Used for standard checks and deep audits:
 
 ## Issues Found (if any)
 ### [CRITICAL] <issue title>
-- **What**: Description of the issue
-- **Impact**: What functionality is affected
-- **Root Cause**: Best assessment of why this is happening
-- **Recommended Action**: What the user should do (never done by agent)
+- **What**: Description of the problem
+- **Evidence**: Tier 1/2 evidence that supports this conclusion
+- **Root Cause**: Best assessment with confidence level
+- **Known Issue**: JIRA reference if pattern matches (ACM-XXXXX)
+- **Fix Version**: Which ACM version contains the fix (if known)
+- **Cluster-Fixable**: Yes/No -- can this be resolved on-cluster?
+- **Recommended Action**: What to do (fix, upgrade, workaround)
 
 ### [WARNING] <issue title>
 - **What**: ...
-- **Impact**: ...
+- **Evidence**: ...
 - **Root Cause**: ...
+- **Known Issue**: ... (if applicable)
 - **Recommended Action**: ...
 
 ## Cluster Overview
@@ -199,14 +203,17 @@ Issues found during the health check are tagged with severity:
 
 ### Issue Detail Fields
 
-Each issue includes four fields:
+Each issue includes up to seven fields:
 
-| Field | Content |
-|-------|---------|
-| **What** | Factual description of what was observed |
-| **Impact** | What functionality is affected and for whom |
-| **Root Cause** | Best assessment of why (with uncertainty noted when applicable) |
-| **Recommended Action** | Specific remediation steps the user can take |
+| Field | Content | When Included |
+|-------|---------|--------------|
+| **What** | Factual description of what was observed | Always |
+| **Evidence** | Tier 1/2 evidence supporting the conclusion | Always |
+| **Root Cause** | Best assessment with confidence level | Always |
+| **Known Issue** | JIRA reference (ACM-XXXXX) | When pattern matches known bug |
+| **Fix Version** | ACM version containing the fix | When known |
+| **Cluster-Fixable** | Whether it can be resolved on-cluster | When known issue matched |
+| **Recommended Action** | Specific remediation steps the user can take | Always |
 
 The agent never executes recommended actions. It describes what to do and the
 user decides whether and when to act.

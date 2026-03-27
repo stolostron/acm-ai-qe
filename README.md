@@ -6,8 +6,8 @@ Claude Code-powered tools for ACM (Advanced Cluster Management) quality engineer
 
 | App | What It Does | Status |
 |-----|-------------|--------|
-| [ACM Hub Health](apps/acm-hub-health/) | Diagnose ACM hub clusters through natural language | Active |
-| [Z-Stream Analysis](apps/z-stream-analysis/) | Classify Jenkins pipeline failures (product bug, automation bug, infra) | Active |
+| [ACM Hub Health](apps/acm-hub-health/) | Diagnose ACM hub clusters through natural language. Includes structured knowledge database (baselines, webhooks, certs, addons). | Active |
+| [Z-Stream Analysis](apps/z-stream-analysis/) | Classify Jenkins pipeline failures (product bug, automation bug, infra). Includes standalone knowledge database (components, dependencies, failure patterns). | Active |
 | [Claude Test Generator](apps/claude-test-generator/) | Generate test plans from JIRA tickets | In progress -- not functional |
 
 ## Prerequisites

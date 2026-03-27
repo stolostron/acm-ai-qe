@@ -1,0 +1,184 @@
+# ACM Hub Healthy Baseline
+# What "normal" looks like for a healthy ACM 2.17 hub cluster.
+# Used as a reference point, not as a strict checklist -- always discover
+# what's actually deployed before comparing against this baseline.
+#
+# Populated by: refresh.py (oc get against a known-healthy cluster)
+# Refresh frequency: after ACM version upgrade
+
+acm_version: "2.17"
+last_refreshed: "2026-03-27"
+
+baseline:
+
+  mch:
+    expected_phase: Running
+    expected_components_available: 25
+    reconciliation_interval: "~5 minutes"
+    key_conditions:
+      - type: Complete
+        expected_message: "All hub components ready"
+
+  mce:
+    expected_phase: Available
+    namespace: multicluster-engine
+    key_conditions:
+      - type: Available
+        expected_status: "True"
+
+  ocp:
+    clusterversion_available: true
+    clusterversion_progressing: false
+
+  namespaces:
+    mch_namespace:
+      note: "Namespace varies -- discover with oc get mch -A. Common: open-cluster-management, ocm"
+      expected_pod_count_range: "30-40"
+      critical_deployments:
+        - name: console-chart-console-v2
+          min_replicas: 2
+          expected_image_prefix: "quay.io"
+        - name: search-api
+          min_replicas: 1
+        - name: search-indexer
+          min_replicas: 1
+        - name: search-postgres
+          min_replicas: 1
+          volume_type: emptyDir
+          note: "Data lost on restart -- rebuilt from collectors"
+        - name: search-v2-operator-controller-manager
+          min_replicas: 1
+        - name: grc-policy-propagator
+          min_replicas: 2
+        - name: multicluster-operators-subscription
+          min_replicas: 1
+        - name: multicluster-observability-operator
+          min_replicas: 1
+          note: "Lives in MCH namespace, not observability namespace"
+        - name: cluster-permission
+          min_replicas: 1
+          note: "Only present when fine-grained-rbac is enabled"
+        - name: multicluster-integrations
+          min_replicas: 1
+        - name: acm-cli-downloads
+          min_replicas: 1
+
+    multicluster-engine:
+      expected_pod_count_range: "30-35"
+      critical_deployments:
+        - name: managedcluster-import-controller-v2
+          min_replicas: 1
+          known_info_messages:
+            - pattern: "flightctl-discovery configmap not found"
+              severity: info
+              explanation: "Expected when FlightCtl not configured"
+        - name: cluster-manager
+          min_replicas: 1
+        - name: hive-operator
+          min_replicas: 1
+        - name: foundation-controller
+          min_replicas: 1
+        - name: addon-manager-controller
+          min_replicas: 1
+        - name: placement-controller
+          min_replicas: 1
+        - name: cluster-curator-controller
+          min_replicas: 1
+
+    open-cluster-management-hub:
+      expected_pod_count_range: "15-20"
+      critical_deployments:
+        - name: cluster-manager-registration-controller
+          min_replicas: 1
+        - name: cluster-manager-registration-webhook
+          min_replicas: 1
+        - name: cluster-manager-work-webhook
+          min_replicas: 1
+        - name: cluster-manager-placement-controller
+          min_replicas: 1
+
+    open-cluster-management-observability:
+      note: "Only present when observability is enabled"
+      expected_pod_count_range: "25-35"
+      critical_deployments:
+        - name: observability-thanos-query
+          min_replicas: 1
+        - name: observability-thanos-query-frontend
+          min_replicas: 1
+        - name: observability-grafana
+          min_replicas: 2
+        - name: observability-alertmanager
+          min_replicas: 3
+          type: statefulset
+        - name: observability-thanos-receive-default
+          min_replicas: 3
+          type: statefulset
+        - name: observability-thanos-store-shard-0
+          min_replicas: 1
+          type: statefulset
+        - name: observability-thanos-compact
+          min_replicas: 1
+          type: statefulset
+        - name: observability-thanos-rule
+          min_replicas: 1
+          type: statefulset
+        - name: observability-rbac-query-proxy
+          min_replicas: 1
+
+    hive:
+      note: "Hive cluster provisioning -- always present"
+      expected_pod_count_range: "3-6"
+      critical_deployments:
+        - name: hive-controllers
+          min_replicas: 1
+        - name: hive-operator
+          min_replicas: 1
+        - name: hiveadmission
+          min_replicas: 2
+
+  nodes:
+    minimum_ready: 3
+    expected_roles: [control-plane, worker]
+    pressure_thresholds:
+      cpu_warning_percent: 80
+      memory_warning_percent: 85
+      disk_warning_percent: 90
+
+  managed_clusters:
+    local_cluster_required: true
+    expected_conditions:
+      - type: ManagedClusterConditionAvailable
+        expected_status: "True"
+      - type: ManagedClusterJoined
+        expected_status: "True"
+      - type: HubAcceptedManagedCluster
+        expected_status: "True"
+    expected_addons:
+      - name: work-manager
+        required: true
+      - name: search-collector
+        required_for: [search]
+      - name: config-policy-controller
+        required_for: [grc]
+      - name: governance-policy-framework
+        required_for: [grc]
+      - name: application-manager
+        required_for: [app-lifecycle]
+      - name: observability-controller
+        required_for: [observability]
+        note: "Only if MCO is enabled"
+      - name: cluster-proxy
+        required: false
+        note: "Optional -- enables proxy access to spoke API"
+
+  etcd:
+    expected_members: 3
+    max_acceptable_restarts: 2
+    note: "Check via oc get pods -n openshift-etcd"
+
+  csvs:
+    expected_phase: Succeeded
+    namespaces_to_check:
+      - "{mch-ns}"
+      - "multicluster-engine"
+    note: "CSVs not in Succeeded phase indicate operator installation issues"

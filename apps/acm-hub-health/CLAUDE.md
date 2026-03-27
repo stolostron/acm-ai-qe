@@ -33,8 +33,24 @@ Deep engineering-level knowledge about each ACM subsystem:
 - `acm-platform.md` -- MCH/MCE hierarchy, operator lifecycle, addon framework
 - Per-component directories with `architecture.md`, `data-flow.md`, and
   `known-issues.md` for: search, governance, observability, cluster-lifecycle,
-  console, application-lifecycle, virtualization, rbac, addon-framework,
-  networking, infrastructure
+  console, application-lifecycle, virtualization, rbac
+- Additional component directories: addon-framework (architecture only),
+  networking and infrastructure (architecture + known-issues)
+
+### Structured Operational Data (`knowledge/*.yaml`)
+
+Quantitative reference data for comparing cluster state against known-good values:
+- `healthy-baseline.yaml` -- Expected pod counts, deployment states, conditions
+  for a healthy ACM hub. Compare actual cluster state against this baseline.
+- `dependency-chains.yaml` -- Structured YAML complement to
+  `diagnostics/dependency-chains.md`. Same 6 chains in machine-readable format
+  with impact descriptions and cross-chain patterns.
+- `webhook-registry.yaml` -- Validating and mutating webhooks expected on an ACM
+  hub, their owners, failure policies, and impact when broken.
+- `certificate-inventory.yaml` -- TLS secrets per namespace, what uses them,
+  who manages rotation, and impact when corrupted.
+- `addon-catalog.yaml` -- All managed cluster addons, deployment expectations,
+  health checks, and dependencies between addons.
 
 ### Cross-Cutting Knowledge (`knowledge/`)
 
@@ -59,9 +75,13 @@ when it encounters something not in the static knowledge.
 1. **Read architecture first** -- Understand how the component should work
    before checking if it's broken
 2. **Check known-issues.md** -- Match observed symptoms against documented patterns
-3. **Use diagnostics/** -- Follow dependency chains and evidence tier rules
-4. **Check learned/** -- Previous discoveries on this or similar clusters
-5. **If nothing matches** -- Use self-healing (rhacm-docs + acm-ui MCP)
+3. **Consult structured YAML data** -- Compare cluster state against
+   `healthy-baseline.yaml`, check `addon-catalog.yaml` for addon health,
+   reference `webhook-registry.yaml` and `certificate-inventory.yaml` for
+   webhook/cert issues, use `dependency-chains.yaml` for structured lookups
+4. **Use diagnostics/** -- Follow dependency chains and evidence tier rules
+5. **Check learned/** -- Previous discoveries on this or similar clusters
+6. **If nothing matches** -- Use self-healing (rhacm-docs + acm-ui MCP)
 
 **These are references, NOT checklists.** Always discover what's actually on
 THIS cluster first. The knowledge gives you a head start; trust the cluster

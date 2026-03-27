@@ -18,7 +18,7 @@ checks at any depth -- from quick sanity checks to deep component-level investig
                            │  │       CLAUDE.md            │  │
                            │  │  (Agent Methodology)       │  │
                            │  │  - Safety constraints      │  │
-                           │  │  - 5-phase pipeline        │  │
+                           │  │  - 6-phase pipeline        │  │
                            │  │  - Depth router            │  │
                            │  │  - Output format           │  │
                            │  │  - Self-healing rules      │  │
@@ -37,16 +37,10 @@ checks at any depth -- from quick sanity checks to deep component-level investig
           │   oc CLI     │  │  Knowledge   │  │  External Sources│
           │ (read-only)  │  │    System    │  │                  │
           │              │  │              │  │  ACM-UI MCP      │
-          │  oc get      │  │  Static:     │  │  (source code)   │
-          │  oc describe │  │  component-  │  │                  │
-          │  oc logs     │  │  registry.md │  │  rhacm-docs/     │
-          │  oc adm top  │  │  failure-    │  │  (AsciiDoc)      │
-          │              │  │  patterns.md │  │                  │
-          │              │  │  diagnostic- │  │                  │
-          │              │  │  playbooks.md│  │                  │
-          │              │  │              │  │                  │
-          │              │  │  Learned:    │  │                  │
-          │              │  │  learned/*.md│  │                  │
+          │  oc get      │  │  architecture│  │  (source code)   │
+          │  oc describe │  │  diagnostics │  │                  │
+          │  oc logs     │  │  cross-cut   │  │  rhacm-docs/     │
+          │  oc adm top  │  │  learned     │  │  (AsciiDoc)      │
           └──────────────┘  └──────────────┘  └──────────────────┘
                     │                 │                 │
                     └─────────────────┼─────────────────┘
@@ -67,7 +61,7 @@ checks at any depth -- from quick sanity checks to deep component-level investig
 
 ## How It Works
 
-The agent operates through a 5-phase diagnostic pipeline, with a depth router
+The agent operates through a 6-phase diagnostic pipeline, with a depth router
 that selects which phases to run based on the user's intent:
 
 ```
@@ -84,54 +78,61 @@ that selects which phases to run based on the user's intent:
                                                                       │
                             ┌──────────────────────────────────────────┘
                             │
-                       PHASE 4             PHASE 5
-                    ┌──────────┐        ┌──────────┐
-                    │CORRELATE │  ───►  │  DEEP    │
-                    │          │        │INVESTIGATE│
-                    │ Cross-   │        │          │
-                    │ component│        │ Logs,    │
-                    │ analysis │        │ events,  │
-                    │          │        │ storage, │
-                    │          │        │ network  │
-                    └──────────┘        └──────────┘
+                       PHASE 4             PHASE 5             PHASE 6
+                    ┌──────────┐        ┌──────────┐        ┌──────────┐
+                    │ PATTERN  │  ───►  │CORRELATE │  ───►  │  DEEP    │
+                    │ MATCH    │        │          │        │INVESTIGATE│
+                    │          │        │ Cross-   │        │          │
+                    │ Known    │        │ component│        │ Logs,    │
+                    │ bug?     │        │ root     │        │ events,  │
+                    │          │        │ cause    │        │ storage, │
+                    │          │        │          │        │ network  │
+                    └──────────┘        └──────────┘        └──────────┘
 ```
 
 | Depth | Trigger Phrases | Phases Run | Time |
 |-------|----------------|------------|------|
 | Quick pulse | "sanity check", "quick look", "is my hub alive" | Phase 1 only | ~30s |
-| Standard | "health check", "how's my hub" (default) | Phases 1-3 | ~2-3 min |
-| Deep audit | "deep dive", "full audit", "thorough check" | All 5 phases | ~5-10 min |
-| Targeted | "check search", "investigate observability" | All 5 phases on target area | varies |
+| Standard | "health check", "how's my hub" (default) | Phases 1-4 | ~2-3 min |
+| Deep audit | "deep dive", "full audit", "thorough check" | All 6 phases | ~5-10 min |
+| Targeted | "check search", "investigate observability" | All 6 phases on target area | varies |
 
 ---
 
-## Self-Healing Knowledge
+## Knowledge System
 
-The agent uses a two-layer knowledge system that improves over time:
+The agent uses a layered knowledge system that combines curated architecture
+documentation with diagnostics methodology and discoveries from previous runs:
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                     Knowledge System                            │
-│                                                                 │
-│  Layer 1: Static                    Layer 2: Learned            │
-│  ┌─────────────────────────┐       ┌─────────────────────────┐  │
-│  │  component-registry.md  │       │  learned/<topic>.md     │  │
-│  │  failure-patterns.md    │       │                         │  │
-│  │  diagnostic-playbooks.md│       │  Written by the agent   │  │
-│  │                         │       │  during health checks   │  │
-│  │  Curated reference      │       │  when it discovers      │  │
-│  │  material. May become   │       │  mismatches between     │  │
-│  │  outdated as ACM        │       │  knowledge and cluster  │  │
-│  │  evolves.               │       │  state.                 │  │
-│  └─────────────────────────┘       └─────────────────────────┘  │
-│                                                                 │
-│  When Layer 1 and Layer 2 conflict, Layer 2 is more recent     │
-│  and likely more accurate -- but always verify against the      │
-│  live cluster.                                                  │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          Knowledge System                                  │
+│                                                                            │
+│  ┌──────────────────────────┐  ┌──────────────────────────────────────────┐│
+│  │ Architecture Knowledge   │  │ Diagnostic Knowledge                     ││
+│  │ knowledge/architecture/  │  │ knowledge/diagnostics/                   ││
+│  │                          │  │                                          ││
+│  │ Per-component:           │  │ dependency-chains.md (6 cascade paths)   ││
+│  │   architecture.md        │  │ evidence-tiers.md (Tier 1/2/3 rules)    ││
+│  │   data-flow.md           │  │ diagnostic-playbooks.md (procedures)    ││
+│  │   known-issues.md        │  │                                          ││
+│  └──────────────────────────┘  └──────────────────────────────────────────┘│
+│                                                                            │
+│  ┌──────────────────────────┐  ┌──────────────────────────────────────────┐│
+│  │ Cross-Cutting Knowledge  │  │ Learned Knowledge                        ││
+│  │ knowledge/               │  │ knowledge/learned/                       ││
+│  │                          │  │                                          ││
+│  │ component-registry.md    │  │ Written by the agent during health       ││
+│  │ failure-patterns.md      │  │ checks when it discovers things not      ││
+│  │                          │  │ covered by the static knowledge.         ││
+│  └──────────────────────────┘  └──────────────────────────────────────────┘│
+│                                                                            │
+│  Priority: Cluster > Learned > Static                                     │
+│  The live cluster is always the source of truth.                          │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-When the agent encounters a component or behavior not covered by its static
+When the agent encounters a component or behavior not covered by its
 knowledge, it triggers a self-healing process:
 
 1. Collects more evidence from the live cluster (`oc describe`, labels, events)
@@ -155,7 +156,6 @@ All cluster operations are **read-only**. The agent never modifies cluster state
 | `oc adm top`, `kubectl get/describe` | Any command that modifies state |
 | `jq`, `grep`, `wc`, `sort`, `head`, `tail`, `awk`, `cut` | |
 | `cat`, `ls`, `find` | |
-| `git clone` (rhacm-docs only) | |
 
 These constraints are enforced at two levels:
 1. **CLAUDE.md instructions** -- the agent methodology explicitly forbids mutation
@@ -170,8 +170,8 @@ If a fix requires changes, the agent tells the user what to do. It does not do i
 | Command | Purpose | Phases | Typical Time |
 |---------|---------|--------|--------------|
 | `/sanity` | Quick pulse check | Phase 1 | ~30s |
-| `/health-check` | Standard diagnostic | Phases 1-3 | ~2-3 min |
-| `/investigate <target>` | Deep targeted investigation | All 5 phases | varies |
+| `/health-check` | Standard diagnostic | Phases 1-4 | ~2-3 min |
+| `/investigate <target>` | Deep targeted investigation | All 6 phases | varies |
 | `/learn [area]` | Knowledge-building session | Discovery + learning | varies |
 
 Users can also interact naturally:
@@ -190,24 +190,48 @@ Do a thorough deep dive of my hub
 acm-hub-health/
 ├── CLAUDE.md                           ← Agent methodology and instructions
 ├── README.md                           ← Quick start guide
-├── .mcp.json                           ← MCP server configuration (acm-ui)
+├── setup.sh                            ← One-time setup (rhacm-docs, MCP venv, .mcp.json)
+├── .mcp.json                           ← MCP server configuration (acm-ui) [generated by setup.sh]
 ├── .gitignore                          ← Ignores docs/rhacm-docs/
 │
 ├── docs/
 │   ├── 00-OVERVIEW.md                  ← This file
 │   ├── 01-DEPTH-ROUTER.md             ← Depth routing system
-│   ├── 02-DIAGNOSTIC-PIPELINE.md      ← 5-phase pipeline details
+│   ├── 02-DIAGNOSTIC-PIPELINE.md      ← 6-phase pipeline details
 │   ├── 03-KNOWLEDGE-SYSTEM.md         ← Knowledge layers and self-healing
 │   ├── 04-MCP-AND-EXTERNAL-SOURCES.md ← MCP integration and docs
 │   ├── 05-OUTPUT-AND-REPORTING.md     ← Output format and verdicts
 │   ├── 06-SLASH-COMMANDS.md           ← Command reference
-│   └── rhacm-docs/                     ← Official ACM docs clone (git ignored)
+│   └── rhacm-docs/                     ← Official ACM docs clone (gitignored)
 │
 ├── knowledge/
-│   ├── component-registry.md           ← Static: ACM component reference
-│   ├── failure-patterns.md             ← Static: cross-component failure heuristics
-│   ├── diagnostic-playbooks.md         ← Static: per-subsystem investigation procedures
-│   └── learned/                        ← Dynamic: agent-discovered knowledge
+│   ├── component-registry.md           ← Master inventory of ACM components, CRDs, namespaces
+│   ├── failure-patterns.md             ← Cross-component failure signatures
+│   ├── healthy-baseline.yaml           ← Expected pod counts, deployment states, conditions
+│   ├── dependency-chains.yaml          ← Structured YAML complement to diagnostics/ chains
+│   ├── webhook-registry.yaml           ← Validating/mutating webhooks and their impact
+│   ├── certificate-inventory.yaml      ← TLS secrets, rotation, and corruption impact
+│   ├── addon-catalog.yaml              ← Addon health checks, dependencies, expectations
+│   ├── refresh.py                      ← Updates YAML files from live cluster
+│   ├── architecture/                   ← Per-component architecture, data-flow, known-issues
+│   │   ├── kubernetes-fundamentals.md
+│   │   ├── acm-platform.md
+│   │   ├── search/                     ← architecture.md, data-flow.md, known-issues.md
+│   │   ├── governance/                 ← "
+│   │   ├── observability/              ← "
+│   │   ├── cluster-lifecycle/          ← "
+│   │   ├── console/                    ← "
+│   │   ├── application-lifecycle/      ← "
+│   │   ├── virtualization/             ← "
+│   │   ├── rbac/                       ← "
+│   │   ├── addon-framework/            ← architecture.md
+│   │   ├── networking/                 ← architecture.md, known-issues.md
+│   │   └── infrastructure/             ← architecture.md, known-issues.md
+│   ├── diagnostics/                    ← Health check methodology
+│   │   ├── dependency-chains.md        ← 6 critical cascade paths (narrative)
+│   │   ├── evidence-tiers.md           ← Evidence weighting rules
+│   │   └── diagnostic-playbooks.md     ← Per-subsystem investigation procedures
+│   └── learned/                        ← Agent-discovered knowledge (grows over time)
 │       └── <topic>.md                  ← Written by agent during self-healing
 │
 └── .claude/
@@ -226,10 +250,13 @@ acm-hub-health/
 
 | Decision | Rationale |
 |----------|-----------|
-| No custom code (pure Claude Code) | Zero dependencies beyond `oc` and `claude`. No Python, no containers, no infrastructure to maintain. |
+| Minimal custom code | Core agent is pure Claude Code with no runtime dependencies beyond `oc` and `claude`. The only custom code is `knowledge/refresh.py` (optional, for updating YAML baselines from a live cluster; requires Python 3 + PyYAML). |
 | Read-only constraint | Safety for production hubs. The agent diagnoses; humans remediate. |
-| Two-layer knowledge | Static knowledge provides a baseline. Learned knowledge fills gaps. Neither is trusted blindly -- the cluster is always truth. |
+| Layered knowledge (architecture + diagnostics + structured YAML + learned) | Architecture knowledge explains how things work. Structured YAML provides quantitative baselines. Diagnostics knowledge guides methodology. Learned knowledge fills version-specific gaps. |
+| File-based knowledge database (not SQL) | No database server dependency. YAML/markdown files are human-readable, git-tracked, and diffable. Claude reads them directly into context. |
 | Self-healing over static docs | ACM evolves across versions. Components are renamed, restructured, or added. The agent adapts by investigating and learning, rather than requiring manual knowledge updates. |
+| Evidence-based diagnosis | Every conclusion requires 2+ evidence sources with confidence levels. Prevents false positives and builds trust. |
+| Pattern matching before reasoning | Check known-issues.md for documented bugs before reasoning from scratch. Many issues are known bugs with JIRA references and fix versions. |
 | Depth router (not modes) | Users describe what they want in natural language. The agent maps intent to the right depth. No need to remember mode names. |
 | Per-namespace discovery | MCH namespace is not always `open-cluster-management`. Can be `ocm` or custom. The agent discovers the actual namespace first, then uses it for all subsequent checks. |
 
@@ -240,7 +267,7 @@ acm-hub-health/
 | Topic | File |
 |-------|------|
 | Depth routing system | [01-DEPTH-ROUTER.md](01-DEPTH-ROUTER.md) |
-| 5-phase diagnostic pipeline | [02-DIAGNOSTIC-PIPELINE.md](02-DIAGNOSTIC-PIPELINE.md) |
+| 6-phase diagnostic pipeline | [02-DIAGNOSTIC-PIPELINE.md](02-DIAGNOSTIC-PIPELINE.md) |
 | Knowledge system and self-healing | [03-KNOWLEDGE-SYSTEM.md](03-KNOWLEDGE-SYSTEM.md) |
 | MCP and external source integration | [04-MCP-AND-EXTERNAL-SOURCES.md](04-MCP-AND-EXTERNAL-SOURCES.md) |
 | Output format and reporting | [05-OUTPUT-AND-REPORTING.md](05-OUTPUT-AND-REPORTING.md) |

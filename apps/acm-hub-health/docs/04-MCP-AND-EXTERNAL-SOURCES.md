@@ -61,15 +61,16 @@ by `mcp/setup.sh` from the repo root.
 ### Setup
 
 ```bash
-# From the repo root (ai_systems_v2/)
+# Option A: App-level setup (from acm-hub-health/)
+bash setup.sh
+
+# Option B: Repo-level setup (from ai_systems_v2/)
 # Select option 1 (ACM Hub Health Agent) when prompted
 bash mcp/setup.sh
 ```
 
-The setup script presents an interactive menu. Selecting option 1 installs
-only the `acm-ui` MCP server and writes the `.mcp.json` config to this app's
-directory. No other MCP servers are installed unless you also select the
-z-stream analysis app.
+Either script creates the virtual environment and generates the `.mcp.json`
+config. The app-level `setup.sh` also clones rhacm-docs.
 
 ### Available Tools
 
@@ -224,14 +225,12 @@ The `.claude/settings.json` file auto-approves specific tool categories:
 | `Bash(kubectl describe:*)` | kubectl describe commands |
 | `Bash(grep:*)`, `Bash(jq:*)`, `Bash(wc:*)`, `Bash(sort:*)`, `Bash(head:*)`, `Bash(tail:*)`, `Bash(awk:*)`, `Bash(cut:*)` | Text processing utilities |
 | `Bash(cat:*)`, `Bash(ls:*)`, `Bash(find:*)` | File system inspection |
-| `Bash(git clone:*)` | Cloning rhacm-docs |
 | `Read` | Reading any file |
 | `Write(knowledge/learned/*)` | Writing learned knowledge files only |
 | `mcp__acm-ui__*` | All acm-ui MCP server tools |
 
 The agent's write access is limited to `knowledge/learned/` (via the Write
-permission) and `docs/rhacm-docs/` (via `git clone`). It cannot modify cluster
-state. It cannot execute arbitrary commands.
+permission). It cannot modify cluster state or execute arbitrary commands.
 
 ---
 

@@ -1,0 +1,159 @@
+# ACM Feature Area Index -- Z-Stream Analysis
+# Lightweight mapping of feature areas to test patterns, subsystems, and
+# components. This is an INDEX that complements the detailed playbooks at
+# src/data/feature_playbooks/ -- use this for quick lookups, use playbooks
+# for full architecture and failure path details.
+#
+# Populated by: manual + refresh.py (test suite analysis)
+# Refresh frequency: on test suite changes
+
+feature_areas:
+
+  Search:
+    subsystems: [search]
+    test_patterns:
+      - "(?i)search"
+      - "(?i)resource.*lookup"
+      - "(?i)vm.*search"
+    ui_routes:
+      - "/multicloud/search"
+    key_components: [search-api, search-indexer, search-postgres, search-collector]
+    mch_component: search
+    playbook_ref: "src/data/feature_playbooks/base.yaml#Search"
+
+  GRC:
+    subsystems: [governance]
+    test_patterns:
+      - "(?i)governance"
+      - "(?i)policy"
+      - "(?i)grc"
+      - "(?i)compliance"
+    ui_routes:
+      - "/multicloud/governance"
+    key_components: [grc-policy-propagator, config-policy-controller, governance-policy-framework]
+    mch_component: grc
+    playbook_ref: "src/data/feature_playbooks/base.yaml#GRC"
+
+  CLC:
+    subsystems: [cluster-lifecycle]
+    test_patterns:
+      - "(?i)cluster.*lifecycle"
+      - "(?i)cluster.*create"
+      - "(?i)cluster.*import"
+      - "(?i)cluster.*upgrade"
+      - "(?i)cluster.*destroy"
+      - "(?i)clusterdeployment"
+      - "(?i)clusterpool"
+      - "(?i)infrastructure"
+    ui_routes:
+      - "/multicloud/infrastructure/clusters"
+    key_components: [managedcluster-import-controller, cluster-curator, hive-controllers, cluster-manager, placement-controller]
+    mch_component: cluster-lifecycle
+    playbook_ref: "src/data/feature_playbooks/base.yaml#CLC"
+
+  Application:
+    subsystems: [application-lifecycle]
+    test_patterns:
+      - "(?i)application"
+      - "(?i)subscription"
+      - "(?i)channel"
+      - "(?i)gitops"
+      - "(?i)argo"
+    ui_routes:
+      - "/multicloud/applications"
+    key_components: [subscription-controller, channel-controller, application-manager]
+    mch_component: app-lifecycle
+    playbook_ref: "src/data/feature_playbooks/base.yaml#Application"
+
+  Console:
+    subsystems: [console]
+    test_patterns:
+      - "(?i)console"
+      - "(?i)overview"
+      - "(?i)welcome"
+      - "(?i)credential"
+      - "(?i)login"
+    ui_routes:
+      - "/multicloud/home/overview"
+      - "/multicloud/credentials"
+    key_components: [console-chart-console-v2, console-api]
+    mch_component: console
+    playbook_ref: "src/data/feature_playbooks/base.yaml#Console"
+
+  Infrastructure:
+    subsystems: [infrastructure]
+    test_patterns:
+      - "(?i)managed.*cluster"
+      - "(?i)klusterlet"
+      - "(?i)addon"
+      - "(?i)node"
+    key_components: [klusterlet, addon-manager, foundation-controller, work-manager]
+    mch_component: null
+    playbook_ref: "src/data/feature_playbooks/base.yaml#Infrastructure"
+
+  RBAC:
+    subsystems: [rbac]
+    test_patterns:
+      - "(?i)rbac"
+      - "(?i)user.*management"
+      - "(?i)role.*assignment"
+      - "(?i)access.*control"
+      - "(?i)mcra"
+    ui_routes:
+      - "/multicloud/user-management"
+    key_components: [console-api, cluster-permission]
+    mch_component: fine-grained-rbac
+    default_enabled: false
+    playbook_ref: "src/data/feature_playbooks/base.yaml#RBAC"
+
+  Virtualization:
+    subsystems: [virtualization]
+    test_patterns:
+      - "(?i)virtual.*machine"
+      - "(?i)fleet.*virt"
+      - "(?i)kubevirt"
+      - "(?i)cnv"
+      - "(?i)vm"
+    key_components: [virt-api, kubevirt-operator]
+    mch_component: cnv-mtv-integrations
+    default_enabled: false
+    playbook_ref: "src/data/feature_playbooks/base.yaml#Virtualization"
+
+  Automation:
+    subsystems: [automation]
+    test_patterns:
+      - "(?i)ansible"
+      - "(?i)automation"
+      - "(?i)aap"
+      - "(?i)tower"
+    ui_routes:
+      - "/multicloud/infrastructure/automations"
+    key_components: [aap-controller]
+    mch_component: null
+    external_dependency: "AAP operator (not part of ACM)"
+    playbook_ref: "src/data/feature_playbooks/base.yaml#Automation"
+
+  Observability:
+    subsystems: [observability]
+    test_patterns:
+      - "(?i)observability"
+      - "(?i)metrics"
+      - "(?i)grafana"
+      - "(?i)thanos"
+    key_components: [multicluster-observability-operator, thanos-query, thanos-receive, thanos-store, grafana]
+    mch_component: multicluster-observability-operator
+    default_enabled: false
+    playbook_ref: "src/data/feature_playbooks/base.yaml#Observability"
+
+  CrossClusterMigration:
+    subsystems: [virtualization]
+    test_patterns:
+      - "(?i)migration"
+      - "(?i)cross.*cluster"
+      - "(?i)mtv"
+      - "(?i)cclm"
+    key_components: [forklift-controller, kubevirt-operator]
+    mch_component: cnv-mtv-integrations
+    default_enabled: false
+    playbook_ref: "src/data/feature_playbooks/acm-2.16.yaml#CrossClusterMigration"
+    note: "New in ACM 2.16. Has 5+ prerequisites -- most failures are missing prereqs."

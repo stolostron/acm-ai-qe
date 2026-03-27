@@ -1,0 +1,88 @@
+# ACM Component Dependency Chains -- Z-Stream Analysis
+# Used by the AI agent to trace cascade failures and identify root causes.
+# When a test fails, trace upstream through the relevant chain to find
+# what infrastructure dependency is broken.
+#
+# Populated by: refresh.py (Neo4j KG transitive queries + manual curation)
+# Refresh frequency: weekly
+
+dependency_chains:
+
+  search:
+    chain: "search-collector (spoke) -> search-indexer -> search-postgres -> search-api -> console UI"
+    if_postgres_down: "All search queries fail. VM discovery fails. No error in UI -- just empty results."
+    if_collector_missing: "Resources from that spoke silently absent from search."
+    if_indexer_restarting: "Index rebuild in progress -- temporarily stale results."
+    classification_hint:
+      postgres_down: INFRASTRUCTURE
+      collector_missing: INFRASTRUCTURE
+      indexer_stale: PRODUCT_BUG
+
+  governance:
+    chain: "policy (hub) -> grc-policy-propagator -> governance-policy-framework (spoke) -> config-policy-controller (spoke) -> status-sync -> hub"
+    if_propagator_down: "No new policies distribute to any spoke."
+    if_framework_missing: "Policies don't reach that spoke. Compliance Unknown."
+    if_config_controller_down: "Policies not evaluated. Compliance Unknown."
+    if_work_manager_backlog: "Compliance updates delayed (stale status)."
+    classification_hint:
+      propagator_down: INFRASTRUCTURE
+      framework_missing: INFRASTRUCTURE
+      config_controller_down: INFRASTRUCTURE
+      work_manager_backlog: PRODUCT_BUG
+
+  cluster_lifecycle:
+    chain: "hive-controllers -> managedcluster-import-controller -> klusterlet -> registration-agent"
+    if_hive_down: "Cluster provisioning fails."
+    if_import_controller_down: "Cluster import stuck."
+    if_klusterlet_disconnected: "All spoke-dependent features fail for that cluster."
+    classification_hint:
+      hive_down: INFRASTRUCTURE
+      import_controller_down: INFRASTRUCTURE
+      klusterlet_disconnected: INFRASTRUCTURE
+
+  console:
+    chain: "OpenShift OAuth -> console-api -> ConsolePlugin CRs -> feature UIs"
+    if_console_api_down: "ALL UI features return 500 errors."
+    if_plugin_missing: "Entire feature tabs disappear (no error, just missing nav)."
+    if_oauth_broken: "Login redirect loop or 403 errors."
+    classification_hint:
+      console_api_down: INFRASTRUCTURE
+      plugin_missing: INFRASTRUCTURE
+      oauth_broken: INFRASTRUCTURE
+
+  observability:
+    chain: "MCO CR -> observability-operator -> metrics-collector (spoke) -> thanos-receive -> S3 -> thanos-store -> thanos-query -> grafana"
+    if_s3_misconfigured: "thanos-store crashes. Most common observability failure."
+    if_collector_missing: "No metrics from that spoke."
+    if_thanos_query_down: "Grafana dashboards show no data."
+    classification_hint:
+      s3_misconfigured: INFRASTRUCTURE
+      collector_missing: INFRASTRUCTURE
+      thanos_query_down: INFRASTRUCTURE
+
+  rbac:
+    chain: "MCRA -> mcra-operator -> ClusterPermission -> ManifestWork -> klusterlet -> spoke Role+RoleBinding"
+    if_mcra_operator_down: "New role assignments not processed."
+    if_cluster_permission_oom: "RBAC not propagated (OOM at scale -- ACM-24032)."
+    if_klusterlet_disconnected: "ManifestWork can't be delivered to spoke."
+    classification_hint:
+      mcra_operator_down: INFRASTRUCTURE
+      cluster_permission_oom: INFRASTRUCTURE
+
+  application:
+    chain: "Channel -> Subscription -> PlacementRule/Placement -> ManifestWork -> spoke"
+    if_subscription_controller_down: "Subscriptions not reconciled."
+    if_channel_unreachable: "Git/Helm source unavailable. App deployment stuck."
+    if_placement_no_match: "No clusters selected. App not deployed."
+    classification_hint:
+      subscription_controller_down: INFRASTRUCTURE
+      channel_unreachable: INFRASTRUCTURE
+      placement_no_match: AUTOMATION_BUG
+
+cross_subsystem_dependencies:
+  - "Virtualization depends on Search: Fleet Virt uses VM Search Integration"
+  - "RBAC depends on Search: Fine-Grained RBAC filters search results"
+  - "Console is the UI for ALL features: console-api down breaks everything"
+  - "Infrastructure (klusterlet) is required by ALL spoke-dependent features"
+  - "Application distribution uses ManifestWork which requires klusterlet"
+  - "GitOps depends on external OpenShift GitOps Operator (not part of ACM)"

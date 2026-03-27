@@ -12,8 +12,8 @@ These are implemented as Claude Code custom commands in `.claude/commands/`.
   │   /sanity    │   │ /health-check│   │   /investigate   │   │   /learn     │
   │              │   │              │   │   <target>       │   │   [area]     │
   │  Quick pulse │   │  Standard    │   │                  │   │              │
-  │  Phase 1     │   │  Phases 1-3  │   │  Targeted deep   │   │  Knowledge   │
-  │  ~30s        │   │  ~2-3 min    │   │  All 5 phases    │   │  building    │
+  │  Phase 1     │   │  Phases 1-4  │   │  Targeted deep   │   │  Knowledge   │
+  │  ~30s        │   │  ~2-3 min    │   │  All 6 phases    │   │  building    │
   │              │   │              │   │  scoped          │   │              │
   └──────────────┘   └──────────────┘   └──────────────────┘   └──────────────┘
 ```
@@ -98,17 +98,18 @@ Produces:
 ## /health-check
 
 **File:** `.claude/commands/health-check.md`
-**Depth:** Standard (Phases 1-3)
+**Depth:** Standard (Phases 1-4)
 **Time:** ~2-3 minutes
 
 ### What It Does
 
-Full standard diagnostic following the 5-phase methodology (Phases 1-3):
+Full standard diagnostic following the 6-phase methodology (Phases 1-4):
 
 1. **Discover** -- Inventory the hub (MCH, MCE, nodes, clusters, CSVs)
-2. **Learn** -- Consult knowledge base, self-heal any gaps
+2. **Learn** -- Consult architecture knowledge, self-heal any gaps
 3. **Check** -- Verify health of each discovered component (pods, conditions,
-   add-ons, restart counts)
+   add-ons, restart counts, operator log patterns)
+4. **Pattern Match** -- Match findings against known bugs with JIRA references
 
 ### When to Use
 
@@ -138,19 +139,20 @@ Health Report Format" section.
 ## /investigate
 
 **File:** `.claude/commands/investigate.md`
-**Depth:** Targeted (All 5 phases, scoped)
+**Depth:** Targeted (All 6 phases, scoped)
 **Time:** Varies by target complexity
 
 ### What It Does
 
 Deep targeted investigation of a specific component, symptom, or area. Runs
-all 5 phases scoped to the target:
+all 6 phases scoped to the target:
 
 1. **Discover** -- Full hub inventory (context)
-2. **Learn** -- Knowledge about the target and its dependencies
-3. **Check** -- Health of the target component
-4. **Correlate** -- Cross-reference with related components
-5. **Deep Investigate** -- Logs, events, storage, previous crashes
+2. **Learn** -- Architecture knowledge about the target and its dependencies
+3. **Check** -- Health of the target component (pods, logs, operator patterns)
+4. **Pattern Match** -- Match against known bugs with JIRA references
+5. **Correlate** -- Trace dependency chains to find root cause
+6. **Deep Investigate** -- Logs, events, storage, data flow tracing
 
 ### When to Use
 

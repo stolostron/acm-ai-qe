@@ -40,13 +40,15 @@ fi
 echo ""
 
 # 3. Generate .mcp.json (acm-hub-health only needs acm-ui)
+# Use relative paths from the app directory for portability
 echo "Generating .mcp.json..."
-cat > "$SCRIPT_DIR/.mcp.json" <<MCPEOF
+cat > "$SCRIPT_DIR/.mcp.json" <<'MCPEOF'
 {
   "mcpServers": {
     "acm-ui": {
-      "command": "$ACM_UI_DIR/.venv/bin/python",
+      "command": "../../mcp/acm-ui-mcp-server/.venv/bin/python",
       "args": ["-m", "acm_ui_mcp_server.main"],
+      "cwd": "../../mcp/acm-ui-mcp-server",
       "timeout": 30
     }
   }

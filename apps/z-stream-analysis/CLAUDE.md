@@ -174,9 +174,9 @@ Five MCP servers provide tools during Stage 2 (AI Analysis). New users: run `bas
 | Polarion | 25 | Polarion test case access + dependency discovery |
 | Knowledge Graph (Neo4j RHACM) | 2 | Component dependency analysis via Cypher queries (optional) |
 
-**JIRA Cloud:** Uses basic auth (email + API token). Run `bash mcp/setup.sh` to clone the server and configure credentials, or edit `mcp/.external/jira-mcp-server/.env` manually. The config uses `load_dotenv(override=True)` so `.env` always takes precedence over shell vars. API token: https://id.atlassian.com/manage-profile/security/api-tokens
+**JIRA Cloud:** Uses basic auth (email + API token). Run `bash mcp/setup.sh` to clone the server, configure credentials, and generate `.mcp.json` with credentials injected into the `env` field. Credentials are stored in `mcp/.external/jira-mcp-server/.env` (source of truth); re-run `setup.sh` after editing `.env` to regenerate `.mcp.json`. API token: https://id.atlassian.com/manage-profile/security/api-tokens
 
-**Knowledge Graph:** The KG client (`knowledge_graph_client.py`) queries Neo4j directly via HTTP API (`http://localhost:7474`). It works in both Stage 1 (gather.py populates `kg_dependency_context` in core-data.json) and Stage 2 (AI agent uses MCP tools for ad-hoc queries). Requires `podman start neo4j-rhacm neo4j-mcp`. Connection settings configurable via `NEO4J_HTTP_URL`, `NEO4J_USER`, `NEO4J_PASSWORD` env vars (defaults: `localhost:7474`, `neo4j`, `rhacmgraph`).
+**Knowledge Graph:** The KG client (`knowledge_graph_client.py`) queries Neo4j directly via HTTP API (`http://localhost:7474`). It works in both Stage 1 (gather.py populates `kg_dependency_context` in core-data.json) and Stage 2 (AI agent uses MCP tools for ad-hoc queries via `uvx`). `setup.sh` handles the full Neo4j setup automatically: creates the Podman container, clones the knowledge-graph repo (base graph + extensions), and loads all data. To restart manually: `podman start neo4j-rhacm`. Connection settings configurable via `NEO4J_HTTP_URL`, `NEO4J_USER`, `NEO4J_PASSWORD` env vars (defaults: `localhost:7474`, `neo4j`, `rhacmgraph`).
 
 **KG label mapping:** The Knowledge Graph uses descriptive labels (e.g., `"API Gateway Controller"`), not pod names (e.g., `"search-api"`). The AI instructions include a `pod_to_kg_label` map and a `query_strategy` that directs the AI to use `get_subsystem_components` first to discover actual KG labels before querying by component.
 
@@ -241,6 +241,28 @@ python -m pytest tests/ -v --timeout=300
 - `tests/integration/` — 50 integration tests for Stage 1 gather, Stage 3 report, and cross-stage data contracts
 - `tests/fixtures/` — Synthetic analysis-results.json exercising v3.2+ schema fields
 
+## Knowledge Database (`knowledge/`)
+
+Standalone knowledge database providing domain reference data for the AI agent
+during Stage 2 analysis. Complements the feature playbooks at
+`src/data/feature_playbooks/` which are programmatically consumed during Stage 1.
+
+| File | Content | Used For |
+|------|---------|----------|
+| `components.yaml` | ACM component registry (name, namespace, labels, health checks) | Component health context |
+| `dependencies.yaml` | Dependency chains with cascade failure paths | Root cause tracing |
+| `selectors.yaml` | UI selector ground truth per feature area | Stale selector detection |
+| `api-endpoints.yaml` | Backend API endpoints with probe commands | Backend cross-check context |
+| `feature-areas.yaml` | Feature area index (test patterns, components, routes) | Test-to-feature mapping |
+| `failure-patterns.yaml` | Known failure signatures for short-circuit classification | Fast pattern matching |
+| `test-mapping.yaml` | Test suite to feature area mapping with known issues | Investigation scoping |
+| `learned/` | Agent-contributed corrections, patterns, selector changes | Accumulated knowledge |
+| `refresh.py` | Updates knowledge from ACM-UI MCP, KG, cluster | Self-healing |
+
+The AI agent reads these files at the start of Stage 2 analysis. `failure-patterns.yaml`
+enables fast classification before playbook investigation. `learned/` accumulates
+knowledge across runs via `refresh.py --promote`.
+
 ## File Structure
 
 ```
@@ -255,6 +277,16 @@ z-stream-analysis/
 ├── src/schemas/           # JSON Schema validation
 ├── src/data/
 │   └── feature_playbooks/ # YAML investigation playbooks (base.yaml, acm-2.16.yaml)
+├── knowledge/             # Knowledge database (AI reads during Stage 2)
+│   ├── components.yaml    # Component registry
+│   ├── dependencies.yaml  # Dependency chains
+│   ├── selectors.yaml     # UI selector ground truth
+│   ├── api-endpoints.yaml # Backend API endpoints
+│   ├── feature-areas.yaml # Feature area index
+│   ├── failure-patterns.yaml # Known failure patterns
+│   ├── test-mapping.yaml  # Test suite mapping
+│   ├── learned/           # Agent-contributed knowledge
+│   └── refresh.py         # Knowledge refresh script
 ├── tests/
 │   ├── conftest.py        # Shared fixtures
 │   ├── unit/              # Unit tests (555+)

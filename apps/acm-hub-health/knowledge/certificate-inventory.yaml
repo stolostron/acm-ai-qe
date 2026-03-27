@@ -1,0 +1,125 @@
+# ACM Certificate Inventory
+# TLS secrets and their roles across ACM namespaces.
+# Use this to identify certificate-related failures and understand rotation expectations.
+#
+# Populated by: refresh.py (oc get secrets -l type=kubernetes.io/tls)
+# Refresh frequency: after ACM version upgrade or cert rotation
+
+acm_version: "2.17"
+last_refreshed: "2026-03-27"
+
+certificates:
+
+  # MCH namespace certificates
+  mch_namespace:
+    note: "Namespace varies -- discover with oc get mch -A"
+    secrets:
+      - secret: console-chart-console-certs
+        used_by: console-chart-console-v2
+        managed_by: service-ca-operator
+        rotation: "Automatic by service-ca, ~2 year validity"
+        if_corrupted: "Console plugin fails to load. OCP console loses ACM navigation."
+
+      - secret: search-api-certs
+        used_by: search-api
+        managed_by: service-ca-operator
+        rotation: "Automatic by service-ca, ~2 year validity"
+        if_corrupted: "Search API rejects HTTPS connections. All search fails."
+
+      - secret: search-indexer-certs
+        used_by: search-indexer
+        managed_by: service-ca-operator
+        rotation: "Automatic by service-ca"
+        if_corrupted: "Search indexer can't communicate with search-api."
+
+      - secret: propagator-webhook-server-cert
+        used_by: grc-policy-propagator
+        managed_by: service-ca-operator
+        rotation: "Automatic by service-ca"
+        if_corrupted: "GRC webhook fails TLS. Policy creation/propagation breaks."
+
+      - secret: multicluster-observability-operator-certs
+        used_by: multicluster-observability-operator
+        managed_by: service-ca-operator
+        rotation: "Automatic by service-ca"
+        if_corrupted: "Observability operator webhook fails."
+
+      - secret: multiclusterhub-operator-webhook
+        used_by: multiclusterhub-operator
+        managed_by: service-ca-operator
+        rotation: "Automatic by service-ca"
+        if_corrupted: "MCH webhook rejects configuration changes."
+
+  # MCE namespace certificates
+  multicluster-engine:
+    secrets:
+      - secret: managedcluster-import-controller-webhook-certs
+        used_by: managedcluster-import-controller
+        managed_by: service-ca-operator
+        rotation: "Automatic"
+        if_corrupted: "Cluster import webhook fails. New cluster imports rejected."
+
+      - secret: foundation-controller-webhook-certs
+        used_by: foundation-controller
+        managed_by: service-ca-operator
+        rotation: "Automatic"
+        if_corrupted: "Foundation webhook fails."
+
+  # Hub namespace certificates
+  open-cluster-management-hub:
+    secrets:
+      - secret: registration-webhook-serving-cert
+        used_by: cluster-manager-registration-webhook
+        managed_by: service-ca-operator
+        rotation: "Automatic"
+        if_corrupted: "ManagedCluster registration webhook fails. Cluster registration breaks."
+
+      - secret: work-webhook-serving-cert
+        used_by: cluster-manager-work-webhook
+        managed_by: service-ca-operator
+        rotation: "Automatic"
+        if_corrupted: "ManifestWork webhook fails. Addon/workload delivery breaks."
+
+  # Observability namespace certificates
+  open-cluster-management-observability:
+    note: "Only present when observability is enabled"
+    secrets:
+      - secret: observability-server-certs
+        used_by: thanos-query, thanos-receive
+        managed_by: observability-operator
+        rotation: "Managed by observability-operator"
+        if_corrupted: "Thanos components can't communicate. All observability fails."
+
+      - secret: observability-grafana-certs
+        used_by: grafana
+        managed_by: observability-operator
+        rotation: "Managed by observability-operator"
+        if_corrupted: "Grafana HTTPS fails."
+
+  # Hive namespace certificates
+  hive:
+    secrets:
+      - secret: hiveadmission-serving-cert
+        used_by: hiveadmission
+        managed_by: service-ca-operator
+        rotation: "Automatic"
+        if_corrupted: "Hive admission webhook fails. ClusterDeployment operations rejected."
+
+certificate_check_commands:
+  list_tls_secrets: "oc get secrets -n {namespace} -o json | jq -r '.items[] | select(.type==\"kubernetes.io/tls\") | .metadata.name'"
+  check_expiry: "oc get secret {secret} -n {namespace} -o jsonpath='{.data.tls\\.crt}' | base64 -d | openssl x509 -noout -enddate"
+  check_issuer: "oc get secret {secret} -n {namespace} -o jsonpath='{.data.tls\\.crt}' | base64 -d | openssl x509 -noout -issuer"
+
+common_cert_issues:
+  - issue: "service-ca-operator not rotating"
+    symptom: "Certificate expired but service-ca-operator didn't renew"
+    check: "oc get pods -n openshift-service-ca"
+    resolution: "Ensure service-ca-operator is Running. It auto-rotates certs ~13 months before expiry."
+
+  - issue: "Custom cert replacing service-ca managed cert"
+    symptom: "After manual cert replacement, service-ca overwrites it on next rotation"
+    resolution: "Remove the service.beta.openshift.io/serving-cert-secret-name annotation to prevent service-ca from managing the secret."
+
+  - issue: "Webhook CA bundle stale after rotation"
+    symptom: "Webhook rejects requests with x509 errors after cert rotation"
+    resolution: "service-ca-operator should update the caBundle annotation. Check if the inject-cabundle annotation is present on the webhook config."

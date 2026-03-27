@@ -28,7 +28,7 @@ JENKINS_TOOLS_DIR = os.environ.get("JENKINS_TOOLS_DIR", "")
 jenkins_mcp_dir = os.path.join(os.path.dirname(__file__), ".external", "jenkins-mcp")
 sys.path.insert(0, jenkins_mcp_dir)
 
-from jenkins_mcp_server import mcp, JENKINS_USER, JENKINS_TOKEN, JENKINS_URL
+from jenkins_mcp_server import mcp, get_jenkins_context
 
 
 def _check_tools_dir() -> Optional[str]:
@@ -42,12 +42,13 @@ def _check_tools_dir() -> Optional[str]:
 
 
 def _run_tool(args: list[str], timeout: int = 120) -> str:
+    url, user, token = get_jenkins_context()
     env = os.environ.copy()
     env.update({
-        "JENKINS_USER": JENKINS_USER,
-        "JENKINS_TOKEN": JENKINS_TOKEN,
-        "JENKINS_URL": JENKINS_URL,
-        "JENKINS_API_TOKEN": JENKINS_TOKEN,
+        "JENKINS_USER": user,
+        "JENKINS_TOKEN": token,
+        "JENKINS_URL": url,
+        "JENKINS_API_TOKEN": token,
     })
     try:
         proc = subprocess.run(args, capture_output=True, text=True, timeout=timeout, env=env)

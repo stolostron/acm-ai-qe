@@ -105,6 +105,24 @@ Claude Code agent performs 5-phase investigation:
 | RBAC | RBAC & User Management | Yes |
 | Automation | Ansible Automation Platform | Yes |
 
+## Knowledge Database
+
+Standalone knowledge database at `knowledge/` provides domain reference data
+for the AI agent during Stage 2 analysis. Complements the feature playbooks
+at `src/data/feature_playbooks/`.
+
+| File | Content |
+|------|---------|
+| `components.yaml` | ACM component registry (name, namespace, pod labels, health checks) |
+| `dependencies.yaml` | Dependency chains with cascade failure paths |
+| `selectors.yaml` | UI selector ground truth per feature area |
+| `api-endpoints.yaml` | Backend API endpoints with probe commands |
+| `feature-areas.yaml` | Feature area index (test patterns, components, routes) |
+| `failure-patterns.yaml` | Known failure signatures for short-circuit classification |
+| `test-mapping.yaml` | Test suite to feature area mapping with known issues |
+| `learned/` | Agent-contributed corrections, patterns, selector changes |
+| `refresh.py` | Updates knowledge from cluster, MCP, KG |
+
 ## Run Directory Structure
 
 ```

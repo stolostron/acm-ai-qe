@@ -40,7 +40,7 @@ Why are managed clusters Unknown?     # symptom investigation
 1. **Discover** -- inventory what's deployed (MCH, MCE, components, nodes, fleet)
 2. **Learn** -- consult architecture knowledge + previous discoveries
 3. **Check** -- verify health per component (pods, logs, events, CRD status)
-4. **Pattern Match** -- match symptoms against 1,430+ known bug patterns
+4. **Pattern Match** -- match symptoms against documented known issues with JIRA references
 5. **Correlate** -- trace 6 dependency chains to find root cause
 6. **Deep Investigate** -- logs, events, storage, networking for critical findings
 
@@ -58,13 +58,19 @@ leaf symptoms independently.
 
 ## Knowledge Base
 
-34 knowledge files covering 12 ACM subsystems, 7,400+ lines of engineering-level
-architecture, data flow, and known issue documentation.
+44 knowledge files covering 11 ACM subsystems -- architecture docs, structured
+operational data, and diagnostic methodology.
 
 ```
 knowledge/
-  component-registry.md                 # Master inventory of ACM components, CRDs, namespaces
-  failure-patterns.md                   # Common failure signatures mapped to root causes
+  component-registry.md                 # Master inventory of ACM components
+  failure-patterns.md                   # Failure signatures mapped to root causes
+  healthy-baseline.yaml                 # Expected pod counts, deployment states
+  dependency-chains.yaml                # 6 cascade paths (structured YAML)
+  webhook-registry.yaml                 # Validating/mutating webhooks
+  certificate-inventory.yaml            # TLS secrets, rotation, impact
+  addon-catalog.yaml                    # Addon health checks and dependencies
+  refresh.py                            # Update YAML from live cluster
   architecture/                         # How ACM works (per-component)
     kubernetes-fundamentals.md          # K8s primitives ACM uses
     acm-platform.md                     # MCH/MCE, operator hierarchy, addon framework
@@ -80,11 +86,26 @@ knowledge/
     networking/                         # architecture.md, known-issues.md
     infrastructure/                     # architecture.md, known-issues.md
   diagnostics/                          # Health check methodology
-    dependency-chains.md                # 6 cascade paths
+    dependency-chains.md                # 6 cascade paths (narrative)
     evidence-tiers.md                   # Evidence weighting rules
     diagnostic-playbooks.md             # Investigation procedures
   learned/                              # Agent-discovered knowledge (grows over time)
 ```
+
+Refresh structured data from a live cluster:
+```bash
+python -m knowledge.refresh             # Refresh all YAML files
+python -m knowledge.refresh --baseline  # Update healthy-baseline.yaml
+python -m knowledge.refresh --webhooks  # Update webhook-registry.yaml
+python -m knowledge.refresh --certs     # Update certificate-inventory.yaml
+python -m knowledge.refresh --addons    # Update addon-catalog.yaml
+python -m knowledge.refresh --promote   # Review learned/ entries for promotion
+python -m knowledge.refresh --dry-run   # Preview changes without writing
+```
+
+Smart merge: curated content (impact descriptions, dependencies) is preserved.
+New items get placeholder descriptions. Items no longer on the cluster are
+flagged but kept. Version drift between YAML and cluster is detected.
 
 ## All Operations Are Read-Only
 

@@ -1,0 +1,198 @@
+# ACM Component Dependency Chains (Structured)
+# YAML complement to diagnostics/dependency-chains.md (narrative version).
+# Use this for structured lookups; read the narrative version for investigation procedures.
+#
+# Populated by: refresh.py (Neo4j KG transitive queries + manual curation)
+# Refresh frequency: weekly or after ACM version change
+
+acm_version: "2.17"
+last_refreshed: "2026-03-27"
+
+chains:
+
+  - id: console-search-clusters
+    name: "Console -> Search -> Managed Clusters"
+    description: "UI search functionality depends on search stack and spoke connectivity"
+    components:
+      - name: console-ui
+        role: entry_point
+        depends_on: [console-api]
+      - name: console-api
+        role: proxy
+        depends_on: [search-api]
+      - name: search-api
+        role: query_server
+        depends_on: [search-indexer, search-postgres]
+      - name: search-indexer
+        role: data_processor
+        depends_on: [search-postgres, search-collector]
+      - name: search-postgres
+        role: storage
+        depends_on: []
+      - name: search-collector
+        role: spoke_addon
+        depends_on: [klusterlet]
+      - name: klusterlet
+        role: spoke_agent
+        depends_on: []
+    impact:
+      search-collector_down: "Resources from that spoke silently absent from search"
+      search-postgres_down: "ALL search queries fail"
+      search-api_down: "Console VM pages empty, RBAC views blank, search page broken"
+
+  - id: governance-policy-spoke
+    name: "Governance -> Framework Addon -> Config Policy -> Managed Clusters"
+    description: "Policy propagation and enforcement across managed clusters"
+    components:
+      - name: policy
+        role: entry_point
+        depends_on: [grc-policy-propagator]
+      - name: grc-policy-propagator
+        role: distributor
+        depends_on: [governance-policy-framework]
+      - name: governance-policy-framework
+        role: spoke_framework
+        depends_on: [config-policy-controller, work-manager]
+      - name: config-policy-controller
+        role: spoke_enforcer
+        depends_on: []
+      - name: work-manager
+        role: delivery
+        depends_on: [klusterlet]
+    impact:
+      grc-policy-propagator_down: "No new policies distribute"
+      governance-policy-framework_missing: "Policies don't reach that spoke"
+      config-policy-controller_down: "Policies not evaluated, compliance Unknown"
+      work-manager_backlog: "Compliance updates delayed"
+
+  - id: operator-hierarchy
+    name: "MCH Operator -> Backplane Operator -> Component Operators"
+    description: "Operator management hierarchy -- failure here affects everything"
+    components:
+      - name: olm
+        role: lifecycle
+        depends_on: []
+      - name: mch-operator
+        role: top_level
+        depends_on: [olm]
+      - name: mce-operator
+        role: platform
+        depends_on: [mch-operator]
+      - name: component-operators
+        role: features
+        depends_on: [mce-operator]
+        includes:
+          - search-api
+          - search-indexer
+          - grc-policy-propagator
+          - subscription-controller
+          - console
+          - observability-operator
+          - cluster-permission
+    impact:
+      olm_unhealthy: "MCH operator can't be updated"
+      mch-operator_down: "ACM component lifecycle stops"
+      mce-operator_down: "MCE components can't be deployed or updated"
+
+  - id: hypershift-import
+    name: "HyperShift Addon -> Import Controller -> Klusterlet"
+    description: "Hosted cluster import and registration"
+    components:
+      - name: hostedcluster
+        role: entry_point
+        depends_on: [hypershift-addon]
+      - name: hypershift-addon
+        role: importer
+        depends_on: [managedcluster-import-controller]
+      - name: managedcluster-import-controller
+        role: deployer
+        depends_on: [registration-agent]
+      - name: registration-agent
+        role: registrar
+        depends_on: [registration-operator]
+    impact:
+      hypershift-addon_down: "New hosted clusters aren't imported"
+      managedcluster-import-controller_down: "Klusterlet not deployed"
+      registration_failed: "Cluster stays in Pending state"
+
+  - id: rbac-propagation
+    name: "MCRA Operator -> ClusterPermission -> ManifestWork -> Spoke RBAC"
+    description: "Fine-grained RBAC propagation to spoke clusters"
+    components:
+      - name: mcra
+        role: entry_point
+        depends_on: [mcra-operator]
+      - name: mcra-operator
+        role: processor
+        depends_on: [cluster-permission-controller]
+      - name: cluster-permission-controller
+        role: creator
+        depends_on: [manifestwork]
+      - name: manifestwork
+        role: delivery
+        depends_on: [klusterlet]
+      - name: klusterlet
+        role: spoke_applier
+        depends_on: []
+    impact:
+      mcra-operator_down: "New role assignments not processed"
+      cluster-permission-controller_oom: "RBAC not propagated (OOM at scale -- ACM-24032)"
+      klusterlet_disconnected: "ManifestWork can't be delivered"
+
+  - id: observability-metrics
+    name: "Observability Operator -> Addon -> Prometheus -> Thanos"
+    description: "Metrics collection and visualization stack"
+    components:
+      - name: mco-cr
+        role: config
+        depends_on: [observability-operator]
+      - name: observability-operator
+        role: deployer
+        depends_on: [observability-controller]
+      - name: observability-controller
+        role: spoke_addon
+        depends_on: [metrics-collector]
+      - name: metrics-collector
+        role: scraper
+        depends_on: [thanos-receive]
+      - name: thanos-receive
+        role: ingest
+        depends_on: [s3-storage]
+      - name: s3-storage
+        role: persistence
+        depends_on: []
+      - name: thanos-store
+        role: historical_queries
+        depends_on: [s3-storage]
+      - name: thanos-query
+        role: query_engine
+        depends_on: [thanos-store, thanos-receive]
+      - name: grafana
+        role: visualization
+        depends_on: [thanos-query]
+    impact:
+      observability-operator_down: "Observability stack can't be managed"
+      metrics-collector_missing: "No metrics from that spoke"
+      s3_misconfigured: "thanos-store crashes (most common observability failure)"
+      thanos-query_down: "Grafana dashboards show no data"
+
+cross_chain_patterns:
+  - symptom: "Search + Observability both broken"
+    likely_cause: "Shared storage or node pressure"
+    chains_affected: [console-search-clusters, observability-metrics]
+
+  - symptom: "All features broken on one spoke"
+    likely_cause: "klusterlet disconnected"
+    chains_affected: [console-search-clusters, governance-policy-spoke, rbac-propagation, observability-metrics]
+
+  - symptom: "Multiple addons failing on same spoke"
+    likely_cause: "addon-manager down or spoke connectivity"
+    chains_affected: [console-search-clusters, governance-policy-spoke, observability-metrics]
+
+  - symptom: "Nothing works"
+    likely_cause: "MCH/MCE/backplane issue"
+    chains_affected: [operator-hierarchy]
+
+  - symptom: "UI shows everything broken but oc commands work"
+    likely_cause: "Console issue only"
+    chains_affected: [console-search-clusters]

@@ -1,9 +1,9 @@
 # Knowledge System and Self-Healing
 
-The agent uses a two-layer knowledge system that combines curated reference
-material with discoveries made during previous health checks. When the agent
-encounters something not covered by its knowledge base, it triggers a
-self-healing process to investigate, learn, and record findings.
+The agent uses a layered knowledge system that combines curated architecture
+documentation with diagnostic methodology and discoveries from previous health
+checks. When the agent encounters something not covered by its knowledge base,
+it triggers a self-healing process to investigate, learn, and record findings.
 
 ---
 
@@ -13,77 +13,124 @@ self-healing process to investigate, learn, and record findings.
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                          Knowledge System                                  │
 │                                                                            │
-│  ┌────────────────────────────┐       ┌──────────────────────────────────┐ │
-│  │ LAYER 1: Static Knowledge  │       │ LAYER 2: Learned Knowledge       │ │
-│  │                            │       │                                  │ │
-│  │ knowledge/                 │       │ knowledge/learned/               │ │
-│  │ ├── component-registry.md  │       │ └── <topic>.md                   │ │
-│  │ ├── failure-patterns.md    │       │                                  │ │
-│  │ └── diagnostic-playbooks.md│       │ Written by the agent during      │ │
-│  │                            │       │ health checks when mismatches    │ │
-│  │ Manually curated.          │       │ are detected between knowledge   │ │
-│  │ Covers common components,  │       │ and cluster state.               │ │
-│  │ patterns, and procedures.  │       │                                  │ │
-│  │ May become outdated as     │       │ Supplements static knowledge.    │ │
-│  │ ACM evolves.               │       │ More recent and version-specific.│ │
-│  └────────────────────────────┘       └──────────────────────────────────┘ │
+│  ┌────────────────────────────┐  ┌───────────────────────────────────────┐ │
+│  │ Architecture Knowledge     │  │ Diagnostic Knowledge                  │ │
+│  │ knowledge/architecture/    │  │ knowledge/diagnostics/                │ │
+│  │                            │  │                                       │ │
+│  │ Per-component directories: │  │ dependency-chains.md                  │ │
+│  │   architecture.md          │  │   6 critical cascade paths            │ │
+│  │   data-flow.md             │  │ evidence-tiers.md                     │ │
+│  │   known-issues.md          │  │   How to weight evidence (Tier 1/2/3) │ │
+│  │                            │  │ diagnostic-playbooks.md               │ │
+│  │ + kubernetes-fundamentals  │  │   Per-subsystem investigation steps   │ │
+│  │ + acm-platform.md          │  │                                       │ │
+│  └────────────────────────────┘  └───────────────────────────────────────┘ │
 │                                                                            │
-│  Priority: Cluster > Layer 2 > Layer 1                                     │
-│  The live cluster is always the source of truth.                           │
+│  ┌────────────────────────────┐  ┌───────────────────────────────────────┐ │
+│  │ Cross-Cutting Knowledge    │  │ Structured Operational Data (YAML)    │ │
+│  │ knowledge/                 │  │ knowledge/*.yaml                      │ │
+│  │                            │  │                                       │ │
+│  │ component-registry.md      │  │ healthy-baseline.yaml                 │ │
+│  │   Master inventory of ACM  │  │ dependency-chains.yaml                │ │
+│  │   components, CRDs, NS     │  │ webhook-registry.yaml                 │ │
+│  │ failure-patterns.md        │  │ certificate-inventory.yaml            │ │
+│  │   Common failure signatures│  │ addon-catalog.yaml                    │ │
+│  │   mapped to root causes    │  │                                       │ │
+│  └────────────────────────────┘  └───────────────────────────────────────┘ │
+│                                                                            │
+│  ┌────────────────────────────────────────────────────────────────────────┐ │
+│  │ Learned Knowledge                                                      │ │
+│  │ knowledge/learned/                                                     │ │
+│  │                                                                        │ │
+│  │ Written by the agent during health checks when mismatches are detected │ │
+│  │ between knowledge and cluster state. Version- and cluster-specific.    │ │
+│  └────────────────────────────────────────────────────────────────────────┘ │
+│                                                                            │
+│  Priority: Cluster > Learned > Static                                     │
+│  The live cluster is always the source of truth.                          │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Layer 1: Static Knowledge
+## Architecture Knowledge
 
-Three curated reference files provide the baseline knowledge:
+Deep engineering-level documentation about each ACM subsystem, organized in
+per-component directories under `knowledge/architecture/`.
 
-### component-registry.md
+### Top-Level Architecture
 
-Reference guide for ACM hub components. Covers:
+| File | Content |
+|------|---------|
+| `kubernetes-fundamentals.md` | K8s primitives that ACM is built on |
+| `acm-platform.md` | MCH/MCE hierarchy, operator lifecycle, addon framework |
 
-| Section | What It Documents |
-|---------|-------------------|
-| Top-Level Control Plane | MCH, MCE, OCP ClusterVersion |
-| Cluster Management | Managed clusters, klusterlet, lifecycle controllers, add-on manager |
-| Search | Search-api, indexer, collector, postgres, v2 operator |
-| Governance / Policy (GRC) | Policy propagator, spoke-side controllers |
-| Observability | Thanos stack, Grafana, alertmanager, metrics collectors, Minio/S3 |
-| Application Lifecycle | Subscription controller, channel controller, GitOps path |
-| Console | Console frontend, CLI downloads, console plugins |
-| RBAC / User Management | Fine-grained RBAC, cluster permissions |
-| Virtualization (Fleet Virt) | CNV integration, kubevirt-plugin |
-| Infrastructure Foundation | Nodes, certificates, storage |
+### Per-Component Directories
 
-For each component, the registry documents:
-- **Namespace** -- where it lives (noting that MCH namespace varies)
-- **Resource** -- the CRD or API resource
-- **Check command** -- how to inspect it
-- **Healthy state** -- what healthy looks like
-- **Key pods** -- pod names and labels
-- **Impact when degraded** -- what breaks when this component fails
-- **Common issues** -- frequently observed failure modes
+Components with full coverage (`architecture.md`, `data-flow.md`, `known-issues.md`):
 
-### failure-patterns.md
+| Component | What It Covers |
+|-----------|---------------|
+| `search/` | Search API, indexer, collector, postgres, federated search |
+| `governance/` | Policy framework, propagator, spoke controllers, compliance |
+| `observability/` | Thanos stack, Grafana, alertmanager, metrics pipeline |
+| `cluster-lifecycle/` | Managed clusters, provisioning, import, klusterlet |
+| `console/` | Console frontend, plugins, API integration |
+| `application-lifecycle/` | Subscriptions, channels, GitOps, placement |
+| `virtualization/` | Fleet virtualization, CNV integration, MTV |
+| `rbac/` | Fine-grained RBAC, cluster permissions |
 
-Cross-component failure correlation heuristics. Organized by category:
+Components with partial coverage:
 
-| Category | Example Patterns |
-|----------|-----------------|
-| Platform-Level | MCH stuck progressing, CSVs not succeeded, nodes NotReady |
-| Managed Cluster | Multiple clusters Unknown, single cluster Unknown, Joined=False |
-| Cross-Component | Search + Observability both broken, console 500 across features |
-| Storage-Related | PVC full, Thanos store CrashLoop |
-| Upgrade-Related | Components degraded after OCP upgrade, ACM upgrade stuck |
-| Certificate | Intermittent TLS failures, webhook failures after rotation |
-| Resource Pressure | OOMKilled pods |
-| Anti-Patterns | Things that look related but aren't |
+| Component | Files | What It Covers |
+|-----------|-------|---------------|
+| `addon-framework/` | `architecture.md` | Addon manager, ClusterManagementAddon lifecycle |
+| `networking/` | `architecture.md`, `known-issues.md` | Submariner, service discovery |
+| `infrastructure/` | `architecture.md`, `known-issues.md` | Nodes, storage, certificates |
 
-Each pattern includes:
-- **Symptoms** -- what you observe
-- **Heuristic** -- what it likely means
-- **Investigate** -- how to verify
+### How Architecture Knowledge Is Used
+
+1. **Phase 2 (Learn):** Read `architecture.md` to understand how a component
+   should work before checking if it's broken
+2. **Phase 4 (Pattern Match):** Read `known-issues.md` to match symptoms
+   against documented bugs with JIRA references
+3. **Phase 6 (Deep Investigate):** Read `data-flow.md` to trace where the
+   data flow is broken
+
+---
+
+## Diagnostic Knowledge
+
+Health-check-specific methodology in `knowledge/diagnostics/`:
+
+### dependency-chains.md
+
+Documents 6 critical cascade paths with tracing procedures:
+
+1. **Console → Search → Managed Clusters** -- search-collector down = resources missing
+2. **Governance → Framework Addon → Config Policy → Clusters** -- policy propagation chain
+3. **MCH Operator → Backplane → Component Operators** -- operator hierarchy
+4. **HyperShift Addon → Import Controller → Klusterlet** -- hosted cluster import
+5. **MCRA → ClusterPermission → ManifestWork → RBAC** -- fine-grained RBAC propagation
+6. **Observability Operator → Addon → Thanos** -- metrics pipeline
+
+Used in Phase 5 (Correlate) to trace upstream from symptoms to root causes.
+
+### evidence-tiers.md
+
+Rules for weighting evidence:
+
+| Tier | Type | Example |
+|------|------|---------|
+| **Tier 1** | Definitive | Error message in logs, pod status, resource condition |
+| **Tier 2** | Strong | Event history, restart pattern, timing correlation |
+| **Tier 3** | Circumstantial | Version match, similar past behavior, documentation |
+
+Evidence combination rules:
+- Every conclusion needs 2+ evidence sources
+- At least one should be Tier 1
+- State confidence level based on evidence combination
+- Rule out alternatives before concluding
 
 ### diagnostic-playbooks.md
 
@@ -105,7 +152,115 @@ ordered investigation steps with specific commands:
 
 ---
 
-## Layer 2: Learned Knowledge
+## Structured Operational Data
+
+Quantitative YAML files for comparing cluster state against known-good values.
+These complement the narrative documentation with machine-readable reference data.
+
+| File | Content | Used In |
+|------|---------|---------|
+| `healthy-baseline.yaml` | Expected pod counts, deployment states, node thresholds | Phase 3 (Check) -- compare actual vs expected |
+| `dependency-chains.yaml` | 6 cascade paths in structured YAML | Phase 5 (Correlate) -- structured lookups |
+| `webhook-registry.yaml` | Validating/mutating webhooks, failure policies | Phase 3 (Check) -- detect missing webhooks |
+| `certificate-inventory.yaml` | TLS secrets, rotation, impact when corrupted | Phase 6 (Deep) -- cert investigation |
+| `addon-catalog.yaml` | All addons, health checks, dependencies | Phase 3 (Check) -- addon health audit |
+
+### healthy-baseline.yaml
+
+Defines what "normal" looks like for a healthy ACM hub:
+- MCH/MCE expected phases and conditions
+- Pod count ranges per namespace
+- Critical deployments with minimum replicas
+- Node thresholds (CPU, memory, disk)
+- Expected managed cluster conditions
+- Required addons per feature
+
+### dependency-chains.yaml
+
+Structured YAML complement to `diagnostics/dependency-chains.md`. Same 6 chains
+in a format suitable for programmatic lookups:
+- Each chain has components with roles and dependencies
+- Impact descriptions per failure point
+- Cross-chain patterns linking shared causes
+
+### webhook-registry.yaml
+
+All validating and mutating webhook configurations expected on an ACM hub:
+- Owner, namespace, failure policy
+- What each webhook is critical for
+- Impact when broken
+- Common webhook issues and resolutions
+
+### certificate-inventory.yaml
+
+TLS secrets per namespace:
+- What component uses each secret
+- Who manages rotation (service-ca vs manual)
+- Impact when corrupted
+- Check commands for expiry and issuer
+
+### addon-catalog.yaml
+
+All managed cluster addons with operational details:
+- Required vs optional, default enabled state
+- Health check commands
+- Dependencies between addons
+- Impact when unhealthy
+
+### Refreshing Structured Data
+
+Run the refresh script to update knowledge from a live cluster:
+
+```bash
+python -m knowledge.refresh                 # Refresh all YAML files from connected cluster
+python -m knowledge.refresh --baseline      # Update healthy-baseline.yaml
+python -m knowledge.refresh --webhooks      # Update webhook-registry.yaml
+python -m knowledge.refresh --certs         # Update certificate-inventory.yaml
+python -m knowledge.refresh --addons        # Update addon-catalog.yaml
+python -m knowledge.refresh --promote       # Review learned/ entries for promotion
+python -m knowledge.refresh --dry-run       # Show what would change without writing
+```
+
+All refresh flags use smart merge: new items found on the cluster are added
+with placeholder descriptions, existing curated content (impact descriptions,
+dependencies, diagnostic guidance) is preserved, and items no longer on the
+cluster are flagged but kept. The script also detects version drift between
+YAML metadata and the cluster's actual ACM version.
+
+---
+
+## Cross-Cutting Knowledge
+
+Top-level reference files spanning all components:
+
+### component-registry.md
+
+Master inventory of ACM hub components. For each component, documents:
+- **Namespace** -- where it lives (noting that MCH namespace varies)
+- **Resource** -- the CRD or API resource
+- **Check command** -- how to inspect it
+- **Healthy state** -- what healthy looks like
+- **Key pods** -- pod names and labels
+- **Impact when degraded** -- what breaks when this component fails
+- **Common issues** -- frequently observed failure modes
+
+### failure-patterns.md
+
+Cross-component failure correlation heuristics:
+
+| Category | Example Patterns |
+|----------|-----------------|
+| Platform-Level | MCH stuck progressing, CSVs not succeeded, nodes NotReady |
+| Managed Cluster | Multiple clusters Unknown, single cluster Unknown, Joined=False |
+| Cross-Component | Search + Observability both broken, console 500 across features |
+| Storage-Related | PVC full, Thanos store CrashLoop |
+| Upgrade-Related | Components degraded after OCP upgrade, ACM upgrade stuck |
+| Certificate | Intermittent TLS failures, webhook failures after rotation |
+| Resource Pressure | OOMKilled pods |
+
+---
+
+## Learned Knowledge
 
 Discoveries made by the agent during health checks. Stored in
 `knowledge/learned/` as individual markdown files.
@@ -118,7 +273,7 @@ static knowledge and cluster state during Phase 2 (Learn):
 ```
   Phase 2: Learn
        │
-       ├── Component X in component-registry.md?
+       ├── Component X in knowledge base?
        │        │
        │        ├── Yes ── Details match cluster? ── Yes ── Continue
        │        │                    │
@@ -161,8 +316,6 @@ static knowledge and cluster state during Phase 2 (Learn):
 
 ### Conflict Resolution
 
-When static and learned knowledge conflict:
-
 | Scenario | Resolution |
 |----------|------------|
 | Learned knowledge contradicts static | Learned is more recent, likely more accurate |
@@ -173,7 +326,7 @@ When static and learned knowledge conflict:
 
 ## Self-Healing Process
 
-When a mismatch is detected, the agent runs a 6-step self-healing process:
+When a mismatch is detected, the agent runs a self-healing process:
 
 ```
   MISMATCH DETECTED
@@ -218,65 +371,7 @@ When a mismatch is detected, the agent runs a 6-step self-healing process:
   └──────────────────┘
 ```
 
-### Step 1: Collect Cluster Evidence
-
-```bash
-oc describe <resource> -n <namespace>          # Full resource details
-oc get <resource> -o yaml                      # Labels, annotations, owner refs
-oc get events -n <namespace>                   # Recent events
-oc get pods -n <namespace> -l <label>          # Related pods
-```
-
-The agent checks:
-- Labels and annotations (reveal purpose and owner)
-- Owner references (what controller manages this)
-- Events in the namespace (recent activity)
-- Related resources in the same namespace
-
-### Step 2: Search Official Documentation
-
-If `docs/rhacm-docs/` is cloned (optional):
-
-```bash
-grep -r "<component-name>" docs/rhacm-docs/ --include="*.adoc" -l
-grep -r "<keyword>" docs/rhacm-docs/ --include="*.adoc" -l
-```
-
-Key documentation areas:
-- `troubleshooting/` -- symptom-based troubleshooting
-- `observability/` -- observability architecture and alerts
-- `install/` -- installation, sizing, upgrade procedures
-- `clusters/` -- cluster lifecycle management
-- `governance/` -- policy framework
-- `search/` -- search subsystem
-- `virtualization/` -- fleet virtualization
-- `health_metrics/` -- metrics and monitoring
-
-If `docs/rhacm-docs/` is not present, this step is skipped.
-
-### Step 3: Search ACM Source Code via MCP
-
-The `acm-ui` MCP server provides access to the stolostron/console and
-kubevirt-plugin source code:
-
-Key tools used during self-healing (subset -- see
-[04-MCP-AND-EXTERNAL-SOURCES.md](04-MCP-AND-EXTERNAL-SOURCES.md) for the full
-19-tool inventory):
-
-| MCP Tool | Purpose |
-|----------|---------|
-| `search_code` | Search for keywords across the codebase |
-| `search_component` | Find a specific React component |
-| `get_component_source` | Get the source code of a component |
-| `get_routes` | Find route definitions and navigation paths |
-| `get_acm_selectors` | Find data-testid attributes |
-
-This reveals how the component integrates with the console, its API endpoints,
-and its data flow.
-
-### Step 4: Synthesize and Resolve
-
-The agent combines evidence from all three sources to classify the mismatch:
+### Mismatch Classification
 
 | Classification | Meaning | Action |
 |---------------|---------|--------|
@@ -284,17 +379,6 @@ The agent combines evidence from all three sources to classify the mismatch:
 | Knowledge drift | Renamed/restructured component | Update with current names |
 | Version-specific change | Behavior changed in this ACM version | Document with version annotation |
 | Actual issue | Unexpected state that indicates a problem | Report as a finding |
-
-### Step 5: Write Learned Knowledge
-
-Findings are written to `knowledge/learned/<topic>.md` using the standard format
-(see "Learned Knowledge File Format" above). The file name reflects the topic
-(e.g., `search-postgres-migration.md`, `console-v2-plugin-architecture.md`).
-
-### Step 6: Continue Health Check
-
-The agent uses the newly learned information to complete the remaining phases
-with accurate understanding of the component.
 
 ---
 
@@ -316,15 +400,6 @@ of checking health, it focuses on discovering and documenting what's deployed.
 - When you want to ensure the knowledge base matches the current cluster state
 - After enabling/disabling MCH components
 
-### /learn Process Per Component
-
-1. Check if it exists in `knowledge/component-registry.md`
-2. If not, or if details differ, investigate it:
-   - Collect detailed info from the cluster
-   - Search `docs/rhacm-docs/` for documentation
-   - Use `acm-ui` MCP to search source code
-3. Write findings to `knowledge/learned/`
-
 ---
 
 ## Trust Hierarchy
@@ -333,9 +408,9 @@ of checking health, it focuses on discovering and documenting what's deployed.
   Most trusted                               Least trusted
   ┌──────────┐    ┌───────────────┐    ┌─────────────────────┐
   │  Live    │ >  │   Learned     │ >  │  Static Knowledge   │
-  │  Cluster │    │   Knowledge   │    │  (component-registry │
-  │          │    │   (learned/)  │    │   failure-patterns    │
-  │          │    │               │    │   playbooks)          │
+  │  Cluster │    │   Knowledge   │    │  (architecture/     │
+  │          │    │   (learned/)  │    │   diagnostics/       │
+  │          │    │               │    │   cross-cutting)     │
   └──────────┘    └───────────────┘    └─────────────────────┘
 ```
 
@@ -350,6 +425,6 @@ of checking health, it focuses on discovering and documenting what's deployed.
 
 ## See Also
 
-- [02-DIAGNOSTIC-PIPELINE.md](02-DIAGNOSTIC-PIPELINE.md) -- Phase 2 (Learn) in the pipeline context
+- [02-DIAGNOSTIC-PIPELINE.md](02-DIAGNOSTIC-PIPELINE.md) -- Phase 2 (Learn) and Phase 4 (Pattern Match) in the pipeline context
 - [04-MCP-AND-EXTERNAL-SOURCES.md](04-MCP-AND-EXTERNAL-SOURCES.md) -- MCP tools used during self-healing
 - [00-OVERVIEW.md](00-OVERVIEW.md) -- top-level overview

@@ -29,8 +29,8 @@ appropriate depth.
        │   Quick   │ │ Standard  │ │   Deep    │ │ Targeted  │
        │   Pulse   │ │   Check   │ │   Audit   │ │   Invest. │
        │           │ │           │ │           │ │           │
-       │ Phase 1   │ │ Phases    │ │ All 5     │ │ All 5     │
-       │ only      │ │ 1-3       │ │ Phases    │ │ Phases    │
+       │ Phase 1   │ │ Phases    │ │ All 6     │ │ All 6     │
+       │ only      │ │ 1-4       │ │ Phases    │ │ Phases    │
        │           │ │           │ │           │ │ (scoped)  │
        │ ~30s      │ │ ~2-3 min  │ │ ~5-10 min │ │ varies    │
        └───────────┘ └───────────┘ └───────────┘ └───────────┘
@@ -73,6 +73,7 @@ CSVs. Reports only immediate red flags.
 - Logs or events
 - Storage (PVCs)
 - Add-on status on spokes
+- Known issue matching
 - Cross-component correlation
 
 **Output:** Compact component status table with overall verdict.
@@ -81,14 +82,13 @@ CSVs. Reports only immediate red flags.
 
 ### Standard Check
 
-**Phases:** Phases 1-3 (Discover, Learn, Check)
+**Phases:** Phases 1-4 (Discover, Learn, Check, Pattern Match)
 **Time:** ~2-3 minutes
 **Slash command:** `/health-check`
 
-The default depth. Discovers what's deployed, consults the knowledge base, then
-systematically verifies the health of each discovered component. Covers all
-deployed subsystems but does not dig into logs or perform cross-component
-correlation.
+The default depth. Discovers what's deployed, consults the architecture
+knowledge, systematically verifies each component's health, then matches
+any findings against known bug patterns with JIRA references.
 
 **Trigger phrases:**
 - "health check"
@@ -101,26 +101,31 @@ correlation.
 | Addition | Details |
 |----------|---------|
 | Component discovery | Identifies all enabled MCH components from `.spec.overrides.components` |
-| Knowledge consultation | Reads `knowledge/component-registry.md` and `knowledge/learned/` |
+| Architecture knowledge | Reads `knowledge/architecture/<component>/` for each component |
 | Self-healing | Investigates any components not in the knowledge base |
 | Pod-level checks | Checks pods in MCH namespace, MCE namespace, observability namespace, hive namespace |
 | Non-Running pod detection | `--field-selector=status.phase!=Running,status.phase!=Succeeded` |
+| Operator log scanning | Checks for known error patterns in controller logs |
 | Add-on status | `oc get managedclusteraddons -A` |
 | Restart count analysis | Flags pods with high restart counts |
+| Known issue matching | Compares findings against `known-issues.md` per component |
+| Version-aware diagnosis | Checks exact ACM/MCE version and matches to fix versions |
 
-**Output:** Full health report with component status table and any issues found.
+**Output:** Full health report with component status table, any issues found
+(with JIRA references when matched), and cluster overview.
 
 ---
 
 ### Deep Audit
 
-**Phases:** All 5 (Discover, Learn, Check, Correlate, Deep Investigate)
+**Phases:** All 6 (Discover, Learn, Check, Pattern Match, Correlate, Deep Investigate)
 **Time:** ~5-10 minutes
 **Slash command:** None (use natural language)
 
-Runs the complete pipeline. After checking all components, correlates findings
-to identify root causes across components, then performs deep investigation of
-any critical findings including log analysis, event review, and storage checks.
+Runs the complete pipeline. After checking all components and matching known
+issues, traces dependency chains to identify root causes across components,
+then performs deep investigation of any critical findings including log
+analysis, event review, and storage checks.
 
 **Trigger phrases:**
 - "deep dive"
@@ -133,26 +138,28 @@ any critical findings including log analysis, event review, and storage checks.
 
 | Addition | Details |
 |----------|---------|
-| Cross-component correlation | Checks `knowledge/failure-patterns.md` for related failures |
-| Root cause analysis | Looks for shared dependencies, cascading failures, timeline connections |
+| Dependency chain tracing | Uses `knowledge/diagnostics/dependency-chains.md` to trace root causes |
+| Evidence-tier weighting | Applies `knowledge/diagnostics/evidence-tiers.md` rules |
+| Cross-component correlation | Identifies shared dependencies causing multiple symptoms |
 | Log analysis | `oc logs` for any degraded components |
 | Event review | `oc get events -n <namespace>` for affected namespaces |
 | Storage verification | `oc get pvc` across all relevant namespaces |
 | Resource usage | `oc adm top pods` / `oc adm top nodes` |
 | Previous crash logs | `oc logs --previous` for pods with high restart counts |
-| Certificate checks | TLS secret expiration where relevant |
+| Data flow tracing | Reads component `data-flow.md` to identify where flow is broken |
 
-**Output:** Full health report with cross-component correlation and deep findings.
+**Output:** Full health report with evidence-based findings, confidence levels,
+and cross-component correlation.
 
 ---
 
 ### Targeted Investigation
 
-**Phases:** All 5, scoped to the target area and its dependencies
+**Phases:** All 6, scoped to the target area and its dependencies
 **Time:** Varies by target complexity
 **Slash command:** `/investigate <target>`
 
-Focuses on a specific component, symptom, or area. Runs all 5 phases but scoped
+Focuses on a specific component, symptom, or area. Runs all 6 phases but scoped
 to the target. Includes the target's dependencies and related components.
 
 **Trigger phrases:**
@@ -185,10 +192,12 @@ User: "investigate observability"
     │  - PVCs / storage      │
     │  - Routes / networking │
     ├───────────────────────┤
-    │  Playbook:             │
-    │  diagnostic-playbooks  │
-    │  "Observability Stack" │
-    │  section               │
+    │  Knowledge consulted:  │
+    │  architecture/         │
+    │    observability/      │
+    │  diagnostics/          │
+    │    diagnostic-playbooks│
+    │    dependency-chains   │
     └───────────────────────┘
 ```
 
@@ -241,23 +250,27 @@ investigation of search even though it doesn't say "investigate."
 | Managed cluster status | Yes | Yes | Yes | If relevant |
 | CSV status | Yes | Yes | Yes | If relevant |
 | Component discovery | No | Yes | Yes | Target area |
-| Knowledge consultation | No | Yes | Yes | Yes |
+| Architecture knowledge | No | Yes | Yes | Yes |
 | Self-healing | No | Yes | Yes | Yes |
 | Pod-level checks | No | Yes | Yes | Yes (focused) |
+| Operator log scanning | No | Yes | Yes | Yes (focused) |
 | Add-on status | No | Yes | Yes | If relevant |
-| Cross-component correlation | No | No | Yes | With dependencies |
+| Known issue matching | No | Yes | Yes | Yes |
+| Version-aware diagnosis | No | Yes | Yes | Yes |
+| Dependency chain tracing | No | No | Yes | With dependencies |
+| Evidence-tier weighting | No | No | Yes | Yes |
 | Log analysis | No | No | Yes | Yes |
 | Event review | No | No | Yes | Yes |
 | Storage checks | No | No | Yes | Yes |
 | Resource usage | No | No | Yes | If relevant |
 | Previous crash logs | No | No | Yes | Yes |
 | Diagnostic playbooks | No | No | Yes | Yes |
-| Failure pattern matching | No | No | Yes | Yes |
+| Data flow tracing | No | No | Yes | Yes |
 
 ---
 
 ## See Also
 
-- [02-DIAGNOSTIC-PIPELINE.md](02-DIAGNOSTIC-PIPELINE.md) -- detailed Phase 1-5 procedures
+- [02-DIAGNOSTIC-PIPELINE.md](02-DIAGNOSTIC-PIPELINE.md) -- detailed Phase 1-6 procedures
 - [06-SLASH-COMMANDS.md](06-SLASH-COMMANDS.md) -- slash command reference
 - [00-OVERVIEW.md](00-OVERVIEW.md) -- top-level overview

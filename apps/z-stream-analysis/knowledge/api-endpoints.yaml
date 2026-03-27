@@ -1,0 +1,79 @@
+# ACM Console Backend API Endpoints -- Z-Stream Analysis
+# Backend endpoints used for probing during Stage 1 (gather.py Step 4c).
+# Used by the AI agent to understand backend probe results and cross-check
+# UI failures against backend health.
+#
+# Populated by: refresh.py (ACM-UI MCP search_code for route registrations)
+# Refresh frequency: on ACM version change
+
+acm_version: "2.17"
+last_refreshed: "2026-03-27"
+
+endpoints:
+
+  - path: /authenticated
+    method: GET
+    component: console-api
+    feature_areas: [all]
+    expected: "200 with JSON body, response time < 5s"
+    validates: "Console backend is reachable and auth works"
+    probe_command: "curl -s -k -w '%{http_code}' https://localhost:3000/authenticated"
+    anomalies:
+      slow_response: "Response time > 5s indicates backend under load"
+
+  - path: /hub
+    method: GET
+    component: console-api
+    feature_areas: [CLC, Infrastructure, Observability]
+    expected: "200 with JSON body containing hub cluster name"
+    validates: "Hub name matches MCH metadata"
+    probe_command: "curl -s -k https://localhost:3000/hub"
+    ground_truth: "oc get mch -A -o jsonpath='{.items[0].metadata.name}'"
+    anomalies:
+      wrong_hub_name: "Hub name in response doesn't match MCH -- data routing issue"
+
+  - path: /username
+    method: GET
+    component: console-api
+    feature_areas: [RBAC]
+    expected: "200 with JSON body containing 'name' field"
+    validates: "Username not reversed (kube:admin vs admin)"
+    probe_command: "curl -s -k https://localhost:3000/username"
+    ground_truth: "oc whoami"
+    anomalies:
+      reversed_username: "Returns 'kube:admin' instead of correct format -- RBAC data issue"
+
+  - path: /ansibletower
+    method: GET
+    component: console-api
+    feature_areas: [Automation]
+    expected: "200 with non-empty array if AAP is healthy"
+    validates: "AAP integration is working"
+    probe_command: "curl -s -k https://localhost:3000/ansibletower"
+    anomalies:
+      empty_when_aap_installed: "Returns empty but AAP is installed -- integration broken"
+
+  - path: /proxy/search
+    method: POST
+    component: search-api
+    feature_areas: [Search]
+    expected: "200 with JSON body containing 'items' array"
+    validates: "Search API returns results"
+    probe_command: "curl -s -k https://localhost:3000/proxy/search -X POST -H 'Content-Type: application/json' -d '{\"query\":\"kind:Pod\"}'"
+    anomalies:
+      empty_results: "Returns empty items -- search index may be empty or rebuilding"
+      connection_refused: "Search API pod is down"
+
+  - path: /api/v1/namespaces
+    method: GET
+    component: kubernetes-api
+    feature_areas: [Infrastructure]
+    expected: "200 with namespace list"
+    validates: "Kubernetes API access is working"
+    probe_command: "oc get namespaces --no-headers | wc -l"
+
+classification_hints:
+  all_probes_fail: "Console-api is down -- INFRASTRUCTURE"
+  single_probe_fail: "Feature-specific backend issue -- check component health"
+  probe_ok_but_ui_fails: "Backend healthy, UI selector mismatch likely -- AUTOMATION_BUG"
+  probe_data_wrong: "Backend returns incorrect data -- PRODUCT_BUG"

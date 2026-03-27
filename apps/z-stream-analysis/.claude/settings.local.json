@@ -100,7 +100,11 @@
       "Bash(/Users/ashafi/Documents/work/ai/ai_systems_v2/mcp/.external/jenkins-mcp/.venv/bin/python -c \"import mcp, httpx; print\\('Jenkins MCP: OK'\\)\" 2>&1)",
       "Bash(/Users/ashafi/Documents/work/ai/ai_systems_v2/mcp/acm-ui-mcp-server/.venv/bin/python -c \"import acm_ui_mcp_server; print\\('ACM UI MCP: OK'\\)\" 2>&1)",
       "Bash(env)",
-      "Read(//Library/Frameworks/Python.framework/Versions/3.12/bin/**)"
+      "Read(//Library/Frameworks/Python.framework/Versions/3.12/bin/**)",
+      "Read(//Users/ashafi/.cursor/**)",
+      "Read(//Users/ashafi/Documents/work/ai/tools/mcp/jenkins-mcp/**)",
+      "Bash(/Users/ashafi/Documents/work/ai/ai_systems_v2/mcp/.external/jira-mcp-server/.venv/bin/python -c \"import jira_mcp_server; print\\(getattr\\(jira_mcp_server, ''__version__'', ''no version attr''\\)\\)\")",
+      "Bash(/Users/ashafi/bin/python -c \"import jira_mcp_server; print\\(getattr\\(jira_mcp_server, ''__version__'', ''no version attr''\\)\\)\")"
     ],
     "deny": []
   }

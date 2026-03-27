@@ -16,13 +16,15 @@ and query component dependency graphs -- without needing API keys embedded in pr
 
 ## Which servers do I need?
 
-| Server | Required? | What it does | Tools | Source |
-|--------|-----------|--------------|-------|--------|
-| **acm-ui** | Yes | Searches ACM Console & Fleet Virt source code on GitHub | 20 | This repo |
-| **jira** | Yes | Searches/creates JIRA issues for bug correlation | 25 | [stolostron/jira-mcp-server](https://github.com/stolostron/jira-mcp-server) |
-| **jenkins** | No | Jenkins pipeline analysis, build monitoring, failure investigation | 11 | [redhat-community-ai-tools/jenkins-mcp](https://github.com/redhat-community-ai-tools/jenkins-mcp) |
-| **polarion** | No | Reads/writes Polarion test cases (RHACM4K project) | 25 | This repo (wrapper around [polarion-mcp](https://pypi.org/project/polarion-mcp/)) |
-| **neo4j-rhacm** | No | Queries RHACM component dependency graph (291+ components) | 3 | [mcp-neo4j-cypher](https://pypi.org/project/mcp-neo4j-cypher/) (PyPI) + [stolostron/knowledge-graph](https://github.com/stolostron/knowledge-graph) (data) |
+| Server | Used by | What it does | Tools | Source |
+|--------|---------|--------------|-------|--------|
+| **acm-ui** | Hub Health, Z-Stream | Searches ACM Console & Fleet Virt source code on GitHub | 20 | This repo |
+| **jira** | Z-Stream | Searches/creates JIRA issues for bug correlation | 25 | [stolostron/jira-mcp-server](https://github.com/stolostron/jira-mcp-server) |
+| **jenkins** | Z-Stream | Jenkins pipeline analysis, build monitoring, failure investigation | 11 | [redhat-community-ai-tools/jenkins-mcp](https://github.com/redhat-community-ai-tools/jenkins-mcp) |
+| **polarion** | Z-Stream | Reads/writes Polarion test cases (RHACM4K project) | 25 | This repo (wrapper around [polarion-mcp](https://pypi.org/project/polarion-mcp/)) |
+| **neo4j-rhacm** | Z-Stream | Queries RHACM component dependency graph (291+ components) | 3 | [mcp-neo4j-cypher](https://pypi.org/project/mcp-neo4j-cypher/) (PyPI) + [stolostron/knowledge-graph](https://github.com/stolostron/knowledge-graph) (data) |
+
+The setup script handles this automatically -- select your app and it installs only the servers that app needs.
 
 ## Quick Setup
 

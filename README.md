@@ -110,29 +110,34 @@ any you don't have yet -- placeholder files are created that you can fill in lat
 
 ### MCP Server Reference
 
-| Server | Tools | Purpose |
-|--------|-------|---------|
-| ACM UI | 20 | ACM Console + kubevirt-plugin source code search via GitHub |
-| Jenkins | 11 | Jenkins pipeline API access for build data extraction |
-| JIRA | 25 | Issue search, creation, management for bug correlation |
-| Polarion | 25 | Polarion test case access (Red Hat VPN required) |
-| Neo4j RHACM | 2 | Component dependency graph via Cypher queries |
+| Server | Tools | Source | Purpose |
+|--------|-------|--------|---------|
+| ACM UI | 20 | This repo | ACM Console + kubevirt-plugin source code search via GitHub |
+| Jenkins | 11 | [redhat-community-ai-tools/jenkins-mcp](https://github.com/redhat-community-ai-tools/jenkins-mcp) | Jenkins pipeline API access for build data extraction |
+| JIRA | 25 | [stolostron/jira-mcp-server](https://github.com/stolostron/jira-mcp-server) | Issue search, creation, management for bug correlation |
+| Polarion | 25 | This repo | Polarion test case access (Red Hat VPN required) |
+| Neo4j RHACM | 3 | [mcp-neo4j-cypher](https://pypi.org/project/mcp-neo4j-cypher/) + [stolostron/knowledge-graph](https://github.com/stolostron/knowledge-graph) | Component dependency graph via Cypher queries |
+
+External MCP servers (JIRA, Jenkins) are cloned automatically by `setup.sh` into
+`mcp/.external/` (gitignored). This repo only contains the MCP servers we created
+(ACM UI, Polarion wrapper, Jenkins ACM analysis tools).
 
 ## Directory Structure
 
 ```
-ai_systems_v2/
+acm-ai-qe/
 ├── apps/
 │   ├── acm-hub-health/        # Hub health diagnostic agent
 │   ├── z-stream-analysis/     # Pipeline failure analysis
 │   └── claude-test-generator/ # Test plan generation (WIP)
 ├── mcp/
-│   ├── setup.sh               # Interactive MCP setup script
-│   ├── acm-ui-mcp-server/     # ACM UI source code search
-│   ├── jenkins-mcp/           # Jenkins pipeline access
-│   ├── jira-mcp-server/       # JIRA issue management
-│   ├── neo4j-rhacm/           # Component dependency graph
-│   └── polarion/              # Polarion test cases
+│   ├── setup.sh               # Interactive setup (clones external MCPs, creates venvs)
+│   ├── acm-ui-mcp-server/     # Our code: ACM Console source search
+│   ├── polarion/              # Our code: Polarion wrapper
+│   ├── jenkins-acm-tools.py   # Our code: 4 ACM-specific Jenkins analysis tools
+│   └── .external/             # Cloned at setup time (gitignored)
+│       ├── jira-mcp-server/   #   from stolostron/jira-mcp-server
+│       └── jenkins-mcp/       #   from redhat-community-ai-tools/jenkins-mcp
 ├── CLAUDE.md                  # Claude Code agent instructions
 └── README.md                  # This file
 ```

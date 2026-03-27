@@ -484,10 +484,10 @@ The JIRA MCP server connects to Jira Cloud using basic auth with email + API tok
 - Click "Create API token"
 - Save the token securely
 
-**2. Create the `.env` file** in `mcp/jira-mcp-server/`:
+**2. Create the `.env` file** in `mcp/.external/jira-mcp-server/` (cloned by `setup.sh`):
 
 ```bash
-cp mcp/jira-mcp-server/.env.example mcp/jira-mcp-server/.env
+cp mcp/.external/jira-mcp-server/.env.example mcp/.external/jira-mcp-server/.env
 # Edit with your credentials:
 # JIRA_SERVER_URL=https://your-company.atlassian.net
 # JIRA_ACCESS_TOKEN=<your-api-token>
@@ -507,7 +507,7 @@ The `.env` file uses `load_dotenv(override=True)`, so it always takes precedence
 /mcp
 
 # Or test directly
-cd mcp/jira-mcp-server
+cd mcp/.external/jira-mcp-server
 python -c "from jira_mcp_server.config import JiraConfig; c = JiraConfig.from_env(); c.validate_required_fields(); print('OK')"
 ```
 

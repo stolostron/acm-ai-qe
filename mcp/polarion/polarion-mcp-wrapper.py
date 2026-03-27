@@ -2,11 +2,18 @@
 """
 Polarion MCP Wrapper - Patches SSL + adds enhanced tools for test case workflows.
 
+Wraps the polarion-mcp PyPI package (https://github.com/Sdunga1/Polarion-MCP)
+and adds 11 tools for test step management, test runs, and plan operations
+specific to the RHACM4K project on Red Hat's internal Polarion instance.
+
 Enhancements over base polarion-mcp:
-- SSL verification disabled for Red Hat internal Polarion
-- get_test_steps: Fetch test step content (step text + expected results)
-- get_test_case_summary: Get setup, description, and step titles in one call
-- Increased timeout for large requests (30s vs 8s)
+- SSL verification disabled for Red Hat internal Polarion (certificate not in default CA bundle)
+- Request timeout increased from 8s to 30s for large responses
+- 6 read tools: test steps, test case summary, setup HTML, test runs, test run info, plans
+- 5 write tools: update work item, update setup, update test steps, create test run, upload results
+
+Base package: https://pypi.org/project/polarion-mcp/
+Source: https://github.com/Sdunga1/Polarion-MCP
 
 Usage: python polarion-mcp-wrapper.py
 """

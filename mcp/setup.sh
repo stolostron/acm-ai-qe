@@ -172,6 +172,38 @@ fi
 echo ""
 
 # -----------------------------------------------
+# External MCP sources (cloned at setup time, not bundled)
+# Once upstream PRs are merged, switch to upstream URLs.
+# -----------------------------------------------
+
+# JIRA: https://github.com/stolostron/jira-mcp-server/pull/24
+JIRA_REPO="https://github.com/atifshafi/jira-mcp-server.git"
+JIRA_BRANCH="feat/redhat-fields"
+
+# Jenkins: https://github.com/redhat-community-ai-tools/jenkins-mcp/pull/13
+JENKINS_REPO="https://github.com/atifshafi/jenkins-mcp.git"
+JENKINS_BRANCH="fix/auth-logs-paths"
+
+EXTERNAL_DIR="$MCP_DIR/.external"
+
+clone_external() {
+    local name="$1" repo="$2" branch="$3" target="$EXTERNAL_DIR/$name"
+
+    if [ -d "$target/.git" ]; then
+        info "Updating $name from upstream..."
+        git -C "$target" fetch origin "$branch" --quiet 2>/dev/null || true
+        git -C "$target" checkout "$branch" --quiet 2>/dev/null || true
+        git -C "$target" pull --quiet 2>/dev/null || true
+        ok "$name up to date"
+    else
+        info "Cloning $name..."
+        mkdir -p "$EXTERNAL_DIR"
+        git clone --branch "$branch" --depth 1 "$repo" "$target" --quiet
+        ok "$name cloned (branch: $branch)"
+    fi
+}
+
+# -----------------------------------------------
 # MCP Server Installation Functions
 # -----------------------------------------------
 
@@ -214,9 +246,12 @@ setup_jira() {
     echo ""
     echo "  What: Searches and manages JIRA issues."
     echo "  Used for: Finding related bugs, reading feature stories during analysis."
+    echo "  Source: https://github.com/stolostron/jira-mcp-server"
     echo ""
 
-    JIRA_DIR="$MCP_DIR/jira-mcp-server"
+    clone_external "jira-mcp-server" "$JIRA_REPO" "$JIRA_BRANCH"
+
+    JIRA_DIR="$EXTERNAL_DIR/jira-mcp-server"
     JIRA_VENV="$JIRA_DIR/.venv"
 
     if [ ! -d "$JIRA_VENV" ]; then
@@ -234,7 +269,6 @@ setup_jira() {
         ok "Dependencies installed (in venv)"
     fi
 
-    # Check for .env
     JIRA_ENV="$JIRA_DIR/.env"
     if [ -f "$JIRA_ENV" ] && ! grep -q "PASTE_YOUR" "$JIRA_ENV" 2>/dev/null; then
         ok "Credentials file exists: $JIRA_ENV"
@@ -285,9 +319,12 @@ setup_jenkins() {
     echo "  What: Jenkins pipeline analysis, build monitoring, failure investigation."
     echo "  Used for: Analyzing CI/CD pipeline failures, fetching test results."
     echo "  Requires: Red Hat VPN for internal Jenkins access."
+    echo "  Source: https://github.com/redhat-community-ai-tools/jenkins-mcp"
     echo ""
 
-    JENKINS_DIR="$MCP_DIR/jenkins-mcp"
+    clone_external "jenkins-mcp" "$JENKINS_REPO" "$JENKINS_BRANCH"
+
+    JENKINS_DIR="$EXTERNAL_DIR/jenkins-mcp"
     JENKINS_VENV="$JENKINS_DIR/.venv"
 
     if [ ! -d "$JENKINS_VENV" ]; then
@@ -420,14 +457,14 @@ setup_neo4j() {
             echo "         -e NEO4J_AUTH=neo4j/rhacmgraph \\"
             echo "         -e NEO4J_PLUGINS='[\"apoc\"]' \\"
             echo "         neo4j:5-community"
-            echo "    3. Load the RHACM data (see mcp/neo4j-rhacm/README.md)"
+            echo "    3. Load the RHACM data from stolostron/knowledge-graph"
             echo ""
-            echo "  See mcp/neo4j-rhacm/Neo4j-RHACM-MCP-Complete-Guide.md for full instructions."
+            echo "  Docs: https://github.com/stolostron/knowledge-graph/tree/main/acm/agentic-docs/dependency-analysis"
         fi
     else
         warn "Podman not found. Install: brew install podman (macOS)"
         echo "  Neo4j will be added to .mcp.json but needs Podman to run."
-        echo "  See mcp/neo4j-rhacm/README.md for setup instructions."
+        echo "  Docs: https://github.com/stolostron/knowledge-graph"
     fi
 
     echo ""
@@ -470,8 +507,12 @@ import json, sys
 
 mcp_dir = sys.argv[1]
 mcps = sys.argv[2:-1]  # MCP names between mcp_dir and output path
+ext_dir = f'{mcp_dir}/.external'
 
-# Full MCP server definitions
+# MCP server definitions
+# - acm-ui, polarion: local (our code, in this repo)
+# - jira, jenkins: cloned at setup time into .external/
+# - neo4j-rhacm: runs from PyPI via uvx (no local code)
 all_servers = {
     'acm-ui': {
         'command': f'{mcp_dir}/acm-ui-mcp-server/.venv/bin/python',
@@ -479,13 +520,13 @@ all_servers = {
         'timeout': 30
     },
     'jira': {
-        'command': f'{mcp_dir}/jira-mcp-server/.venv/bin/python',
+        'command': f'{ext_dir}/jira-mcp-server/.venv/bin/python',
         'args': ['-m', 'jira_mcp_server.main'],
         'timeout': 60
     },
     'jenkins': {
-        'command': f'{mcp_dir}/jenkins-mcp/.venv/bin/python',
-        'args': [f'{mcp_dir}/jenkins-mcp/jenkins_mcp_server.py'],
+        'command': f'{ext_dir}/jenkins-mcp/.venv/bin/python',
+        'args': [f'{mcp_dir}/jenkins-acm-tools.py'],
         'timeout': 60
     },
     'polarion': {
@@ -556,7 +597,7 @@ if needs_mcp "acm-ui"; then
 fi
 
 if needs_mcp "jira"; then
-    JIRA_VENV="$MCP_DIR/jira-mcp-server/.venv"
+    JIRA_VENV="$EXTERNAL_DIR/jira-mcp-server/.venv"
     if [ -f "$JIRA_VENV/bin/python" ] && "$JIRA_VENV/bin/python" -c "import jira_mcp_server" 2>/dev/null; then
         echo -e "    ${GREEN}OK${NC}   jira         -- JIRA issue management (25 tools)"
     else
@@ -565,7 +606,7 @@ if needs_mcp "jira"; then
 fi
 
 if needs_mcp "jenkins"; then
-    JENKINS_VENV="$MCP_DIR/jenkins-mcp/.venv"
+    JENKINS_VENV="$EXTERNAL_DIR/jenkins-mcp/.venv"
     if [ -f "$JENKINS_VENV/bin/python" ] && "$JENKINS_VENV/bin/python" -c "import mcp, httpx" 2>/dev/null; then
         echo -e "    ${GREEN}OK${NC}   jenkins      -- Jenkins pipeline analysis (11 tools)"
     else
@@ -575,7 +616,7 @@ fi
 
 if needs_mcp "polarion"; then
     if command -v uvx &>/dev/null; then
-        echo -e "    ${GREEN}OK${NC}   polarion     -- Polarion test cases (17+ tools)"
+        echo -e "    ${GREEN}OK${NC}   polarion     -- Polarion test cases (25 tools)"
     else
         echo -e "    ${YELLOW}DEPS${NC} polarion     -- Run: pip install uv (for uvx)"
     fi
@@ -585,7 +626,7 @@ if needs_mcp "neo4j-rhacm"; then
     if podman ps -a --format '{{.Names}}' 2>/dev/null | grep -q neo4j-rhacm; then
         echo -e "    ${GREEN}OK${NC}   neo4j-rhacm  -- RHACM dependency graph (3 tools)"
     else
-        echo -e "    ${YELLOW}SETUP${NC} neo4j-rhacm  -- See mcp/neo4j-rhacm/README.md"
+        echo -e "    ${YELLOW}SETUP${NC} neo4j-rhacm  -- See stolostron/knowledge-graph repo"
     fi
 fi
 
@@ -596,10 +637,10 @@ if needs_mcp "jira" || needs_mcp "jenkins" || needs_mcp "polarion"; then
     echo "  Credential status:"
 
     if needs_mcp "jira"; then
-        if [ -f "$MCP_DIR/jira-mcp-server/.env" ] && ! grep -q "PASTE_YOUR" "$MCP_DIR/jira-mcp-server/.env" 2>/dev/null; then
-            echo -e "    ${GREEN}OK${NC}   jira         -- $MCP_DIR/jira-mcp-server/.env"
+        if [ -f "$EXTERNAL_DIR/jira-mcp-server/.env" ] && ! grep -q "PASTE_YOUR" "$EXTERNAL_DIR/jira-mcp-server/.env" 2>/dev/null; then
+            echo -e "    ${GREEN}OK${NC}   jira         -- $EXTERNAL_DIR/jira-mcp-server/.env"
         else
-            echo -e "    ${YELLOW}TODO${NC} jira         -- Edit $MCP_DIR/jira-mcp-server/.env with your API token"
+            echo -e "    ${YELLOW}TODO${NC} jira         -- Edit $EXTERNAL_DIR/jira-mcp-server/.env with your API token"
         fi
     fi
 

@@ -173,7 +173,7 @@ Five MCP servers provide tools during Stage 2 (AI Analysis). New users: run `bas
 | Polarion | 25 | Polarion test case access + dependency discovery |
 | Knowledge Graph (Neo4j RHACM) | 2 | Component dependency analysis via Cypher queries (optional) |
 
-**JIRA Cloud:** Uses basic auth (email + API token). Create `mcp/jira-mcp-server/.env` from `.env.example` with your credentials, or run `bash mcp/setup.sh`. The config uses `load_dotenv(override=True)` so `.env` always takes precedence over shell vars. API token: https://id.atlassian.com/manage-profile/security/api-tokens
+**JIRA Cloud:** Uses basic auth (email + API token). Run `bash mcp/setup.sh` to clone the server and configure credentials, or edit `mcp/.external/jira-mcp-server/.env` manually. The config uses `load_dotenv(override=True)` so `.env` always takes precedence over shell vars. API token: https://id.atlassian.com/manage-profile/security/api-tokens
 
 **Knowledge Graph:** The KG client (`knowledge_graph_client.py`) queries Neo4j directly via HTTP API (`http://localhost:7474`). It works in both Stage 1 (gather.py populates `kg_dependency_context` in core-data.json) and Stage 2 (AI agent uses MCP tools for ad-hoc queries). Requires `podman start neo4j-rhacm neo4j-mcp`. Connection settings configurable via `NEO4J_HTTP_URL`, `NEO4J_USER`, `NEO4J_PASSWORD` env vars (defaults: `localhost:7474`, `neo4j`, `rhacmgraph`).
 

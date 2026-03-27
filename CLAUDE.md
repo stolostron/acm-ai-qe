@@ -56,33 +56,35 @@ python -m src.scripts.report runs/<run_dir>
 
 ## MCP Servers (`mcp/`)
 
-Run `bash mcp/setup.sh` from repo root. The script prompts you to select which app(s) to configure and installs only the required MCP servers.
+Run `bash mcp/setup.sh` from repo root. The script prompts you to select which app(s) to configure, clones external MCP servers, and installs dependencies.
 
-| Server | Tools | Purpose |
-|--------|-------|---------|
-| ACM UI (`mcp/acm-ui-mcp-server/`) | 20 | ACM Console + kubevirt-plugin source code search via GitHub |
-| Jenkins (`mcp/jenkins-mcp/`) | 11 | Jenkins pipeline API access for build data extraction |
-| JIRA (`mcp/jira-mcp-server/`) | 25 | Issue search, creation, management for bug correlation (Jira Cloud) |
-| Neo4j RHACM (`mcp/neo4j-rhacm/`) | 2 | Component dependency analysis via Cypher queries (optional) |
-| Polarion (`mcp/polarion/`) | 25 | Polarion test case access (optional) |
+| Server | Tools | Source | Purpose |
+|--------|-------|--------|---------|
+| ACM UI (`mcp/acm-ui-mcp-server/`) | 20 | This repo | ACM Console + kubevirt-plugin source code search via GitHub |
+| Jenkins | 7+4 | [upstream](https://github.com/redhat-community-ai-tools/jenkins-mcp) + `mcp/jenkins-acm-tools.py` | Jenkins pipeline API + ACM analysis tools |
+| JIRA | 25 | [stolostron/jira-mcp-server](https://github.com/stolostron/jira-mcp-server) | Issue search, creation, management for bug correlation (Jira Cloud) |
+| Neo4j RHACM | 3 | [mcp-neo4j-cypher](https://pypi.org/project/mcp-neo4j-cypher/) (PyPI) | Component dependency analysis via Cypher queries (optional) |
+| Polarion (`mcp/polarion/`) | 25 | This repo | Polarion test case access (optional) |
 
-**JIRA Cloud Setup:** Create `mcp/jira-mcp-server/.env` from `.env.example` with your Jira Cloud credentials (email + API token). Or run `bash mcp/setup.sh`. Get a token at https://id.atlassian.com/manage-profile/security/api-tokens. See `apps/z-stream-analysis/docs/05-MCP-INTEGRATION.md` for details.
+External MCPs (JIRA, Jenkins) are cloned at setup time into `mcp/.external/` (gitignored).
+This repo only contains our original MCP code: ACM UI, Polarion wrapper, Jenkins ACM tools.
+
+**JIRA Cloud Setup:** Run `bash mcp/setup.sh` and provide credentials when prompted, or create `mcp/.external/jira-mcp-server/.env` with your Jira Cloud credentials after setup. Get a token at https://id.atlassian.com/manage-profile/security/api-tokens.
 
 ## Directory Structure
 
 ```
-ai_systems_v2/
+acm-ai-qe/
 ├── apps/
 │   ├── acm-hub-health/        # Active — hub health diagnostic agent
 │   ├── z-stream-analysis/     # Active — pipeline failure analysis
 │   └── claude-test-generator/ # In progress — not functional
 ├── mcp/
-│   ├── setup.sh               # Interactive MCP setup script
-│   ├── acm-ui-mcp-server/     # ACM UI MCP server
-│   ├── jenkins-mcp/           # Jenkins pipeline MCP server
-│   ├── jira-mcp-server/       # JIRA MCP server
-│   ├── neo4j-rhacm/           # Knowledge graph MCP server
-│   └── polarion/              # Polarion MCP server
+│   ├── setup.sh               # Interactive setup (clones external MCPs, creates venvs)
+│   ├── acm-ui-mcp-server/     # Our code: ACM Console source search
+│   ├── polarion/              # Our code: Polarion wrapper
+│   ├── jenkins-acm-tools.py   # Our code: ACM-specific Jenkins analysis tools
+│   └── .external/             # Cloned at setup time (gitignored)
 ├── CLAUDE.md                  # This file — Claude Code agent instructions
 └── README.md                  # User-facing setup and onboarding guide
 ```

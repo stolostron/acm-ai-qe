@@ -1,4 +1,0 @@
-mcp[cli]
-httpx
-urllib3
-python-dotenv

@@ -82,10 +82,10 @@
       "Bash(bash -c 'set -euo pipefail; false 2>/dev/null || echo \"fallback ran\"; echo \"script continued\"')",
       "Bash(bash -c 'set -euo pipefail; false 2>/dev/null || echo \"fallback ran with exit $?\"; echo \"continues\"')",
       "Bash(/Users/ashafi/Documents/work/ai/ai_systems_v2/mcp/acm-ui-mcp-server/.venv/bin/pip install:*)",
-      "Bash(/Users/ashafi/Documents/work/ai/ai_systems_v2/mcp/jira-mcp-server/.venv/bin/pip install:*)",
+      "Bash(/Users/ashafi/Documents/work/ai/ai_systems_v2/mcp/.external/jira-mcp-server/.venv/bin/pip install:*)",
       "Bash(/Users/ashafi/Documents/work/ai/ai_systems_v2/mcp/acm-ui-mcp-server/.venv/bin/python -c \"import acm_ui_mcp_server; print\\(''acm-ui: import OK''\\)\")",
-      "Bash(/Users/ashafi/Documents/work/ai/ai_systems_v2/mcp/jira-mcp-server/.venv/bin/python -c \"import jira_mcp_server; print\\(''jira: import OK''\\)\")",
-      "Bash(/Users/ashafi/Documents/work/ai/ai_systems_v2/mcp/jenkins-mcp/.venv/bin/python -c \"import mcp, httpx; print\\(''jenkins: import OK''\\)\")"
+      "Bash(/Users/ashafi/Documents/work/ai/ai_systems_v2/mcp/.external/jira-mcp-server/.venv/bin/python -c \"import jira_mcp_server; print\\(''jira: import OK''\\)\")",
+      "Bash(/Users/ashafi/Documents/work/ai/ai_systems_v2/mcp/.external/jenkins-mcp/.venv/bin/python -c \"import mcp, httpx; print\\(''jenkins: import OK''\\)\")"
     ],
     "deny": []
   }

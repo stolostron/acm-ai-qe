@@ -125,7 +125,7 @@ External MCP servers (JIRA, Jenkins) are cloned automatically by `setup.sh` into
 ## Directory Structure
 
 ```
-acm-ai-qe/
+ai_systems_v2/
 ├── apps/
 │   ├── acm-hub-health/        # Hub health diagnostic agent
 │   ├── z-stream-analysis/     # Pipeline failure analysis

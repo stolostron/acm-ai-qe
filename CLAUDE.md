@@ -63,7 +63,7 @@ Run `bash mcp/setup.sh` from repo root. The script prompts you to select which a
 | ACM UI (`mcp/acm-ui-mcp-server/`) | 20 | This repo | ACM Console + kubevirt-plugin source code search via GitHub |
 | Jenkins | 7+4 | [upstream](https://github.com/redhat-community-ai-tools/jenkins-mcp) + `mcp/jenkins-acm-tools.py` | Jenkins pipeline API + ACM analysis tools |
 | JIRA | 25 | [stolostron/jira-mcp-server](https://github.com/stolostron/jira-mcp-server) | Issue search, creation, management for bug correlation (Jira Cloud) |
-| Neo4j RHACM | 3 | [mcp-neo4j-cypher](https://pypi.org/project/mcp-neo4j-cypher/) (PyPI) | Component dependency analysis via Cypher queries (optional) |
+| Neo4j RHACM | 2 | [mcp-neo4j-cypher](https://pypi.org/project/mcp-neo4j-cypher/) (PyPI) | Component dependency analysis via Cypher queries (optional) |
 | Polarion (`mcp/polarion/`) | 25 | This repo | Polarion test case access (optional) |
 
 External MCPs (JIRA, Jenkins) are cloned at setup time into `mcp/.external/` (gitignored).
@@ -74,7 +74,7 @@ This repo only contains our original MCP code: ACM UI, Polarion wrapper, Jenkins
 ## Directory Structure
 
 ```
-acm-ai-qe/
+ai_systems_v2/
 ├── apps/
 │   ├── acm-hub-health/        # Active — hub health diagnostic agent
 │   ├── z-stream-analysis/     # Active — pipeline failure analysis

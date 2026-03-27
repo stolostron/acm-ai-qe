@@ -1,121 +1,93 @@
 # ACM Hub Health Agent
 
-AI-powered diagnostic agent for Red Hat Advanced Cluster Management (ACM) hub clusters.
-Uses Claude Code to systematically investigate hub health, diagnose issues, and provide
-actionable findings -- all through natural language.
+AI-powered diagnostic agent for Red Hat Advanced Cluster Management (ACM) hub
+clusters. Uses Claude Code with deep ACM architectural knowledge to investigate
+hub health, diagnose root causes with evidence, and provide actionable findings.
 
-The agent maintains a self-healing knowledge base: when it encounters components or
-behaviors not covered by its reference knowledge, it investigates using official ACM
-documentation and source code, learns, and records findings for future runs.
+The agent understands how every ACM subsystem works (search, governance,
+observability, cluster lifecycle, console, applications, virtualization, RBAC,
+networking) and traces dependency chains to find root causes, not just symptoms.
 
 ## Prerequisites
 
 - **`oc` CLI** -- logged into your ACM hub cluster
 - **Claude Code CLI** -- [install guide](https://docs.anthropic.com/en/docs/claude-code/getting-started)
-- **Python 3.10+** -- for the MCP server venv
-- **GitHub CLI (`gh`)** -- `brew install gh` (macOS) or `sudo dnf install gh` (RHEL/Fedora), then `gh auth login`
 
-## Setup
+## Quick Start
 
 ```bash
-# 1. Set up MCP servers (from repo root)
-#    Select option 1 (ACM Hub Health Agent) when prompted
-bash mcp/setup.sh
-
-# 2. Clone the official ACM documentation (optional, improves self-healing)
-cd apps/acm-hub-health
-git clone --depth 1 https://github.com/stolostron/rhacm-docs.git docs/rhacm-docs
-
-# 3. Log into your hub
-oc login https://api.my-hub.example.com:6443 -u admin -p ...
-
-# 4. Start the agent
-claude
+cd acm-hub-health
+bash setup.sh         # one-time: clones rhacm-docs, sets up MCP
+oc login <hub-api>    # login to your hub
+claude                # start the agent
 ```
 
 ## Usage
 
 ```
-# Quick pulse check (~30 seconds)
-/sanity
-
-# Standard health check (~2-3 minutes)
-/health-check
-
-# Deep audit (~5-10 minutes)
-Do a thorough deep dive of my hub
-
-# Targeted investigation
-Why are my managed clusters showing Unknown?
-Check if search is working properly
-Investigate observability
-
-# Proactive knowledge refresh (after ACM upgrade)
-/learn
-/learn observability
+/sanity                              # quick pulse (~30s)
+/health-check                        # standard check (~2-3 min)
+Do a thorough deep dive              # full audit (~5-10 min)
+Investigate observability             # targeted deep dive
+Why are managed clusters Unknown?     # symptom investigation
+/learn                                # refresh knowledge from cluster
 ```
 
 ## How It Works
 
-### Diagnostic Pipeline
+### 6-Phase Diagnostic Pipeline
 
-1. **Discover** -- Inventories what's deployed on your specific hub
-2. **Learn** -- Consults reference knowledge + previous discoveries
-3. **Check** -- Systematically verifies health of each component
-4. **Correlate** -- Cross-references findings to find root causes
-5. **Deep Investigate** -- Digs into specific issues
+1. **Discover** -- inventory what's deployed (MCH, MCE, components, nodes, fleet)
+2. **Learn** -- consult architecture knowledge + previous discoveries
+3. **Check** -- verify health per component (pods, logs, events, CRD status)
+4. **Pattern Match** -- match symptoms against 1,430+ known bug patterns
+5. **Correlate** -- trace 6 dependency chains to find root cause
+6. **Deep Investigate** -- logs, events, storage, networking for critical findings
 
 ### Self-Healing Knowledge
 
-When the agent finds something not covered by its knowledge base:
-1. Collects more evidence from the live cluster
-2. Searches official ACM documentation (`docs/rhacm-docs/`)
-3. Searches ACM Console source code via the `acm-ui` MCP server
-4. Synthesizes an understanding and writes it to `knowledge/learned/`
-5. Future runs read these discoveries alongside the static knowledge
+When the agent encounters something not in its knowledge base, it investigates
+using ACM documentation and source code (via MCP), records findings in
+`knowledge/learned/`, and future runs benefit from the discovery.
 
-All cluster operations are **read-only**. The agent never modifies your cluster.
+### Evidence-Based Diagnosis
 
-## Updating Knowledge After ACM Upgrades
+Every conclusion requires 2+ evidence sources with explicit confidence levels.
+The agent traces upstream through dependency chains rather than reporting
+leaf symptoms independently.
 
-After upgrading ACM, run `/learn` to let the agent discover what changed:
-```
-oc login <upgraded-hub> ...
-claude
-/learn
-```
-The agent will compare the cluster against its knowledge, investigate any
-differences, and update `knowledge/learned/` with the new information.
+## Knowledge Base
 
-## Directory Structure
+34 knowledge files covering 12 ACM subsystems, 7,400+ lines of engineering-level
+architecture, data flow, and known issue documentation.
 
 ```
-acm-hub-health/
-├── CLAUDE.md                           # Agent methodology and instructions
-├── README.md                           # This file
-├── .mcp.json                           # MCP server configuration (acm-ui)
-├── .gitignore                          # Ignores docs/rhacm-docs/
-├── docs/
-│   ├── 00-OVERVIEW.md                  # Architecture, components, design decisions
-│   ├── 01-DEPTH-ROUTER.md             # Depth routing system
-│   ├── 02-DIAGNOSTIC-PIPELINE.md      # 5-phase pipeline details
-│   ├── 03-KNOWLEDGE-SYSTEM.md         # Knowledge layers and self-healing
-│   ├── 04-MCP-AND-EXTERNAL-SOURCES.md # MCP integration and docs
-│   ├── 05-OUTPUT-AND-REPORTING.md     # Output format and verdicts
-│   ├── 06-SLASH-COMMANDS.md           # Command reference
-│   └── rhacm-docs/                     # Official ACM docs clone (git ignored)
-├── knowledge/
-│   ├── component-registry.md           # Static: ACM component reference
-│   ├── failure-patterns.md             # Static: known failure patterns
-│   ├── diagnostic-playbooks.md         # Static: investigation procedures
-│   └── learned/                        # Dynamic: agent-discovered knowledge
-│       └── <topic>.md                  # Written by agent during self-healing
-└── .claude/
-    ├── settings.json                   # Auto-approved read-only commands
-    ├── settings.local.json             # Local overrides (not committed)
-    └── commands/
-        ├── sanity.md                   # /sanity
-        ├── health-check.md             # /health-check
-        ├── investigate.md              # /investigate <topic>
-        └── learn.md                    # /learn [area]
+knowledge/
+  component-registry.md                 # Master inventory of ACM components, CRDs, namespaces
+  failure-patterns.md                   # Common failure signatures mapped to root causes
+  architecture/                         # How ACM works (per-component)
+    kubernetes-fundamentals.md          # K8s primitives ACM uses
+    acm-platform.md                     # MCH/MCE, operator hierarchy, addon framework
+    search/                             # architecture.md, data-flow.md, known-issues.md
+    governance/                         # "
+    observability/                      # "
+    cluster-lifecycle/                  # "
+    console/                            # "
+    application-lifecycle/              # "
+    virtualization/                     # "
+    rbac/                               # "
+    addon-framework/                    # architecture.md
+    networking/                         # architecture.md, known-issues.md
+    infrastructure/                     # architecture.md, known-issues.md
+  diagnostics/                          # Health check methodology
+    dependency-chains.md                # 6 cascade paths
+    evidence-tiers.md                   # Evidence weighting rules
+    diagnostic-playbooks.md             # Investigation procedures
+  learned/                              # Agent-discovered knowledge (grows over time)
 ```
+
+## All Operations Are Read-Only
+
+The agent never modifies your cluster. It uses only `oc get`, `oc describe`,
+`oc logs`, and similar read-only commands. When a fix is needed, the agent
+tells you exactly what to do.

@@ -168,7 +168,8 @@ Five MCP servers provide tools during Stage 2 (AI Analysis). New users: run `bas
 
 | Server | Tools | Purpose |
 |--------|-------|---------|
-| ACM-UI | 19 | ACM Console + kubevirt-plugin source code search via GitHub |
+| ACM-UI | 20 | ACM Console + kubevirt-plugin source code search via GitHub |
+| Jenkins | 7+4 | Jenkins pipeline API + ACM-specific analysis tools |
 | JIRA | 25 | Issue search, creation, management for bug correlation (Jira Cloud) |
 | Polarion | 25 | Polarion test case access + dependency discovery |
 | Knowledge Graph (Neo4j RHACM) | 2 | Component dependency analysis via Cypher queries (optional) |

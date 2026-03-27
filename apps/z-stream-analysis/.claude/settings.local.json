@@ -88,16 +88,19 @@
       "Bash(podman exec:*)",
       "Bash(cat:*)",
       "Bash(env | grep JIRA 2>&1)",
-      "Bash(bash /Users/ashafi/Documents/work/ai/tools/mcp/sync-to-git.sh 2>&1)",
-      "Read(//Users/ashafi/Documents/work/ai/tools/mcp/acm-ui-mcp-server/acm_ui_mcp_server/**)",
-      "Read(//Users/ashafi/Documents/work/ai/tools/mcp/neo4j-rhacm/**)",
-      "Read(//Users/ashafi/Documents/work/ai/tools/mcp/polarion/**)",
+      "Read(/Users/ashafi/Documents/work/ai/ai_systems_v2/mcp/acm-ui-mcp-server/acm_ui_mcp_server/**)",
+      "Read(/Users/ashafi/Documents/work/ai/ai_systems_v2/mcp/polarion/**)",
       "mcp__polarion__check_polarion_status",
       "mcp__polarion__get_polarion_setup_html",
       "mcp__polarion__set_polarion_token",
       "Bash(sort -t: -k2 -rn)",
       "Bash(.venv/bin/pip install:*)",
-      "Bash(bash -n /Users/ashafi/Documents/work/ai/ai_systems_v2/mcp/setup.sh)"
+      "Bash(bash -n /Users/ashafi/Documents/work/ai/ai_systems_v2/mcp/setup.sh)",
+      "Bash(/Users/ashafi/Documents/work/ai/ai_systems_v2/mcp/.external/jira-mcp-server/.venv/bin/python -c \"import jira_mcp_server; print\\('JIRA MCP: OK'\\)\" 2>&1)",
+      "Bash(/Users/ashafi/Documents/work/ai/ai_systems_v2/mcp/.external/jenkins-mcp/.venv/bin/python -c \"import mcp, httpx; print\\('Jenkins MCP: OK'\\)\" 2>&1)",
+      "Bash(/Users/ashafi/Documents/work/ai/ai_systems_v2/mcp/acm-ui-mcp-server/.venv/bin/python -c \"import acm_ui_mcp_server; print\\('ACM UI MCP: OK'\\)\" 2>&1)",
+      "Bash(env)",
+      "Read(//Library/Frameworks/Python.framework/Versions/3.12/bin/**)"
     ],
     "deny": []
   }

@@ -12,7 +12,7 @@ This client provides:
 Credential Priority:
 1. Constructor arguments (username, api_token)
 2. Environment variables (JENKINS_USER, JENKINS_API_TOKEN)
-3. MCP config file (~/.cursor/mcp.json or ~/.claude.json)
+3. MCP config files (.mcp.json env section, ~/.cursor/mcp.json, ~/.claude.json)
 """
 
 import base64
@@ -34,8 +34,10 @@ class JenkinsAPIClient:
     Provides authenticated access to Jenkins REST API for pipeline analysis.
     """
 
-    # Config file locations for credential extraction (legacy MCP configs)
+    # Config file locations for credential extraction
+    # Local .mcp.json is checked first (project-specific), then legacy MCP configs
     CONFIG_PATHS = [
+        Path('.mcp.json'),
         Path.home() / '.cursor' / 'mcp.json',
         Path.home() / '.claude.json',
         Path.home() / '.config' / 'cursor' / 'mcp.json',
@@ -149,7 +151,15 @@ class JenkinsAPIClient:
                             break
 
                 if jenkins_config:
-                    # Extract from headers
+                    # Extract from env section (preferred — used by .mcp.json)
+                    env_section = jenkins_config.get('env', {})
+                    env_user = env_section.get('JENKINS_USER')
+                    env_token = env_section.get('JENKINS_API_TOKEN')
+                    if env_user and env_token:
+                        self.logger.debug(f"Found credentials in {config_path} env section")
+                        return env_user, env_token
+
+                    # Extract from headers (legacy — Basic auth header)
                     headers = jenkins_config.get('headers', {})
                     auth_header = headers.get('Authorization', '')
 

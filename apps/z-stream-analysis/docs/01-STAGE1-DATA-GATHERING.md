@@ -505,37 +505,55 @@ Stored in `core-data.json` under `cluster_oracle`:
 ```json
 {
   "cluster_oracle": {
-    "detected_feature_areas": ["Search", "GRC"],
-    "polarion_ids": {
-      "RHACM4K-52779": "should display search results",
-      "RHACM4K-11234": "should create policy"
+    "version": "1.0.0",
+    "oracle_phase": "C",
+    "snapshot_time": "2026-03-30T17:49:01Z",
+    "feature_areas": ["Application"],
+    "failed_test_count": 25,
+    "polarion_ids": ["RHACM4K-6784", "RHACM4K-16936"],
+    "polarion_discovery": {},
+    "knowledge_context": {
+      "feature_components": {"Application": ["application-manager", "subscription-controller"]},
+      "cross_subsystem_dependencies": {},
+      "dependency_details": {}
     },
-    "dependency_model": {
-      "operators": [
-        {"name": "advanced-cluster-management", "expected_namespace": "open-cluster-management", "status": "Succeeded"},
-        {"name": "multicluster-engine", "expected_namespace": "multicluster-engine", "status": "Succeeded"}
-      ],
-      "addons": [
-        {"name": "search-collector", "available": true},
-        {"name": "governance-policy-framework", "available": true}
-      ],
-      "crds": [
-        {"name": "managedclusters.cluster.open-cluster-management.io", "exists": true}
-      ]
+    "dependency_targets": [
+      {
+        "id": "application-manager-addon",
+        "type": "addon",
+        "name": "application-manager-addon",
+        "source": "playbook"
+      }
+    ],
+    "dependency_health": {},
+    "overall_feature_health": {
+      "score": null,
+      "signal": "unknown",
+      "blocking_issues": [],
+      "summary": "No dependency health data available"
     },
-    "validation_summary": {
-      "total_checks": 5,
-      "passed": 5,
-      "failed": 0,
-      "failed_checks": []
-    }
+    "cluster_access_status": "authenticated",
+    "errors": []
   }
 }
 ```
 
+### Key Fields
+
+| Field | Type | Purpose |
+|-------|------|---------|
+| `feature_areas` | list | Feature areas identified from pipeline name and test names |
+| `polarion_ids` | list | Polarion test case IDs extracted from test names |
+| `dependency_targets` | list | Dependencies discovered from playbooks and Polarion |
+| `dependency_health` | dict | Health check results per dependency (when cluster is accessible) |
+| `overall_feature_health` | dict | Aggregate health score with signal (healthy/degraded/unhealthy/unknown) |
+| `cluster_access_status` | string | `authenticated`, `no_credentials`, `login_failed`, `skipped`, `error` |
+| `knowledge_context` | dict | KG topology data (feature components, cross-subsystem deps) |
+
 ### How It's Used in Stage 2
 
-- **Phase A0:** Oracle results provide early signal about missing dependencies before per-test analysis begins
+- **Phase A0:** Oracle `feature_areas` and `overall_feature_health` provide early signal about missing dependencies before per-test analysis begins
+- **Phase PR-7:** If `dependency_health` shows a broken dependency, routes tests in that feature area to INFRASTRUCTURE
 - **Phase PR-4:** Failed oracle checks can confirm playbook prerequisite failures, strengthening INFRASTRUCTURE classification
 - **Phase B7:** Oracle dependency status cross-referenced with backend probe data for comprehensive health assessment
 

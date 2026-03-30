@@ -391,7 +391,7 @@ Phase 6 findings are presented in narrative format:
 1. **What was checked** -- the specific commands and resources examined
 2. **What was found** -- the actual state observed on the cluster
 3. **What it means** -- interpretation of the findings with confidence level
-4. **What to do** -- recommended remediation actions (never executed by the agent)
+4. **What to do** -- recommended remediation actions (included in the remediation plan if cluster-fixable; executed only after user approval)
 
 ---
 

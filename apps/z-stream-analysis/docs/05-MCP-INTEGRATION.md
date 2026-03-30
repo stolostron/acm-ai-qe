@@ -18,24 +18,23 @@ Z-Stream Analysis uses five MCP servers:
 │  "Are there related bugs filed in JIRA?"                            │
 │  "What depends on search-api?"                                       │
 │                                                                      │
-│      ┌─────────┐          ┌─────────┐          ┌─────────┐          │
-│      │ ACM-UI  │          │  JIRA   │          │Knowledge│          │
-│      │   MCP   │          │   MCP   │          │  Graph  │          │
-│      │19 tools │          │25 tools │          │  MCP    │          │
-│      └────┬────┘          └────┬────┘          └────┬────┘          │
-└───────────┼────────────────────┼────────────────────┼────────────────┘
-            │                    │                    │
-            ▼                    ▼                    ▼
-  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
-  │   GitHub API    │  │    JIRA API     │  │   Neo4j DB      │
-  │                 │  │                 │  │                  │
-  │ stolostron/     │  │  Red Hat JIRA   │  │  RHACM component│
-  │   console      │  │  (issues, bugs, │  │  dependency      │
-  │ kubevirt-ui/    │  │   stories)      │  │  graph           │
-  │   kubevirt-     │  │                 │  │                  │
-  │   plugin        │  │                 │  │                  │
-  │ QE test repos   │  │                 │  │                  │
-  └─────────────────┘  └─────────────────┘  └─────────────────┘
+│  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐  │
+│  │ ACM-UI  │  │ Jenkins │  │  JIRA   │  │Polarion │  │Knowledge│  │
+│  │   MCP   │  │   MCP   │  │   MCP   │  │   MCP   │  │  Graph  │  │
+│  │19 tools │  │11 tools │  │25 tools │  │25 tools │  │  MCP    │  │
+│  └────┬────┘  └────┬────┘  └────┬────┘  └────┬────┘  └────┬────┘  │
+└───────┼────────────┼────────────┼────────────┼────────────┼────────┘
+        │            │            │            │            │
+        ▼            ▼            ▼            ▼            ▼
+  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐
+  │ GitHub   │ │ Jenkins  │ │ JIRA     │ │ Polarion │ │ Neo4j DB │
+  │ API      │ │ REST API │ │ API      │ │ REST API │ │          │
+  │          │ │          │ │          │ │          │ │ RHACM    │
+  │stolostron│ │ Pipeline │ │ Red Hat  │ │ Test     │ │ component│
+  │/console  │ │ builds,  │ │ JIRA     │ │ cases,   │ │ deps     │
+  │kubevirt- │ │ logs,    │ │ (issues, │ │ steps,   │ │          │
+  │ui/plugin │ │ tests    │ │ bugs)    │ │ results  │ │          │
+  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────┘
 ```
 
 **Without MCP:** The agent can only classify based on data already in `core-data.json` (pre-extracted selectors, console log patterns, environment health).
@@ -81,12 +80,12 @@ MCP tools are accessed differently depending on the stage:
 | Stage | Access Method | MCP Servers Used | Purpose |
 |-------|---------------|------------------|---------|
 | Stage 1 | Python classes (`ACMUIMCPClient`, `KnowledgeGraphClient`) | ACM-UI | Pre-compute CNV version, element inventory |
-| Stage 2 | Claude Code native (`mcp__<server>__<tool>`) | All three (ACM-UI, JIRA, Knowledge Graph) | Active investigation during analysis |
+| Stage 2 | Claude Code native (`mcp__<server>__<tool>`) | All five (ACM-UI, Jenkins, JIRA, Polarion, Knowledge Graph) | Active investigation during analysis |
 | Stage 3 | None | None | Report generation uses no MCP tools |
 
 ---
 
-## MCP Server 1: ACM-UI (20 Tools)
+## MCP Server 1: ACM-UI (19 Tools)
 
 ### What It Is
 
@@ -294,7 +293,58 @@ Product text: 'Create cluster'                ← lowercase c
 
 ---
 
-## MCP Server 2: JIRA (25 Tools)
+## MCP Server 2: Jenkins (11 Tools)
+
+### What It Is
+
+A Jenkins pipeline analysis server providing build info, console logs, test reports, and ACM-specific analysis tools. Combines 7 base Jenkins MCP tools with 4 ACM-specific tools from `mcp/jenkins-acm-tools.py`.
+
+**Tool prefix:** `mcp__jenkins__`
+
+### Why It Matters
+
+Stage 1 (gather.py) fetches Jenkins data via `JenkinsAPIClient` using the REST API directly. But during Stage 2, the AI agent may need to query additional builds (e.g., previous runs for comparison), fetch logs from downstream jobs, or use ACM-specific analysis tools that parse console output for known failure patterns.
+
+### Credential Setup
+
+Credentials are stored in `mcp/.external/jenkins-mcp/.env`:
+
+```bash
+JENKINS_USER=your_username
+JENKINS_API_TOKEN=your_api_token
+```
+
+Run `bash mcp/setup.sh` from the repo root to configure credentials interactively. The setup script:
+1. Clones the Jenkins MCP server into `mcp/.external/jenkins-mcp/`
+2. Prompts for username and API token
+3. Writes `.env` file
+4. Injects credentials into `.mcp.json` via the `env` field
+
+To get your API token: Log into Jenkins → Click your username (top right) → Configure → API Token → Add new Token.
+
+Both the MCP server process and `JenkinsAPIClient` (used by gather.py) read from this location. The `JenkinsAPIClient` checks credentials in order: constructor args > `JENKINS_USER`/`JENKINS_API_TOKEN` env vars > `.mcp.json` env section > legacy MCP configs.
+
+**Requires:** Red Hat VPN for internal Jenkins access.
+
+### Tool Reference
+
+| Category | Tool | Purpose | Used In |
+|----------|------|---------|---------|
+| **Build** | `get_build` | Full build info (result, duration, parameters) | Phase A |
+| | `get_build_status` | Quick status check | Phase A |
+| | `get_build_log` | Console output (full or tail) | Phase B |
+| | `get_pipeline_stages` | Pipeline stage breakdown with durations | Phase B |
+| | `get_test_results` | Test report with pass/fail/skip counts | Phase A |
+| **Job** | `get_job` | Job configuration and history | Phase E |
+| | `get_all_jobs` | List jobs in a folder | Phase E |
+| **ACM Tools** | `analyze_pipeline` | ACM-specific pipeline failure analysis | Phase B |
+| | `analyze_test_results` | Categorize test failures by feature area | Phase D |
+| | `get_downstream_tree` | Map downstream job execution tree | Phase B |
+| | `trigger_build` | Trigger a new build (rarely used) | — |
+
+---
+
+## MCP Server 3: JIRA (25 Tools)
 
 ### What It Is
 
@@ -515,7 +565,7 @@ python -c "from jira_mcp_server.config import JiraConfig; c = JiraConfig.from_en
 
 ---
 
-## MCP Server 3: Knowledge Graph (Neo4j RHACM)
+## MCP Server 4: Knowledge Graph (Neo4j RHACM)
 
 ### What It Is
 
@@ -691,7 +741,7 @@ RETURN [n in nodes(path) | n.label] as chain
 
 ---
 
-## MCP Server 4: Polarion (25 Tools)
+## MCP Server 5: Polarion (25 Tools)
 
 ### What It Is
 

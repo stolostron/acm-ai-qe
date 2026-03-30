@@ -3293,6 +3293,7 @@ class DataGatherer:
             'feature_knowledge': masked_data.get('feature_knowledge', {}),
             'cluster_access': masked_data.get('cluster_access', {}),
             'cluster_oracle': masked_data.get('cluster_oracle', {}),
+            'backend_probes': masked_data.get('backend_probes', {}),
             'errors': masked_data.get('errors', []),
             'ai_instructions': self._build_ai_instructions()
         }

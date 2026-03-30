@@ -1,0 +1,181 @@
+#!/usr/bin/env bash
+# acm-hub — ACM Hub Health Agent CLI
+# Run health diagnostics from any terminal connected to an ACM hub cluster.
+#
+# Install: symlink this script to somewhere on your PATH:
+#   ln -s /path/to/acm-hub-health/acm-hub ~/.local/bin/acm-hub
+#
+# Usage:
+#   acm-hub sanity                          Quick pulse (~30s)
+#   acm-hub check                           Standard health check (~2-3 min)
+#   acm-hub deep                            Full deep audit (~5-10 min)
+#   acm-hub investigate observability       Targeted investigation
+#   acm-hub learn search                    Knowledge refresh
+#   acm-hub check -i                        Interactive (can approve fixes)
+
+set -euo pipefail
+
+# Resolve the app directory from the script's own location (works through symlinks)
+SCRIPT_SOURCE="${BASH_SOURCE[0]}"
+while [ -L "$SCRIPT_SOURCE" ]; do
+  SCRIPT_DIR="$(cd -P "$(dirname "$SCRIPT_SOURCE")" && pwd)"
+  SCRIPT_SOURCE="$(readlink "$SCRIPT_SOURCE")"
+  [[ "$SCRIPT_SOURCE" != /* ]] && SCRIPT_SOURCE="$SCRIPT_DIR/$SCRIPT_SOURCE"
+done
+APP_DIR="$(cd -P "$(dirname "$SCRIPT_SOURCE")" && pwd)"
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+DIM='\033[0;90m'
+BOLD='\033[1m'
+RESET='\033[0m'
+
+usage() {
+  cat <<EOF
+${BOLD}ACM Hub Health Agent${RESET}
+Run health diagnostics from any terminal connected to an ACM hub cluster.
+
+${BOLD}Usage:${RESET}
+  acm-hub <command> [target] [options]
+
+${BOLD}Commands:${RESET}
+  sanity                     Quick pulse check (~30s)
+  check                      Standard health check (~2-3 min)
+  deep                       Full deep audit (~5-10 min)
+  investigate <target>       Targeted investigation on a specific area
+  learn [area]               Knowledge refresh from live cluster
+
+${BOLD}Options:${RESET}
+  -i, --interactive          Interactive session (required for approving fixes)
+  -h, --help                 Show this help
+
+${BOLD}Examples:${RESET}
+  acm-hub sanity
+  acm-hub check
+  acm-hub deep
+  acm-hub investigate observability
+  acm-hub investigate "why are clusters Unknown"
+  acm-hub learn search
+  acm-hub check -i           ${DIM}# interactive — agent can ask to fix issues${RESET}
+
+${BOLD}Prerequisites:${RESET}
+  - ${GREEN}oc${RESET} CLI logged into an ACM hub cluster
+  - ${GREEN}claude${RESET} CLI installed
+
+${DIM}Print mode (default) streams the diagnosis and exits.
+Interactive mode (-i) allows the agent to present a remediation plan
+and execute fixes with your approval.${RESET}
+EOF
+}
+
+check_prereqs() {
+  local errors=0
+
+  if ! command -v oc &>/dev/null; then
+    echo -e "${RED}Error:${RESET} oc CLI not found." >&2
+    errors=1
+  fi
+
+  if ! command -v claude &>/dev/null; then
+    echo -e "${RED}Error:${RESET} claude CLI not found. Install: https://docs.anthropic.com/en/docs/claude-code/getting-started" >&2
+    errors=1
+  fi
+
+  if [ $errors -eq 1 ]; then
+    exit 1
+  fi
+
+  if ! oc whoami &>/dev/null 2>&1; then
+    echo -e "${RED}Error:${RESET} Not logged into a cluster. Run: oc login <hub-api>" >&2
+    exit 1
+  fi
+
+  if [ ! -f "$APP_DIR/CLAUDE.md" ]; then
+    echo -e "${RED}Error:${RESET} ACM Hub Health app not found at $APP_DIR" >&2
+    exit 1
+  fi
+}
+
+# Parse arguments
+interactive=false
+command=""
+target=""
+
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -i|--interactive)
+      interactive=true
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    sanity|check|deep|investigate|learn)
+      command=$1
+      shift
+      # Remaining arguments are the target
+      target="$*"
+      break
+      ;;
+    *)
+      echo -e "${RED}Unknown command:${RESET} $1" >&2
+      echo ""
+      usage
+      exit 1
+      ;;
+  esac
+done
+
+if [ -z "$command" ]; then
+  usage
+  exit 1
+fi
+
+check_prereqs
+
+# Map commands to Claude Code prompts
+case $command in
+  sanity)
+    prompt="/sanity"
+    ;;
+  check)
+    prompt="/health-check"
+    ;;
+  deep)
+    prompt="Do a thorough deep dive of my hub"
+    ;;
+  investigate)
+    if [ -z "$target" ]; then
+      echo -e "${RED}Error:${RESET} investigate requires a target." >&2
+      echo "  Example: acm-hub investigate observability" >&2
+      exit 1
+    fi
+    prompt="/investigate $target"
+    ;;
+  learn)
+    if [ -n "$target" ]; then
+      prompt="/learn $target"
+    else
+      prompt="/learn"
+    fi
+    ;;
+esac
+
+# Show what's happening
+cluster=$(oc whoami --show-server 2>/dev/null || echo "unknown")
+user=$(oc whoami 2>/dev/null || echo "unknown")
+echo -e "${DIM}Cluster: ${cluster}${RESET}"
+echo -e "${DIM}User:    ${user}${RESET}"
+echo -e "${DIM}Command: ${command}${target:+ $target}${RESET}"
+echo ""
+
+# Run Claude Code from the app directory
+cd "$APP_DIR"
+
+if [ "$interactive" = true ]; then
+  exec claude "$prompt"
+else
+  exec claude -p "$prompt"
+fi

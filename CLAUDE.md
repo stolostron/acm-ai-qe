@@ -18,7 +18,7 @@ See `apps/z-stream-analysis/CLAUDE.md` for schema requirements, classification g
 
 ### ACM Hub Health Agent (`apps/acm-hub-health/`) — Active
 
-AI-powered diagnostic agent for ACM hub clusters. Uses Claude Code with embedded ACM domain knowledge to perform health checks at any depth -- from quick sanity checks to deep component-level investigations. Natural language driven, read-only, no dependencies beyond `oc` + `claude`. Includes structured knowledge database (`knowledge/`) with baseline, dependency chains, webhooks, certificates, and addon catalog.
+AI-powered diagnostic and remediation agent for ACM hub clusters. Uses Claude Code with embedded ACM domain knowledge to perform health checks at any depth -- from quick sanity checks to deep component-level investigations. Natural language driven, no dependencies beyond `oc` + `claude`. Diagnosis is read-only; cluster fixes are executed only after presenting a structured remediation plan and getting explicit user approval. Includes structured knowledge database (`knowledge/`) with baseline, dependency chains, webhooks, certificates, and addon catalog.
 
 Usage: `cd apps/acm-hub-health && bash setup.sh && oc login <hub> && claude`
 
@@ -60,7 +60,7 @@ Run `bash mcp/setup.sh` from repo root. The script prompts you to select which a
 
 | Server | Tools | Source | Purpose |
 |--------|-------|--------|---------|
-| ACM UI (`mcp/acm-ui-mcp-server/`) | 20 | This repo | ACM Console + kubevirt-plugin source code search via GitHub |
+| ACM UI (`mcp/acm-ui-mcp-server/`) | 19 | This repo | ACM Console + kubevirt-plugin source code search via GitHub |
 | Jenkins | 7+4 | [upstream](https://github.com/redhat-community-ai-tools/jenkins-mcp) + `mcp/jenkins-acm-tools.py` | Jenkins pipeline API + ACM analysis tools |
 | JIRA | 25 | [stolostron/jira-mcp-server](https://github.com/stolostron/jira-mcp-server) | Issue search, creation, management for bug correlation (Jira Cloud) |
 | Neo4j RHACM | 2 | [mcp-neo4j-cypher](https://pypi.org/project/mcp-neo4j-cypher/) (PyPI) | Component dependency analysis via Cypher queries (optional) |
@@ -68,6 +68,8 @@ Run `bash mcp/setup.sh` from repo root. The script prompts you to select which a
 
 External MCPs (JIRA, Jenkins) are cloned at setup time into `mcp/.external/` (gitignored).
 This repo only contains our original MCP code: ACM UI, Polarion wrapper, Jenkins ACM tools.
+
+**Jenkins Setup:** Run `bash mcp/setup.sh` and provide your Jenkins username and API token when prompted. Credentials are stored in `mcp/.external/jenkins-mcp/.env` and injected into `.mcp.json` automatically. Requires Red Hat VPN for internal Jenkins access.
 
 **JIRA Cloud Setup:** Run `bash mcp/setup.sh` and provide credentials when prompted, or create `mcp/.external/jira-mcp-server/.env` with your Jira Cloud credentials after setup. Get a token at https://id.atlassian.com/manage-profile/security/api-tokens.
 

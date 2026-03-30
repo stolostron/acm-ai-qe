@@ -90,6 +90,11 @@ Four implementation phases (A through D) build a comprehensive environment oracl
 - **Prerequisite resolution** — `FeatureKnowledgeService.check_prerequisites()` accepts `oracle_data` parameter, replacing previously hardcoded `met=None` results.
 - **New schema fields** — `cluster_oracle` in core-data.json with `dependency_health`, `overall_feature_health`, `dependency_targets`, `feature_areas`, `knowledge_context`
 
+## New in v3.4
+
+- **Backend probe source-of-truth validation** (Phase PR-6) — when `backend_probes` includes a probe with `classification_hint` and `anomaly_source`, uses deterministic K8s-vs-console comparison. Compares cluster ground truth (`cluster_ground_truth`) against console backend response to distinguish PRODUCT_BUG (console returns wrong data despite healthy K8s) from INFRASTRUCTURE (underlying K8s resource is unhealthy). Routes with 0.85-0.90 confidence as Tier 1 evidence.
+- **Cluster access confidence adjustment** (Phase PR-4b) — adjusts classification confidence by 0.15 when cluster access is unavailable during Stage 2, reflecting reduced investigation depth.
+
 ## New in v3.3
 
 - **Assertion value extraction** (Phase PR-5) — parses Cypress/Chai `expected X to equal Y` errors to extract expected vs actual values, identifying data-level failures (API returned wrong data) vs selector-level failures
@@ -168,11 +173,13 @@ Five MCP servers provide tools during Stage 2 (AI Analysis). New users: run `bas
 
 | Server | Tools | Purpose |
 |--------|-------|---------|
-| ACM-UI | 20 | ACM Console + kubevirt-plugin source code search via GitHub |
+| ACM-UI | 19 | ACM Console + kubevirt-plugin source code search via GitHub |
 | Jenkins | 7+4 | Jenkins pipeline API + ACM-specific analysis tools |
 | JIRA | 25 | Issue search, creation, management for bug correlation (Jira Cloud) |
 | Polarion | 25 | Polarion test case access + dependency discovery |
 | Knowledge Graph (Neo4j RHACM) | 2 | Component dependency analysis via Cypher queries (optional) |
+
+**Jenkins:** Credentials are stored in `mcp/.external/jenkins-mcp/.env` (source of truth) with `JENKINS_USER` and `JENKINS_API_TOKEN`. Run `bash mcp/setup.sh` to configure credentials and generate `.mcp.json` with them injected into the `env` field. Both the MCP server and Stage 1 gather.py read from `.mcp.json`. The `JenkinsAPIClient` checks credentials in order: constructor args > `JENKINS_USER`/`JENKINS_API_TOKEN` env vars > `.mcp.json` env section > legacy MCP configs. To update credentials, edit the `.env` file and re-run `setup.sh` to regenerate `.mcp.json`.
 
 **JIRA Cloud:** Uses basic auth (email + API token). Run `bash mcp/setup.sh` to clone the server, configure credentials, and generate `.mcp.json` with credentials injected into the `env` field. Credentials are stored in `mcp/.external/jira-mcp-server/.env` (source of truth); re-run `setup.sh` after editing `.env` to regenerate `.mcp.json`. API token: https://id.atlassian.com/manage-profile/security/api-tokens
 
@@ -202,6 +209,7 @@ Understanding what a feature SHOULD do is key to classifying what went WRONG.
 | Stage 3: Report generation | `docs/03-STAGE3-REPORT-GENERATION.md` |
 | All services reference | `docs/04-SERVICES-REFERENCE.md` |
 | MCP integration guide | `docs/05-MCP-INTEGRATION.md` |
+| Knowledge database reference | `docs/06-KNOWLEDGE-DATABASE.md` |
 | v2.5 vs v3.0 comparison | `docs/V2.5-VS-V3.0-COMPARISON.md` |
 
 ## CLI Options
@@ -247,6 +255,38 @@ Standalone knowledge database providing domain reference data for the AI agent
 during Stage 2 analysis. Complements the feature playbooks at
 `src/data/feature_playbooks/` which are programmatically consumed during Stage 1.
 
+### Architecture Docs (`knowledge/architecture/`)
+
+Per-subsystem deep knowledge: architecture, data flow, and failure signatures.
+The AI agent reads the relevant subsystem docs at the start of Phase A0 based
+on the detected feature area.
+
+| Subsystem | Files | Key content |
+|-----------|-------|-------------|
+| Platform | `acm-platform.md`, `kubernetes-fundamentals.md` | Operator hierarchy, MCH, namespaces, K8s concepts |
+| Search | `search/{architecture,data-flow,failure-signatures}.md` | search-api/postgres/collector, GraphQL flow, DB corruption |
+| Console | `console/{architecture,data-flow,failure-signatures}.md` | React frontend, Node.js backend, SSE events, proxy routes |
+| Governance | `governance/{architecture,data-flow,failure-signatures}.md` | Policy propagator, spoke addons, compliance flow |
+| Cluster Lifecycle | `cluster-lifecycle/{architecture,data-flow,failure-signatures}.md` | Hive, webhooks, import controller, cluster ops |
+| Virtualization | `virtualization/{architecture,data-flow,failure-signatures}.md` | CNV, MTV, VM actions, CCLM, KVM nodes |
+| App Lifecycle | `application-lifecycle/{architecture,data-flow,failure-signatures}.md` | Subscriptions, channels, ArgoCD, app status |
+| RBAC | `rbac/{architecture,data-flow,failure-signatures}.md` | FG-RBAC, MCRA, ClusterPermission, IDP auth |
+| Automation | `automation/{architecture,data-flow,failure-signatures}.md` | ClusterCurator, Ansible Tower integration |
+| Observability | `observability/{architecture,failure-signatures}.md` | MCO, Thanos, Grafana |
+| Infrastructure | `infrastructure/{architecture,failure-signatures}.md` | Nodes, quotas, NetworkPolicies, certs |
+
+### Diagnostics Docs (`knowledge/diagnostics/`)
+
+Classification methodology documentation for the AI agent:
+
+| File | Content |
+|------|---------|
+| `classification-decision-tree.md` | Complete PR-1 through PR-7 decision tree with 3-path routing |
+| `evidence-tiers.md` | How Tier 1 and Tier 2 evidence is weighted for confidence scoring |
+| `common-misclassifications.md` | 6 documented cases where the pipeline gets confused and why |
+
+### Structured Data (YAML files)
+
 | File | Content | Used For |
 |------|---------|----------|
 | `components.yaml` | ACM component registry (name, namespace, labels, health checks) | Component health context |
@@ -259,9 +299,12 @@ during Stage 2 analysis. Complements the feature playbooks at
 | `learned/` | Agent-contributed corrections, patterns, selector changes | Accumulated knowledge |
 | `refresh.py` | Updates knowledge from ACM-UI MCP, KG, cluster | Self-healing |
 
-The AI agent reads these files at the start of Stage 2 analysis. `failure-patterns.yaml`
-enables fast classification before playbook investigation. `learned/` accumulates
-knowledge across runs via `refresh.py --promote`.
+### How the Agent Uses the Knowledge Database
+
+1. **Phase A0:** Read `architecture/<area>/architecture.md` and `data-flow.md` for each detected feature area
+2. **Phase B:** Check `architecture/<area>/failure-signatures.md` for known patterns before full investigation
+3. **Phase D:** Reference `diagnostics/classification-decision-tree.md` for routing logic
+4. **After classification:** Write new discoveries to `learned/` for future runs
 
 ## File Structure
 
@@ -273,11 +316,28 @@ z-stream-analysis/
 │   ├── gather.py          # Stage 1: Data collection
 │   ├── report.py          # Stage 3: Report generation
 │   └── feedback.py        # Classification feedback CLI
-├── src/services/          # 18 Python service modules
+├── src/services/          # 17 Python service modules
 ├── src/schemas/           # JSON Schema validation
 ├── src/data/
 │   └── feature_playbooks/ # YAML investigation playbooks (base.yaml, acm-2.16.yaml)
 ├── knowledge/             # Knowledge database (AI reads during Stage 2)
+│   ├── architecture/      # Per-subsystem deep knowledge (46 files)
+│   │   ├── acm-platform.md          # Platform: operator hierarchy, MCH, namespaces
+│   │   ├── kubernetes-fundamentals.md # K8s concepts for failure analysis
+│   │   ├── search/                  # Search subsystem (3 files)
+│   │   ├── console/                 # Console subsystem (3 files)
+│   │   ├── governance/              # GRC subsystem (3 files)
+│   │   ├── cluster-lifecycle/       # CLC subsystem (3 files)
+│   │   ├── virtualization/          # Fleet Virt subsystem (3 files)
+│   │   ├── application-lifecycle/   # ALC subsystem (3 files)
+│   │   ├── rbac/                    # RBAC subsystem (3 files)
+│   │   ├── automation/              # Ansible subsystem (3 files)
+│   │   ├── observability/           # Observability (2 files)
+│   │   └── infrastructure/          # Infrastructure (2 files)
+│   ├── diagnostics/       # Classification methodology
+│   │   ├── classification-decision-tree.md
+│   │   ├── evidence-tiers.md
+│   │   └── common-misclassifications.md
 │   ├── components.yaml    # Component registry
 │   ├── dependencies.yaml  # Dependency chains
 │   ├── selectors.yaml     # UI selector ground truth

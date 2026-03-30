@@ -1,11 +1,13 @@
 # ACM Hub Health Agent Overview
 
-AI-powered diagnostic agent for Red Hat Advanced Cluster Management (ACM) hub clusters.
-Uses Claude Code with embedded ACM domain knowledge to perform read-only health
-checks at any depth -- from quick sanity checks to deep component-level investigations.
+AI-powered diagnostic and remediation agent for Red Hat Advanced Cluster Management
+(ACM) hub clusters. Uses Claude Code with embedded ACM domain knowledge to perform
+health checks at any depth -- from quick sanity checks to deep component-level
+investigations. Diagnosis is read-only; fixes are executed only after presenting
+a structured remediation plan and getting explicit user approval.
 
 **Input:** An `oc` session logged into an ACM hub cluster
-**Output:** Structured health report with verdicts, findings, and recommended actions
+**Output:** Structured health report with verdicts, findings, and remediation plan
 
 ---
 
@@ -35,12 +37,14 @@ checks at any depth -- from quick sanity checks to deep component-level investig
                     ▼                 ▼                 ▼
           ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐
           │   oc CLI     │  │  Knowledge   │  │  External Sources│
-          │ (read-only)  │  │    System    │  │                  │
-          │              │  │              │  │  ACM-UI MCP      │
+          │              │  │    System    │  │                  │
+          │  Diagnosis:  │  │              │  │  ACM-UI MCP      │
           │  oc get      │  │  architecture│  │  (source code)   │
           │  oc describe │  │  diagnostics │  │                  │
           │  oc logs     │  │  cross-cut   │  │  rhacm-docs/     │
-          │  oc adm top  │  │  learned     │  │  (AsciiDoc)      │
+          │  Remediation:│  │  learned     │  │  (AsciiDoc)      │
+          │  oc patch    │  │              │  │                  │
+          │  (w/approval)│  │              │  │                  │
           └──────────────┘  └──────────────┘  └──────────────────┘
                     │                 │                 │
                     └─────────────────┼─────────────────┘
@@ -127,8 +131,9 @@ documentation with diagnostics methodology and discoveries from previous runs:
 │  │                          │  │ covered by the static knowledge.         ││
 │  └──────────────────────────┘  └──────────────────────────────────────────┘│
 │                                                                            │
-│  Priority: Cluster > Learned > Static                                     │
-│  The live cluster is always the source of truth.                          │
+│  Topology (what exists): Cluster observation > Learned > Static            │
+│  Health (what's correct): Knowledge = ground truth, cluster = current     │
+│  state, gap = findings to diagnose                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -146,22 +151,23 @@ knowledge, it triggers a self-healing process:
 
 ## Safety Model
 
-All cluster operations are **read-only**. The agent never modifies cluster state.
+The agent operates in two modes:
 
-| Allowed | Blocked |
-|---------|---------|
-| `oc get`, `oc describe`, `oc logs` | `oc apply`, `oc create`, `oc delete` |
-| `oc api-resources`, `oc version` | `oc patch`, `oc edit`, `oc scale` |
-| `oc whoami`, `oc cluster-info` | `oc rollout restart`, `oc adm drain` |
-| `oc adm top`, `kubectl get/describe` | Any command that modifies state |
-| `jq`, `grep`, `wc`, `sort`, `head`, `tail`, `awk`, `cut` | |
-| `cat`, `ls`, `find` | |
+- **Diagnostic mode** (Phases 1-6): Strictly read-only. The agent never
+  modifies cluster state during diagnosis.
+- **Remediation mode** (post-diagnosis): The agent may fix cluster-fixable
+  issues, but ONLY after completing all diagnosis, presenting a structured
+  remediation plan with root causes and exact commands, and receiving
+  explicit user approval. The agent asks once for the full plan, not
+  per-command.
 
-These constraints are enforced at two levels:
-1. **CLAUDE.md instructions** -- the agent methodology explicitly forbids mutation
-2. **settings.json permissions** -- only read-only `oc` commands are auto-approved
+Enforced at two levels: CLAUDE.md Remediation Protocol (methodology requires
+structured approval flow) and `.claude/settings.json` (auto-approved command
+allowlist). Destructive commands (`oc delete` on non-pod resources,
+`oc adm drain`) are never allowed.
 
-If a fix requires changes, the agent tells the user what to do. It does not do it itself.
+See the "Safety" and "Remediation Protocol" sections in
+[CLAUDE.md](../CLAUDE.md) for the full details.
 
 ---
 
@@ -190,6 +196,7 @@ Do a thorough deep dive of my hub
 acm-hub-health/
 ├── CLAUDE.md                           ← Agent methodology and instructions
 ├── README.md                           ← Quick start guide
+├── acm-hub                             ← CLI wrapper (run from any terminal)
 ├── setup.sh                            ← One-time setup (rhacm-docs, MCP venv, .mcp.json)
 ├── .mcp.json                           ← MCP server configuration (acm-ui) [generated by setup.sh]
 ├── .gitignore                          ← Ignores docs/rhacm-docs/
@@ -235,7 +242,7 @@ acm-hub-health/
 │       └── <topic>.md                  ← Written by agent during self-healing
 │
 └── .claude/
-    ├── settings.json                   ← Auto-approved read-only commands
+    ├── settings.json                   ← Auto-approved commands (read + remediation)
     ├── settings.local.json             ← Local overrides (not committed)
     └── commands/
         ├── sanity.md                   ← /sanity slash command
@@ -251,7 +258,7 @@ acm-hub-health/
 | Decision | Rationale |
 |----------|-----------|
 | Minimal custom code | Core agent is pure Claude Code with no runtime dependencies beyond `oc` and `claude`. The only custom code is `knowledge/refresh.py` (optional, for updating YAML baselines from a live cluster; requires Python 3 + PyYAML). |
-| Read-only constraint | Safety for production hubs. The agent diagnoses; humans remediate. |
+| Diagnose-first, fix-with-approval | Diagnosis is always read-only. Fixes are only attempted after all findings are presented and the user explicitly approves the remediation plan. No per-command prompts -- one structured approval for the full plan. |
 | Layered knowledge (architecture + diagnostics + structured YAML + learned) | Architecture knowledge explains how things work. Structured YAML provides quantitative baselines. Diagnostics knowledge guides methodology. Learned knowledge fills version-specific gaps. |
 | File-based knowledge database (not SQL) | No database server dependency. YAML/markdown files are human-readable, git-tracked, and diffable. Claude reads them directly into context. |
 | Self-healing over static docs | ACM evolves across versions. Components are renamed, restructured, or added. The agent adapts by investigating and learning, rather than requiring manual knowledge updates. |

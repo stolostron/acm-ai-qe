@@ -8,17 +8,17 @@ The AI agent reads `core-data.json` and produces `analysis-results.json` using a
 
 **Invocation:** The z-stream-analysis agent reads the run directory and applies the 5-phase framework.
 
-**Input:** `core-data.json` (from Stage 1), `repos/` (fallback), MCP servers (ACM-UI, JIRA, Knowledge Graph)
+**Input:** `core-data.json` (from Stage 1), `repos/` (fallback), MCP servers (ACM-UI, Jenkins, JIRA, Polarion, Knowledge Graph)
 
 **Output:** `analysis-results.json` (classification per test with evidence)
 
 ```
 core-data.json ──► AI Agent ──► analysis-results.json
                       │
-          ┌───────────┼───────────┐
-          ▼           ▼           ▼
-      ACM-UI MCP   JIRA MCP   Knowledge
-      (19 tools)   (25 tools)  Graph MCP
+     ┌────────┬───────┼───────┬──────────┐
+     ▼        ▼       ▼       ▼          ▼
+  ACM-UI   Jenkins   JIRA  Polarion  Knowledge
+  (19)     (11)     (25)   (25)     Graph MCP
 ```
 
 ### Full Investigation Flow
@@ -330,6 +330,14 @@ If `extracted_context.temporal_summary.stale_test_signal == true` AND `product_c
 
 If `extracted_context.assertion_analysis.has_data_assertion == true` AND `extracted_context.failure_mode_category == "data_incorrect"`, the test failed because returned data did not match expected values — not because of a missing element or infrastructure issue. Sets a PRODUCT_BUG hypothesis with 0.80-0.85 confidence. **Does NOT short-circuit** — adds evidence for standard routing, validated through Path B2 investigation.
 
+### PR-6: Backend Probe Source-of-Truth Check (v3.4)
+
+If `backend_probes` data includes a probe with `classification_hint` and `anomaly_source`, uses deterministic K8s-vs-console comparison. Compares actual cluster state (`cluster_ground_truth`) against console backend response to distinguish PRODUCT_BUG (console returns wrong data despite healthy K8s) from INFRASTRUCTURE (underlying K8s resource is unhealthy). Routes based on `classification_hint` with 0.85-0.90 confidence. Tier 1 evidence.
+
+### PR-7: Environment Oracle Dependency Check (v3.5)
+
+If `cluster_oracle` data shows a broken dependency for the test's feature area (operator missing, addon degraded, CRD absent, component not running), routes to INFRASTRUCTURE with 0.90-0.95 confidence. Combines playbook health data, Polarion dependency discovery, and KG topology as Tier 1 evidence. Short-circuits standard routing when oracle dependency is definitively broken.
+
 ### PR-4: Feature Knowledge Override (v3.1)
 
 **Check feature knowledge.** If a prerequisite is unmet AND Tier 2 playbook investigation confirmed it with live `oc` commands, use the playbook's suggested classification at 0.95 confidence. If a failure path was confirmed, use the path's classification and confidence. If cluster login failed (`cluster_access_available=false`), reduce confidence by 0.15 on all classifications.
@@ -359,6 +367,16 @@ If `extracted_context.assertion_analysis.has_data_assertion == true` AND `extrac
                     ┌──────┴──────┐
                     │PR-5: Data   │
                     │ assertion   │◄── Sets PRODUCT_BUG hypothesis if data assertion
+                    └──────┬──────┘
+                           │
+                    ┌──────┴──────┐
+                    │PR-6: Probe  │
+                    │source-truth │◄── Deterministic K8s-vs-console routing (v3.4)
+                    └──────┬──────┘
+                           │
+                    ┌──────┴──────┐
+                    │PR-7: Oracle │
+                    │ dependency  │◄── Broken dependency → INFRASTRUCTURE (v3.5)
                     └──────┬──────┘
                            │
                     ┌──────┴──────┐

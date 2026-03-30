@@ -215,8 +215,9 @@ Each issue includes up to seven fields:
 | **Cluster-Fixable** | Whether it can be resolved on-cluster | When known issue matched |
 | **Recommended Action** | Specific remediation steps the user can take | Always |
 
-The agent never executes recommended actions. It describes what to do and the
-user decides whether and when to act.
+When cluster-fixable issues are found, the agent presents a structured
+remediation plan after the health report (see below). Fixes are only
+executed after the user explicitly approves the plan.
 
 ---
 
@@ -273,6 +274,41 @@ Addon status conditions are interpreted as a whole, not individually:
 | True | True | False | Functional but has a non-blocking issue |
 | False | True | False | Unhealthy, investigate |
 | False | False | True | Still deploying |
+
+---
+
+## Remediation Plan Format
+
+When the health report includes cluster-fixable issues, the agent appends a
+remediation plan after the report. The plan follows a structured format
+defined in [CLAUDE.md](../CLAUDE.md) (Remediation Protocol):
+
+```
+## Remediation Plan
+
+The following issues have cluster-fixable remediation:
+
+### Fix 1: <concise issue title>
+**Root Cause**: <what's wrong and why>
+**Evidence**: <Tier 1/2 evidence supporting this conclusion>
+**Fix**: <plain-English description of what the fix does>
+**Command**:
+  <exact oc command that will be run>
+**Risk**: <what could go wrong; "Low" for pod restarts, "Medium" for config changes>
+
+### Fix 2: ...
+
+### Issues NOT fixable on-cluster:
+- <issue>: Requires ACM upgrade to <version> (JIRA: ACM-XXXXX)
+- <issue>: Requires infrastructure change (describe what)
+
+---
+These fixes will modify your cluster. Should I proceed? (yes/no)
+```
+
+The agent waits for explicit approval. After executing approved fixes, it
+runs a quick verification check and reports before/after status for each
+affected component.
 
 ---
 

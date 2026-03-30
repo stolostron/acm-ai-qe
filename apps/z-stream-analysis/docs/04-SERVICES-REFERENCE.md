@@ -6,7 +6,7 @@ One-stop reference for all Python services and the `ReportFormatter` class.
 
 ## Overview
 
-Z-Stream Analysis uses 16 service modules in `src/services/`, plus `ReportFormatter` in `src/scripts/report.py` and `DataGatherer` in `src/scripts/gather.py`. Services provide **factual data only** — all classification is performed by the AI agent in Stage 2.
+Z-Stream Analysis uses 17 service modules in `src/services/`, plus `ReportFormatter` in `src/scripts/report.py` and `DataGatherer` in `src/scripts/gather.py`. Services provide **factual data only** — all classification is performed by the AI agent in Stage 2.
 
 ```
 gather.py ──┬── JenkinsAPIClient ──────────── Jenkins REST API

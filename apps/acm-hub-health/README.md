@@ -22,7 +22,13 @@ oc login <hub-api>    # login to your hub
 claude                # start the agent
 ```
 
+Once Claude Code launches, it picks up the agent configuration (CLAUDE.md,
+knowledge base, slash commands, permissions) automatically. You're ready
+to go.
+
 ## Usage
+
+Use slash commands or natural language inside the Claude Code session:
 
 ```
 /sanity                              # quick pulse (~30s)
@@ -55,6 +61,14 @@ using ACM documentation and source code (via MCP), records findings in
 Every conclusion requires 2+ evidence sources with explicit confidence levels.
 The agent traces upstream through dependency chains rather than reporting
 leaf symptoms independently.
+
+## Diagnose First, Fix With Approval
+
+Diagnosis is always read-only (`oc get`, `oc describe`, `oc logs`). When
+cluster-fixable issues are found, the agent presents all root causes and
+exact fix commands in a structured remediation plan, then asks for your
+explicit approval before making any changes. You review the full plan and
+decide -- the agent never modifies the cluster without your consent.
 
 ## Knowledge Base
 
@@ -92,23 +106,98 @@ knowledge/
   learned/                              # Agent-discovered knowledge (grows over time)
 ```
 
-Refresh structured data from a live cluster:
+Refresh structured data from a live cluster with `python -m knowledge.refresh`
+(requires Python 3 + PyYAML). See [knowledge/README.md](knowledge/README.md)
+for all flags and smart merge behavior.
+
+---
+
+## Optional: CLI Mode (Run From Any Terminal)
+
+You can also run diagnostics directly from any terminal without launching an
+interactive Claude Code session first. This is optional -- the default usage
+above works without any additional setup.
+
+### What It Does
+
+The `acm-hub` script is a CLI wrapper that invokes Claude Code with the
+correct project directory and prompt. It works from any terminal as long as
+you're logged into a cluster with `oc`. You don't need to `cd` into the app
+directory.
+
+By default it runs in **print mode** -- streams the diagnosis to your terminal
+and exits. Add `-i` for an **interactive session** where the agent can present
+a remediation plan and execute fixes with your approval.
+
+### Setup
+
+**1. Make sure the prerequisites are met** (same as above -- `oc` + `claude`).
+
+**2. Create a symlink** so `acm-hub` is available on your PATH:
+
 ```bash
-python -m knowledge.refresh             # Refresh all YAML files
-python -m knowledge.refresh --baseline  # Update healthy-baseline.yaml
-python -m knowledge.refresh --webhooks  # Update webhook-registry.yaml
-python -m knowledge.refresh --certs     # Update certificate-inventory.yaml
-python -m knowledge.refresh --addons    # Update addon-catalog.yaml
-python -m knowledge.refresh --promote   # Review learned/ entries for promotion
-python -m knowledge.refresh --dry-run   # Preview changes without writing
+# Option A: symlink to ~/.local/bin (most common)
+mkdir -p ~/.local/bin
+ln -s "$(pwd)/acm-hub" ~/.local/bin/acm-hub
+
+# Option B: symlink to /usr/local/bin (system-wide)
+sudo ln -s "$(pwd)/acm-hub" /usr/local/bin/acm-hub
 ```
 
-Smart merge: curated content (impact descriptions, dependencies) is preserved.
-New items get placeholder descriptions. Items no longer on the cluster are
-flagged but kept. Version drift between YAML and cluster is detected.
+Make sure the target directory is on your PATH. For `~/.local/bin`, add
+this to your `~/.zshrc` or `~/.bashrc` if it's not already there:
 
-## All Operations Are Read-Only
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+```
 
-The agent never modifies your cluster. It uses only `oc get`, `oc describe`,
-`oc logs`, and similar read-only commands. When a fix is needed, the agent
-tells you exactly what to do.
+**3. Verify it works:**
+
+```bash
+acm-hub --help
+```
+
+That's it. The script resolves the app directory from its own location
+(works through symlinks), so you can run it from anywhere.
+
+### Commands
+
+```bash
+acm-hub sanity                        # quick pulse (~30s)
+acm-hub check                         # standard health check (~2-3 min)
+acm-hub deep                          # full deep audit (~5-10 min)
+acm-hub investigate observability     # targeted investigation
+acm-hub investigate "why clusters Unknown"
+acm-hub learn                         # full knowledge refresh
+acm-hub learn search                  # knowledge refresh for search only
+```
+
+### Print Mode vs Interactive Mode
+
+```bash
+acm-hub check                         # print mode (default)
+acm-hub check -i                      # interactive mode
+```
+
+| | Print Mode (default) | Interactive Mode (`-i`) |
+|---|---|---|
+| **Output** | Streams diagnosis to terminal, exits | Full Claude Code session |
+| **Remediation** | Presents plan but cannot execute | Can ask approval and execute fixes |
+| **Use case** | Quick checks, scripting, CI | Full diagnostic + fix workflow |
+
+### Examples
+
+```bash
+# Morning pulse check from any terminal
+oc login https://my-hub:6443
+acm-hub sanity
+
+# Something looks wrong -- run a full check
+acm-hub check
+
+# Dig into a specific area
+acm-hub investigate observability
+
+# Found issues, want to fix them -- use interactive mode
+acm-hub check -i
+```

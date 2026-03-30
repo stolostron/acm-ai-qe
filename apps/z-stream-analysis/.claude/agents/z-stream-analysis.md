@@ -223,6 +223,27 @@ This tells you WHAT feature each test validates before you analyze WHY it failed
 - Know which namespaces to check for pod health
 - Understand the investigation focus for each feature area
 
+**Knowledge Database (v3.5):** Read the architecture docs for each detected feature area to understand the subsystem before investigating failures:
+
+```bash
+# For each feature area in the run (e.g., Search, CLC, Virtualization):
+cat knowledge/architecture/<area>/architecture.md      # How the subsystem works
+cat knowledge/architecture/<area>/data-flow.md          # Where data moves (where failures occur)
+cat knowledge/architecture/<area>/failure-signatures.md # Known failure patterns + classification
+cat knowledge/diagnostics/classification-decision-tree.md  # Decision tree reference
+```
+
+The `failure-signatures.md` file contains known patterns with error message regex, classification, confidence, and fix. Check these BEFORE running the full investigation pipeline -- a match here short-circuits to the correct classification with high confidence.
+
+Platform context (read once at session start):
+- `knowledge/architecture/acm-platform.md` -- operator hierarchy, MCH, namespaces, webhooks
+- `knowledge/architecture/kubernetes-fundamentals.md` -- K8s concepts for failure analysis
+
+After classification, store new discoveries:
+- New failure patterns -> `knowledge/learned/new-patterns.yaml`
+- Classification corrections -> `knowledge/learned/corrections.yaml`
+- Selector renames found -> `knowledge/learned/selector-changes.yaml`
+
 **Feature Knowledge (v3.1):** Also read `feature_knowledge` from core-data.json. This contains playbook-driven context loaded by FeatureKnowledgeService:
 
 ```bash

@@ -89,7 +89,9 @@ config. The app-level `setup.sh` also clones rhacm-docs.
 | `search_translations` | Search i18n translation strings | Finding user-visible text |
 | `get_wizard_steps` | Get wizard step definitions | Multi-step flow analysis |
 | `get_current_version` | Get the currently selected ACM version | Version context |
-| `set_version` / `set_acm_version` / `set_cnv_version` | Set version context for searches | Version-scoped queries |
+| `set_version` | Set version context for searches | Version-scoped queries |
+| `set_acm_version` | Set ACM version context | Version-scoped queries |
+| `set_cnv_version` | Set CNV version context | Version-scoped queries |
 | `list_versions` | List available ACM/CNV versions | Version discovery |
 | `list_repos` | List available repositories | Repo discovery |
 | `detect_cnv_version` | Detect CNV version from context | Auto-detection |
@@ -209,28 +211,22 @@ The combination of all three gives the agent a complete picture: current state
 
 ## Permission Model
 
-The `.claude/settings.json` file auto-approves specific tool categories:
+The `.claude/settings.json` file auto-approves two categories of commands:
 
-| Permission | What It Allows |
-|-----------|----------------|
-| `Bash(oc get:*)` | All `oc get` commands |
-| `Bash(oc describe:*)` | All `oc describe` commands |
-| `Bash(oc logs:*)` | All `oc logs` commands |
-| `Bash(oc version:*)` | Version checks |
-| `Bash(oc whoami:*)` | Identity checks |
-| `Bash(oc cluster-info:*)` | Cluster info |
-| `Bash(oc api-resources:*)` | API resource discovery |
-| `Bash(oc adm top:*)` | Resource usage |
-| `Bash(kubectl get:*)` | kubectl get commands |
-| `Bash(kubectl describe:*)` | kubectl describe commands |
-| `Bash(grep:*)`, `Bash(jq:*)`, `Bash(wc:*)`, `Bash(sort:*)`, `Bash(head:*)`, `Bash(tail:*)`, `Bash(awk:*)`, `Bash(cut:*)` | Text processing utilities |
-| `Bash(cat:*)`, `Bash(ls:*)`, `Bash(find:*)` | File system inspection |
-| `Read` | Reading any file |
-| `Write(knowledge/learned/*)` | Writing learned knowledge files only |
-| `mcp__acm-ui__*` | All acm-ui MCP server tools |
+- **Diagnostic** (always available): read-only `oc`/`kubectl` commands,
+  text processing utilities, file inspection, `git clone`, and all acm-ui
+  MCP tools. File writes limited to `knowledge/learned/` only.
+- **Remediation** (methodology-gated): `oc patch`, `oc scale`,
+  `oc rollout restart`, `oc delete pod`, `oc annotate`, `oc label`,
+  `oc apply`. These are auto-approved in settings.json but the agent's
+  CLAUDE.md Remediation Protocol requires completing all diagnosis and
+  getting explicit user approval before using them.
 
-The agent's write access is limited to `knowledge/learned/` (via the Write
-permission). It cannot modify cluster state or execute arbitrary commands.
+Destructive commands (`oc delete` on non-pod resources, `oc adm drain`)
+are never allowed.
+
+See [CLAUDE.md](../CLAUDE.md) for the Safety and Remediation Protocol
+sections and `.claude/settings.json` for the exact permission entries.
 
 ---
 

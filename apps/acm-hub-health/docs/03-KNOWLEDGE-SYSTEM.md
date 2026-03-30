@@ -46,8 +46,9 @@ it triggers a self-healing process to investigate, learn, and record findings.
 │  │ between knowledge and cluster state. Version- and cluster-specific.    │ │
 │  └────────────────────────────────────────────────────────────────────────┘ │
 │                                                                            │
-│  Priority: Cluster > Learned > Static                                     │
-│  The live cluster is always the source of truth.                          │
+│  Topology (what exists): Cluster observation > Learned > Static            │
+│  Health (what's correct): Knowledge defines ground truth; cluster shows    │
+│  current state; the gap between them = findings to diagnose               │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -209,23 +210,10 @@ All managed cluster addons with operational details:
 
 ### Refreshing Structured Data
 
-Run the refresh script to update knowledge from a live cluster:
-
-```bash
-python -m knowledge.refresh                 # Refresh all YAML files from connected cluster
-python -m knowledge.refresh --baseline      # Update healthy-baseline.yaml
-python -m knowledge.refresh --webhooks      # Update webhook-registry.yaml
-python -m knowledge.refresh --certs         # Update certificate-inventory.yaml
-python -m knowledge.refresh --addons        # Update addon-catalog.yaml
-python -m knowledge.refresh --promote       # Review learned/ entries for promotion
-python -m knowledge.refresh --dry-run       # Show what would change without writing
-```
-
-All refresh flags use smart merge: new items found on the cluster are added
-with placeholder descriptions, existing curated content (impact descriptions,
-dependencies, diagnostic guidance) is preserved, and items no longer on the
-cluster are flagged but kept. The script also detects version drift between
-YAML metadata and the cluster's actual ACM version.
+Run `python -m knowledge.refresh` to update YAML files from a live cluster
+(requires Python 3 + PyYAML). See
+[knowledge/README.md](../knowledge/README.md) for all flags (--baseline,
+--webhooks, --certs, --addons, --promote, --dry-run) and smart merge behavior.
 
 ---
 
@@ -318,8 +306,10 @@ static knowledge and cluster state during Phase 2 (Learn):
 
 | Scenario | Resolution |
 |----------|------------|
-| Learned knowledge contradicts static | Learned is more recent, likely more accurate |
-| Both contradict the cluster | The cluster is always truth |
+| Learned knowledge contradicts static (topology) | Learned is more recent, use it for structural facts |
+| Learned knowledge contradicts static (health definition) | Learned may reflect version-specific changes; verify against cluster + docs |
+| Cluster state differs from knowledge-defined healthy state | The deviation IS the finding. Knowledge defines what correct looks like; diagnose and report the gap |
+| Cluster topology differs from knowledge (namespace, pod names) | Trust the cluster observation. Trigger self-healing to update knowledge |
 | Learned knowledge is stale (old ACM version) | Verify against current cluster before trusting |
 
 ---
@@ -402,24 +392,58 @@ of checking health, it focuses on discovering and documenting what's deployed.
 
 ---
 
-## Trust Hierarchy
+## Knowledge Roles and Trust Model
+
+The knowledge database serves the agent in two distinct roles, each with a
+different relationship to the live cluster:
+
+### Role 1: Structural Observation (Topology)
+
+What exists on this cluster: namespaces, pod names, which components are
+deployed, CRD schemas. These vary per cluster and per ACM version.
 
 ```
-  Most trusted                               Least trusted
-  ┌──────────┐    ┌───────────────┐    ┌─────────────────────┐
-  │  Live    │ >  │   Learned     │ >  │  Static Knowledge   │
-  │  Cluster │    │   Knowledge   │    │  (architecture/     │
-  │          │    │   (learned/)  │    │   diagnostics/       │
-  │          │    │               │    │   cross-cutting)     │
-  └──────────┘    └───────────────┘    └─────────────────────┘
+  Trust for topology:  Cluster observation > Learned > Static
 ```
 
-1. **The cluster is always truth.** If what you see contradicts the knowledge
-   files, the cluster wins.
-2. **Learned knowledge is more recent.** It was written by the agent during a
-   previous run against a specific cluster and ACM version.
-3. **Static knowledge is the baseline.** Curated but may be outdated. Use it
-   as a starting point, not as gospel.
+If the knowledge says search-api runs in `open-cluster-management` but the
+agent observes it in `ocm`, the agent uses `ocm`. The knowledge was wrong
+about the structural fact. This triggers self-healing -- the agent writes to
+`knowledge/learned/` to update its topology understanding.
+
+### Role 2: Health Assessment (Correctness)
+
+What correct, healthy behavior looks like: expected phases, pod states,
+data flows, component interactions, known bug signatures.
+
+```
+  Trust for correctness:  Knowledge (ground truth) defines what SHOULD BE
+                          Cluster observation shows what IS
+                          The gap between the two = findings to diagnose
+```
+
+The knowledge defines the ground truth for health:
+- `healthy-baseline.yaml` says `expected_phase: Running` -- if the cluster
+  shows `Progressing`, that gap IS the finding
+- `architecture.md` describes how data should flow -- a deviation is a
+  problem to diagnose, not a new truth to accept
+- `known-issues.md` defines bug signatures -- the agent matches cluster
+  symptoms against them to identify known bugs
+- `evidence-tiers.md` defines how to weight evidence for conclusions
+
+The cluster is NOT "right" when it shows CrashLoopBackOff. The knowledge
+says pods should be Running. The agent reports the deviation as an issue.
+
+### Between Knowledge Layers
+
+When knowledge layers disagree about topology or health definitions:
+
+1. **Learned knowledge is more recent.** Written during a previous run
+   against a specific cluster and ACM version. Preferred over static.
+2. **Static knowledge is the curated baseline.** May be outdated for newer
+   ACM versions. Use as a starting point, verify against the cluster.
+3. **When learned knowledge is stale** (written for an older ACM version),
+   verify against the current cluster before trusting.
 
 ---
 

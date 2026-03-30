@@ -341,47 +341,63 @@ setup_jenkins() {
     "$JENKINS_VENV/bin/pip" install -r "$JENKINS_DIR/requirements.txt" --quiet
     ok "Dependencies installed (in venv)"
 
-    JENKINS_CONFIG="$HOME/.jenkins/config.json"
-    if [ -f "$JENKINS_CONFIG" ]; then
-        ok "Jenkins credentials found: $JENKINS_CONFIG"
+    JENKINS_ENV="$JENKINS_DIR/.env"
+    if [ -f "$JENKINS_ENV" ] && ! grep -q "PASTE_YOUR" "$JENKINS_ENV" 2>/dev/null; then
+        ok "Credentials file exists: $JENKINS_ENV"
     else
-        echo ""
-        info "Jenkins credentials needed."
-        echo ""
-        echo "  To get your Jenkins API token:"
-        echo "    1. Log into Jenkins"
-        echo "    2. Click your username (top right) -> Configure"
-        echo "    3. Under 'API Token', click 'Add new Token'"
-        echo "    4. Copy the generated token"
-        echo ""
-
-        read -p "  Jenkins URL [https://jenkins-csb-rhacm-tests.dno.corp.redhat.com]: " JENKINS_URL_INPUT
-        JENKINS_URL_INPUT="${JENKINS_URL_INPUT:-https://jenkins-csb-rhacm-tests.dno.corp.redhat.com}"
-
-        read -p "  Jenkins Username (or Enter to skip): " JENKINS_USER_INPUT
-
-        if [ -n "$JENKINS_USER_INPUT" ]; then
-            read -sp "  Jenkins API Token (or Enter to skip): " JENKINS_TOKEN_INPUT
-            echo ""
-            if [ -z "$JENKINS_TOKEN_INPUT" ]; then
-                warn "No token provided. Creating config with placeholder -- update later."
-                JENKINS_TOKEN_INPUT="PASTE_YOUR_API_TOKEN_HERE"
-            fi
-
-            mkdir -p "$HOME/.jenkins"
-            cat > "$JENKINS_CONFIG" <<EOF
-{
-  "jenkins_url": "$JENKINS_URL_INPUT",
-  "jenkins_user": "$JENKINS_USER_INPUT",
-  "jenkins_token": "$JENKINS_TOKEN_INPUT"
-}
+        # Migrate from legacy ~/.jenkins/config.json if it exists
+        LEGACY_CONFIG="$HOME/.jenkins/config.json"
+        if [ -f "$LEGACY_CONFIG" ] && ! grep -q "PASTE_YOUR" "$LEGACY_CONFIG" 2>/dev/null; then
+            info "Migrating credentials from legacy $LEGACY_CONFIG..."
+            JENKINS_USER_INPUT=$(python3 -c "import json; print(json.load(open('$LEGACY_CONFIG')).get('jenkins_user',''))" 2>/dev/null || true)
+            JENKINS_TOKEN_INPUT=$(python3 -c "import json; print(json.load(open('$LEGACY_CONFIG')).get('jenkins_token',''))" 2>/dev/null || true)
+            if [ -n "$JENKINS_USER_INPUT" ] && [ -n "$JENKINS_TOKEN_INPUT" ]; then
+                cat > "$JENKINS_ENV" <<EOF
+JENKINS_USER=$JENKINS_USER_INPUT
+JENKINS_API_TOKEN=$JENKINS_TOKEN_INPUT
 EOF
-            ok "Created $JENKINS_CONFIG"
-            echo "  Edit this file later to update credentials: $JENKINS_CONFIG"
-        else
-            warn "Skipped credentials. Create ~/.jenkins/config.json later."
-            echo "  Template:"
-            echo '  {"jenkins_url":"https://...","jenkins_user":"...","jenkins_token":"..."}'
+                ok "Migrated to $JENKINS_ENV"
+            else
+                warn "Could not parse legacy config. Will prompt for credentials."
+                JENKINS_USER_INPUT=""
+                JENKINS_TOKEN_INPUT=""
+            fi
+        fi
+
+        # Prompt if we still don't have credentials
+        if [ ! -f "$JENKINS_ENV" ] || grep -q "PASTE_YOUR" "$JENKINS_ENV" 2>/dev/null; then
+            echo ""
+            info "Jenkins credentials needed."
+            echo ""
+            echo "  To get your Jenkins API token:"
+            echo "    1. Log into Jenkins"
+            echo "    2. Click your username (top right) -> Configure"
+            echo "    3. Under 'API Token', click 'Add new Token'"
+            echo "    4. Copy the generated token"
+            echo ""
+
+            read -p "  Jenkins Username (or Enter to skip): " JENKINS_USER_INPUT
+
+            if [ -n "$JENKINS_USER_INPUT" ]; then
+                read -sp "  Jenkins API Token (or Enter to skip): " JENKINS_TOKEN_INPUT
+                echo ""
+                if [ -z "$JENKINS_TOKEN_INPUT" ]; then
+                    warn "No token provided. Creating .env with placeholder -- update later."
+                    JENKINS_TOKEN_INPUT="PASTE_YOUR_API_TOKEN_HERE"
+                fi
+
+                cat > "$JENKINS_ENV" <<EOF
+JENKINS_USER=$JENKINS_USER_INPUT
+JENKINS_API_TOKEN=$JENKINS_TOKEN_INPUT
+EOF
+                ok "Created $JENKINS_ENV"
+                echo "  Edit this file later to update credentials: $JENKINS_ENV"
+            else
+                warn "Skipped credentials. Create $JENKINS_ENV later."
+                echo "  Template:"
+                echo "  JENKINS_USER=your_username"
+                echo "  JENKINS_API_TOKEN=your_token"
+            fi
         fi
     fi
 
@@ -634,6 +650,7 @@ def read_env_file(path):
 
 # Read credential .env files
 jira_env = read_env_file(f'{ext_dir}/jira-mcp-server/.env')
+jenkins_env = read_env_file(f'{ext_dir}/jenkins-mcp/.env')
 polarion_env = read_env_file(f'{mcp_dir}/polarion/.env')
 
 # MCP server definitions
@@ -655,6 +672,9 @@ all_servers = {
     'jenkins': {
         'command': f'{ext_dir}/jenkins-mcp/.venv/bin/python',
         'args': [f'{mcp_dir}/jenkins-acm-tools.py'],
+        'env': {k: v for k, v in jenkins_env.items()
+                if v and 'PASTE_YOUR' not in v
+                and k in ('JENKINS_USER', 'JENKINS_API_TOKEN')},
         'timeout': 60
     },
     'polarion': {
@@ -784,10 +804,10 @@ if needs_mcp "jira" || needs_mcp "jenkins" || needs_mcp "polarion"; then
     fi
 
     if needs_mcp "jenkins"; then
-        if [ -f "$HOME/.jenkins/config.json" ] && ! grep -q "PASTE_YOUR" "$HOME/.jenkins/config.json" 2>/dev/null; then
-            echo -e "    ${GREEN}OK${NC}   jenkins      -- ~/.jenkins/config.json"
+        if [ -f "$EXTERNAL_DIR/jenkins-mcp/.env" ] && ! grep -q "PASTE_YOUR" "$EXTERNAL_DIR/jenkins-mcp/.env" 2>/dev/null; then
+            echo -e "    ${GREEN}OK${NC}   jenkins      -- $EXTERNAL_DIR/jenkins-mcp/.env"
         else
-            echo -e "    ${YELLOW}TODO${NC} jenkins      -- Create/edit ~/.jenkins/config.json"
+            echo -e "    ${YELLOW}TODO${NC} jenkins      -- Edit $EXTERNAL_DIR/jenkins-mcp/.env with your credentials"
         fi
     fi
 

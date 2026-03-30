@@ -1,55 +1,78 @@
 # Z-Stream Analysis Knowledge Database
 
-Standalone knowledge database for the z-stream pipeline analysis app.
-These files provide domain knowledge that the AI agent reads directly during
-Stage 2 analysis to inform classification decisions.
+Domain reference data for the AI agent during Stage 2 failure classification.
+The agent reads these files to understand ACM architecture, known failure
+patterns, and classification methodology.
 
-## Relationship to Feature Playbooks
+---
 
-The feature playbooks at `src/data/feature_playbooks/` are programmatically
-consumed by `FeatureKnowledgeService` during Stage 1 (gather.py). They define
-architecture, prerequisites, and failure paths per feature area.
+## Structure
 
-This knowledge database is different -- it provides reference data that the AI
-agent reads directly during Stage 2 for context that playbooks don't cover:
-component registries, dependency chains, selector inventories, API endpoints,
-known failure patterns, and test mappings.
+### Architecture (`architecture/`)
 
-## Files
+Per-subsystem deep knowledge organized as:
+- `architecture.md` -- components, CRDs, namespaces, prerequisites
+- `data-flow.md` -- how data moves through the subsystem (where failures occur)
+- `failure-signatures.md` -- known failure patterns with classification guidance
 
-### Structured Domain Knowledge
+| Subsystem | Files | Coverage |
+|-----------|-------|----------|
+| Platform foundation | `acm-platform.md`, `kubernetes-fundamentals.md` | ACM operator hierarchy, K8s concepts |
+| Search | 3 files | search-api/indexer/postgres/collector, GraphQL flow, DB corruption |
+| Console | 3 files | Frontend React, backend Node.js, SSE events, proxy routes |
+| Governance (GRC) | 3 files | Policy propagator, spoke addons, compliance flow |
+| Cluster Lifecycle (CLC) | 3 files | Hive, import controller, webhooks, cluster operations |
+| Virtualization | 3 files | CNV, MTV, VM actions, CCLM, KVM nodes |
+| Application Lifecycle (ALC) | 3 files | Subscriptions, channels, ArgoCD, app status |
+| RBAC | 3 files | FG-RBAC, MCRA, ClusterPermission, IDP auth |
+| Automation | 3 files | ClusterCurator, Ansible Tower integration |
+| Observability | 2 files | MCO, Thanos, Grafana, metrics collection |
+| Infrastructure | 2 files | Nodes, etcd, quotas, NetworkPolicies, webhooks, certs |
 
-- `components.yaml` -- ACM component registry: name, subsystem, namespace, pod
-  labels, health checks, and operational notes
-- `dependencies.yaml` -- Component dependency chains and cascade failure paths
-- `selectors.yaml` -- UI selector ground truth per feature area (for stale
-  selector detection)
-- `api-endpoints.yaml` -- Backend API endpoints with probe commands and
-  expected responses
-- `feature-areas.yaml` -- Feature area index mapping test patterns to
-  subsystems and components (lightweight complement to playbooks)
-- `failure-patterns.yaml` -- Known failure signatures for short-circuit
-  classification without full investigation
-- `test-mapping.yaml` -- Test suite to feature area mapping with known issues
+### Diagnostics (`diagnostics/`)
 
-### Agent-Contributed Knowledge
+Classification methodology documentation:
 
-- `learned/corrections.yaml` -- Classification corrections from feedback
-- `learned/new-patterns.yaml` -- New failure patterns discovered during runs
-- `learned/selector-changes.yaml` -- Selector renames detected during runs
+| File | Content |
+|------|---------|
+| `classification-decision-tree.md` | Complete PR-1 through PR-7 decision tree with 3-path routing |
+| `evidence-tiers.md` | How Tier 1 and Tier 2 evidence is weighted |
+| `common-misclassifications.md` | 6 known cases where the pipeline gets confused and why |
 
-### Refresh
+### Structured Data (root YAML files)
 
-- `refresh.py` -- Updates knowledge from ACM-UI MCP, KG, GitHub, JIRA
+| File | Content | Used For |
+|------|---------|----------|
+| `components.yaml` | ACM component registry (name, namespace, labels, health checks) | Component health context |
+| `dependencies.yaml` | Dependency chains with cascade failure paths | Root cause tracing |
+| `selectors.yaml` | UI selector ground truth per feature area | Stale selector detection |
+| `api-endpoints.yaml` | Backend API endpoints with probe commands | Backend cross-check |
+| `feature-areas.yaml` | Feature area index (test patterns, components, routes) | Test-to-feature mapping |
+| `failure-patterns.yaml` | Known failure signatures for short-circuit classification | Fast pattern matching |
+| `test-mapping.yaml` | Test suite to feature area mapping with known issues | Investigation scoping |
 
-## How the AI Agent Uses These Files
+### Learned Knowledge (`learned/`)
 
-During Stage 2 analysis:
-1. Read `components.yaml` to understand what components exist and their health
-2. Check `failure-patterns.yaml` for fast pattern matching before investigation
-3. Consult `dependencies.yaml` when tracing cascade failures
-4. Reference `selectors.yaml` when investigating selector mismatch failures
-5. Use `api-endpoints.yaml` to understand backend probe results
-6. Check `feature-areas.yaml` for test-to-feature mapping context
-7. Reference `test-mapping.yaml` for known test issues
-8. Check `learned/` for patterns from previous runs
+Agent-contributed corrections and discoveries across runs:
+
+| File | Content |
+|------|---------|
+| `corrections.yaml` | "I classified X as Y but it was Z because..." |
+| `new-patterns.yaml` | "I found a new failure pattern: ..." |
+| `selector-changes.yaml` | "Selector X was renamed to Y in commit Z" |
+
+### Refresh Script
+
+`refresh.py` updates knowledge from live sources:
+- ACM-UI MCP (selectors, components)
+- Neo4j Knowledge Graph (dependencies)
+- GitHub (PR diffs, selector renames)
+- JIRA (known bugs per component)
+- Live cluster (pod states, webhooks, certs)
+
+Usage:
+```bash
+python knowledge/refresh.py              # Refresh all
+python knowledge/refresh.py --selectors  # Refresh selectors only
+python knowledge/refresh.py --promote    # Promote learned/ entries to main files
+```

@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://z-stream-analysis/schemas/analysis-results.schema.json",
-  "title": "Z-Stream Analysis Results (v3.3)",
-  "description": "Schema for analysis-results.json produced by systematic AI analysis of Jenkins pipeline failures with cluster investigation, feature grounding, assertion analysis, graduated infra scoring, and causal link verification",
+  "title": "Z-Stream Analysis Results (v3.5)",
+  "description": "Schema for analysis-results.json produced by systematic AI analysis of Jenkins pipeline failures with environment oracle, source-of-truth validation, assertion extraction, cluster investigation, feature grounding, graduated infra scoring, and causal link verification",
   "type": "object",
   "required": ["per_test_analysis", "summary", "investigation_phases_completed"],
   "additionalProperties": true,
@@ -14,7 +14,7 @@
         "jenkins_url": { "type": "string" },
         "analyzed_at": { "type": "string" },
         "analyzer": { "type": "string", "default": "z-stream-analysis" },
-        "analyzer_version": { "type": "string", "default": "3.3.0" },
+        "analyzer_version": { "type": "string", "default": "3.5.0" },
         "investigation_framework": {
           "type": "string",
           "enum": ["5-phase-systematic", "legacy"],

@@ -113,7 +113,7 @@ runs/<job>_<timestamp>/
 
 ### Decision Quick Reference (Pre-Routing + 3-Path Routing in Phase D)
 
-**Pre-routing checks:** **PR-1** blank page / no-js detection (missing prerequisite → INFRASTRUCTURE), **PR-2** hook failure deduplication (cascading after-all hooks → NO_BUG), **PR-3** temporal evidence (stale_test_signal with refactor commit → signals PRODUCT_BUG), **PR-5** data assertion extraction (expected vs actual value mismatch → signals PRODUCT_BUG or AUTOMATION_BUG based on value source) (v3.3), **PR-7** Environment Oracle dependency check — if oracle detects broken dependency (operator, addon, component), route to INFRASTRUCTURE (v3.5).
+**Pre-routing checks:** **PR-1** blank page / no-js detection (missing prerequisite → INFRASTRUCTURE), **PR-2** hook failure deduplication (cascading after-all hooks → NO_BUG), **PR-3** temporal evidence (stale_test_signal with refactor commit → signals PRODUCT_BUG), **PR-5** data assertion extraction (expected vs actual value mismatch → signals PRODUCT_BUG or AUTOMATION_BUG based on value source) (v3.3), **PR-6** backend probe source-of-truth — if probe has `classification_hint`, use deterministic K8s-vs-console comparison to route PRODUCT_BUG or INFRASTRUCTURE (v3.4), **PR-7** Environment Oracle dependency check — if oracle detects broken dependency (operator, addon, component), route to INFRASTRUCTURE (v3.5).
 
 **3-path routing:** **Path A** (selector mismatch → AUTOMATION_BUG), **Path B1** (non-selector timeout → INFRASTRUCTURE, graduated health scoring with definitive/strong/moderate bands) (v3.3), **Path B2** (everything else → JIRA-informed investigation). **PR-4** checks feature knowledge override first (unmet prerequisites, playbook-confirmed failure paths). **D0** checks backend cross-check — if a backend issue caused the UI failure, routes to Path B2 regardless.
 
@@ -223,7 +223,7 @@ python -m src.scripts.report <dir> --keep-repos    # Don't delete repos/
 | A | Initial Assessment + Feature Knowledge | What's the big picture? What do playbooks say? |
 | B | Deep Investigation + Tiered Cluster Checks | What went wrong in each test? What do pods show? |
 | C | Cross-Reference Validation | Do I have enough evidence? |
-| D | Pre-Routing + Classification (Blank Page → Hook Dedup → Temporal → Data Assertion → Feature Override → Backend → 3-Path → Causal Link → Counter-Bias) | Blank page? Cascading hook? Stale test? Data assertion mismatch? Prerequisite unmet? Backend caused it? Selector (A), timeout (B1), or JIRA-informed (B2)? Causal link verified? Counter-bias checked? |
+| D | Pre-Routing + Classification (Blank Page → Hook Dedup → Temporal → Data Assertion → Backend Probe → Oracle Dependency → Feature Override → Backend → 3-Path → Causal Link → Counter-Bias) | Blank page? Cascading hook? Stale test? Data assertion? Backend probe mismatch? Oracle dependency broken? Prerequisite unmet? Backend caused it? Selector (A), timeout (B1), or JIRA-informed (B2)? Causal link verified? Counter-bias checked? |
 | E | Feature Context & JIRA Correlation | What should this feature do? Are there known issues? |
 
 ---
@@ -236,7 +236,8 @@ python -m src.scripts.report <dir> --keep-repos    # Don't delete repos/
 | Stage 2: AI analysis (Phases A-E) | [02-STAGE2-AI-ANALYSIS.md](02-STAGE2-AI-ANALYSIS.md) |
 | Stage 3: Report generation | [03-STAGE3-REPORT-GENERATION.md](03-STAGE3-REPORT-GENERATION.md) |
 | All services reference | [04-SERVICES-REFERENCE.md](04-SERVICES-REFERENCE.md) |
-| MCP integration (ACM-UI, JIRA, Knowledge Graph) | [05-MCP-INTEGRATION.md](05-MCP-INTEGRATION.md) |
+| MCP integration (ACM-UI, Jenkins, JIRA, Polarion, Knowledge Graph) | [05-MCP-INTEGRATION.md](05-MCP-INTEGRATION.md) |
+| Knowledge database reference | [06-KNOWLEDGE-DATABASE.md](06-KNOWLEDGE-DATABASE.md) |
 
 ---
 
@@ -245,6 +246,7 @@ python -m src.scripts.report <dir> --keep-repos    # Don't delete repos/
 | Version | Changes |
 |---------|---------|
 | v3.5 | Environment Oracle (Step 5) — feature-aware dependency health checking via `EnvironmentOracleService`. Phase 1 identifies feature areas from pipeline/test names and extracts Polarion IDs, Phase 5 synthesizes dependency model from feature playbooks, Phase 6 runs targeted read-only `oc` commands (operator CSV, addon, CRD checks). Output stored in `cluster_oracle` key in core-data.json. Skipped with `--skip-env`. |
+| v3.4 | Backend probe source-of-truth validation (PR-6) — deterministic routing when probe has `classification_hint` and `anomaly_source`, K8s-vs-console comparison to distinguish PRODUCT_BUG from INFRASTRUCTURE. Cluster access confidence adjustment (PR-4b) — adjusts confidence based on cluster accessibility during analysis. |
 | v3.3 | Backend API probing (Step 4c) with 5 endpoint checks (`/authenticated`, `/hub`, `/username`, `/ansibletower`, `/proxy/search`) stored in `backend_probes`, `FEATURE_AREA_PROBE_MAP` linking feature areas to relevant probes, assertion value extraction (PR-5) with `assertion_analysis` per test, failure mode categorization (`failure_mode_category`: render_failure/element_missing/data_incorrect/timeout_general/assertion_logic/server_error/unknown), refined failure types (`assertion_data`/`assertion_selector`), per-feature-area health scoring (GAP-04) with graduated bands (definitive <0.3, strong 0.3-0.5, moderate 0.5-0.7, none >=0.7), per-test causal link verification (D4b), counter-bias 3-test threshold rule (D5 strengthened), new schema fields (`failure_mode_category`, `assertion_analysis`, `data_assertion_failures`, `feature_area_health`, `backend_probes`), graduated infrastructure thresholds (`INFRA_DEFINITIVE`/`INFRA_STRONG`/`INFRA_MODERATE`), schema version 3.3.0 |
 | v3.2 | Blank page / no-js pre-routing (PR-1), hook failure deduplication (PR-2), temporal evidence routing (PR-3), Automation/AAP playbook and feature area, KnowledgeGraphClient rewritten with direct Neo4j HTTP API (fixes always-unavailable bug), new schema fields (`is_cascading_hook_failure`, `blank_page_detected`, `cascading_hook_failures`, `blank_page_failures`), counter-bias validation (D5) |
 | v3.1 | Feature investigation playbooks (YAML), FeatureKnowledgeService, MCH component extraction (`mch_enabled_components`, `mch_version`), cluster kubeconfig persistence (`cluster.kubeconfig` for Stage 2 re-authentication), tiered investigation (Tiers 0-4), `feature_knowledge` in core-data.json, new schema fields (`prerequisite_analysis`, `playbook_investigation`, `cluster_investigation_detail`, `cluster_investigation_summary`), feedback CLI |

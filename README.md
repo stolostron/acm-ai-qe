@@ -13,13 +13,11 @@ Claude Code-powered tools for ACM (Advanced Cluster Management) quality engineer
 ## Prerequisites
 
 All apps require:
-- **Python 3.10+**
 - **Claude Code CLI** -- [install guide](https://docs.anthropic.com/en/docs/claude-code/getting-started)
-- **GitHub CLI (`gh`)** -- `brew install gh` (macOS) or `sudo dnf install gh` (RHEL/Fedora), then `gh auth login`
 
 App-specific:
-- **Hub Health**: `oc` CLI logged into an ACM hub cluster
-- **Z-Stream**: `oc` CLI, Red Hat VPN (for Jenkins/Polarion), JIRA API token
+- **Hub Health**: `oc` CLI logged into an ACM hub cluster. Python 3 + PyYAML only if using `knowledge/refresh.py` (optional).
+- **Z-Stream**: Python 3.10+, `oc` CLI, Red Hat VPN (for Jenkins/Polarion), JIRA API token, GitHub CLI (`gh`)
 
 ## Quick Start: ACM Hub Health Agent
 
@@ -29,20 +27,15 @@ No Python scripts to run. Just Claude Code + `oc` + natural language.
 ```bash
 # 1. Clone the repo
 git clone <repo-url>
-cd ai_systems_v2
+cd ai_systems_v2/apps/acm-hub-health
 
-# 2. Set up MCP servers
-#    Select option 1 (ACM Hub Health Agent) when prompted
-bash mcp/setup.sh
+# 2. One-time setup (clones rhacm-docs, sets up MCP)
+bash setup.sh
 
-# 3. (Optional) Clone ACM docs for better self-healing knowledge
-cd apps/acm-hub-health
-git clone --depth 1 https://github.com/stolostron/rhacm-docs.git docs/rhacm-docs
-
-# 4. Log into your hub
+# 3. Log into your hub
 oc login https://api.my-hub.example.com:6443 -u admin -p ...
 
-# 5. Start the agent
+# 4. Start the agent
 claude
 ```
 

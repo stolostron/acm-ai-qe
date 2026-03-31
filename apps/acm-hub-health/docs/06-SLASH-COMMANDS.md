@@ -128,6 +128,9 @@ Full standard diagnostic following the 6-phase methodology (Phases 1-4):
 The optional argument can provide focus areas that receive extra attention,
 but all components are still checked.
 
+**CLI wrapper:** The `acm-hub` CLI accepts both `check` and `health-check`
+as command names -- both invoke this slash command.
+
 ### Output
 
 Full health report with component status table, any issues found, and cluster

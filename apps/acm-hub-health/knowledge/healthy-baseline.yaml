@@ -176,6 +176,36 @@ baseline:
     max_acceptable_restarts: 2
     note: "Check via oc get pods -n openshift-etcd"
 
+  operators:
+    multiclusterhub-operator:
+      namespace: "{mch-ns}"
+      expected_replicas: 2
+      critical: true
+      note: "If at 0 replicas, no ACM component reconciliation. MCH CR status
+        becomes a stale snapshot. Highest priority finding."
+    multicluster-engine-operator:
+      namespace: "multicluster-engine"
+      expected_replicas: 1
+      critical: true
+      note: "If at 0 replicas, MCE components are unmanaged."
+
+  image_patterns:
+    console-chart-console-v2:
+      expected_prefix:
+        - "quay.io:443/acm-d/console"
+        - "quay.io/stolostron/console"
+      flag_if: "Image from personal registry or unknown source"
+      note: "Console image should be digest-pinned (@sha256:) in production"
+
+  network:
+    unexpected_resources:
+      networkpolicies_in_acm_namespaces:
+        flag: "Flag any -- ACM doesn't create these by default"
+        impact: "Can silently block pod-to-pod communication (e.g., search-api to search-postgres)"
+      resourcequotas_in_acm_namespaces:
+        flag: "Flag any -- can block pod scheduling"
+        impact: "Can prevent operator from creating new pods (e.g., grc-policy-propagator stuck at 0)"
+
   csvs:
     expected_phase: Succeeded
     namespaces_to_check:

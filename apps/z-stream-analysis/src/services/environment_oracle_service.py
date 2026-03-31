@@ -25,6 +25,7 @@ import subprocess
 import tempfile
 import time
 from dataclasses import dataclass, field, asdict
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
@@ -1093,14 +1094,6 @@ class EnvironmentOracleService:
                 check_command=f"oc {cmd_str}",
             )
 
-        if not stdout.strip():
-            return DependencyHealth(
-                id=target.id, type='operator', name=target.name,
-                status='missing',
-                detail=f"No CSVs found in namespace {namespace}",
-                check_command=f"oc {cmd_str}",
-            )
-
         # Parse CSV output lines: NAME DISPLAY VERSION REPLACES PHASE
         operator_name = (target.component_name or target.name or '').lower()
         for line in stdout.strip().split('\n'):
@@ -1408,9 +1401,6 @@ class EnvironmentOracleService:
         cluster_statuses = []
         skipped_young = 0
 
-        import re
-        from datetime import datetime, timezone
-
         now = datetime.now(timezone.utc)
 
         for line in lines:
@@ -1506,8 +1496,6 @@ class EnvironmentOracleService:
         # prevent a single false positive from cascading to all tests.
         if confirmed_missing >= 2 and score < THRESHOLDS.INFRA_DEFINITIVE:
             signal = 'definitive'
-        elif score < THRESHOLDS.INFRA_DEFINITIVE:
-            signal = 'strong'
         elif score < THRESHOLDS.INFRA_STRONG:
             signal = 'strong'
         elif score < THRESHOLDS.INFRA_MODERATE:

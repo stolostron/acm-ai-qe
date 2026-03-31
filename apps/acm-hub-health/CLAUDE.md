@@ -227,18 +227,38 @@ oc whoami --show-server
 Identify enabled/disabled components from `.spec.overrides.components`. Check
 `.status.components` map for per-component health.
 
+**Operator health** (run after MCH namespace is discovered):
+```
+oc get deploy multiclusterhub-operator -n <mch-ns> --no-headers
+oc get deploy multicluster-engine-operator -n multicluster-engine --no-headers
+```
+Verify both operators have replicas > 0 AND available replicas = desired.
+MCH CR `.status.phase: Running` is a **snapshot** from the last reconciliation
+-- it does NOT update when the operator stops running. If the operator is at
+0 replicas, that is CRITICAL: all ACM components are unmanaged and will not
+recover from failures. This takes priority over any component-level finding.
+
 ### Phase 2: Learn (Standard+)
 
-For each component discovered in Phase 1:
-1. Read its `knowledge/architecture/<component>/architecture.md`
-2. Read any `knowledge/learned/` entries for this component
-3. Compare the cluster's actual state with the knowledge
+Build understanding of what's deployed and what healthy looks like:
 
-If there's a mismatch, trigger self-healing (see above).
+1. Read `knowledge/component-registry.md` -- compare discovered components
+   against the master inventory. Flag anything deployed but not registered.
+2. Read `knowledge/architecture/acm-platform.md` -- understand the MCH/MCE
+   operator hierarchy and addon framework for this hub's version.
+3. For each component discovered in Phase 1:
+   a. Read `knowledge/architecture/<component>/architecture.md`
+   b. Read any `knowledge/learned/` entries for this component
+   c. Compare the cluster's actual state with the knowledge
+4. Read `knowledge/healthy-baseline.yaml` -- load expected pod counts,
+   deployment states, and conditions to use as the reference in Phase 3.
+
+If there's a mismatch between knowledge and cluster topology, trigger
+self-healing (see above).
 
 ### Phase 3: Check (Standard+)
 
-Systematically verify health. Two levels:
+Systematically verify health against the knowledge baseline. Two levels:
 
 **Pod-level checks** (batch by namespace):
 ```
@@ -249,6 +269,37 @@ oc get pods -n open-cluster-management-observability 2>/dev/null
 oc get pods -n hive --no-headers
 oc get managedclusteraddons -A
 ```
+
+**Infrastructure guard checks** (run alongside pod checks):
+```
+oc get networkpolicy -n <mch-ns> --no-headers 2>/dev/null
+oc get networkpolicy -n multicluster-engine --no-headers 2>/dev/null
+oc get resourcequota -n <mch-ns> --no-headers 2>/dev/null
+oc get resourcequota -n multicluster-engine --no-headers 2>/dev/null
+```
+ACM does not create NetworkPolicies or ResourceQuotas by default. Any found
+in ACM namespaces is suspicious: NetworkPolicies can silently block pod-to-pod
+communication; ResourceQuotas can block pod scheduling. Flag for investigation.
+
+**Image integrity check** (console is the highest-value target):
+```
+oc get deploy console-chart-console-v2 -n <mch-ns> -o jsonpath='{.spec.template.spec.containers[0].image}'
+```
+Compare against expected image patterns in `healthy-baseline.yaml`. Flag if:
+- Image is from a personal registry (e.g., `quay.io/<username>/`)
+- Image is not digest-pinned (uses `:tag` instead of `@sha256:`)
+- Image prefix doesn't match expected patterns
+
+**Compare against knowledge baselines:**
+- `knowledge/healthy-baseline.yaml` -- Compare observed pod counts,
+  deployment states, and conditions against expected values. Any gap
+  between expected and actual is a finding.
+- `knowledge/addon-catalog.yaml` -- Compare addon status from
+  `managedclusteraddons` against expected health checks and dependencies.
+- `knowledge/webhook-registry.yaml` -- If webhook-related errors surface,
+  compare against expected webhook configurations and failure policies.
+- `knowledge/certificate-inventory.yaml` -- If TLS or certificate errors
+  surface, check against expected secrets, rotation owners, and impact.
 
 **Operator log scanning** -- Check for these patterns in controller logs:
 - `"failed to wait for caches to sync"` -- controller cache timeout (Hive)
@@ -262,10 +313,12 @@ oc get managedclusteraddons -A
 ### Phase 4: Pattern Match (Standard+)
 
 Match observed symptoms against known bug patterns:
-1. Read `knowledge/architecture/<component>/known-issues.md` for each
+1. Read `knowledge/failure-patterns.md` -- check cross-component failure
+   signatures first (common patterns that span multiple subsystems)
+2. Read `knowledge/architecture/<component>/known-issues.md` for each
    affected component
-2. Compare symptoms, log patterns, and version to documented issues
-3. If a match is found, note the JIRA reference, fix version, and whether
+3. Compare symptoms, log patterns, and version to documented issues
+4. If a match is found, note the JIRA reference, fix version, and whether
    it's cluster-fixable or needs a code change
 
 **Version-aware matching**: Check the exact ACM/MCE version:
@@ -280,8 +333,10 @@ Many bugs are version-specific. A bug in 2.15.0 may be fixed in 2.15.1.
 When multiple issues are found:
 1. Read `knowledge/diagnostics/dependency-chains.md` -- trace upstream
    through the 6 chains to find the root cause
-2. Read `knowledge/diagnostics/evidence-tiers.md` -- weight your evidence
-3. Apply cross-chain patterns: is a shared dependency (klusterlet, storage,
+2. Use `knowledge/dependency-chains.yaml` for structured chain lookups
+   (machine-readable complement with impact descriptions and cross-chain patterns)
+3. Read `knowledge/diagnostics/evidence-tiers.md` -- weight your evidence
+4. Apply cross-chain patterns: is a shared dependency (klusterlet, storage,
    addon-manager) the common cause?
 
 **Evidence requirements** (from evidence-tiers.md):

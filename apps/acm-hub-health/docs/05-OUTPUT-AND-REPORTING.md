@@ -280,35 +280,16 @@ Addon status conditions are interpreted as a whole, not individually:
 ## Remediation Plan Format
 
 When the health report includes cluster-fixable issues, the agent appends a
-remediation plan after the report. The plan follows a structured format
-defined in [CLAUDE.md](../CLAUDE.md) (Remediation Protocol):
+remediation plan after the report. Each fix includes root cause, evidence,
+the exact command to run, and risk level. Issues that require an ACM upgrade
+or infrastructure change are listed separately.
 
-```
-## Remediation Plan
+The agent waits for explicit user approval before executing any fixes. After
+executing approved fixes, it runs a quick verification check and reports
+before/after status for each affected component.
 
-The following issues have cluster-fixable remediation:
-
-### Fix 1: <concise issue title>
-**Root Cause**: <what's wrong and why>
-**Evidence**: <Tier 1/2 evidence supporting this conclusion>
-**Fix**: <plain-English description of what the fix does>
-**Command**:
-  <exact oc command that will be run>
-**Risk**: <what could go wrong; "Low" for pod restarts, "Medium" for config changes>
-
-### Fix 2: ...
-
-### Issues NOT fixable on-cluster:
-- <issue>: Requires ACM upgrade to <version> (JIRA: ACM-XXXXX)
-- <issue>: Requires infrastructure change (describe what)
-
----
-These fixes will modify your cluster. Should I proceed? (yes/no)
-```
-
-The agent waits for explicit approval. After executing approved fixes, it
-runs a quick verification check and reports before/after status for each
-affected component.
+See the Remediation Protocol section in [CLAUDE.md](../CLAUDE.md) for the
+exact format and 5-step approval flow.
 
 ---
 

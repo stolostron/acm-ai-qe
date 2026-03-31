@@ -248,6 +248,63 @@ class TestPhase6Investigate(unittest.TestCase):
         self.assertEqual(result.status, 'missing')
 
     @patch.object(EnvironmentOracleService, '_run_command')
+    def test_check_operator_pod_fallback_healthy(self, mock_cmd):
+        mock_cmd.side_effect = [
+            (True, 'other-operator.v1.0   Other   1.0   Succeeded\n', ''),
+            (True, 'hive-controllers-abc   1/1   Running   0   5d\n', ''),
+        ]
+        target = DependencyTarget(
+            id='hive-operator', type='operator', name='hive-operator',
+            description='Hive', namespace='hive',
+            component_name='hive-operator',
+        )
+        result = self.oracle._check_operator(target)
+        self.assertEqual(result.status, 'healthy')
+        self.assertIn('pod(s) Running', result.detail)
+
+    @patch.object(EnvironmentOracleService, '_run_command')
+    def test_check_operator_pod_fallback_no_pods(self, mock_cmd):
+        mock_cmd.side_effect = [
+            (True, 'other-operator.v1.0   Other   1.0   Succeeded\n', ''),
+            (True, '', ''),
+        ]
+        target = DependencyTarget(
+            id='hive-operator', type='operator', name='hive-operator',
+            description='Hive', namespace='hive',
+            component_name='hive-operator',
+        )
+        result = self.oracle._check_operator(target)
+        self.assertEqual(result.status, 'missing')
+
+    @patch.object(EnvironmentOracleService, '_run_command')
+    def test_check_operator_pod_fallback_no_namespace(self, mock_cmd):
+        mock_cmd.return_value = (
+            True, 'other-operator.v1.0   Other   1.0   Succeeded\n', ''
+        )
+        target = DependencyTarget(
+            id='aap-operator', type='operator', name='aap-operator',
+            description='AAP', namespace=None,
+            component_name='aap-operator',
+        )
+        result = self.oracle._check_operator(target)
+        self.assertEqual(result.status, 'missing')
+
+    @patch.object(EnvironmentOracleService, '_run_command')
+    def test_check_operator_empty_csv_with_pods(self, mock_cmd):
+        mock_cmd.side_effect = [
+            (True, '', ''),
+            (True, 'hive-controllers-abc   1/1   Running   0   5d\n', ''),
+        ]
+        target = DependencyTarget(
+            id='hive-operator', type='operator', name='hive-operator',
+            description='Hive', namespace='hive',
+            component_name='hive-operator',
+        )
+        result = self.oracle._check_operator(target)
+        self.assertEqual(result.status, 'healthy')
+        self.assertIn('pod(s) Running', result.detail)
+
+    @patch.object(EnvironmentOracleService, '_run_command')
     def test_check_addon_healthy(self, mock_cmd):
         mock_cmd.return_value = (
             True,
@@ -357,6 +414,46 @@ class TestPhase6Investigate(unittest.TestCase):
         self.assertIn('2', result.detail)  # 2 total clusters
         self.assertIn('local-cluster', result.detail)
 
+    @patch.object(EnvironmentOracleService, '_run_command')
+    def test_check_managed_clusters_age_filter(self, mock_cmd):
+        from datetime import datetime, timezone, timedelta
+        now = datetime.now(timezone.utc)
+        young_ts = (now - timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        old_ts = (now - timedelta(hours=24)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        mock_cmd.return_value = (
+            True,
+            f'local-cluster   True   {old_ts}\nyoung-cluster   False   {young_ts}\n',
+            '',
+        )
+        target = DependencyTarget(
+            id='managed-clusters-status', type='managed_clusters',
+            name='managed-clusters', description='Managed clusters',
+        )
+        result = self.oracle._check_managed_clusters(target)
+        self.assertIn('excluded', result.detail)
+        self.assertIn('young-cluster', result.detail)
+        self.assertIn('local-cluster: Ready', result.detail)
+        self.assertEqual(result.status, 'healthy')
+
+    @patch.object(EnvironmentOracleService, '_run_command')
+    def test_check_managed_clusters_local_cluster_not_filtered(self, mock_cmd):
+        from datetime import datetime, timezone, timedelta
+        now = datetime.now(timezone.utc)
+        young_ts = (now - timedelta(minutes=30)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        mock_cmd.return_value = (
+            True,
+            f'local-cluster   True   {young_ts}\n',
+            '',
+        )
+        target = DependencyTarget(
+            id='managed-clusters-status', type='managed_clusters',
+            name='managed-clusters', description='Managed clusters',
+        )
+        result = self.oracle._check_managed_clusters(target)
+        self.assertIn('local-cluster: Ready', result.detail)
+        self.assertNotIn('excluded', result.detail)
+        self.assertEqual(result.status, 'healthy')
+
 
 class TestOverallHealth(unittest.TestCase):
     """Overall health computation."""
@@ -389,6 +486,15 @@ class TestOverallHealth(unittest.TestCase):
             'dep1': {'status': 'missing', 'name': 'dep1', 'type': 'op', 'detail': 'gone'},
         }
         result = self.oracle._compute_overall_health(health, ['Automation'])
+        self.assertEqual(result['score'], 0.0)
+        self.assertEqual(result['signal'], 'strong')
+
+    def test_definitive_requires_two_missing(self):
+        health = {
+            'dep1': {'status': 'missing', 'name': 'dep1', 'type': 'op', 'detail': 'gone'},
+            'dep2': {'status': 'missing', 'name': 'dep2', 'type': 'addon', 'detail': 'gone'},
+        }
+        result = self.oracle._compute_overall_health(health, ['CLC'])
         self.assertEqual(result['score'], 0.0)
         self.assertEqual(result['signal'], 'definitive')
 

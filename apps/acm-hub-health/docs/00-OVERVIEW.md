@@ -105,47 +105,13 @@ that selects which phases to run based on the user's intent:
 
 ## Knowledge System
 
-The agent uses a layered knowledge system that combines curated architecture
-documentation with diagnostics methodology and discoveries from previous runs:
+The agent uses a layered knowledge system: architecture docs, structured YAML
+baselines, diagnostic methodology, cross-cutting references, and learned
+knowledge from previous runs. When the agent encounters something not in its
+knowledge, it triggers a self-healing process to investigate and record findings.
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                          Knowledge System                                  │
-│                                                                            │
-│  ┌──────────────────────────┐  ┌──────────────────────────────────────────┐│
-│  │ Architecture Knowledge   │  │ Diagnostic Knowledge                     ││
-│  │ knowledge/architecture/  │  │ knowledge/diagnostics/                   ││
-│  │                          │  │                                          ││
-│  │ Per-component:           │  │ dependency-chains.md (6 cascade paths)   ││
-│  │   architecture.md        │  │ evidence-tiers.md (Tier 1/2/3 rules)    ││
-│  │   data-flow.md           │  │ diagnostic-playbooks.md (procedures)    ││
-│  │   known-issues.md        │  │                                          ││
-│  └──────────────────────────┘  └──────────────────────────────────────────┘│
-│                                                                            │
-│  ┌──────────────────────────┐  ┌──────────────────────────────────────────┐│
-│  │ Cross-Cutting Knowledge  │  │ Learned Knowledge                        ││
-│  │ knowledge/               │  │ knowledge/learned/                       ││
-│  │                          │  │                                          ││
-│  │ component-registry.md    │  │ Written by the agent during health       ││
-│  │ failure-patterns.md      │  │ checks when it discovers things not      ││
-│  │                          │  │ covered by the static knowledge.         ││
-│  └──────────────────────────┘  └──────────────────────────────────────────┘│
-│                                                                            │
-│  Topology (what exists): Cluster observation > Learned > Static            │
-│  Health (what's correct): Knowledge = ground truth, cluster = current     │
-│  state, gap = findings to diagnose                                        │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
-When the agent encounters a component or behavior not covered by its
-knowledge, it triggers a self-healing process:
-
-1. Collects more evidence from the live cluster (`oc describe`, labels, events)
-2. Searches official ACM documentation (`docs/rhacm-docs/`)
-3. Searches ACM Console source code via the `acm-ui` MCP server
-4. Synthesizes findings and resolves the mismatch
-5. Writes discoveries to `knowledge/learned/<topic>.md`
-6. Future runs read these discoveries alongside the static knowledge
+See [03-KNOWLEDGE-SYSTEM.md](03-KNOWLEDGE-SYSTEM.md) for the full architecture,
+trust model, and self-healing process.
 
 ---
 

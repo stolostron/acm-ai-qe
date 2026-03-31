@@ -66,6 +66,19 @@ oc get csv -n multicluster-engine               # MCE operator status
 oc whoami --show-server                         # Cluster identity
 ```
 
+### Operator Health (run after MCH namespace is discovered)
+
+```bash
+oc get deploy multiclusterhub-operator -n <mch-namespace> --no-headers
+oc get deploy multicluster-engine-operator -n multicluster-engine --no-headers
+```
+
+Verify both operators have replicas > 0 and available = desired. The MCH CR
+`.status.phase: Running` is a **snapshot** from the last reconciliation -- it
+does not update when the operator stops running. If the operator is at 0
+replicas, all ACM components are unmanaged. This is the highest-priority
+finding possible.
+
 ### Data Extracted
 
 | Data Point | Source | Example |
@@ -81,6 +94,8 @@ oc whoami --show-server                         # Cluster identity
 | Node count/status | node list | `6 Ready (3 master, 3 worker)` |
 | Managed cluster count | managedcluster list | `2 Available` |
 | CSV status | csv list | `advanced-cluster-management.v2.16.0 Succeeded` |
+| MCH operator health | deploy `multiclusterhub-operator` | `2/2 available` |
+| MCE operator health | deploy `multicluster-engine-operator` | `1/1 available` |
 
 ### Critical First Steps
 
@@ -102,12 +117,25 @@ oc whoami --show-server                         # Cluster identity
 **Purpose:** For each component discovered in Phase 1, consult the architecture
 knowledge and fill any gaps.
 
-### Process Per Component
+### Process
 
 ```
-  Component from Phase 1
+  Components from Phase 1
           │
           ▼
+  ┌───────────────────┐
+  │ Read component    │     knowledge/component-registry.md
+  │ registry -- flag  │     (master inventory of ACM components)
+  │ unknown components│
+  └────────┬──────────┘
+           │
+           ▼
+  ┌───────────────────┐
+  │ Read platform     │     knowledge/architecture/acm-platform.md
+  │ architecture      │     (MCH/MCE hierarchy, addon framework)
+  └────────┬──────────┘
+           │
+           ▼                FOR EACH COMPONENT:
   ┌───────────────────┐
   │ Read architecture │     knowledge/architecture/<component>/
   │ knowledge         │     architecture.md, data-flow.md, known-issues.md
@@ -115,9 +143,14 @@ knowledge and fill any gaps.
            │
            ▼
   ┌───────────────────┐
-  │ Check learned     │
-  │ knowledge          │     knowledge/learned/*.md
-  │ (learned/*.md)     │
+  │ Check learned     │     knowledge/learned/*.md
+  │ knowledge         │
+  └────────┬──────────┘
+           │
+           ▼
+  ┌───────────────────┐
+  │ Load baseline     │     knowledge/healthy-baseline.yaml
+  │ expectations      │     (expected pod counts, states, conditions)
   └────────┬──────────┘
            │
            ▼
@@ -193,6 +226,46 @@ namespace names. Common namespace mappings:
 | `open-cluster-management-observability` | Observability stack (Thanos, Grafana, ~30+ pods) |
 | `hive` | Hive cluster provisioning |
 
+### Infrastructure Guard Checks
+
+Run alongside pod-level checks:
+
+```bash
+# NetworkPolicies in ACM namespaces (should be empty -- ACM doesn't create these)
+oc get networkpolicy -n <mch-namespace> --no-headers 2>/dev/null
+oc get networkpolicy -n multicluster-engine --no-headers 2>/dev/null
+
+# ResourceQuotas in ACM namespaces (should be empty -- can block pod scheduling)
+oc get resourcequota -n <mch-namespace> --no-headers 2>/dev/null
+oc get resourcequota -n multicluster-engine --no-headers 2>/dev/null
+```
+
+Any NetworkPolicy or ResourceQuota in an ACM namespace is suspicious and
+should be flagged for investigation:
+- NetworkPolicies can silently block pod-to-pod communication
+- ResourceQuotas can prevent operators from scheduling new pods
+
+### Image Integrity Check
+
+```bash
+oc get deploy console-chart-console-v2 -n <mch-namespace> -o jsonpath='{.spec.template.spec.containers[0].image}'
+```
+
+Compare the image against expected patterns in `healthy-baseline.yaml`. Flag if
+the image is from a personal registry, uses an unexpected prefix, or is not
+digest-pinned.
+
+### Compare Against Knowledge Baselines
+
+During checks, compare observed state against structured knowledge:
+
+| Knowledge File | When to Use | What to Compare |
+|---------------|-------------|-----------------|
+| `knowledge/healthy-baseline.yaml` | Always in Phase 3 | Pod counts, deployment states, conditions, operators, image patterns, network resources vs expected |
+| `knowledge/addon-catalog.yaml` | When checking addons | Addon status vs expected health checks and dependencies |
+| `knowledge/webhook-registry.yaml` | When webhook errors surface | Webhook configs vs expected owners and failure policies |
+| `knowledge/certificate-inventory.yaml` | When TLS/cert errors surface | Secrets vs expected rotation owners and impact |
+
 ### Health Verdict Per Component
 
 Each component gets a verdict:
@@ -218,6 +291,13 @@ reinventing the diagnosis.
   (symptoms observed)
           │
           ▼
+  ┌───────────────────┐
+  │ Read cross-       │     knowledge/failure-patterns.md
+  │ component failure │     (common signatures spanning multiple subsystems)
+  │ patterns           │
+  └────────┬──────────┘
+           │
+           ▼
   ┌───────────────────┐
   │ Read known-issues │     knowledge/architecture/<component>/known-issues.md
   │ for each affected │
@@ -280,8 +360,14 @@ the root cause rather than treating each symptom independently.
           ▼
   ┌───────────────────┐
   │ Read dependency   │     knowledge/diagnostics/dependency-chains.md
-  │ chains -- trace   │     6 critical cascade paths
+  │ chains -- trace   │     6 critical cascade paths (narrative)
   │ upstream           │
+  └────────┬──────────┘
+           │
+           ▼
+  ┌───────────────────┐
+  │ Structured chain  │     knowledge/dependency-chains.yaml
+  │ lookup (YAML)     │     (machine-readable: impact, cross-chain patterns)
   └────────┬──────────┘
            │
            ▼
@@ -370,7 +456,7 @@ documented procedure:
 |-----------|------------------------|
 | MCH / MCE Lifecycle | Check `.status.components`, operator logs, install plans |
 | Managed Cluster Connectivity | Check lease renewal, cluster events, registration controller |
-| Search | Check search pods, postgres PVC, search-collector addon |
+| Search | Check search pods, postgres PVC, search-collector addon, data integrity, connectivity |
 | Observability | Check MCO CR, Thanos components, S3 config, PVCs, store logs |
 | Governance / Policy | Check propagator, policy compliance, work-manager |
 | Application Lifecycle | Check subscription controller, channels, placement decisions |

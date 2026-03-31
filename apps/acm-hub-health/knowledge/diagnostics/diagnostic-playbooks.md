@@ -134,6 +134,27 @@ or search-related UI features are broken.
    oc get mch -A -o yaml | grep -A2 '"search"'
    ```
 
+6. Check search data integrity (search-postgres uses emptyDir, no PVC)
+   ```
+   oc exec deploy/search-postgres -n <mch-namespace> -- psql -U searchuser -d search -c "SELECT count(*) FROM search.resources" 2>&1
+   ```
+   Expected: a numeric count (typically 1000+, depends on fleet size).
+   If error `relation "search.resources" does not exist`: the search index
+   table has been dropped. Restart search-postgres to trigger a rebuild:
+   `oc delete pod -n <mch-namespace> -l app=search-postgres`
+   If count = 0 but the table exists: search-collector is not collecting.
+   Check the search-collector addon on spokes.
+
+7. Check search-api to search-postgres connectivity
+   ```
+   oc exec deploy/search-api -n <mch-namespace> -- curl -s -o /dev/null -w "%{http_code}" http://search-postgres:5432/ --connect-timeout 3 2>&1
+   ```
+   If the connection times out or is refused, check for NetworkPolicies
+   blocking traffic between search-api and search-postgres:
+   `oc get networkpolicy -n <mch-namespace> --no-headers`
+   ACM does not create NetworkPolicies by default -- any policy in an ACM
+   namespace is suspicious and should be investigated.
+
 ---
 
 ## Observability Stack

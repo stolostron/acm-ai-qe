@@ -336,7 +336,14 @@ If `backend_probes` data includes a probe with `classification_hint` and `anomal
 
 ### PR-7: Environment Oracle Dependency Check (v3.5)
 
-If `cluster_oracle` data shows a broken dependency for the test's feature area (operator missing, addon degraded, CRD absent, component not running), routes to INFRASTRUCTURE with 0.90-0.95 confidence. Combines playbook health data, Polarion dependency discovery, and KG topology as Tier 1 evidence. Short-circuits standard routing when oracle dependency is definitively broken.
+If `cluster_oracle` data shows a broken dependency for the test's feature area (operator missing, addon degraded, CRD absent, component not running), adds INFRASTRUCTURE evidence with Tier 1 weight. Key behaviors:
+
+- **Additive, not override:** Oracle signals are Tier 1 evidence but per-test evidence takes precedence. If `console_search.found=false` for a test's selector, classify as AUTOMATION_BUG regardless of oracle signal.
+- **DEFINITIVE threshold:** Requires 2+ confirmed-missing dependencies. A single missing dependency produces at most a `strong` signal.
+- **Managed cluster age filter:** Clusters < 4 hours old are excluded from health scoring (likely test artifacts, not pre-existing failures). `local-cluster` is always counted.
+- **Pod fallback for operators:** Operators deployed without OLM (no CSV) are checked via pod health. Running pods = healthy.
+- **Mandatory reads:** Agent MUST read `knowledge/architecture/<area>/failure-signatures.md` before applying oracle signals; pattern matches take precedence.
+- **Full per-test analysis required:** Even with DEFINITIVE signal, every test entry must include error message, specific element/selector, evidence sources, and recommended fix.
 
 ### PR-4: Feature Knowledge Override (v3.1)
 

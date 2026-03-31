@@ -442,9 +442,23 @@ See [03-STAGE3-REPORT-GENERATION.md](03-STAGE3-REPORT-GENERATION.md) for details
 | `_phase6_collect_cluster_state(targets, cluster_credentials, skip_cluster)` | Run read-only `oc get` commands against live cluster for each target |
 | `_load_polarion_token()` | Load Polarion PAT from `mcp/polarion/.env` (repo root or app root fallback) |
 
-**Dependency target types:** `operator`, `addon`, `crd`, `deployment`, `managed_clusters`
+**Dependency target types:** `operator`, `addon`, `crd`, `component`, `managed_clusters`
 
 **Health statuses:** `healthy`, `degraded`, `missing`, `unknown`
+
+**Operator check behavior:**
+- CSV-based detection with prefix matching (`hive-operator` matches `hive-operator.v1.2.3`)
+- Pod fallback: when no CSV match found AND target has a namespace, checks for running pods (operators deployed without OLM, e.g., Hive via MCH)
+
+**Managed cluster health:**
+- Filters out clusters created < 4 hours ago (likely test artifacts still provisioning)
+- `local-cluster` is always counted regardless of age
+- Health based on ManagedClusterConditionAvailable status
+
+**Overall health scoring:**
+- DEFINITIVE signal requires `confirmed_missing >= 2` AND `score < 0.3` (prevents single false positive from cascading)
+- Single missing dependency produces at most `strong` signal
+- Signal is additive Tier 1 evidence, not a blanket classification override
 
 ---
 

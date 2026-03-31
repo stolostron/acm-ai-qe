@@ -167,6 +167,7 @@ That's it. The script resolves the app directory from its own location
 ```bash
 acm-hub sanity                        # quick pulse (~30s)
 acm-hub check                         # standard health check (~2-3 min)
+acm-hub health-check                  # same as check (matches /health-check slash command)
 acm-hub deep                          # full deep audit (~5-10 min)
 acm-hub investigate observability     # targeted investigation
 acm-hub investigate "why clusters Unknown"

@@ -97,41 +97,42 @@ check_prereqs() {
   fi
 }
 
-# Parse arguments
+# Parse arguments -- extract flags first so -i works in any position
 interactive=false
-command=""
-target=""
+positional=()
 
-while [[ $# -gt 0 ]]; do
-  case $1 in
+for arg in "$@"; do
+  case $arg in
     -i|--interactive)
       interactive=true
-      shift
       ;;
     -h|--help)
       usage
       exit 0
       ;;
-    sanity|check|deep|investigate|learn)
-      command=$1
-      shift
-      # Remaining arguments are the target
-      target="$*"
-      break
-      ;;
     *)
-      echo -e "${RED}Unknown command:${RESET} $1" >&2
-      echo ""
-      usage
-      exit 1
+      positional+=("$arg")
       ;;
   esac
 done
 
-if [ -z "$command" ]; then
+if [ ${#positional[@]} -eq 0 ]; then
   usage
   exit 1
 fi
+
+command="${positional[0]}"
+case $command in
+  sanity|check|deep|investigate|learn)
+    target="${positional[*]:1}"
+    ;;
+  *)
+    echo -e "${RED}Unknown command:${RESET} $command" >&2
+    echo ""
+    usage
+    exit 1
+    ;;
+esac
 
 check_prereqs
 
@@ -144,7 +145,7 @@ case $command in
     prompt="/health-check"
     ;;
   deep)
-    prompt="Do a thorough deep dive of my hub"
+    prompt="/deep"
     ;;
   investigate)
     if [ -z "$target" ]; then

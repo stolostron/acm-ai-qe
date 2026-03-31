@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Z-Stream Analysis - Main Entry Point (v2.0)
+Z-Stream Analysis - Main Entry Point (v3.5)
 
 CLI tool for gathering pipeline failure data for AI analysis.
 
-Architecture (v2.0):
-- Phase 1: Data Gathering (this script + gather.py)
-- Phase 2: AI Analysis (Claude Code agent reads repos and classifies)
-- Phase 3: Report Generation (report.py)
+Architecture (v3.5):
+- Stage 1: Data Gathering (this script + gather.py)
+- Stage 2: AI Analysis (Claude Code agent reads repos and classifies)
+- Stage 3: Report Generation (report.py)
 
 Usage:
     python main.py <jenkins_url>
@@ -45,10 +45,10 @@ def validate_jenkins_url(url: str) -> bool:
 def main():
     """Main entry point for the CLI."""
     parser = argparse.ArgumentParser(
-        description='Z-Stream Analysis - Jenkins Pipeline Failure Analyzer (v3.1)',
+        description='Z-Stream Analysis - Jenkins Pipeline Failure Analyzer (v3.5)',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Architecture (v3.1):
+Architecture (v3.5):
   Stage 1: Data Gathering - Collects factual data, clones repos
   Stage 2: AI Analysis    - Agent reads repos, investigates, classifies
   Stage 3: Report Gen     - Formats AI output into reports
@@ -117,7 +117,7 @@ Examples:
         sys.exit(1)
 
     try:
-        # Run data gathering (Phase 1)
+        # Run data gathering (Stage 1)
         gatherer = DataGatherer(output_dir=args.output_dir, verbose=args.verbose)
         run_dir, data = gatherer.gather_all(
             jenkins_url,

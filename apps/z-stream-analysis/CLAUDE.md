@@ -173,7 +173,7 @@ Five MCP servers provide tools during Stage 2 (AI Analysis). New users: run `bas
 
 | Server | Tools | Purpose |
 |--------|-------|---------|
-| ACM-UI | 19 | ACM Console + kubevirt-plugin source code search via GitHub |
+| ACM-UI | 20 | ACM Console + kubevirt-plugin source code search via GitHub |
 | Jenkins | 7+4 | Jenkins pipeline API + ACM-specific analysis tools |
 | JIRA | 25 | Issue search, creation, management for bug correlation (Jira Cloud) |
 | Polarion | 25 | Polarion test case access + dependency discovery |
@@ -321,7 +321,7 @@ z-stream-analysis/
 ├── src/data/
 │   └── feature_playbooks/ # YAML investigation playbooks (base.yaml, acm-2.16.yaml)
 ├── knowledge/             # Knowledge database (AI reads during Stage 2)
-│   ├── architecture/      # Per-subsystem deep knowledge (46 files)
+│   ├── architecture/      # Per-subsystem deep knowledge (30 files)
 │   │   ├── acm-platform.md          # Platform: operator hierarchy, MCH, namespaces
 │   │   ├── kubernetes-fundamentals.md # K8s concepts for failure analysis
 │   │   ├── search/                  # Search subsystem (3 files)

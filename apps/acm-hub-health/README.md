@@ -33,8 +33,8 @@ Use slash commands or natural language inside the Claude Code session:
 ```
 /sanity                              # quick pulse (~30s)
 /health-check                        # standard check (~2-3 min)
-Do a thorough deep dive              # full audit (~5-10 min)
-Investigate observability             # targeted deep dive
+/deep                                # full audit (~5-10 min)
+/investigate observability            # targeted deep dive
 Why are managed clusters Unknown?     # symptom investigation
 /learn                                # refresh knowledge from cluster
 ```
@@ -74,6 +74,8 @@ decide -- the agent never modifies the cluster without your consent.
 
 44 knowledge files covering 11 ACM subsystems -- architecture docs, structured
 operational data, and diagnostic methodology.
+
+See [docs/06-SLASH-COMMANDS.md](docs/06-SLASH-COMMANDS.md) for full command reference.
 
 ```
 knowledge/

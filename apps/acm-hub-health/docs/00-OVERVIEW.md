@@ -177,6 +177,7 @@ See the "Safety" and "Remediation Protocol" sections in
 |---------|---------|--------|--------------|
 | `/sanity` | Quick pulse check | Phase 1 | ~30s |
 | `/health-check` | Standard diagnostic | Phases 1-4 | ~2-3 min |
+| `/deep` | Full deep audit | All 6 phases | ~5-10 min |
 | `/investigate <target>` | Deep targeted investigation | All 6 phases | varies |
 | `/learn [area]` | Knowledge-building session | Discovery + learning | varies |
 
@@ -185,7 +186,7 @@ Users can also interact naturally:
 Is my hub healthy?
 Check if search is working
 Why are my managed clusters showing Unknown?
-Do a thorough deep dive of my hub
+/deep
 ```
 
 ---
@@ -247,6 +248,7 @@ acm-hub-health/
     └── commands/
         ├── sanity.md                   ← /sanity slash command
         ├── health-check.md             ← /health-check slash command
+        ├── deep.md                     ← /deep slash command
         ├── investigate.md              ← /investigate slash command
         └── learn.md                    ← /learn slash command
 ```

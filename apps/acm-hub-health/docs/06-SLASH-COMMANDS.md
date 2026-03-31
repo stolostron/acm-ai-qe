@@ -1,6 +1,6 @@
 # Slash Command Reference
 
-The agent provides four slash commands that map to specific diagnostic workflows.
+The agent provides five slash commands that map to specific diagnostic workflows.
 These are implemented as Claude Code custom commands in `.claude/commands/`.
 
 ---
@@ -8,14 +8,14 @@ These are implemented as Claude Code custom commands in `.claude/commands/`.
 ## Overview
 
 ```
-  ┌──────────────┐   ┌──────────────┐   ┌──────────────────┐   ┌──────────────┐
-  │   /sanity    │   │ /health-check│   │   /investigate   │   │   /learn     │
-  │              │   │              │   │   <target>       │   │   [area]     │
-  │  Quick pulse │   │  Standard    │   │                  │   │              │
-  │  Phase 1     │   │  Phases 1-4  │   │  Targeted deep   │   │  Knowledge   │
-  │  ~30s        │   │  ~2-3 min    │   │  All 6 phases    │   │  building    │
-  │              │   │              │   │  scoped          │   │              │
-  └──────────────┘   └──────────────┘   └──────────────────┘   └──────────────┘
+  ┌──────────────┐   ┌──────────────┐   ┌──────────────┐   ┌────────────────┐   ┌──────────────┐
+  │   /sanity    │   │ /health-check│   │    /deep     │   │  /investigate  │   │   /learn     │
+  │              │   │              │   │              │   │  <target>      │   │   [area]     │
+  │  Quick pulse │   │  Standard    │   │  Full audit  │   │                │   │              │
+  │  Phase 1     │   │  Phases 1-4  │   │  All 6       │   │  Targeted deep │   │  Knowledge   │
+  │  ~30s        │   │  ~2-3 min    │   │  phases      │   │  All 6 phases  │   │  building    │
+  │              │   │              │   │  ~5-10 min   │   │  scoped        │   │              │
+  └──────────────┘   └──────────────┘   └──────────────┘   └────────────────┘   └──────────────┘
 ```
 
 Users can also interact with natural language without slash commands. The depth
@@ -136,6 +136,47 @@ Health Report Format" section.
 
 ---
 
+## /deep
+
+**File:** `.claude/commands/deep.md`
+**Depth:** Full audit (All 6 phases)
+**Time:** ~5-10 minutes
+
+### What It Does
+
+Runs a thorough deep audit of the entire hub using all 6 phases:
+
+1. **Discover** -- Full hub inventory
+2. **Learn** -- Architecture knowledge for every deployed component
+3. **Check** -- Health of every component (pods, logs, operator patterns)
+4. **Pattern Match** -- Match all findings against known bugs with JIRA references
+5. **Correlate** -- Trace dependency chains, find root causes across components
+6. **Deep Investigate** -- Logs, events, storage, networking for critical findings
+
+### When to Use
+
+- When you want a comprehensive audit of the entire hub
+- After major upgrades or configuration changes
+- When multiple components may be affected
+- When you need a complete picture before planning remediation
+
+### Usage
+
+```
+/deep
+/deep focus on storage and certificates
+```
+
+The optional argument can provide additional context or focus areas, but
+all components are checked at full depth.
+
+### Output
+
+Full health report with all findings correlated. See
+[05-OUTPUT-AND-REPORTING.md](05-OUTPUT-AND-REPORTING.md).
+
+---
+
 ## /investigate
 
 **File:** `.claude/commands/investigate.md`
@@ -253,6 +294,7 @@ Slash commands are implemented as markdown files in `.claude/commands/`:
 .claude/commands/
 ├── sanity.md               # /sanity
 ├── health-check.md         # /health-check
+├── deep.md                 # /deep
 ├── investigate.md          # /investigate <target>
 └── learn.md                # /learn [area]
 ```
@@ -270,6 +312,7 @@ wording varies per command:
 |---------|---------------|
 | `/sanity` | `If additional context is provided: $ARGUMENTS` |
 | `/health-check` | `If additional context or focus area is provided: $ARGUMENTS` |
+| `/deep` | `If additional context is provided: $ARGUMENTS` |
 | `/investigate` | `Target to investigate: $ARGUMENTS` |
 | `/learn` | `If a specific area to learn about is provided: $ARGUMENTS` |
 
@@ -287,6 +330,7 @@ language:
 |--------------|----------------------------|
 | `/sanity` | "quick check", "is my hub alive", "sanity check" |
 | `/health-check` | "health check", "how's my hub", "check my cluster" |
+| `/deep` | "deep dive", "full audit", "thorough check" |
 | `/investigate observability` | "investigate observability", "check observability in depth" |
 | `/learn` | "learn about what's deployed", "refresh your knowledge" |
 

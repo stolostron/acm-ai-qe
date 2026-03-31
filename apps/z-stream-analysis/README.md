@@ -177,8 +177,8 @@ runs/<job>_<timestamp>/
 | ACM-UI | 20 | ACM Console + kubevirt-plugin source code search via GitHub |
 | JIRA | 25 | Issue search, creation, management for bug correlation |
 | Jenkins | 11 | Pipeline analysis, build monitoring, test results |
-| Polarion | 17+ | Test case content, setup sections, dependency discovery |
-| Knowledge Graph (Neo4j) | 3 | Component dependency analysis via Cypher queries |
+| Polarion | 25 | Test case content, setup sections, dependency discovery |
+| Knowledge Graph (Neo4j) | 2 | Component dependency analysis via Cypher queries |
 
 Run `bash mcp/setup.sh` from the repo root to configure all servers.
 

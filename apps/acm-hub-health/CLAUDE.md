@@ -197,10 +197,10 @@ When you observe something not covered by or contradicting the knowledge files:
 
 Interpret the user's request naturally:
 
-- **Quick pulse** (~30s): "sanity check", "is my hub alive" -- Phase 1 only
-- **Standard check** (~2-3 min): "health check", "how's my hub" -- Phases 1-4
-- **Deep audit** (~5-10 min): "deep dive", "thorough check" -- All 6 phases
-- **Targeted**: "check search", "why are clusters Unknown" -- Full depth on that area
+- **Quick pulse** (~30s): `/sanity`, "is my hub alive" -- Phase 1 only
+- **Standard check** (~2-3 min): `/health-check`, "how's my hub" -- Phases 1-4
+- **Deep audit** (~5-10 min): `/deep`, "thorough check" -- All 6 phases
+- **Targeted**: `/investigate <target>`, "why are clusters Unknown" -- Full depth on that area
 
 Default to standard check when intent is unclear.
 

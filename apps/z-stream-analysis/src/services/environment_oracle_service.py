@@ -30,7 +30,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 import requests
 
-from src.services.shared_utils import validate_command_readonly
+from src.services.shared_utils import validate_command_readonly, THRESHOLDS
 from src.services.feature_knowledge_service import FeatureKnowledgeService
 
 
@@ -745,30 +745,6 @@ class EnvironmentOracleService:
             ),
         }
 
-    @staticmethod
-    def _strip_asciidoc(text: str) -> str:
-        """Strip AsciiDoc formatting to produce readable text."""
-        # Remove include directives
-        text = re.sub(r'^include::.*$', '', text, flags=re.MULTILINE)
-        # Remove ifdef/endif blocks
-        text = re.sub(r'^ifdef::.*$', '', text, flags=re.MULTILINE)
-        text = re.sub(r'^endif::.*$', '', text, flags=re.MULTILINE)
-        # Remove image references
-        text = re.sub(r'image::?\S+\[.*?\]', '', text)
-        # Remove attribute definitions
-        text = re.sub(r'^:[\w-]+:.*$', '', text, flags=re.MULTILINE)
-        # Remove anchor references
-        text = re.sub(r'<<[\w-]+>>', '', text)
-        text = re.sub(r'\[\[[\w-]+\]\]', '', text)
-        # Convert headers to plain text
-        text = re.sub(r'^=+ ', '', text, flags=re.MULTILINE)
-        # Remove inline formatting (bold, italic, monospace)
-        text = re.sub(r'\*\*?(.*?)\*\*?', r'\1', text)
-        text = re.sub(r'`(.*?)`', r'\1', text)
-        # Clean up whitespace
-        text = re.sub(r'\n{3,}', '\n\n', text)
-        return text.strip()
-
     def _find_rhacm_docs(self) -> Optional[str]:
         """Auto-discover rhacm-docs directory."""
         candidates = [
@@ -1153,10 +1129,34 @@ class EnvironmentOracleService:
                             check_command=f"oc {cmd_str}",
                         )
 
+        # CSV not found -- fallback: check if pods are running in the namespace.
+        # Some operators (e.g., Hive) are deployed directly by MCH without a CSV.
+        if target.namespace:
+            pod_success, pod_stdout, _ = self._run_command([
+                'get', 'pods', '-n', target.namespace, '--no-headers',
+            ])
+            if pod_success and pod_stdout.strip():
+                running_pods = [
+                    line for line in pod_stdout.strip().split('\n')
+                    if 'Running' in line
+                ]
+                if running_pods:
+                    return DependencyHealth(
+                        id=target.id, type='operator', name=target.name,
+                        status='healthy',
+                        detail=(
+                            f"No CSV found for '{operator_name}' in {namespace}, "
+                            f"but {len(running_pods)} pod(s) Running "
+                            f"(operator may be deployed without OLM)"
+                        ),
+                        raw_output=pod_stdout[:300],
+                        check_command=f"oc get pods -n {target.namespace} --no-headers",
+                    )
+
         return DependencyHealth(
             id=target.id, type='operator', name=target.name,
             status='missing',
-            detail=f"Operator '{operator_name}' CSV not found in {namespace}",
+            detail=f"Operator '{operator_name}' CSV not found in {namespace} and no running pods",
             raw_output=stdout[:300],
             check_command=f"oc {cmd_str}",
         )
@@ -1367,18 +1367,32 @@ class EnvironmentOracleService:
         )
 
     def _check_managed_clusters(self, target: DependencyTarget) -> DependencyHealth:
-        """Collect status of all managed clusters."""
+        """Collect status of all managed clusters.
+
+        Filters out recently-created clusters (< 4 hours old) because those
+        are likely test artifacts still being provisioned, not pre-existing
+        infrastructure failures.
+        """
         success, stdout, stderr = self._run_command(
-            ['get', 'managedclusters', '--no-headers']
+            ['get', 'managedclusters',
+             '-o', 'custom-columns=NAME:.metadata.name,'
+             'AVAILABLE:.status.conditions[?(@.type=="ManagedClusterConditionAvailable")].status,'
+             'AGE:.metadata.creationTimestamp',
+             '--no-headers']
         )
 
         if not success:
-            return DependencyHealth(
-                id=target.id, type='managed_clusters', name='managed-clusters',
-                status='unknown',
-                detail=f"Cannot list managed clusters: {stderr[:200]}",
-                check_command='oc get managedclusters --no-headers',
+            # Fallback to simple listing
+            success, stdout, stderr = self._run_command(
+                ['get', 'managedclusters', '--no-headers']
             )
+            if not success:
+                return DependencyHealth(
+                    id=target.id, type='managed_clusters', name='managed-clusters',
+                    status='unknown',
+                    detail=f"Cannot list managed clusters: {stderr[:200]}",
+                    check_command='oc get managedclusters --no-headers',
+                )
 
         if not stdout.strip():
             return DependencyHealth(
@@ -1389,15 +1403,43 @@ class EnvironmentOracleService:
             )
 
         lines = stdout.strip().split('\n')
-        total = len(lines)
+        total = 0
         ready_count = 0
         cluster_statuses = []
+        skipped_young = 0
+
+        import re
+        from datetime import datetime, timezone
+
+        now = datetime.now(timezone.utc)
 
         for line in lines:
             parts = line.split()
-            if len(parts) >= 2:
+            if len(parts) >= 1:
                 cluster_name = parts[0]
-                # Look for True/False in the HUB ACCEPTED / AVAILABLE columns
+
+                # Try to parse creation timestamp to filter young clusters
+                is_young = False
+                for part in parts:
+                    if re.match(r'\d{4}-\d{2}-\d{2}T', part):
+                        try:
+                            created = datetime.fromisoformat(
+                                part.replace('Z', '+00:00')
+                            )
+                            age_hours = (now - created).total_seconds() / 3600
+                            if age_hours < 4:
+                                is_young = True
+                        except (ValueError, TypeError):
+                            pass
+
+                if is_young and cluster_name != 'local-cluster':
+                    skipped_young += 1
+                    cluster_statuses.append(
+                        f"{cluster_name}: skipped (< 4h old, likely test artifact)"
+                    )
+                    continue
+
+                total += 1
                 is_available = 'True' in line
                 if is_available:
                     ready_count += 1
@@ -1405,14 +1447,19 @@ class EnvironmentOracleService:
                     f"{cluster_name}: {'Ready' if is_available else 'NotReady'}"
                 )
 
+        if total == 0:
+            total = 1  # at least local-cluster should exist
+
         status = 'healthy' if ready_count == total else 'degraded'
         if ready_count == 0:
             status = 'degraded'
 
+        young_note = f" ({skipped_young} young cluster(s) excluded)" if skipped_young else ""
+
         return DependencyHealth(
             id=target.id, type='managed_clusters', name='managed-clusters',
             status=status,
-            detail=f"{ready_count}/{total} clusters ready. {'; '.join(cluster_statuses)}",
+            detail=f"{ready_count}/{total} clusters ready{young_note}. {'; '.join(cluster_statuses)}",
             raw_output=stdout[:500],
             check_command='oc get managedclusters --no-headers',
         )
@@ -1444,15 +1491,26 @@ class EnvironmentOracleService:
             d for d in dependency_health.values()
             if d.get('status') in ('degraded', 'missing')
         ]
+        # Count only genuinely confirmed-missing (not just CSV-not-found with
+        # pods running, which is reported as 'healthy' after the pod fallback).
+        confirmed_missing = sum(
+            1 for d in dependency_health.values()
+            if d.get('status') == 'missing'
+        )
 
         score = healthy / total if total > 0 else 1.0
 
-        # Determine signal strength
-        if score < 0.3:
+        # Determine signal strength.  A 'definitive' signal is only warranted
+        # when MULTIPLE dependencies are confirmed unhealthy.  A single
+        # degraded/missing dependency should produce at most 'strong' to
+        # prevent a single false positive from cascading to all tests.
+        if confirmed_missing >= 2 and score < THRESHOLDS.INFRA_DEFINITIVE:
             signal = 'definitive'
-        elif score <= 0.5:
+        elif score < THRESHOLDS.INFRA_DEFINITIVE:
             signal = 'strong'
-        elif score < 0.7:
+        elif score < THRESHOLDS.INFRA_STRONG:
+            signal = 'strong'
+        elif score < THRESHOLDS.INFRA_MODERATE:
             signal = 'moderate'
         else:
             signal = 'none'

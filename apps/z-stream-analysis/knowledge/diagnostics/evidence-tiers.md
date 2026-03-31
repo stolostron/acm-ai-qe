@@ -10,10 +10,10 @@ These are binary, verifiable signals with high reliability:
 
 | Evidence | Source | What it tells you |
 |----------|--------|-------------------|
-| `console_search.found` | Step 6 (grep selector in product) | Does the selector exist in the product? true/false |
-| `automation_last_modified` | Step 8 (git log) | When was the test file last changed? |
-| `recent_selector_changes` | Step 8b (200-commit diff) | Was the selector renamed in recent product commits? |
-| `backend_probes.discrepancies` | Steps 9-10 (console vs oc) | Does the console return different data than the cluster? |
+| `console_search.found` | Step 7 (console search in extracted_context) | Does the selector exist in the product? true/false |
+| `automation_last_modified` | Step 7 (temporal_summary) + Step 11 (timeline evidence) | When was the test file last changed? |
+| `recent_selector_changes` | Step 7 (recent_selector_changes in extracted_context) | Was the selector renamed in recent product commits? |
+| `backend_probes.discrepancies` | Step 4 (backend probes with source-of-truth validation) | Does the console return different data than the cluster? |
 | `oracle.dependency_health` | Step 5 (environment oracle) | Are feature dependencies healthy? |
 | `is_cascading_hook_failure` | Step 3 (JUnit parser) | Is this an after-all hook from a prior failure? |
 | `blank_page_detected` | Step 2 (console log) | Did the page fail to load entirely? |
@@ -28,7 +28,7 @@ These provide supporting context but aren't conclusive alone:
 | JIRA bug search | MCP tool call | Is there a known bug for this component? |
 | KG dependency analysis | Neo4j query | What components depend on the failing one? |
 | `environment_score` | Step 4 | How healthy is the cluster overall? (0.0-1.0) |
-| `feature_area` | Step 7 | Which ACM area does this test belong to? |
+| `feature_area` | Step 8 | Which ACM area does this test belong to? |
 | Console log 500 errors | Step 2 | Were there HTTP 500 errors during the test? |
 
 ## How Tiers Combine

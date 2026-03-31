@@ -6,7 +6,7 @@ Claude Code-powered tools for ACM (Advanced Cluster Management) quality engineer
 
 | App | What It Does | Status |
 |-----|-------------|--------|
-| [ACM Hub Health](apps/acm-hub-health/) | Diagnose ACM hub clusters through natural language. Includes structured knowledge database (baselines, webhooks, certs, addons). | Active |
+| [ACM Hub Health](apps/acm-hub-health/) | Diagnose and remediate ACM hub clusters through natural language. Optional CLI wrapper (`acm-hub`) for terminal use without launching Claude Code. Includes structured knowledge database (baselines, webhooks, certs, addons). | Active |
 | [Z-Stream Analysis](apps/z-stream-analysis/) | Classify Jenkins pipeline failures (product bug, automation bug, infra). Includes standalone knowledge database (components, dependencies, failure patterns). | Active |
 | [Claude Test Generator](apps/claude-test-generator/) | Generate test plans from JIRA tickets | In progress -- not functional |
 
@@ -43,6 +43,7 @@ Then use slash commands or natural language:
 ```
 /sanity                              # Quick pulse check (~30s)
 /health-check                        # Standard health check (~2-3 min)
+/deep                                # Full deep audit (~5-10 min)
 /investigate observability           # Deep dive into a subsystem
 Why are my managed clusters Unknown? # Natural language works too
 ```
@@ -109,7 +110,7 @@ any you don't have yet -- placeholder files are created that you can fill in lat
 | Jenkins | 11 | [redhat-community-ai-tools/jenkins-mcp](https://github.com/redhat-community-ai-tools/jenkins-mcp) | Jenkins pipeline API access for build data extraction |
 | JIRA | 25 | [stolostron/jira-mcp-server](https://github.com/stolostron/jira-mcp-server) | Issue search, creation, management for bug correlation |
 | Polarion | 25 | This repo | Polarion test case access (Red Hat VPN required) |
-| Neo4j RHACM | 3 | [mcp-neo4j-cypher](https://pypi.org/project/mcp-neo4j-cypher/) + [stolostron/knowledge-graph](https://github.com/stolostron/knowledge-graph) | Component dependency graph via Cypher queries |
+| Neo4j RHACM | 2 | [mcp-neo4j-cypher](https://pypi.org/project/mcp-neo4j-cypher/) (PyPI) | Component dependency analysis via Cypher queries |
 
 External MCP servers (JIRA, Jenkins) are cloned automatically by `setup.sh` into
 `mcp/.external/` (gitignored). This repo only contains the MCP servers we created

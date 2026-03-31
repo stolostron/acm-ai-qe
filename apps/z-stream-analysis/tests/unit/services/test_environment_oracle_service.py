@@ -381,7 +381,7 @@ class TestOverallHealth(unittest.TestCase):
         }
         result = self.oracle._compute_overall_health(health, ['Search'])
         self.assertEqual(result['score'], 0.5)
-        self.assertEqual(result['signal'], 'strong')
+        self.assertEqual(result['signal'], 'moderate')
         self.assertEqual(len(result['blocking_issues']), 1)
 
     def test_all_degraded(self):
@@ -719,27 +719,6 @@ class TestPhase3LearnFeature(unittest.TestCase):
             self.assertIn('docs_path', result)
             self.assertIn('available_directories', result)
             self.assertTrue(len(result['available_directories']) > 0)
-
-    def test_strip_asciidoc(self):
-        raw = """= Cluster Lifecycle
-:product-title: Red Hat ACM
-
-include::modules/overview.adoc[]
-
-== Architecture
-
-The **cluster lifecycle** component manages `ManagedCluster` resources.
-
-image::architecture.png[Architecture diagram]
-"""
-        text = self.oracle._strip_asciidoc(raw)
-        self.assertIn('Cluster Lifecycle', text)
-        self.assertIn('cluster lifecycle', text)
-        self.assertIn('ManagedCluster', text)
-        self.assertNotIn('include::', text)
-        self.assertNotIn('image::', text)
-        self.assertNotIn(':product-title:', text)
-
 
 class TestPhase4LearnDependencies(unittest.TestCase):
     """Phase 4: Comprehensive dependency learning from KG."""

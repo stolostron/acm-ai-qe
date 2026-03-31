@@ -158,7 +158,7 @@ For EVERY classification, you MUST have:
 │  ├── PR-6. Backend probe source-of-truth check (v3.4)              │
 │  ├── PR-7. Environment Oracle dependency check (v3.5)              │
 │  ├── PR-4. Feature knowledge override (v3.1) — check tier results  │
-│  ├── PR-4b. Cluster access confidence adjustment (v3.1)            │
+│  ├── PR-4b. Cluster access confidence adjustment (v3.4)            │
 │  ├── D0. Check backend cross-check override FIRST (v3.0)           │
 │  ├── D1. Route: Selector mismatch? → Path A (AUTOMATION_BUG)      │
 │  ├── D2. Route: Timeout (non-selector)? → Path B1 (INFRASTRUCTURE)│
@@ -872,7 +872,7 @@ For each test, check if ANY dependency relevant to the test's feature area has `
 
 | Target Type | `missing` Means | `degraded` Means |
 |---|---|---|
-| `operator` | CSV not in Succeeded phase — operator is broken, the feature cannot function | CSV exists but operator pods restarting or not all replicas ready |
+| `operator` | CSV not found AND no running pods — operator is truly absent | CSV exists but phase != Succeeded, or pods restarting. Note: some operators (e.g., Hive) are deployed without OLM/CSV -- if no CSV but pods are Running, the oracle reports 'healthy'. |
 | `addon` | ManagedClusterAddon not present on managed clusters — feature has no data from spokes | Addon present on some clusters but not all — partial data coverage |
 | `crd` | CRD does not exist on the cluster — feature prerequisites not met, API endpoints unavailable | CRD exists but version mismatch or conditions not met |
 | `component` | Pod not found in expected namespace — component never deployed | Pod exists but not Running, high restart count (>3), or CrashLoopBackOff |
@@ -894,7 +894,21 @@ For each test, check if ANY dependency relevant to the test's feature area has `
 
 **When `overall_feature_health.score < 0.5`:** Strong INFRASTRUCTURE signal for ALL tests in that feature area.
 
-**This check does NOT short-circuit routing** but provides strong directional evidence. When oracle confirms a dependency is missing or degraded, it is **Tier 1 evidence** — direct cluster state observation, not inference.
+**CRITICAL: Oracle signals are ADDITIVE evidence, NOT blanket overrides.**
+
+The oracle provides infrastructure context, but per-test error analysis ALWAYS takes precedence when it produces Tier 1 evidence for a different classification:
+
+- If the oracle says INFRASTRUCTURE but `console_search.found = false` for a test's failing selector → classify as **AUTOMATION_BUG** (the selector doesn't exist in the product -- this is a test code issue regardless of cluster health)
+- If the oracle says INFRASTRUCTURE but the test's error is a known failure pattern from `knowledge/architecture/<area>/failure-signatures.md` with classification AUTOMATION_BUG → use the **known pattern classification**
+- If the oracle says INFRASTRUCTURE but backend probes show data corruption → classify as **PRODUCT_BUG**
+
+**The oracle signal should ONLY override per-test evidence when the test's specific error is directly caused by the infrastructure issue** (e.g., "VM scheduling failed" + oracle shows "no KVM nodes" = INFRASTRUCTURE. But "selector .tf--list-box not found" + oracle shows "managed clusters NotReady" = AUTOMATION_BUG -- the NotReady clusters didn't cause the stale selector).
+
+**MANDATORY: Read `knowledge/architecture/<area>/failure-signatures.md` BEFORE applying oracle signals.** Check each test's error message against the known failure patterns. A pattern match in failure-signatures with high confidence takes precedence over the oracle.
+
+**MANDATORY: Even when oracle signal is strong, EVERY test entry in the report MUST include:** (1) the actual error message, (2) the specific element/selector/component involved, (3) the evidence sources used, (4) a recommended fix. Do not use formulaic one-line analyses.
+
+When oracle confirms a dependency is missing or degraded, it is **Tier 1 evidence** — direct cluster state observation, not inference. But it is ONE piece of evidence among others, not a blanket classification.
 
 **Example:** Search test fails with "expected 5 results, got 0". Oracle shows `search-collector-addon.status = degraded, detail = "Available on 3/5 clusters. Degraded on: spoke-2, spoke-3"`. Route to INFRASTRUCTURE: "search-collector addon degraded on spoke-2 and spoke-3, resources from those spokes won't appear in search results."
 
@@ -984,7 +998,7 @@ Oracle data does NOT supersede live cluster investigation (Tier 1-4 commands in 
 
 If none of these apply, proceed to D0 standard routing.
 
-### Phase PR-4b: Cluster Access Confidence Adjustment (v3.1)
+### Phase PR-4b: Cluster Access Confidence Adjustment (v3.4)
 
 If `cluster_access_available == false` (oc login failed at start of Phase A): **reduce confidence by 0.15 on ALL classifications.** Tier 1-4 live commands were unavailable, so classifications rely on snapshot data only.
 
@@ -1655,7 +1669,7 @@ RETURN c.label
     "jenkins_url": "<URL>",
     "analyzed_at": "2026-02-04T15:00:00Z",
     "run_directory": "runs/<dir>",
-    "analyzer": "z-stream-analysis-agent-v3.2",
+    "analyzer": "z-stream-analysis-agent-v3.5",
     "investigation_framework": "5-phase-systematic"
   },
   "investigation_phases_completed": ["A", "B", "C", "D", "E"],

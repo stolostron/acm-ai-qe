@@ -113,7 +113,7 @@ Stage 1+2 ─── KnowledgeGraphClient ─────────── Neo4j
 |----------|-------|
 | **File** | `src/services/repository_analysis_service.py` (162 lines) |
 | **Purpose** | Git clone and repository inference |
-| **Used by** | Stage 1, Step 5 |
+| **Used by** | Stage 1, Step 6 |
 
 **Key exports:** `RepositoryAnalysisService`, `SelectorHistory`
 
@@ -133,7 +133,7 @@ Stage 1+2 ─── KnowledgeGraphClient ─────────── Neo4j
 |----------|-------|
 | **File** | `src/services/stack_trace_parser.py` (374 lines) |
 | **Purpose** | Parses JS/TS stack traces to extract file:line, error type, and failing selector |
-| **Used by** | Stage 1, Steps 3 and 6 |
+| **Used by** | Stage 1, Steps 3 and 7 |
 
 **Key exports:** `StackTraceParser`, `StackFrame`, `ParsedStackTrace`, `parse_stack_trace`
 
@@ -159,7 +159,7 @@ Stage 1+2 ─── KnowledgeGraphClient ─────────── Neo4j
 |----------|-------|
 | **File** | `src/services/timeline_comparison_service.py` (1027 lines) |
 | **Purpose** | Compares git modification dates between automation and product repos; detects recent selector changes via git diff |
-| **Used by** | Stage 1, Step 6 (timeline evidence), Step 9 (recent selector changes) |
+| **Used by** | Stage 1, Step 7 (timeline evidence), Step 10 (recent selector changes) |
 
 **Key exports:** `TimelineComparisonService`, `TimelineComparisonResult`, `ElementTimeline`, `SelectorTimeline`, `TimeoutPatternResult`
 
@@ -187,7 +187,7 @@ Stage 1+2 ─── KnowledgeGraphClient ─────────── Neo4j
 |----------|-------|
 | **File** | `src/services/acm_console_knowledge.py` (701 lines) |
 | **Purpose** | Structured knowledge about ACM console directory layout for test-to-feature mapping |
-| **Used by** | Stage 1, Step 6 (directory mapping); Stage 2 (investigation paths) |
+| **Used by** | Stage 1, Step 7 (directory mapping); Stage 2 (investigation paths) |
 
 **Key exports:** `ACMConsoleKnowledge`
 
@@ -234,7 +234,7 @@ Stage 1+2 ─── KnowledgeGraphClient ─────────── Neo4j
 |----------|-------|
 | **File** | `src/services/component_extractor.py` (381 lines) |
 | **Purpose** | Extracts ACM component names from error messages for Knowledge Graph queries |
-| **Used by** | Stage 1, Step 6 (detected_components) |
+| **Used by** | Stage 1, Step 7 (detected_components) |
 
 **Key exports:** `ComponentExtractor`, `ExtractedComponent`
 
@@ -380,7 +380,7 @@ See [03-STAGE3-REPORT-GENERATION.md](03-STAGE3-REPORT-GENERATION.md) for details
 |----------|-------|
 | **File** | `src/services/feature_area_service.py` (386 lines) |
 | **Purpose** | Maps failed tests to feature areas (CLC, Search, GRC, etc.) with subsystem context |
-| **Used by** | Stage 1, Step 6 (feature grounding in core-data.json) |
+| **Used by** | Stage 1, Step 8 (feature grounding in core-data.json) |
 
 **Key exports:** `FeatureAreaService`, `FeatureGrounding`, `FeatureMapping`
 
@@ -401,7 +401,7 @@ See [03-STAGE3-REPORT-GENERATION.md](03-STAGE3-REPORT-GENERATION.md) for details
 |----------|-------|
 | **File** | `src/services/feature_knowledge_service.py` (354 lines) |
 | **Purpose** | Loads feature investigation playbooks (YAML), checks prerequisites against cluster state, matches error symptoms to known failure paths |
-| **Used by** | Stage 1, Step 8 (feature knowledge in core-data.json) |
+| **Used by** | Stage 1, Step 9 (feature knowledge in core-data.json) |
 
 **Key exports:** `FeatureKnowledgeService`, `FeatureReadiness`, `PrerequisiteCheck`, `MatchedFailurePath`
 
@@ -504,16 +504,16 @@ See [03-STAGE3-REPORT-GENERATION.md](03-STAGE3-REPORT-GENERATION.md) for details
 | JenkinsAPIClient | Steps 1-3 | | |
 | JenkinsIntelligenceService | Steps 1-3 | | |
 | EnvironmentValidationService | Step 4 | | |
-| RepositoryAnalysisService | Step 5 | | |
-| StackTraceParser | Steps 3, 6 | | |
-| TimelineComparisonService | Step 6 | | |
-| ACMConsoleKnowledge | Step 6 | Phase B | |
-| ACMUIMCPClient | Steps 5, 9 | | |
-| ComponentExtractor | Step 6 | | |
-| KnowledgeGraphClient | Step 8 | Phases B5, C2, E0 | |
+| RepositoryAnalysisService | Step 6 | | |
+| StackTraceParser | Steps 3, 7 | | |
+| TimelineComparisonService | Step 7 | | |
+| ACMConsoleKnowledge | Step 7 | Phase B | |
+| ACMUIMCPClient | Steps 6, 10 | | |
+| ComponentExtractor | Step 7 | | |
+| KnowledgeGraphClient | Step 9 | Phases B5, C2, E0 | |
 | ClusterInvestigationService | Step 4 | Phase B5b | |
-| FeatureAreaService | Step 7 | | |
-| FeatureKnowledgeService | Step 8 | | |
+| FeatureAreaService | Step 8 | | |
+| FeatureKnowledgeService | Step 9 | | |
 | EnvironmentOracleService | Step 5 | Phase PR-7 | Dependency health |
 | SchemaValidationService | | | Input validation |
 | shared_utils | All steps | | |

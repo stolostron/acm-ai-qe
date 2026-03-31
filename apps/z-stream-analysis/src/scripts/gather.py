@@ -875,9 +875,6 @@ class DataGatherer:
             )
             if result.returncode == 0:
                 for name in result.stdout.split():
-                    if 'console' in name and 'api' not in name.lower():
-                        # Prefer the console pod that serves the API
-                        pass
                     if 'console' in name:
                         self.logger.info(f"Console pod (fallback): {name}")
                         return name
@@ -1494,7 +1491,7 @@ class DataGatherer:
 
     def _ground_feature_areas(self):
         """
-        Step 7: Ground feature areas for all failed tests (v3.0).
+        Step 8: Ground feature areas for all failed tests (v3.0).
 
         Groups tests by feature area and adds grounding context
         (subsystem, key components, namespaces) to core-data.json.
@@ -2480,8 +2477,6 @@ class DataGatherer:
         Returns:
             List of match dicts with file, line, and content
         """
-        import subprocess
-
         results = []
 
         try:
@@ -2951,7 +2946,7 @@ class DataGatherer:
 
         Uses local grep-based search across console and kubevirt repos to
         pre-compute element locations, selector classification, component files,
-        and neighboring test IDs. Requires repos to be cloned (Step 5).
+        and neighboring test IDs. Requires repos to be cloned (Step 6).
         """
         has_console = self.console_repo_path and self.console_repo_path.exists()
         has_kubevirt = self.kubevirt_repo_path and self.kubevirt_repo_path.exists()
@@ -3944,7 +3939,7 @@ class DataGatherer:
                 ],
                 'per_test_required': {
                     'test_name': 'string',
-                    'classification': 'PRODUCT_BUG | AUTOMATION_BUG | INFRASTRUCTURE | MIXED | UNKNOWN',
+                    'classification': 'PRODUCT_BUG | AUTOMATION_BUG | INFRASTRUCTURE | NO_BUG | FLAKY | MIXED | UNKNOWN',
                     'confidence': '0.0 to 1.0',
                     'evidence_sources': 'array (minimum 2 items) with source, finding, tier'
                 },

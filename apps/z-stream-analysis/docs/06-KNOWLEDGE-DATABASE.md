@@ -76,7 +76,7 @@ The knowledge database (`knowledge/`) provides domain reference data that the AI
 | File | Records | Purpose | Refresh Source |
 |------|---------|---------|----------------|
 | `components.yaml` | 30+ components | Component registry with health checks | `oc get` via refresh.py |
-| `dependencies.yaml` | 8 chains | Cascade failure tracing | Neo4j KG + manual |
+| `dependencies.yaml` | 7 chains | Cascade failure tracing | Neo4j KG + manual |
 | `failure-patterns.yaml` | 15+ patterns | Short-circuit classification | Manual + learned/ promotion |
 | `selectors.yaml` | 50+ selectors | UI selector ground truth | ACM-UI MCP |
 | `api-endpoints.yaml` | 5 endpoints | Backend probe reference | ACM-UI MCP code search |
@@ -197,8 +197,6 @@ dependency_chains:
 | `console` | OAuth → console-api → ConsolePlugin → feature UIs | console-api down = all 500 errors |
 | `observability` | MCO → collector → thanos-receive → S3 → store → query → grafana | S3 misconfigured = most common obs failure |
 | `application` | subscription → channel → app-manager → placement | subscription-controller CRD issue = cascade |
-| `virtualization` | CNV operator → HyperConverged → virt-controller → virt-handler → VMs | CNV not installed = all VM tests INFRA |
-| `addon` | klusterlet → work-manager → ManagedClusterAddon → addon pods | klusterlet disconnect = all addons fail |
 
 ### Classification Hints
 

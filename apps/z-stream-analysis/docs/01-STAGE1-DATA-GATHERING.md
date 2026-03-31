@@ -363,7 +363,7 @@ Shares the kubeconfig and CLI from `EnvironmentValidationService` so both servic
 
 **Method:** `DataGatherer._probe_backend_apis()`
 
-Probes 5 ACM console backend API endpoints to detect backend anomalies before AI analysis. Runs after Step 4b (cluster landscape) and before Step 5 (clone repos). Each probe runs via `oc exec` into the console pod with `curl`, using the bearer token from the cluster session.
+Probes 5 ACM console backend API endpoints to detect backend anomalies before AI analysis. Runs after Step 4b (cluster landscape) and before Step 5 (environment oracle). Each probe runs via `oc exec` into the console pod with `curl`, using the bearer token from the cluster session.
 
 Adds ~10-15 seconds to Stage 1 execution.
 

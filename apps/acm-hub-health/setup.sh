@@ -11,6 +11,7 @@ echo ""
 # 1. Clone rhacm-docs if not present
 if [ ! -d "docs/rhacm-docs" ]; then
   echo "Cloning official ACM documentation (rhacm-docs)..."
+  mkdir -p docs
   git clone --depth 1 https://github.com/stolostron/rhacm-docs.git docs/rhacm-docs
   echo "Done."
 else

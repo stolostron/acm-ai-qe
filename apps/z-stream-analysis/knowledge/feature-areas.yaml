@@ -145,6 +145,31 @@ feature_areas:
     default_enabled: false
     playbook_ref: "src/data/feature_playbooks/base.yaml#Observability"
 
+  Foundation:
+    subsystems: [foundation]
+    test_patterns:
+      - "(?i)server.?foundation"
+      - "(?i)addon.?framework"
+      - "(?i)\\[registration\\]"
+      - "(?i)\\[work-agent\\]"
+      - "(?i)managedclusteraddon"
+      - "(?i)managed.service.account"
+    key_components: [registration-controller, work-agent, cluster-proxy, managed-serviceaccount, addon-manager, work-manager]
+    mch_component: null
+    note: "Ginkgo (Go) test framework. Repo: stolostron/acmqe-autotest"
+
+  Install:
+    subsystems: [install]
+    test_patterns:
+      - "(?i)\\[Install\\]"
+      - "(?i)csv.*phase"
+      - "(?i)operator.*install"
+      - "(?i)install.*acm"
+      - "(?i)install.*mce"
+    key_components: [multiclusterhub-operator, multicluster-engine, hive-operator, assisted-service]
+    mch_component: null
+    note: "Ginkgo (Go) test framework. Repo: stolostron/acmqe-autotest. Sub-jobs: install_mce_e2e_tests, install_acm_e2e_tests"
+
   CrossClusterMigration:
     subsystems: [virtualization]
     test_patterns:

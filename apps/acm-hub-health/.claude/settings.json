@@ -9,6 +9,8 @@
       "Bash(oc cluster-info:*)",
       "Bash(oc api-resources:*)",
       "Bash(oc adm top:*)",
+      "Bash(oc exec:*)",
+      "Bash(oc auth:*)",
       "Bash(oc patch:*)",
       "Bash(oc scale:*)",
       "Bash(oc rollout restart:*)",

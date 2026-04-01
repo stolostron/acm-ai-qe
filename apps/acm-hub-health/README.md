@@ -47,7 +47,7 @@ Why are managed clusters Unknown?     # symptom investigation
 2. **Learn** -- consult architecture knowledge + previous discoveries
 3. **Check** -- verify health per component (pods, logs, events, CRD status)
 4. **Pattern Match** -- match symptoms against documented known issues with JIRA references
-5. **Correlate** -- trace 6 dependency chains to find root cause
+5. **Correlate** -- trace 8 dependency chains to find root cause
 6. **Deep Investigate** -- logs, events, storage, networking for critical findings
 
 ### Self-Healing Knowledge
@@ -72,7 +72,7 @@ decide -- the agent never modifies the cluster without your consent.
 
 ## Knowledge Base
 
-44 knowledge files covering 11 ACM subsystems -- architecture docs, structured
+46 knowledge files covering 11 ACM subsystems -- architecture docs, structured
 operational data, and diagnostic methodology.
 
 See [docs/06-SLASH-COMMANDS.md](docs/06-SLASH-COMMANDS.md) for full command reference.
@@ -82,7 +82,7 @@ knowledge/
   component-registry.md                 # Master inventory of ACM components
   failure-patterns.md                   # Failure signatures mapped to root causes
   healthy-baseline.yaml                 # Expected pod counts, deployment states
-  dependency-chains.yaml                # 6 cascade paths (structured YAML)
+  dependency-chains.yaml                # 8 cascade paths (structured YAML)
   webhook-registry.yaml                 # Validating/mutating webhooks
   certificate-inventory.yaml            # TLS secrets, rotation, impact
   addon-catalog.yaml                    # Addon health checks and dependencies
@@ -100,9 +100,10 @@ knowledge/
     rbac/                               # "
     addon-framework/                    # architecture.md
     networking/                         # architecture.md, known-issues.md
-    infrastructure/                     # architecture.md, known-issues.md
+    infrastructure/                     # architecture.md, known-issues.md, post-upgrade-patterns.md
   diagnostics/                          # Health check methodology
-    dependency-chains.md                # 6 cascade paths (narrative)
+    dependency-chains.md                # 8 cascade paths (narrative)
+    common-diagnostic-traps.md          # 8 patterns where obvious diagnosis is wrong
     evidence-tiers.md                   # Evidence weighting rules
     diagnostic-playbooks.md             # Investigation procedures
   learned/                              # Agent-discovered knowledge (grows over time)

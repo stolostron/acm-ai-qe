@@ -1,0 +1,37 @@
+# Version Compatibility Constraints -- Z-Stream Analysis
+# Known product version incompatibilities that cause test failures.
+# The AI agent cross-references operator versions from the oracle/cluster
+# against this list to detect PRODUCT_BUG (compatibility gap) vs
+# INFRASTRUCTURE (component down).
+#
+# Populated by: manual QE review
+# Refresh frequency: after each GA release or when new constraints discovered
+
+constraints:
+
+  - id: ansiblejob-aap25-workflow
+    component: AnsibleJob CR
+    affected_versions:
+      aap: ">=2.5"
+      acm: "<=2.13"
+    description: >
+      AnsibleJob CR does not support AAP 2.5+ workflow job templates.
+      The AnsibleJob controller attempts to mount AAP 2.4-style secrets
+      that do not exist in AAP 2.5+, causing CreateContainerConfigError.
+    symptoms:
+      - "CreateContainerConfigError"
+      - "Ansible posthook is not triggered within time limit"
+      - "AnsibleJob not created within"
+    correct_classification: PRODUCT_BUG
+    common_misclassification: INFRASTRUCTURE
+    confidence: 0.85
+    explanation: >
+      CreateContainerConfigError looks like an infrastructure issue (pod
+      can't start), but the root cause is a product compatibility gap
+      between AnsibleJob CR and the AAP 2.5+ API. The operator CSV shows
+      Succeeded, and the AAP instance is healthy -- the CRD simply does
+      not support the new workflow API.
+    diagnostic: >
+      Check AAP operator version: oc get csv -A | grep aap.
+      If version >= 2.5, check if test uses workflow job template.
+      If yes, this is a product compatibility issue, not infrastructure.

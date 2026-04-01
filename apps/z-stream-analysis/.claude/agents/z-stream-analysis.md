@@ -8,13 +8,25 @@ tools: ["Bash", "WebFetch", "Grep", "Read", "Write", "Glob"]
 
 ## IMPORTANT: User Progress Updates
 
-**ALWAYS output a status line BEFORE every tool call.** Users cannot see tool output in real-time, so you must tell them what's happening.
+**The user sees your tool call descriptions in the UI, not your text output.** This means:
 
-**Format:** Use stage banners (matching gather.py's format) and phase headers. The pipeline has 4 stages:
-- **Stage 0:** Environment Oracle (runs inside gather.py)
-- **Stage 1:** Data Gathering (gather.py)
-- **Stage 2:** AI Analysis (this agent)
-- **Stage 3:** Report Generation (report.py)
+1. **Every Bash call MUST have a clear `description` parameter** that tells the user what's happening. The description is the ONLY thing users see in real-time while the command runs.
+
+   - BAD: `Bash(command="cat core-data.json | python3 -c '...'")`  (user sees raw command)
+   - GOOD: `Bash(command="cat core-data.json | python3 -c '...'", description="Stage 1: Gathering pipeline data from Jenkins")`
+
+2. **Use stage/phase prefixes** in descriptions so users can track progress:
+   - `"Stage 1: Gathering pipeline data from Jenkins"`
+   - `"Stage 2/Phase A: Reading architecture docs for Search subsystem"`
+   - `"Stage 2/Phase B: Checking cluster health via oc get pods"`
+   - `"Stage 2/Phase D: Classifying 12 Virtualization test failures"`
+   - `"Stage 3: Generating analysis report"`
+
+3. **Output text banners between major stages** for context. The pipeline has 4 stages:
+   - **Stage 0:** Environment Oracle (runs inside gather.py)
+   - **Stage 1:** Data Gathering (gather.py)
+   - **Stage 2:** AI Analysis (this agent)
+   - **Stage 3:** Report Generation (report.py)
 
 **Required output during the run:**
 
@@ -24,7 +36,6 @@ tools: ["Bash", "WebFetch", "Grep", "Read", "Write", "Glob"]
   STAGE 1: DATA GATHERING
   Fetching Jenkins data, cluster health, and test reports
 ============================================================
-Running gather.py...
 ```
 
 2. After gather completes, before analysis:
@@ -33,39 +44,31 @@ Running gather.py...
   STAGE 2: AI ANALYSIS
   Analyzing <N> failed tests using 5-phase investigation
 ============================================================
+```
 
+3. Between phases, output a brief status with key findings:
+```
 ### Phase A: Initial Assessment
-Re-authenticating to cluster, checking environment health...
   Cluster: <authenticated/failed/skipped>
   Environment score: <score>
-  Failure pattern: <pattern summary>
-```
 
-3. For each phase, output a brief status with key findings:
-```
 ### Phase B: Deep Investigation
-Examining test code, selectors, and timeline evidence for each failure...
   Processing <N> tests across <M> feature areas...
 
 ### Phase C: Cross-Reference Validation
-Verifying evidence sources and checking for patterns...
 
 ### Phase D: Classification
-Assigning classifications with confidence scores...
   INFRASTRUCTURE: <N> tests
   PRODUCT_BUG: <N> tests
   AUTOMATION_BUG: <N> tests
-  NO_BUG: <N> tests
 
-### Phase E: Feature Context & JIRA Correlation
-Building subsystem context and searching for feature stories and related bugs...
+### Phase E: JIRA Correlation
 ```
 
 4. Before report generation:
 ```
 ============================================================
   STAGE 3: REPORT GENERATION
-  Creating analysis-results.json and markdown reports
 ============================================================
 ```
 
@@ -422,6 +425,28 @@ cat runs/<dir>/core-data.json | jq '.console_log.key_errors[]' | head -20
 | "Connection refused" | INFRASTRUCTURE |
 | "timeout" + healthy env | AUTOMATION_BUG (wait strategy) |
 | No errors, just element not found | AUTOMATION_BUG (selector) |
+
+#### B3b. External Service Dependencies (v3.5.1)
+
+When subscription/channel tests fail with timeouts, check Jenkins parameters for external service URLs:
+- `OBJECTSTORE_PRIVATE_URL` -- Minio/S3 endpoint for Object Storage channel tests
+- `TOWER_HOST` -- Ansible Tower/AAP endpoint for pre/post hook tests
+- Git repo URLs in test setup -- External Gogs servers for Git channel tests
+
+**Console log patterns indicating external service failure:**
+- `"failed to push to testrepo"` -- Gogs Git server down or inaccessible
+- `"SSL certificate problem"` -- Certificate issue with external service (Gogs mTLS)
+- `"MTLS Test Environment setup failure"` -- mTLS cert environment failed to initialize
+- `"minio.*connection refused"` or `"objectstore.*fail"` -- Minio/S3 server down
+- `"tower.*unreachable"` or `"ansible.*connection refused"` -- Tower/AAP endpoint down
+
+**Decision logic:**
+1. If Object Storage tests timeout AND console log has objectstore/minio connection errors: **INFRASTRUCTURE** (external Minio down)
+2. If Git subscription tests fail at setup AND console log has "failed to push to testrepo": **INFRASTRUCTURE** (Gogs down)
+3. If Ansible tests show CreateContainerConfigError AND AAP version >= 2.5: check `knowledge/version-constraints.yaml` -- may be **PRODUCT_BUG** (compatibility gap), not INFRASTRUCTURE
+4. If subscription tests timeout with no external service evidence: check `knowledge/failure-patterns.yaml` known_jira_bugs for ACM-32244 (timestamp reconciliation issue)
+
+Also read `knowledge/architecture/application-lifecycle/failure-signatures.md` for the full list of external service failure signatures.
 
 ### Phase B4: MCP Tool Queries
 
@@ -1952,6 +1977,7 @@ runs/<job>_<timestamp>/
 │
 │  Created by Stage 1 (gather.py):
 ├── core-data.json              # Primary data (read first)
+├── pipeline.log.jsonl          # Structured logs from all Python services
 ├── run-metadata.json           # Run metadata (timing, version)
 ├── manifest.json               # File index
 ├── console-log.txt             # Full Jenkins console output
@@ -1968,12 +1994,15 @@ runs/<job>_<timestamp>/
 ├── analysis-results.json       # YOUR OUTPUT
 │
 │  Created by Stage 3 (report.py):
-├── Detailed-Analysis.md        # Report
+├── Detailed-Analysis.md        # Report (appends to pipeline.log.jsonl)
+├── analysis-report.html        # Interactive HTML report (self-contained)
 ├── per-test-breakdown.json     # Structured data for tooling
 ├── SUMMARY.txt                 # Brief summary
 │
 │  Created by feedback CLI (optional):
 └── feedback.json               # Classification feedback (v3.0)
+
+Agent trace: .claude/traces/<session_id>.jsonl  # MCP calls, prompts, tool use
 ```
 
 ---

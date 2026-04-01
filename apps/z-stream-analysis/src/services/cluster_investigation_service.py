@@ -136,6 +136,10 @@ COMPONENT_NAMESPACE_MAP = {
     'submariner-gateway': ('submariner-operator', 'daemonset'),
     # Automation (AAP)
     'aap-controller': ('aap', 'deployment'),
+    # Foundation
+    'work-agent': ('open-cluster-management-agent', 'deployment'),
+    'cluster-proxy': ('open-cluster-management', 'deployment'),
+    'managed-serviceaccount': ('open-cluster-management', 'deployment'),
     # Infrastructure
     'klusterlet': ('open-cluster-management-agent', 'deployment'),
     'klusterlet-agent': ('open-cluster-management-agent', 'deployment'),
@@ -176,9 +180,16 @@ SUBSYSTEM_COMPONENTS = {
         'kubevirt-operator', 'virt-api', 'virt-controller',
         'hyperconverged-cluster-operator',
     ],
+    'Foundation': [
+        'registration-controller', 'work-agent', 'work-manager',
+        'cluster-proxy', 'managed-serviceaccount', 'addon-manager',
+    ],
+    'Install': [
+        'multicluster-hub',
+    ],
     'Infrastructure': [
         'klusterlet', 'multicluster-engine',
-        'foundation-controller', 'addon-manager',
+        'foundation-controller',
     ],
 }
 
@@ -194,6 +205,8 @@ FEATURE_AREA_SUBSYSTEM_MAP = {
     'Virtualization': 'Virtualization',
     'Application': 'Application',
     'Console': 'Console',
+    'Foundation': 'Foundation',
+    'Install': 'Install',
     'Infrastructure': 'Infrastructure',
     'RBAC': 'Console',
     'Automation': 'Cluster',

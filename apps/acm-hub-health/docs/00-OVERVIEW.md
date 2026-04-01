@@ -200,9 +200,10 @@ acm-hub-health/
 │   │   ├── rbac/                       ← "
 │   │   ├── addon-framework/            ← architecture.md
 │   │   ├── networking/                 ← architecture.md, known-issues.md
-│   │   └── infrastructure/             ← architecture.md, known-issues.md
+│   │   └── infrastructure/             ← architecture.md, known-issues.md, post-upgrade-patterns.md
 │   ├── diagnostics/                    ← Health check methodology
-│   │   ├── dependency-chains.md        ← 6 critical cascade paths (narrative)
+│   │   ├── dependency-chains.md        ← 8 critical cascade paths (narrative)
+│   │   ├── common-diagnostic-traps.md  ← 8 patterns where obvious diagnosis is wrong
 │   │   ├── evidence-tiers.md           ← Evidence weighting rules
 │   │   └── diagnostic-playbooks.md     ← Per-subsystem investigation procedures
 │   └── learned/                        ← Agent-discovered knowledge (grows over time)

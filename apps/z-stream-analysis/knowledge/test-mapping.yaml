@@ -97,6 +97,26 @@ test_suites:
       - "S3 storage must be configured"
     known_issues: []
 
+  # --- Foundation test suites (Ginkgo) ---
+  - pattern: "(?i)\\[ServerFoundation\\]|\\[addon-framework\\]|addon.*health|managedclusteraddon"
+    feature_area: Foundation
+    dependencies: [registration-controller, work-agent, cluster-proxy, managed-serviceaccount, addon-manager]
+    known_issues: []
+
+  - pattern: "(?i)\\[cluster-lifecycle\\]|\\[managedcluster\\]|managed.*cluster.*import"
+    feature_area: CLC
+    dependencies: [managedcluster-import-controller, cluster-manager]
+    known_issues: []
+
+  # --- Install test suites (Ginkgo) ---
+  - pattern: "(?i)\\[Install\\]|\\[install\\]|csv.*phase|acm.*install|mce.*install"
+    feature_area: Install
+    dependencies: [multiclusterhub-operator, multicluster-engine]
+    prerequisites:
+      - "ACM operator must be installed"
+      - "MCE operator must be installed"
+    known_issues: []
+
   # --- Cross-Cluster Migration test suites ---
   - pattern: "(?i)migration.*e2e|cross.*cluster|mtv|cclm"
     feature_area: CrossClusterMigration

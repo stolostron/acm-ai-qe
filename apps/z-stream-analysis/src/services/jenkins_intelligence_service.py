@@ -647,6 +647,11 @@ class JenkinsIntelligenceService:
             return 'auth_error'
         elif any(p in error_lower for p in ['404', 'not found', 'no such']):
             return 'not_found'
+        elif any(p in error_lower for p in ['minio', 'objectstore', 'gogs',
+                                             'mtls test environment setup failure',
+                                             'failed to push to testrepo',
+                                             'ssl certificate problem']):
+            return 'external_service'
         else:
             return 'unknown'
 
@@ -715,7 +720,8 @@ class JenkinsIntelligenceService:
             'network_errors': [],
             'assertion_failures': [],
             'build_failures': [],
-            'environment_issues': []
+            'environment_issues': [],
+            'external_service_issues': []
         }
         
         # Timeout patterns
@@ -753,7 +759,22 @@ class JenkinsIntelligenceService:
         for pattern in network_patterns:
             matches = re.findall(pattern, console_log, re.IGNORECASE)
             failure_patterns['network_errors'].extend(matches)
-        
+
+        # External service failure patterns
+        external_service_patterns = [
+            r'failed to push to testrepo',
+            r'SSL certificate problem',
+            r'MTLS Test Environment setup failure',
+            r'minio.*connection.*(?:refused|timeout|error)',
+            r'objectstore.*(?:fail|error|refused)',
+            r'gogs.*(?:fail|error|refused|connection)',
+            r'tower.*(?:fail|error|refused|unreachable)',
+        ]
+
+        for pattern in external_service_patterns:
+            matches = re.findall(pattern, console_log, re.IGNORECASE)
+            failure_patterns['external_service_issues'].extend(matches)
+
         # Count total failures
         total_failures = sum(len(errors) for errors in failure_patterns.values())
         

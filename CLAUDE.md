@@ -6,19 +6,19 @@ Multi-app repository for ACM quality engineering tools, built on Claude Code.
 
 ### Z-Stream Analysis (`apps/z-stream-analysis/`) — Active
 
-Jenkins pipeline failure analysis (v3.5) with classification: PRODUCT_BUG | AUTOMATION_BUG | INFRASTRUCTURE | FLAKY | NO_BUG | MIXED | UNKNOWN. Includes assertion value extraction, per-feature-area graduated infrastructure scoring, per-test causal link verification, failure mode categorization, blank page pre-routing, hook failure deduplication, temporal evidence routing, feature investigation playbooks, tiered cluster investigation, classification feedback, and standalone knowledge database (`knowledge/`).
+Jenkins pipeline failure analysis (v3.5.1) with classification: PRODUCT_BUG | AUTOMATION_BUG | INFRASTRUCTURE | FLAKY | NO_BUG | MIXED | UNKNOWN. Includes assertion value extraction, per-feature-area graduated infrastructure scoring, per-test causal link verification, failure mode categorization, blank page pre-routing, hook failure deduplication, temporal evidence routing, feature investigation playbooks, tiered cluster investigation, classification feedback, and standalone knowledge database (`knowledge/`).
 
 Four-stage pipeline:
 0. **Environment Oracle** (inside gather.py) — Feature-aware dependency health & knowledge database (`cluster_oracle`)
 1. **gather.py** — Extracts test data from Jenkins (builds `core-data.json` with cluster landscape, backend API probes, and feature grounding; persists `cluster.kubeconfig` for Stage 2)
 2. **AI Analysis** — 5-phase investigation with backend cross-check producing `analysis-results.json`
-3. **report.py** — Generates `Detailed-Analysis.md` from analysis results
+3. **report.py** — Generates `Detailed-Analysis.md` + `analysis-report.html` from analysis results
 
 See `apps/z-stream-analysis/CLAUDE.md` for schema requirements, classification guide, and MCP tool reference.
 
 ### ACM Hub Health Agent (`apps/acm-hub-health/`) — Active
 
-AI-powered diagnostic and remediation agent for ACM hub clusters. Uses Claude Code with embedded ACM domain knowledge to perform health checks at any depth -- from quick sanity checks to deep component-level investigations. Natural language driven, no dependencies beyond `oc` + `claude`. Diagnosis is read-only; cluster fixes are executed only after presenting a structured remediation plan and getting explicit user approval. Includes structured knowledge database (`knowledge/`) with baseline, dependency chains, webhooks, certificates, and addon catalog. Optional CLI wrapper (`acm-hub`) enables running diagnostics from any terminal without launching an interactive session.
+AI-powered diagnostic and remediation agent for ACM hub clusters. Uses Claude Code with embedded ACM domain knowledge to perform health checks at any depth -- from quick sanity checks to deep component-level investigations. Natural language driven, no dependencies beyond `oc` + `claude`. Diagnosis is read-only; cluster fixes are executed only after presenting a structured remediation plan and getting explicit user approval. Includes structured knowledge database (`knowledge/`) with baseline, dependency chains (8 cascade paths), webhooks, certificates, addon catalog, and diagnostic traps. Optional CLI wrapper (`acm-hub`) enables running diagnostics from any terminal without launching an interactive session.
 
 Usage: `cd apps/acm-hub-health && bash setup.sh && oc login <hub> && claude`
 
@@ -34,7 +34,7 @@ Open Claude Code in this repository (root or `apps/z-stream-analysis/`) and ask:
 Analyze this run: <JENKINS_URL>
 ```
 
-Claude Code handles the full pipeline automatically — gather, analyze, report.
+Claude Code runs each stage with visible progress updates — do NOT delegate the entire pipeline to a single agent. See `apps/z-stream-analysis/CLAUDE.md` "Pipeline Execution UX" section.
 
 ### Manual Pipeline (Advanced)
 
@@ -97,9 +97,9 @@ ai_systems_v2/
 # Z-stream analysis tests (from app directory)
 cd apps/z-stream-analysis/
 
-# Fast — unit + regression (602+ tests, no external deps):
+# Fast — unit + regression (667+ tests, no external deps):
 python -m pytest tests/unit/ tests/regression/ -q
 
-# Full suite (652+ tests, requires Jenkins VPN for integration):
+# Full suite (717+ tests, requires Jenkins VPN for integration):
 python -m pytest tests/ -q --timeout=300
 ```

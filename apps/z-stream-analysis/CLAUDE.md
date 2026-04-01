@@ -1,6 +1,32 @@
-# Z-Stream Pipeline Analysis (v3.5)
+# Z-Stream Pipeline Analysis (v3.5.1)
 
 Enterprise Jenkins pipeline failure analysis with definitive PRODUCT BUG | AUTOMATION BUG | INFRASTRUCTURE classification. v3.5 adds environment oracle with feature-aware dependency health checking, Polarion test case context, KG-driven dependency learning, and oracle-informed classification routing.
+
+## Pipeline Execution UX (MANDATORY)
+
+When a user asks to analyze a Jenkins run, **do NOT delegate the entire pipeline to a single agent**. The user must see stage-by-stage progress in their terminal. Run each stage yourself in the main conversation with visible status updates between them.
+
+**Required behavior:**
+
+1. **Stage 1** — Run `gather.py` yourself. Before running, output:
+   ```
+   Stage 1: Gathering pipeline data from Jenkins...
+   ```
+   After it completes, summarize what was collected (e.g., "Extracted 64 failed tests across 8 feature areas, cluster oracle ran").
+
+2. **Stage 2** — Use the `z-stream-analysis` agent for AI analysis. Before launching, output:
+   ```
+   Stage 2: Analyzing <N> failed tests (5-phase investigation)...
+   ```
+   After it completes, show the classification breakdown (e.g., "44 AUTOMATION_BUG, 12 INFRASTRUCTURE, 7 NO_BUG, 1 PRODUCT_BUG").
+
+3. **Stage 3** — Run `report.py` yourself. Before running, output:
+   ```
+   Stage 3: Generating report...
+   ```
+   After it completes, confirm the output files.
+
+**Why:** When everything runs inside a single agent, the user only sees collapsed tool calls with no sense of progress. Stage-by-stage updates keep the user informed.
 
 ## Quick Start
 
@@ -28,7 +54,7 @@ Before writing analysis-results.json, ALWAYS read `src/schemas/analysis_results_
 STAGE 0: gather.py    → cluster_oracle (environment oracle + knowledge database)
 STAGE 1: gather.py    → core-data.json + cluster.kubeconfig + repos/
 STAGE 2: AI Analysis  → analysis-results.json (5-phase investigation)
-STAGE 3: report.py    → Detailed-Analysis.md + per-test-breakdown.json + SUMMARY.txt
+STAGE 3: report.py    → Detailed-Analysis.md + analysis-report.html + per-test-breakdown.json + SUMMARY.txt
 ```
 
 Stage 0 runs inside gather.py (Step 5) after environment data is collected. Stage 1 covers the remaining gather steps. The terminal shows distinct banners for each stage.
@@ -37,7 +63,7 @@ See `docs/00-OVERVIEW.md` for detailed diagrams.
 
 ## Run Directory
 
-See `docs/00-OVERVIEW.md` for full run directory structure. Key files: `core-data.json` (primary AI input), `cluster.kubeconfig` (persisted cluster auth for Stage 2), `analysis-results.json` (AI output), `Detailed-Analysis.md` (final report).
+See `docs/00-OVERVIEW.md` for full run directory structure. Key files: `core-data.json` (primary AI input), `cluster.kubeconfig` (persisted cluster auth for Stage 2), `pipeline.log.jsonl` (structured service logs), `analysis-results.json` (AI output), `Detailed-Analysis.md` (final report), `analysis-report.html` (interactive HTML report).
 
 ## Classification Guide
 
@@ -77,6 +103,16 @@ See `docs/00-OVERVIEW.md` for the full decision routing table. Summary:
   {"source": "timeline_evidence", "finding": "element_removed", "tier": 1}
 ]
 ```
+
+## New in v3.5.1
+
+- **External service failure detection** (Phase B3b) — console log parser extracts external service failure patterns (`failed to push to testrepo`, `SSL certificate problem`, `MTLS Test Environment setup failure`, Minio/Gogs/Tower connection errors) as a new `external_service_issues` category. Agent instructions (B3b) guide the AI to cross-reference console log evidence with Jenkins parameters (`OBJECTSTORE_PRIVATE_URL`, `TOWER_HOST`) when subscription tests timeout.
+- **Version compatibility constraints** — new `knowledge/version-constraints.yaml` documents product version incompatibilities (e.g., AnsibleJob CR doesn't support AAP 2.5+ workflow jobs). Agent reads constraints when CreateContainerConfigError appears alongside healthy operator CSVs, routing to PRODUCT_BUG instead of INFRASTRUCTURE.
+- **Known JIRA bugs cache** — `knowledge/failure-patterns.yaml` gains a `known_jira_bugs` section providing instant correlation for known bugs (e.g., ACM-32244 subscription timestamp issue) without requiring JIRA MCP calls.
+- **External service failure signatures** — 3 new signatures in `knowledge/architecture/application-lifecycle/failure-signatures.md` for Minio unreachable, Gogs Git server down, and MTLS setup failure. 4 new `external_service` patterns in `failure-patterns.yaml`.
+- **ALC repo fallback** — `KNOWN_REPOS` dict in `shared_utils.py` now includes `alc-e2e`, `alc_e2e`, `application-ui-test`, and `app-e2e` entries for robustness when console log extraction fails.
+- **New failure type** — `_classify_failure_type()` returns `external_service` for errors mentioning specific external services (Minio, Gogs, Tower, MTLS setup) by name.
+- **Subscription timeout disambiguation** — `failure-signatures.md` clarifies that subscription reconciliation timeouts are INFRASTRUCTURE when the controller pod is unhealthy, but PRODUCT_BUG (ACM-32244) when the controller is healthy but not reconciling.
 
 ## New in v3.5
 
@@ -223,28 +259,62 @@ python -m src.scripts.feedback <dir> --test "name" --incorrect --should-be PRODU
 python -m src.scripts.feedback --stats           # View accuracy stats
 ```
 
+## Logging & Observability
+
+Two-layer structured logging captures every operation across all pipeline stages.
+
+### Layer 1: Python Service Logs (`pipeline.log.jsonl`)
+
+Written to the run directory by `src/logging_config.py`. Captures all `logging.getLogger()` calls from 17 Python service modules with `run_id` and `stage` context on every entry. Console output shows colored human-readable format; the JSONL file captures DEBUG-level detail.
+
+```bash
+# View all warnings/errors from a run
+grep '"level": "warning"\|"level": "error"' runs/<dir>/pipeline.log.jsonl
+
+# Filter by stage
+grep '"stage": "oracle"' runs/<dir>/pipeline.log.jsonl
+
+# Filter by service
+grep '"logger": "src.services.jenkins_api_client"' runs/<dir>/pipeline.log.jsonl
+```
+
+### Layer 2: Agent Trace Logs (`.claude/traces/<session_id>.jsonl`)
+
+Written by Claude Code hooks (`.claude/hooks/agent_trace.py`). Captures every tool call, MCP interaction, shell command, subagent spawn, and user prompt during Stage 2 AI analysis. Hooks are configured in `.claude/settings.json`.
+
+```bash
+# View all MCP calls from a session
+grep '"mcp_server"' .claude/traces/<session_id>.jsonl
+
+# View prompts
+grep '"event": "prompt"' .claude/traces/<session_id>.jsonl
+
+# View tool errors
+grep '"event": "tool_error"' .claude/traces/<session_id>.jsonl
+```
+
 ## Tests
 
 ```bash
 # Regression tests (fast, no external deps — 47 tests):
 python -m pytest tests/regression/ -v
 
-# Unit tests (555+ tests):
+# Unit tests (620+ tests):
 python -m pytest tests/unit/ -v
 
-# Unit + regression (602+ tests):
+# Unit + regression (667+ tests):
 python -m pytest tests/unit/ tests/regression/ -v
 
 # Integration tests (requires Jenkins VPN — 50 tests):
 python -m pytest tests/integration/ -v --timeout=300
 
-# All tests (652+ total):
+# All tests (717+ total):
 python -m pytest tests/ -v --timeout=300
 ```
 
 ### Test Structure
 
-- `tests/unit/` — 555+ unit tests across 18 service/script files (includes 77 oracle tests)
+- `tests/unit/` — 620+ unit tests across 18 service/script files (includes 77 oracle tests)
 - `tests/regression/` — 47 regression tests for cross-module consistency, playbook quality, AI instructions, schema coverage
 - `tests/integration/` — 50 integration tests for Stage 1 gather, Stage 3 report, and cross-stage data contracts
 - `tests/fixtures/` — Synthetic analysis-results.json exercising v3.2+ schema fields
@@ -273,7 +343,9 @@ on the detected feature area.
 | RBAC | `rbac/{architecture,data-flow,failure-signatures}.md` | FG-RBAC, MCRA, ClusterPermission, IDP auth |
 | Automation | `automation/{architecture,data-flow,failure-signatures}.md` | ClusterCurator, Ansible Tower integration |
 | Observability | `observability/{architecture,failure-signatures}.md` | MCO, Thanos, Grafana |
-| Infrastructure | `infrastructure/{architecture,failure-signatures}.md` | Nodes, quotas, NetworkPolicies, certs |
+| Foundation | `foundation/{architecture,test-dependencies,failure-signatures}.md` | Addon framework, registration, cluster-proxy, multi-cloud spokes |
+| Install | `install/{architecture,test-dependencies,failure-signatures}.md` | ACM/MCE install, CSV phases, operator lifecycle |
+| Infrastructure | `infrastructure/{architecture,failure-signatures,post-upgrade-patterns}.md` | Nodes, quotas, NetworkPolicies, certs, post-upgrade |
 
 ### Diagnostics Docs (`knowledge/diagnostics/`)
 
@@ -294,7 +366,8 @@ Classification methodology documentation for the AI agent:
 | `selectors.yaml` | UI selector ground truth per feature area | Stale selector detection |
 | `api-endpoints.yaml` | Backend API endpoints with probe commands | Backend cross-check context |
 | `feature-areas.yaml` | Feature area index (test patterns, components, routes) | Test-to-feature mapping |
-| `failure-patterns.yaml` | Known failure signatures for short-circuit classification | Fast pattern matching |
+| `failure-patterns.yaml` | Known failure signatures + known JIRA bugs cache + external service patterns | Fast pattern matching + JIRA correlation |
+| `version-constraints.yaml` | Product version incompatibility matrix (e.g., AAP 2.5+ workflow jobs) | Version-aware classification |
 | `test-mapping.yaml` | Test suite to feature area mapping with known issues | Investigation scoping |
 | `learned/` | Agent-contributed corrections, patterns, selector changes | Accumulated knowledge |
 | `refresh.py` | Updates knowledge from ACM-UI MCP, KG, cluster | Self-healing |
@@ -312,16 +385,19 @@ Classification methodology documentation for the AI agent:
 z-stream-analysis/
 ├── main.py                 # Entry point
 ├── pytest.ini              # Test markers (regression, integration, slow)
+├── src/logging_config.py   # Structured logging (console + JSONL dual output)
 ├── src/scripts/
 │   ├── gather.py          # Stage 1: Data collection
 │   ├── report.py          # Stage 3: Report generation
 │   └── feedback.py        # Classification feedback CLI
 ├── src/services/          # 17 Python service modules
+├── src/reports/
+│   └── html_report.py     # Interactive HTML report generator (schema: src/schemas/html_report_schema.json)
 ├── src/schemas/           # JSON Schema validation
 ├── src/data/
 │   └── feature_playbooks/ # YAML investigation playbooks (base.yaml, acm-2.16.yaml)
 ├── knowledge/             # Knowledge database (AI reads during Stage 2)
-│   ├── architecture/      # Per-subsystem deep knowledge (30 files)
+│   ├── architecture/      # Per-subsystem deep knowledge (37 files)
 │   │   ├── acm-platform.md          # Platform: operator hierarchy, MCH, namespaces
 │   │   ├── kubernetes-fundamentals.md # K8s concepts for failure analysis
 │   │   ├── search/                  # Search subsystem (3 files)
@@ -333,7 +409,9 @@ z-stream-analysis/
 │   │   ├── rbac/                    # RBAC subsystem (3 files)
 │   │   ├── automation/              # Ansible subsystem (3 files)
 │   │   ├── observability/           # Observability (2 files)
-│   │   └── infrastructure/          # Infrastructure (2 files)
+│   │   ├── foundation/             # Foundation subsystem (3 files)
+│   │   ├── install/                # Install subsystem (3 files)
+│   │   └── infrastructure/          # Infrastructure (3 files)
 │   ├── diagnostics/       # Classification methodology
 │   │   ├── classification-decision-tree.md
 │   │   ├── evidence-tiers.md
@@ -343,17 +421,23 @@ z-stream-analysis/
 │   ├── selectors.yaml     # UI selector ground truth
 │   ├── api-endpoints.yaml # Backend API endpoints
 │   ├── feature-areas.yaml # Feature area index
-│   ├── failure-patterns.yaml # Known failure patterns
+│   ├── failure-patterns.yaml # Known failure patterns + JIRA bugs cache
+│   ├── version-constraints.yaml # Product version compatibility matrix
 │   ├── test-mapping.yaml  # Test suite mapping
 │   ├── learned/           # Agent-contributed knowledge
 │   └── refresh.py         # Knowledge refresh script
 ├── tests/
 │   ├── conftest.py        # Shared fixtures
-│   ├── unit/              # Unit tests (555+)
+│   ├── unit/              # Unit tests (620+)
 │   ├── regression/        # Regression tests (47)
 │   ├── integration/       # Integration tests (50)
 │   └── fixtures/          # Test data (synthetic analysis-results.json)
-├── .claude/agents/
-│   └── z-stream-analysis.md  # Agent definition
+├── .claude/
+│   ├── agents/
+│   │   └── z-stream-analysis.md  # Agent definition
+│   ├── hooks/
+│   │   └── agent_trace.py        # Hook: logs tool calls, MCP, prompts to JSONL
+│   ├── traces/                   # Agent trace logs (per-session JSONL, gitignored)
+│   └── settings.json             # Permissions + hook configuration
 └── docs/                  # Detailed documentation
 ```

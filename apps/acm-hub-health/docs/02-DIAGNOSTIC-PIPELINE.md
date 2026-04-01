@@ -360,7 +360,7 @@ the root cause rather than treating each symptom independently.
           ▼
   ┌───────────────────┐
   │ Read dependency   │     knowledge/diagnostics/dependency-chains.md
-  │ chains -- trace   │     6 critical cascade paths (narrative)
+  │ chains -- trace   │     8 critical cascade paths (narrative)
   │ upstream           │
   └────────┬──────────┘
            │
@@ -406,7 +406,7 @@ From `knowledge/diagnostics/evidence-tiers.md`:
 | Console 500 across all features | All UI features broken simultaneously | Console-api pod down (single backend) |
 | Components degraded after OCP upgrade | Multiple pods restarting post-upgrade | OCP upgrade disruption (may self-resolve) |
 
-### 6 Dependency Chains
+### 8 Dependency Chains
 
 The agent traces through these cascade paths (documented in
 `knowledge/diagnostics/dependency-chains.md` and `knowledge/dependency-chains.yaml`):
@@ -417,6 +417,8 @@ The agent traces through these cascade paths (documented in
 4. **HyperShift Addon → Import Controller → Klusterlet** -- hosted cluster import chain
 5. **MCRA → ClusterPermission → ManifestWork → RBAC** -- fine-grained RBAC propagation to spokes
 6. **Observability Operator → Addon → Thanos** -- S3 misconfigured = thanos-store crashes; metrics-collector missing = no spoke metrics
+7. **Addon Manager → Addon Framework → Spoke Addon Pods** -- addon-manager is single point of failure for ALL spoke addons
+8. **StorageClass → CSI Driver → PV → PVC → Pod** -- storage failures affect all stateful ACM components (thanos, alertmanager, search-postgres)
 
 ### Anti-Patterns
 

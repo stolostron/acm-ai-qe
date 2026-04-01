@@ -101,25 +101,27 @@ Claude Code agent performs 5-phase investigation:
 | Virtualization | Virtualization | Yes |
 | Application | Application Lifecycle | Yes |
 | Console | Console | Yes |
+| Foundation | Foundation (addon framework, registration) | — |
+| Install | Installation (ACM/MCE operator lifecycle) | — |
 | Infrastructure | Infrastructure | Yes |
 | RBAC | RBAC & User Management | Yes |
 | Automation | Ansible Automation Platform | Yes |
 
 ## Knowledge Database
 
-Standalone knowledge database at `knowledge/` with 46 files providing domain
+Standalone knowledge database at `knowledge/` with 53 files providing domain
 reference data for the AI agent during Stage 2 analysis.
 
 | Directory | Content | Files |
 |-----------|---------|-------|
-| `architecture/` | Per-subsystem architecture, data flow, failure signatures | 32 files across 10 subsystems + 2 platform docs |
+| `architecture/` | Per-subsystem architecture, data flow, failure signatures | 37 files across 12 subsystems + 2 platform docs |
 | `diagnostics/` | Classification decision tree, evidence tiers, known misclassifications | 3 files |
-| Root YAML | Components, dependencies, selectors, API endpoints, feature areas, failure patterns, test mapping | 7 files |
+| Root YAML | Components, dependencies, selectors, API endpoints, feature areas, failure patterns, test mapping | 8 files |
 | `learned/` | Agent-contributed corrections, patterns, selector changes | 3 template files |
 | `refresh.py` | Updates knowledge from cluster, MCP, KG | 1 script |
 
 Subsystems covered: Search, Console, Governance, Cluster Lifecycle, Virtualization,
-Application Lifecycle, RBAC, Automation, Observability, Infrastructure.
+Application Lifecycle, RBAC, Automation, Observability, Foundation, Install, Infrastructure.
 
 Each subsystem has `architecture.md` (how it works), `data-flow.md` (where data moves),
 and `failure-signatures.md` (known failure patterns with classification guidance).
@@ -130,6 +132,7 @@ and `failure-signatures.md` (known failure patterns with classification guidance
 runs/<job>_<timestamp>/
 ├── core-data.json              <- Primary data for AI (read first)
 ├── cluster.kubeconfig          <- Persisted cluster auth for Stage 2
+├── pipeline.log.jsonl          <- Structured logs from all Python services (Stage 1+3)
 ├── run-metadata.json           <- Run metadata (timing, version)
 ├── manifest.json               <- File index
 ├── console-log.txt             <- Full Jenkins console output
@@ -146,9 +149,11 @@ runs/<job>_<timestamp>/
 ├── per-test-breakdown.json     <- Structured data (created by report.py)
 ├── SUMMARY.txt                 <- Brief summary (created by report.py)
 └── feedback.json               <- Classification feedback (optional)
+
+Agent trace logs: .claude/traces/<session_id>.jsonl (MCP calls, prompts, tool use)
 ```
 
-## Services (19 Python Modules)
+## Services (17 Python Modules)
 
 | Service | Purpose |
 |---------|---------|

@@ -122,7 +122,8 @@ class TestClusterAccessPersisted:
 
         has_creds = access.get("has_credentials")
         if has_creds is not None:
-            assert has_creds is True, (
+            # has_credentials may be True or the masked string '***MASKED***'
+            assert has_creds is True or has_creds == "***MASKED***", (
                 "CLC pipeline should have credentials"
             )
 
@@ -187,8 +188,9 @@ class TestFeatureKnowledgePopulated:
             assert any(
                 key in fk
                 for key in ["acm_version", "profiles_loaded", "feature_readiness",
-                            "investigation_playbooks", "kg_status"]
-            )
+                            "investigation_playbooks", "kg_status",
+                            "kg_dependency_context", "note"]
+            ), f"feature_knowledge has unexpected keys: {list(fk.keys())}"
 
     def test_feature_knowledge_has_kg_status(self, core_data):
         fk = core_data.get("feature_knowledge", {})
@@ -272,8 +274,8 @@ class TestAIInstructionsPresent:
     def test_ai_instructions_present(self, core_data):
         instructions = core_data.get("ai_instructions", {})
         assert isinstance(instructions, dict)
-        assert instructions.get("version") == "3.1.0", (
-            f"Expected ai_instructions version 3.1.0, "
+        assert instructions.get("version") == "3.5.0", (
+            f"Expected ai_instructions version 3.5.0, "
             f"got {instructions.get('version')}"
         )
 

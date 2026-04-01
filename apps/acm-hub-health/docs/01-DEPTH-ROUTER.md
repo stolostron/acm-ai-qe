@@ -120,7 +120,7 @@ any findings against known bug patterns with JIRA references.
 
 **Phases:** All 6 (Discover, Learn, Check, Pattern Match, Correlate, Deep Investigate)
 **Time:** ~5-10 minutes
-**Slash command:** None (use natural language)
+**Slash command:** `/deep`
 
 Runs the complete pipeline. After checking all components and matching known
 issues, traces dependency chains to identify root causes across components,
@@ -257,6 +257,8 @@ investigation of search even though it doesn't say "investigate."
 | Add-on status | No | Yes | Yes | If relevant |
 | Known issue matching | No | Yes | Yes | Yes |
 | Version-aware diagnosis | No | Yes | Yes | Yes |
+| Diagnostic trap verification | No | Yes | Yes | Yes |
+| Post-upgrade pattern check | No | Yes | Yes | Yes |
 | Dependency chain tracing | No | No | Yes | With dependencies |
 | Evidence-tier weighting | No | No | Yes | Yes |
 | Log analysis | No | No | Yes | Yes |

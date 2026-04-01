@@ -126,3 +126,68 @@ patterns:
     fix: "Check if the feature prerequisite is installed on the cluster."
     requires_verification: true
     note: "Must verify which prerequisite is missing before finalizing."
+
+  # --- External service patterns ---
+  - id: minio-objectstore-down
+    category: external_service
+    signature: "minio.*connection.*(?:refused|timeout)|objectstore.*(?:fail|error|unavailable)"
+    classification: INFRASTRUCTURE
+    confidence: 0.85
+    explanation: "External Minio/S3 object storage server is unreachable. Object Storage subscription tests fail because the channel endpoint is down."
+    fix: "Check OBJECTSTORE_PRIVATE_URL from Jenkins params. Verify Minio server health on the remote cluster."
+
+  - id: gogs-git-push-failure
+    category: external_service
+    signature: "failed to push to testrepo|gogs.*connection.*(?:refused|error)"
+    classification: INFRASTRUCTURE
+    confidence: 0.85
+    explanation: "External Gogs Git server is down or unreachable. Git channel subscription tests fail at setup."
+    fix: "Check Gogs deployment on the CI runner. Verify the Git server endpoint is reachable."
+
+  - id: mtls-setup-failure
+    category: external_service
+    signature: "MTLS Test Environment setup failure|SSL certificate problem.*self signed"
+    classification: INFRASTRUCTURE
+    confidence: 0.85
+    explanation: "MTLS test environment failed to initialize. Gogs with custom TLS certs did not start properly."
+    fix: "Check SSL cert chain for the Gogs mTLS server. Verify cert generation in CI setup."
+
+  - id: tower-unreachable
+    category: external_service
+    signature: "tower.*(?:unreachable|connection.*refused|timeout)|ansible.*tower.*(?:fail|error)"
+    classification: INFRASTRUCTURE
+    confidence: 0.80
+    explanation: "Ansible Tower/AAP endpoint is unreachable. AnsibleJob tests fail."
+    fix: "Check TOWER_HOST from Jenkins params. Verify Tower is running and API is accessible."
+    note: "If AAP >= 2.5 and test uses workflow jobs, check version-constraints.yaml -- may be PRODUCT_BUG instead."
+
+# --- Known JIRA bugs ---
+# Cached JIRA references for known failures. The AI agent checks these
+# BEFORE calling the JIRA MCP tool, providing instant correlation.
+# Entries can become stale -- always verify the JIRA is still open/relevant.
+#
+# Refresh frequency: weekly or after each z-stream analysis run
+
+known_jira_bugs:
+
+  - id: acm-32244-subscription-timestamp
+    jira: ACM-32244
+    summary: "Timestamp comparison issue causes subscription controller to skip reconciliation"
+    affected_components: [subscription-controller, multicloud-operators-subscription]
+    feature_area: Application
+    symptoms:
+      - "subscription is not ready within time limit"
+      - "subscription.*not.*reconcil"
+      - "appsub.*timeout"
+    classification: PRODUCT_BUG
+    confidence: 0.80
+    versions_affected: ["2.13", "2.14"]
+    fix_version: "2.14.1"
+    status: open
+    last_verified: "2026-03-31"
+    note: >
+      Subscription controller skips reconciliation when lastTransitionTime comparison
+      fails due to timezone/precision mismatch. Only applies when the subscription-controller
+      pod is Running/Ready but subscriptions are not reconciling. If the pod is unhealthy,
+      classify as INFRASTRUCTURE instead. See disambiguation in
+      knowledge/architecture/application-lifecycle/failure-signatures.md.

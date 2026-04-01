@@ -552,7 +552,7 @@ E6: Create/link issues (optional)
   "analysis_metadata": {
     "jenkins_url": "https://jenkins.example.com/job/acm-e2e/123/",
     "analyzed_at": "2026-02-05T12:30:00Z",
-    "analyzer_version": "3.3.0"
+    "analyzer_version": "3.5.0"
   },
   "investigation_phases_completed": ["A", "B", "C", "D", "E"],
   "per_test_analysis": [

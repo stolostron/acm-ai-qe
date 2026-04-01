@@ -35,6 +35,7 @@ app_dir = src_dir.parent
 sys.path.insert(0, str(app_dir))
 
 from src.services.feedback_service import FeedbackService
+from src.logging_config import configure_logging
 
 
 VALID_CLASSIFICATIONS = [
@@ -87,6 +88,8 @@ Examples:
                         help='Base runs directory (default: ./runs)')
 
     args = parser.parse_args()
+
+    configure_logging()
 
     service = FeedbackService(runs_dir=args.runs_dir)
 

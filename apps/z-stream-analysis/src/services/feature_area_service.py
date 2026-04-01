@@ -124,17 +124,43 @@ FEATURE_AREAS: Dict[str, FeatureGrounding] = {
         investigation_focus='Console UI rendering, navigation, header, '
                           'overview page, welcome page',
     ),
+    'Foundation': FeatureGrounding(
+        subsystem='Foundation',
+        key_components=[
+            'registration-controller', 'work-agent', 'cluster-proxy',
+            'managed-serviceaccount', 'addon-manager', 'work-manager',
+        ],
+        key_namespaces=[
+            'open-cluster-management', 'multicluster-engine',
+            'open-cluster-management-agent', 'open-cluster-management-hub',
+        ],
+        investigation_focus='Addon health, managed cluster registration, '
+                          'import strategies, cluster-proxy connectivity, '
+                          'work-agent scheduling, managed-serviceaccount tokens',
+    ),
+    'Install': FeatureGrounding(
+        subsystem='Install',
+        key_components=[
+            'multiclusterhub-operator', 'multicluster-engine',
+            'hive-operator', 'assisted-service',
+        ],
+        key_namespaces=[
+            'open-cluster-management', 'multicluster-engine',
+            'hive', 'assisted-installer',
+        ],
+        investigation_focus='ACM/MCE CSV phase, operator installation sequence, '
+                          'component enablement, CRD availability, image tag resolution',
+    ),
     'Infrastructure': FeatureGrounding(
         subsystem='Infrastructure',
         key_components=[
-            'klusterlet', 'multicluster-engine', 'foundation-controller',
-            'addon-manager',
+            'klusterlet', 'foundation-controller',
         ],
         key_namespaces=[
             'open-cluster-management', 'multicluster-engine',
             'open-cluster-management-agent',
         ],
-        investigation_focus='Agent connectivity, addon management, '
+        investigation_focus='Agent connectivity, '
                           'foundation services, MCE components',
     ),
     'RBAC': FeatureGrounding(
@@ -164,6 +190,8 @@ _PATH_PATTERNS: List[tuple] = [
     (r'rbac|role|user.*management|permission', 'RBAC'),
     (r'automat|ansible|aap|template.*automat', 'Automation'),
     (r'console|overview|welcome|header', 'Console'),
+    (r'install|csv|operator.*install', 'Install'),
+    (r'server.?foundation|addon.?framework|registration|work.?agent', 'Foundation'),
     (r'infra|klusterlet|addon|foundation|mce', 'Infrastructure'),
 ]
 
@@ -180,6 +208,9 @@ _NAME_PATTERNS: List[tuple] = [
     (r'rbac|role.assign|permission|user.manage', 'RBAC'),
     (r'automat.*template|ansible.*automat|aap.*integrat', 'Automation'),
     (r'console.*nav|overview.*page|welcome|header', 'Console'),
+    (r'\[Install\]|\[install\]|csv.*phase|operator.*install|install.*acm|install.*mce', 'Install'),
+    (r'\[ServerFoundation\]|\[addon-framework\]|\[registration\]|\[work-agent\]|'
+     r'managedclusteraddon|managed.service.account', 'Foundation'),
     (r'addon|klusterlet|foundation|mce|infrastructure', 'Infrastructure'),
 ]
 
@@ -220,10 +251,17 @@ _COMPONENT_TO_FEATURE: Dict[str, str] = {
     'acm-console': 'Console',
     'mce-console': 'Console',
     'aap-controller': 'Automation',
+    'registration-controller': 'Foundation',
+    'work-agent': 'Foundation',
+    'work-manager': 'Foundation',
+    'cluster-proxy': 'Foundation',
+    'managed-serviceaccount': 'Foundation',
+    'addon-manager': 'Foundation',
+    'multiclusterhub-operator': 'Install',
+    'hive-operator': 'Install',
     'klusterlet': 'Infrastructure',
     'multicluster-engine': 'Infrastructure',
     'foundation-controller': 'Infrastructure',
-    'addon-manager': 'Infrastructure',
 }
 
 

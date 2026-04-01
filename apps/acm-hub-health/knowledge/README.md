@@ -26,7 +26,8 @@ Foundation files at the architecture root:
 
 ### `diagnostics/` -- Health Check Methodology
 
-- `dependency-chains.md` -- 6 critical cascade paths with tracing procedures
+- `dependency-chains.md` -- 8 critical cascade paths with tracing procedures
+- `common-diagnostic-traps.md` -- 8 patterns where the obvious diagnosis is wrong
 - `diagnostic-playbooks.md` -- Per-subsystem investigation procedures
 - `evidence-tiers.md` -- What counts as strong vs weak evidence
 
@@ -37,7 +38,7 @@ Quantitative reference data for comparing cluster state against known-good value
 - `healthy-baseline.yaml` -- Expected pod counts, deployment states, conditions
   for a healthy ACM hub. Compare actual cluster state against this baseline.
 - `dependency-chains.yaml` -- Structured YAML complement to
-  `diagnostics/dependency-chains.md`. Same 6 chains in machine-readable format
+  `diagnostics/dependency-chains.md`. Same 8 chains in machine-readable format
   for correlation lookups.
 - `webhook-registry.yaml` -- All validating and mutating webhooks expected on
   an ACM hub, their owners, failure policies, and impact when broken.

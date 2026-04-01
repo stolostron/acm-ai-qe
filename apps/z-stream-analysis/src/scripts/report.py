@@ -32,6 +32,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
+from src.logging_config import configure_logging, bind_context
+
 
 class ReportFormatter:
     """
@@ -182,24 +184,32 @@ class ReportFormatter:
     def format_all(self) -> Dict[str, str]:
         """
         Generate all report formats.
-        
+
         Returns:
             Dictionary of report type to file path
         """
         reports = {}
-        
+
         # Generate Markdown report
         md_path = self.format_markdown()
         reports['markdown'] = str(md_path)
-        
+
         # Generate JSON breakdown
         json_path = self.format_json()
         reports['json'] = str(json_path)
-        
+
         # Generate text summary
         summary_path = self.format_summary()
         reports['summary'] = str(summary_path)
-        
+
+        # Generate interactive HTML report
+        try:
+            from src.reports.html_report import generate_html_report
+            html_path = generate_html_report(self.run_dir)
+            reports['html'] = str(html_path)
+        except Exception as e:
+            self.logger.warning(f"HTML report generation failed: {e}")
+
         return reports
     
     def format_markdown(self) -> Path:
@@ -725,7 +735,7 @@ class ReportFormatter:
                 pa = t.get('prerequisite_analysis', {})
                 cid = t.get('cluster_investigation_detail', {})
 
-                path_id = pb.get('failure_path_id', pa.get('matched_failure_mode', {}).get('path_id', 'N/A'))
+                path_id = pb.get('failure_path_id', (pa.get('matched_failure_mode') or {}).get('path_id', 'N/A'))
                 tier = cid.get('tier_reached', 'N/A')
                 confirmed = 'Yes' if pb.get('path_confirmed') else 'No' if pb else 'N/A'
                 classification = pb.get('suggested_classification', t.get('classification', 'N/A'))
@@ -1004,6 +1014,10 @@ Examples:
         print(f"Error: Directory not found: {run_dir}", file=sys.stderr)
         sys.exit(1)
 
+    # Configure structured logging into the run directory
+    configure_logging(run_dir=run_path)
+    bind_context(run_id=run_path.name, stage="report")
+
     try:
         print("\n" + "=" * 60)
         print("STAGE 3: REPORT GENERATION")
@@ -1022,6 +1036,8 @@ Examples:
         print("=" * 60)
 
         for report_type, path in reports.items():
+            if report_type == 'html':
+                continue  # Show HTML link separately below
             print(f"  {report_type}: {path}")
 
         # Cleanup repos by default to save disk space (skip if --keep-repos)
@@ -1032,6 +1048,19 @@ Examples:
             else:
                 shutil.rmtree(repos_path)
                 print(f"\nCleaned up repos/ to save disk space (use --keep-repos to preserve)")
+
+        # Open HTML report in the default browser
+        if 'html' in reports:
+            html_abs = Path(reports['html']).resolve()
+            import subprocess as _sp
+            import platform as _plat
+            opener = 'open' if _plat.system() == 'Darwin' else 'xdg-open'
+            try:
+                _sp.Popen([opener, str(html_abs)],
+                          stdout=_sp.DEVNULL, stderr=_sp.DEVNULL)
+            except FileNotFoundError:
+                pass
+            print(f"\n  Open full report: file://{html_abs}")
 
         print("\n" + "=" * 60 + "\n")
 

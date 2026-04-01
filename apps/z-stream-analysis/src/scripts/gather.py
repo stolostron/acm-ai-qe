@@ -79,6 +79,7 @@ from src.services.cluster_investigation_service import ClusterInvestigationServi
 from src.services.feature_area_service import FeatureAreaService
 from src.services.feature_knowledge_service import FeatureKnowledgeService
 from src.services.environment_oracle_service import EnvironmentOracleService
+from src.logging_config import configure_logging, bind_context
 
 
 class DataGatherer:
@@ -155,13 +156,8 @@ class DataGatherer:
         self._needs_kubevirt_repo: Optional[bool] = None
 
     def _setup_logging(self) -> logging.Logger:
-        """Setup logging configuration."""
-        level = logging.DEBUG if self.verbose else logging.INFO
-        logging.basicConfig(
-            level=level,
-            format='%(asctime)s - %(levelname)s - %(message)s',
-            datefmt='%H:%M:%S'
-        )
+        """Setup structured logging (console + optional JSONL file)."""
+        configure_logging(verbose=self.verbose)
         return logging.getLogger(__name__)
 
     def _mask_sensitive_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
@@ -231,14 +227,20 @@ class DataGatherer:
             Tuple of (run_directory, gathered_data)
         """
         start_time = time.time()
+
+        # Create run directory
+        run_dir = self._create_run_directory(jenkins_url)
+
+        # Enable JSONL file logging into this run directory
+        configure_logging(run_dir=run_dir, verbose=self.verbose)
+        bind_context(run_id=run_dir.name, stage="gather")
+
         self.logger.info(f"Starting data gathering for: {jenkins_url}")
 
         print("\n" + "=" * 60)
         print("STAGE 1: DATA GATHERING")
         print("=" * 60)
 
-        # Create run directory
-        run_dir = self._create_run_directory(jenkins_url)
         self.logger.info(f"Output directory: {run_dir}")
 
         # Create repos subdirectory
@@ -311,6 +313,7 @@ class DataGatherer:
 
         # ── STAGE 0: ENVIRONMENT ORACLE ──
         if not skip_environment:
+            bind_context(stage="oracle")
             self._print_stage(0, 'ENVIRONMENT ORACLE',
                               'Feature-aware dependency health & knowledge database')
             self._print_step(5, total_steps, "Running environment oracle...")
@@ -332,6 +335,7 @@ class DataGatherer:
             self.gathered_data['cluster_oracle'] = {'status': 'skipped'}
 
         # ── STAGE 1: DATA GATHERING (continued) ──
+        bind_context(stage="gather")
         if not skip_environment:
             self._print_stage(1, 'DATA GATHERING (continued)',
                               'Repository cloning, context extraction, feature grounding')
@@ -582,6 +586,7 @@ class DataGatherer:
 
         api_url = (
             params.get('CYPRESS_HUB_API_URL') or
+            params.get('OC_CLUSTER_API_URL') or
             params.get('CLUSTER_API_URL') or
             params.get('API_URL') or
             params.get('HUB_API_URL')
@@ -589,6 +594,7 @@ class DataGatherer:
 
         username = (
             params.get('CYPRESS_OPTIONS_HUB_USER') or
+            params.get('OC_CLUSTER_USER') or
             params.get('CLUSTER_USER') or
             params.get('USERNAME') or
             params.get('HUB_USER')
@@ -596,6 +602,7 @@ class DataGatherer:
 
         password = (
             params.get('CYPRESS_OPTIONS_HUB_PASSWORD') or
+            params.get('OC_CLUSTER_PASS') or
             params.get('CLUSTER_PASSWORD') or
             params.get('PASSWORD') or
             params.get('HUB_PASSWORD')

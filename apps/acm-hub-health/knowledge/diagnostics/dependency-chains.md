@@ -1,6 +1,6 @@
 # Dependency Chains
 
-6 critical paths where failures cascade across ACM subsystems. When diagnosing
+8 critical paths where failures cascade across ACM subsystems. When diagnosing
 an issue, trace UPSTREAM through the relevant chain to find the root cause.
 
 ---
@@ -209,6 +209,68 @@ If thanos-query is down, Grafana dashboards show no data.
 
 ---
 
+## Chain 7: Addon Manager -> Addon Framework -> Spoke Addon Pods
+
+```
+addon-manager (hub MCE namespace)
+  <- deploys ->
+    ManagedClusterAddon CRs (per cluster namespace)
+      <- delivered by ->
+        addon framework (ManifestWork-based delivery)
+          <- applied by ->
+            klusterlet work-agent (on spoke)
+              <- runs ->
+                spoke addon pods (governance, search-collector, observability, etc.)
+```
+
+**Impact:** addon-manager is a single point of failure for ALL spoke addons.
+If it's down, no addons deploy to any spoke. New clusters import successfully
+(import-controller is independent) but arrive with zero addons.
+
+**Tracing procedure:**
+1. Are ALL addons Unavailable across multiple clusters? -> check addon-manager first
+2. `oc get pods -n multicluster-engine | grep addon-manager`
+3. If addon-manager is healthy, check per-cluster addon CRs:
+   `oc get managedclusteraddons -n <cluster>`
+4. If a specific addon is stuck, check its ManifestWork:
+   `oc get manifestwork -n <cluster> | grep <addon-name>`
+
+---
+
+## Chain 8: StorageClass -> CSI Driver -> PV -> PVC -> Pod
+
+```
+StorageClass (cluster-scoped config)
+  <- provisions via ->
+    CSI Driver (dynamic provisioner)
+      <- creates ->
+        PersistentVolume
+          <- bound to ->
+            PersistentVolumeClaim (in component namespace)
+              <- mounted by ->
+                Stateful pod (thanos-receive, thanos-store, alertmanager)
+```
+
+**Impact:** Storage failures affect all stateful ACM components. Observability
+is the most affected subsystem (thanos-receive, thanos-store, alertmanager all
+use StatefulSet PVCs). Search-postgres defaults to emptyDir but can optionally
+use a PVC.
+
+**Affected components:**
+- `thanos-receive` -- observability metric ingestion
+- `thanos-store` -- observability historical queries (sharded StatefulSet)
+- `alertmanager` -- observability alerting
+- `search-postgres` -- search data (emptyDir by default)
+
+**Tracing procedure:**
+1. Check PVC status: `oc get pvc -n open-cluster-management-observability`
+2. If PVCs are Pending: `oc describe pvc <name>` -- look for provisioner errors
+3. Check default StorageClass: `oc get sc` -- is one marked `(default)`?
+4. Check CSI driver pods: `oc get pods -n openshift-cluster-csi-drivers`
+5. If PVCs are Bound but pods crash: check disk usage (volume full)
+
+---
+
 ## Cross-Chain Patterns
 
 When multiple chains are affected simultaneously, look for shared dependencies:
@@ -220,3 +282,6 @@ When multiple chains are affected simultaneously, look for shared dependencies:
 | Multiple addons failing on same spoke | addon-manager down or spoke connectivity |
 | Nothing works | MCH/MCE/backplane issue (chain 3) |
 | UI shows "everything broken" but oc commands work | Console issue only (chain 1 top) |
+| ALL addons Unavailable across ALL clusters | addon-manager down (chain 7) |
+| Observability + search both have storage errors | Shared storage infrastructure failure (chain 8) |
+| New clusters import but get no addons | addon-manager down; import works independently (chains 4,7) |

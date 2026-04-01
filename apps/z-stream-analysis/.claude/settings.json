@@ -4,7 +4,49 @@
       "Read",
       "Edit",
       "Write",
+      "Glob",
+      "Grep",
       "WebSearch",
+      "WebFetch(domain:jenkins-csb-rhacm-tests.dno.corp.redhat.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+
+      "Bash(python:*)",
+      "Bash(python3:*)",
+      "Bash(python -m src.scripts.gather:*)",
+      "Bash(python -m src.scripts.report:*)",
+      "Bash(python -m pytest:*)",
+      "Bash(pytest:*)",
+      "Bash(pip:*)",
+      "Bash(pip3:*)",
+      "Bash(git:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(wc:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(sort:*)",
+      "Bash(grep:*)",
+      "Bash(find:*)",
+      "Bash(tree:*)",
+      "Bash(mkdir:*)",
+      "Bash(mv:*)",
+      "Bash(cp:*)",
+      "Bash(chmod:*)",
+      "Bash(echo:*)",
+      "Bash(jq:*)",
+      "Bash(gh:*)",
+      "Bash(curl:*)",
+      "Bash(oc:*)",
+      "Bash(kubectl:*)",
+      "Bash(podman:*)",
+      "Bash(export:*)",
+      "Bash(env:*)",
+      "Bash(xargs:*)",
+      "Bash(iconv:*)",
+      "Bash(lsof:*)",
+      "Bash(claude:*)",
+
       "mcp__acm-ui__list_repos",
       "mcp__acm-ui__get_current_version",
       "mcp__acm-ui__get_fleet_virt_selectors",
@@ -17,6 +59,7 @@
       "mcp__acm-ui__list_versions",
       "mcp__acm-ui__set_acm_version",
       "mcp__acm-ui__set_cnv_version",
+      "mcp__acm-ui__set_version",
       "mcp__acm-ui__get_acm_selectors",
       "mcp__acm-ui__search_translations",
       "mcp__acm-ui__get_routes",
@@ -24,24 +67,166 @@
       "mcp__acm-ui__get_cluster_virt_info",
       "mcp__acm-ui__get_component_types",
       "mcp__acm-ui__get_wizard_steps",
+
+      "mcp__jenkins__analyze_pipeline",
+      "mcp__jenkins__analyze_test_results",
+      "mcp__jenkins__get_all_jobs",
+      "mcp__jenkins__get_build",
+      "mcp__jenkins__get_build_log",
+      "mcp__jenkins__get_build_status",
+      "mcp__jenkins__get_downstream_tree",
+      "mcp__jenkins__get_job",
+      "mcp__jenkins__get_pipeline_stages",
+      "mcp__jenkins__get_test_results",
+      "mcp__jenkins__trigger_build",
+
       "mcp__jira__search_issues",
+      "mcp__jira__search_issues_by_team",
       "mcp__jira__get_issue",
+      "mcp__jira__create_issue",
+      "mcp__jira__update_issue",
+      "mcp__jira__transition_issue",
+      "mcp__jira__add_comment",
+      "mcp__jira__log_time",
+      "mcp__jira__get_projects",
+      "mcp__jira__get_project_components",
+      "mcp__jira__link_issue",
+      "mcp__jira__get_link_types",
+      "mcp__jira__debug_issue_fields",
+      "mcp__jira__search_users",
       "mcp__jira__list_teams",
+      "mcp__jira__add_team",
+      "mcp__jira__remove_team",
+      "mcp__jira__assign_team_to_issue",
+      "mcp__jira__add_watcher_to_issue",
+      "mcp__jira__remove_watcher_from_issue",
+      "mcp__jira__get_issue_watchers",
       "mcp__jira__list_component_aliases",
-      "Bash(python -m src.scripts.gather:*)",
-      "Bash(python -m src.scripts.report:*)",
-      "Bash(python -m pytest:*)",
-      "Bash(pytest:*)",
-      "Bash(python:*)",
-      "Bash(python3:*)",
-      "Bash(git:*)",
-      "Bash(ls:*)",
-      "Bash(gh:*)",
-      "Bash(oc whoami:*)",
-      "Bash(oc get:*)",
-      "Bash(oc login:*)",
-      "Bash(curl:*)"
+      "mcp__jira__add_component_alias",
+      "mcp__jira__remove_component_alias",
+      "mcp__jira__clear_field",
+
+      "mcp__neo4j-rhacm__get_neo4j_schema",
+      "mcp__neo4j-rhacm__read_neo4j_cypher",
+
+      "mcp__polarion__check_polarion_status",
+      "mcp__polarion__create_polarion_test_run",
+      "mcp__polarion__create_polarion_work_item",
+      "mcp__polarion__get_polarion_document",
+      "mcp__polarion__get_polarion_project",
+      "mcp__polarion__get_polarion_projects",
+      "mcp__polarion__get_polarion_setup_html",
+      "mcp__polarion__get_polarion_test_case_summary",
+      "mcp__polarion__get_polarion_test_run_info",
+      "mcp__polarion__get_polarion_test_steps",
+      "mcp__polarion__get_polarion_work_item",
+      "mcp__polarion__get_polarion_work_item_at_revision",
+      "mcp__polarion__get_polarion_work_item_revisions",
+      "mcp__polarion__get_polarion_work_item_text",
+      "mcp__polarion__get_polarion_work_items",
+      "mcp__polarion__get_polarion_work_items_details",
+      "mcp__polarion__list_polarion_plans",
+      "mcp__polarion__list_polarion_test_runs",
+      "mcp__polarion__open_polarion_login",
+      "mcp__polarion__polarion_github_requirements_coverage",
+      "mcp__polarion__set_polarion_token",
+      "mcp__polarion__update_polarion_setup",
+      "mcp__polarion__update_polarion_test_steps",
+      "mcp__polarion__update_polarion_work_item",
+      "mcp__polarion__upload_polarion_test_results"
     ],
     "deny": []
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 $CLAUDE_PROJECT_DIR/.claude/hooks/agent_trace.py"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 $CLAUDE_PROJECT_DIR/.claude/hooks/agent_trace.py"
+          }
+        ]
+      },
+      {
+        "matcher": "Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 $CLAUDE_PROJECT_DIR/.claude/hooks/agent_trace.py"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 $CLAUDE_PROJECT_DIR/.claude/hooks/agent_trace.py"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 $CLAUDE_PROJECT_DIR/.claude/hooks/agent_trace.py"
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 $CLAUDE_PROJECT_DIR/.claude/hooks/agent_trace.py"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 $CLAUDE_PROJECT_DIR/.claude/hooks/agent_trace.py"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 $CLAUDE_PROJECT_DIR/.claude/hooks/agent_trace.py"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 $CLAUDE_PROJECT_DIR/.claude/hooks/agent_trace.py"
+          }
+        ]
+      }
+    ]
   }
 }

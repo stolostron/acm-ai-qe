@@ -23,9 +23,12 @@ Known failure patterns for ALC-related test failures.
 ### Subscription Reconciliation Timeout
 - **Error:** `subscription is not ready within time limit` or `Route is not ready within time limit`
 - **Pattern:** Subscription-based deployment tests timeout
-- **Classification:** INFRASTRUCTURE (80% confidence)
-- **Explanation:** subscription-controller or application-manager unable to reconcile. Could be controller health issue or spoke connectivity.
+- **Classification:** Depends on controller health — see disambiguation below
 - **Diagnostic:** `oc get pods -n ocm -l app=multicluster-operators-hub-subscription`
+- **Disambiguation:**
+  - If subscription-controller pod is **unhealthy** (CrashLooping, not Running, pending): **INFRASTRUCTURE** (80% confidence) — controller can't reconcile due to environment issue
+  - If subscription-controller pod is **healthy** (Running, Ready) but subscriptions still not reconciling: **PRODUCT_BUG** (80% confidence) — likely ACM-32244 (timestamp comparison bug causes controller to skip reconciliation). See `known_jira_bugs` in `knowledge/failure-patterns.yaml`
+  - If external channel endpoint is unreachable (Minio, Git, Helm repo down): **INFRASTRUCTURE** — see external service signatures below
 
 ### ArgoCD Sync Stuck
 - **Error:** Expected route/resource never appears within timeout
@@ -39,6 +42,29 @@ Known failure patterns for ALC-related test failures.
 - **Classification:** INFRASTRUCTURE (80% confidence)
 - **Explanation:** Tower host not reachable or 'Demo Workflow Template' doesn't exist
 - **Diagnostic:** Check TOWER_HOST connectivity from hub
+- **Version check:** If AAP operator >= 2.5 and test uses workflow job template, reclassify as PRODUCT_BUG (see `knowledge/version-constraints.yaml`)
+
+### External Object Storage (Minio) Unreachable
+- **Error:** `subscription is not ready within time limit` with objectBucket channel type
+- **Pattern:** Object Storage subscription tests timeout; non-objectstorage tests in the same suite pass. Console log may contain `minio.*connection refused` or `objectstore.*fail`
+- **Classification:** INFRASTRUCTURE (85% confidence)
+- **Explanation:** External Minio server (typically on a different cluster, e.g., `hivemind-b`) is down or unreachable. The subscription controller cannot pull content from the objectBucket channel.
+- **Diagnostic:** Check `OBJECTSTORE_PRIVATE_URL` from Jenkins parameters; search console log for `minio`, `objectstore`, or `S3` connection errors
+- **Key indicator:** Tests creating objectBucket channels fail, but Git/Helm channel tests pass
+
+### External Gogs Git Server Unreachable
+- **Error:** `failed to push to testrepo Git repository` or `SSL certificate problem: self signed certificate in certificate chain`
+- **Pattern:** Git-based subscription tests fail at setup (before test assertions), Helm channel tests pass
+- **Classification:** INFRASTRUCTURE (85% confidence)
+- **Explanation:** External Gogs Git server used for test repos is down or has SSL certificate issues. CI runner deploys Gogs but it may fail to start or have cert chain problems.
+- **Diagnostic:** Search console log for `gogs`, `failed to push`, `SSL certificate problem`; check if `failed to create testrepo` or `User already exists` errors appear
+
+### External MTLS Test Environment Setup Failure
+- **Error:** `MTLS Test Environment setup failure or already operational`
+- **Pattern:** mTLS/certificate-related tests fail at setup phase, non-mTLS tests pass
+- **Classification:** INFRASTRUCTURE (85% confidence)
+- **Explanation:** MTLS test environment could not be established. The Gogs server with custom TLS certs failed to initialize, so mTLS subscription tests have no Git endpoint to pull from.
+- **Diagnostic:** Search console log for `MTLS Test Environment setup failure`, `SSL certificate problem`, `self signed certificate`
 
 ### Prometheus Metrics Not Configured
 - **Error:** `Timed out retrying` on histogram/metrics tests

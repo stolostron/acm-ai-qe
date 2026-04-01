@@ -26,11 +26,12 @@ The knowledge database (`knowledge/`) provides domain reference data that the AI
                     │   components.yaml     │      │                     │
                     │   dependencies.yaml   │◄─────│   corrections.yaml  │
                     │   failure-patterns.yaml│      │   new-patterns.yaml │
-                    │   selectors.yaml      │      │   selector-changes  │
-                    │   api-endpoints.yaml  │      │                     │
-                    │   feature-areas.yaml  │      │   (agent writes,    │
-                    │   test-mapping.yaml   │      │    refresh.py       │
-                    │                       │      │    promotes)         │
+                    │   version-constraints │      │   selector-changes  │
+                    │   selectors.yaml      │      │                     │
+                    │   api-endpoints.yaml  │      │   (agent writes,    │
+                    │   feature-areas.yaml  │      │    refresh.py       │
+                    │   test-mapping.yaml   │      │    promotes)         │
+                    │                       │      │                     │
                     └───────────┬───────────┘      └─────────────────────┘
                                 │
                     ┌───────────▼───────────┐
@@ -77,10 +78,11 @@ The knowledge database (`knowledge/`) provides domain reference data that the AI
 |------|---------|---------|----------------|
 | `components.yaml` | 30+ components | Component registry with health checks | `oc get` via refresh.py |
 | `dependencies.yaml` | 7 chains | Cascade failure tracing | Neo4j KG + manual |
-| `failure-patterns.yaml` | 15+ patterns | Short-circuit classification | Manual + learned/ promotion |
+| `failure-patterns.yaml` | 18 patterns + JIRA cache | Short-circuit classification + bug correlation | Manual + learned/ promotion |
+| `version-constraints.yaml` | 1+ constraints | Version incompatibility detection | Manual QE review |
 | `selectors.yaml` | 50+ selectors | UI selector ground truth | ACM-UI MCP |
 | `api-endpoints.yaml` | 5 endpoints | Backend probe reference | ACM-UI MCP code search |
-| `feature-areas.yaml` | 11 areas | Test-to-feature mapping | Manual + code sync |
+| `feature-areas.yaml` | 13 areas | Test-to-feature mapping | Manual + code sync |
 | `test-mapping.yaml` | 10+ suites | Suite-to-area mapping | Manual |
 | `learned/` | 3 files | Agent-contributed knowledge | AI agent writes |
 | `refresh.py` | — | Updates knowledge from live sources | — |
@@ -232,9 +234,11 @@ patterns:
 | Category | Patterns | Typical Classification |
 |----------|---------|----------------------|
 | `selector` | carbon-selector, pf5-selector-deprecated, pf6-portal-visibility, data-ouia-deprecated | AUTOMATION_BUG |
-| `infrastructure` | vm-scheduling-no-kvm, certificate-expired, oauth-redirect-loop, etcd-leader-timeout | INFRASTRUCTURE |
-| `product` | api-500-error, graphql-null-response, empty-list-with-resources | PRODUCT_BUG |
-| `flaky` | cypress-detached-dom, element-animation-race | FLAKY |
+| `infrastructure` | vm-scheduling-no-kvm, certificate-expired, webhook-connection-refused, etcd-leader-election, node-not-ready | INFRASTRUCTURE |
+| `infrastructure_prereq` | blank-page-no-js | INFRASTRUCTURE |
+| `product` | nil-pointer-panic, reconciliation-hot-loop | PRODUCT_BUG |
+| `automation` | cy-visit-timeout, hook-cascade | AUTOMATION_BUG / NO_BUG |
+| `external_service` | minio-objectstore-down, gogs-git-push-failure, mtls-setup-failure, tower-unreachable | INFRASTRUCTURE |
 
 ### How Pattern Matching Works
 
@@ -357,7 +361,9 @@ feature_areas:
 | Virtualization | virtualization | cnv-operator, kubevirt-hyperconverged | — |
 | Application | application-lifecycle | application-manager, subscription-controller | — |
 | Console | console | console-chart | console |
-| Infrastructure | infrastructure | cert-manager, service-ca-operator | — |
+| Foundation | foundation | registration-controller, work-agent, addon-manager | — |
+| Install | install | multiclusterhub-operator, hive-operator | — |
+| Infrastructure | infrastructure | klusterlet, foundation-controller | — |
 | RBAC | iam | — | — |
 | Automation | automation | — | — |
 | CrossClusterMigration | virtualization | forklift-controller, kubevirt-operator | cnv-mtv-integrations |
@@ -523,13 +529,14 @@ These produce `feature_knowledge`, `cluster_oracle`, and `feature_grounding` in 
 ### Stage 2 (AI Agent) — Reads Knowledge
 
 The AI agent reads `knowledge/` files at the start of analysis:
-1. `failure-patterns.yaml` — first check for known patterns (fast path)
-2. `components.yaml` — component health context during investigation
-3. `dependencies.yaml` — cascade failure tracing during root cause analysis
-4. `selectors.yaml` — ground truth comparison for selector mismatches
-5. `api-endpoints.yaml` — understanding backend probe results
-6. `feature-areas.yaml` — cross-referencing feature area mappings
-7. `test-mapping.yaml` — scoping investigation to relevant areas
+1. `failure-patterns.yaml` — first check for known patterns and JIRA bugs (fast path)
+2. `version-constraints.yaml` — version incompatibility detection (when operator versions present)
+3. `components.yaml` — component health context during investigation
+4. `dependencies.yaml` — cascade failure tracing during root cause analysis
+5. `selectors.yaml` — ground truth comparison for selector mismatches
+6. `api-endpoints.yaml` — understanding backend probe results
+7. `feature-areas.yaml` — cross-referencing feature area mappings
+8. `test-mapping.yaml` — scoping investigation to relevant areas
 
 ### Between Runs — Learning Loop
 
@@ -584,12 +591,83 @@ Add to `failure-patterns.yaml`:
 
 ```yaml
   - id: short-identifier
-    category: selector|infrastructure|product|flaky
+    category: selector|infrastructure|infrastructure_prereq|product|automation|external_service
     signature: "regex pattern matching the error"
-    classification: PRODUCT_BUG|AUTOMATION_BUG|INFRASTRUCTURE|FLAKY
+    classification: PRODUCT_BUG|AUTOMATION_BUG|INFRASTRUCTURE|NO_BUG|FLAKY
     confidence: 0.80
     explanation: "Why this pattern maps to this classification"
     fix: "What to do about it"
 ```
 
 Or let the agent discover it — the agent writes to `learned/new-patterns.yaml`, then `refresh.py --promote` moves it to `failure-patterns.yaml`.
+
+### Known JIRA Bugs Section (v3.5.1)
+
+The `known_jira_bugs` section at the bottom of `failure-patterns.yaml` acts as a fast-path cache for known bugs. The AI agent checks this BEFORE calling the JIRA MCP tool:
+
+```yaml
+known_jira_bugs:
+  - id: acm-32244-subscription-timestamp
+    jira: ACM-32244
+    summary: "Timestamp comparison issue causes subscription controller to skip reconciliation"
+    affected_components: [subscription-controller]
+    feature_area: Application
+    symptoms: ["subscription is not ready within time limit"]
+    classification: PRODUCT_BUG
+    confidence: 0.80
+    versions_affected: ["2.13", "2.14"]
+    fix_version: "2.14.1"
+    status: open
+    last_verified: "2026-03-31"
+```
+
+Entries include `last_verified` and `status` fields to help the agent judge staleness.
+
+---
+
+## version-constraints.yaml
+
+Product version incompatibility matrix. Documents known cases where specific operator/component version combinations cause test failures that look like one classification but are actually another.
+
+### Structure
+
+```yaml
+constraints:
+  - id: ansiblejob-aap25-workflow
+    component: AnsibleJob CR
+    affected_versions:
+      aap: ">=2.5"
+      acm: "<=2.13"
+    description: "AnsibleJob CR does not support AAP 2.5+ workflow job templates."
+    symptoms: ["CreateContainerConfigError", "posthook not triggered"]
+    correct_classification: PRODUCT_BUG
+    common_misclassification: INFRASTRUCTURE
+    confidence: 0.85
+    diagnostic: "Check AAP operator version: oc get csv -A | grep aap."
+```
+
+### How the Agent Uses It
+
+When the agent encounters a CreateContainerConfigError for Ansible tests:
+
+1. Checks the AAP operator CSV version from `cluster_oracle` or via `oc get csv`
+2. If version >= 2.5, reads `version-constraints.yaml`
+3. Matches against the `ansiblejob-aap25-workflow` constraint
+4. Reclassifies from INFRASTRUCTURE to PRODUCT_BUG with 0.85 confidence
+
+### Maintenance
+
+Add new constraints after discovering version-dependent misclassifications:
+
+```yaml
+  - id: short-identifier
+    component: ComponentName
+    affected_versions:
+      operator: ">=X.Y"
+    description: "What breaks and why"
+    symptoms: ["error pattern 1", "error pattern 2"]
+    correct_classification: PRODUCT_BUG|AUTOMATION_BUG
+    common_misclassification: INFRASTRUCTURE
+    confidence: 0.80
+    diagnostic: "How to verify"
+```

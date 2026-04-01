@@ -26,6 +26,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent / 'src'))
 
 from scripts.gather import DataGatherer
+from src.logging_config import configure_logging
 
 
 def validate_jenkins_url(url: str) -> bool:
@@ -117,6 +118,9 @@ Examples:
         sys.exit(1)
 
     try:
+        # Configure structured logging (gather_all adds JSONL file handler later)
+        configure_logging(verbose=args.verbose)
+
         # Run data gathering (Stage 1)
         gatherer = DataGatherer(output_dir=args.output_dir, verbose=args.verbose)
         run_dir, data = gatherer.gather_all(

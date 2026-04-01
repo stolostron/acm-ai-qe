@@ -125,7 +125,7 @@ Indexes resources across all managed clusters for cross-cluster search queries.
 - **Healthy**: All pods Running, low restart count, queries return results
 - **Data flow**: collector addon (spoke) -> indexer (hub) -> postgres (hub) -> api (hub) -> console
 - **Common issues**:
-  - Storage PVC full (postgres) -> indexer CrashLoop
+  - Postgres uses emptyDir (not PVC) -- pod restart = all indexed data lost, re-collection takes 10-30 min
   - Collector addon not on spoke -> resources from that spoke missing (no error, just empty results)
   - Index rebuild after restart -> temporarily stale results
 - **Legacy note**: Older ACM versions (pre-2.12) used `search-redisgraph` instead

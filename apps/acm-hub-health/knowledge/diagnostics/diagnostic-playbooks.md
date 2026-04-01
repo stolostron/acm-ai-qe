@@ -147,7 +147,7 @@ or search-related UI features are broken.
 
 7. Check search-api to search-postgres connectivity
    ```
-   oc exec deploy/search-api -n <mch-namespace> -- curl -s -o /dev/null -w "%{http_code}" http://search-postgres:5432/ --connect-timeout 3 2>&1
+   oc exec deploy/search-api -n <mch-namespace> -- nc -zv search-postgres 5432 2>&1
    ```
    If the connection times out or is refused, check for NetworkPolicies
    blocking traffic between search-api and search-postgres:

@@ -2,6 +2,7 @@
 # YAML complement to diagnostics/dependency-chains.md (narrative version).
 # Use this for structured lookups; read the narrative version for investigation procedures.
 #
+# 8 chains: 6 original + addon-deployment + storage-chain
 # Populated by: refresh.py (Neo4j KG transitive queries + manual curation)
 # Refresh frequency: weekly or after ACM version change
 
@@ -176,6 +177,56 @@ chains:
       s3_misconfigured: "thanos-store crashes (most common observability failure)"
       thanos-query_down: "Grafana dashboards show no data"
 
+  - id: addon-deployment
+    name: "Addon Manager -> Addon Framework -> Spoke Addon Pods"
+    description: "Addon lifecycle from hub to spoke -- single point of failure for all addons"
+    components:
+      - name: addon-manager
+        role: lifecycle_controller
+        depends_on: []
+      - name: addon-framework
+        role: crd_layer
+        depends_on: [addon-manager]
+      - name: managedclusteraddon-cr
+        role: per_cluster_config
+        depends_on: [addon-framework]
+      - name: spoke-addon-pods
+        role: spoke_workload
+        depends_on: [managedclusteraddon-cr, klusterlet]
+    impact:
+      addon-manager_down: "ALL addons Unavailable across ALL clusters; new clusters import but get no addons"
+      addon-framework_missing: "ManagedClusterAddon CRs can't be created"
+      managedclusteraddon-cr_stuck: "Specific addon not deployed on specific cluster"
+
+  - id: storage-chain
+    name: "StorageClass -> CSI Driver -> PV -> PVC -> Pod"
+    description: "Persistent storage for stateful ACM components"
+    components:
+      - name: storageclass
+        role: provisioner_config
+        depends_on: []
+      - name: csi-driver
+        role: provisioner
+        depends_on: [storageclass]
+      - name: pv
+        role: volume
+        depends_on: [csi-driver]
+      - name: pvc
+        role: claim
+        depends_on: [pv]
+      - name: stateful-pod
+        role: consumer
+        depends_on: [pvc]
+    affected_components:
+      - "thanos-receive (observability, StatefulSet PVCs)"
+      - "thanos-store (observability, sharded StatefulSet PVCs)"
+      - "alertmanager (observability, StatefulSet PVCs)"
+      - "search-postgres (optional PVC, defaults to emptyDir)"
+    impact:
+      no_default_storageclass: "PVCs stay Pending, stateful pods won't start"
+      csi_driver_unhealthy: "Dynamic provisioning fails"
+      disk_full: "PVCs in use but component can't write, data corruption possible"
+
 cross_chain_patterns:
   - symptom: "Search + Observability both broken"
     likely_cause: "Shared storage or node pressure"
@@ -196,3 +247,15 @@ cross_chain_patterns:
   - symptom: "UI shows everything broken but oc commands work"
     likely_cause: "Console issue only"
     chains_affected: [console-search-clusters]
+
+  - symptom: "ALL addons Unavailable across ALL clusters"
+    likely_cause: "addon-manager down"
+    chains_affected: [addon-deployment]
+
+  - symptom: "Observability + search both have storage errors"
+    likely_cause: "Shared storage infrastructure failure"
+    chains_affected: [storage-chain, observability-metrics, console-search-clusters]
+
+  - symptom: "New clusters import but get no addons"
+    likely_cause: "addon-manager down (import works independently)"
+    chains_affected: [addon-deployment, hypershift-import]

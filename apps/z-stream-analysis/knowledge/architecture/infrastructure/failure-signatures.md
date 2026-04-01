@@ -53,10 +53,20 @@ Known failure patterns for infrastructure-level issues that affect multiple subs
 - **Diagnostic:** `oc get validatingwebhookconfiguration <name> -o yaml`
 
 ### Corrupted Bash Environment on CI Runner
-- **Error:** `/usr/bin/bash: which: syntax error`
-- **Pattern:** Tests using cy.exec() with bash commands fail
+- **Error:** `/usr/bin/bash: which: line 1: syntax error: unexpected end of file`
+- **Pattern:** Appears in stderr of every `cy.exec()` call; `oc apply` on multi-document YAML may fail partway through
 - **Classification:** INFRASTRUCTURE (90% confidence)
-- **Explanation:** CI runner's bash environment has corrupted function definitions
+- **Explanation:** CI runner's bash `which` function definition is corrupted. Affects all pipelines using `cy.exec()` with bash commands.
+- **Observed in:** ALC, GRC, Right Sizing pipelines
+- **Fix:** `unset -f which` in CI runner profile
+
+### Empty Credential Parameter
+- **Error:** `oc login -u kubeadmin -p  --insecure-skip-tls-verify` (note the empty `-p`)
+- **Pattern:** Login fails with 401 Unauthorized, cascades to all tests needing that cluster
+- **Classification:** INFRASTRUCTURE (90% confidence)
+- **Explanation:** Jenkins parameter for cluster password is empty. Pipeline was misconfigured or credential injection failed.
+- **Diagnostic:** Check Jenkins parameter value -- if empty, pipeline was misconfigured
+- **Impact:** All tests requiring `oc login` to that cluster fail with authentication errors
 
 ## Classification Guidance
 

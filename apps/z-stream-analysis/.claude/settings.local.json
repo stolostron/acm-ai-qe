@@ -104,7 +104,14 @@
       "Read(//Users/ashafi/.cursor/**)",
       "Read(//Users/ashafi/Documents/work/ai/tools/mcp/jenkins-mcp/**)",
       "Bash(/Users/ashafi/Documents/work/ai/ai_systems_v2/mcp/.external/jira-mcp-server/.venv/bin/python -c \"import jira_mcp_server; print\\(getattr\\(jira_mcp_server, ''__version__'', ''no version attr''\\)\\)\")",
-      "Bash(/Users/ashafi/bin/python -c \"import jira_mcp_server; print\\(getattr\\(jira_mcp_server, ''__version__'', ''no version attr''\\)\\)\")"
+      "Bash(/Users/ashafi/bin/python -c \"import jira_mcp_server; print\\(getattr\\(jira_mcp_server, ''__version__'', ''no version attr''\\)\\)\")",
+      "Bash(echo \"Exit code: $?\")",
+      "Bash(KC=\"runs/qe-acm-automation-poc_clc-e2e-pipeline_20260331_182700/cluster.kubeconfig\" __NEW_LINE_985fc7cc84232be4__ echo \"=== MANAGED CLUSTERS ===\" oc get managedclusters --kubeconfig $KC 2)",
+      "Bash(1 __NEW_LINE_985fc7cc84232be4__ echo -e \"\\\\n=== NON-HEALTHY PODS \\(OCM namespace\\) ===\" oc get pods -n open-cluster-management --kubeconfig $KC)",
+      "Bash(1 __NEW_LINE_985fc7cc84232be4__ echo -e \"\\\\n=== AAP/ANSIBLE OPERATOR ===\" oc get csv -A --kubeconfig $KC)",
+      "Bash(echo \"No AAP operator found\" __NEW_LINE_985fc7cc84232be4__ echo -e \"\\\\n=== MCH STATUS ===\" oc get mch -A --kubeconfig $KC -o jsonpath='{.items[0].status.phase}' 2)",
+      "Bash(1 echo:*)",
+      "Bash(echo 'No component overrides' __NEW_LINE_985fc7cc84232be4__ echo -e '\\\\n=== DEGRADED CLUSTER OPERATORS ===' oc get clusteroperators --kubeconfig $KC)"
     ],
     "deny": []
   }

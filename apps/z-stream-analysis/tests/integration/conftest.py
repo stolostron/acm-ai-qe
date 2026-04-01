@@ -29,7 +29,9 @@ def _check_jenkins_reachable():
             text=True,
             timeout=15,
         )
-        return result.stdout.strip().startswith(("2", "3"))
+        code = result.stdout.strip()
+        # 2xx/3xx = open access, 401/403 = reachable but needs auth
+        return code.startswith(("2", "3")) or code in ("401", "403")
     except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
         return False
 

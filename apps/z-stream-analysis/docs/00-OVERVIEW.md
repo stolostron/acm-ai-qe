@@ -21,6 +21,8 @@ Jenkins pipeline failure analysis with definitive classification of each test fa
 cluster_oracle      core-data.json      analysis-results.json    Detailed-Analysis.md
                     cluster.kubeconfig                           per-test-breakdown.json
                     repos/                                       SUMMARY.txt
+                    pipeline.log.jsonl                           pipeline.log.jsonl
+                                        .claude/traces/<sid>.jsonl
 ```
 
 | Stage | Command | What It Does |
@@ -76,6 +78,7 @@ runs/<job>_<timestamp>/
 │  Created by Stage 1 (gather.py):
 ├── core-data.json              ← Primary data for AI
 ├── cluster.kubeconfig          ← Persisted cluster auth for Stage 2
+├── pipeline.log.jsonl          ← Structured logs from all Python services (Stage 1+3)
 ├── run-metadata.json           ← Run metadata (timing, version)
 ├── manifest.json               ← File index with workflow
 ├── console-log.txt             ← Full Jenkins console output
@@ -95,6 +98,9 @@ runs/<job>_<timestamp>/
 ├── Detailed-Analysis.md        ← Human-readable report
 ├── per-test-breakdown.json     ← Structured data for tooling
 └── SUMMARY.txt                 ← Brief summary
+
+Agent trace logs (Claude Code tool calls, MCP interactions, prompts) are stored
+separately in .claude/traces/<session_id>.jsonl — one file per session.
 ```
 
 ---
@@ -155,7 +161,7 @@ Five MCP servers provide tools during Stage 2 (AI Analysis). The Knowledge Graph
 
 ```
 ┌─────────────────────┐  ┌─────────────────────┐  ┌─────────────────────┐
-│   ACM-UI MCP (19)   │  │  Knowledge Graph    │  │   JIRA MCP (25)     │
+│   ACM-UI MCP (20)   │  │  Knowledge Graph    │  │   JIRA MCP (25)     │
 │  ─────────────────  │  │  ─────────────────  │  │  ─────────────────  │
 │  Code search        │  │  Component deps     │  │  Search issues      │
 │  Find selectors     │  │  Cascading failure  │  │  Get/create/update  │

@@ -1,0 +1,318 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Z-Stream HTML Report Schema",
+  "description": "Defines the data contract and section structure for the interactive HTML analysis report generated at the end of each pipeline run.",
+  "type": "object",
+  "required": ["hero", "results", "logs", "environment"],
+  "properties": {
+    "hero": {
+      "description": "Top-level summary section — pipeline identity, test counts, classification donut chart.",
+      "type": "object",
+      "required": ["title", "jenkins_url", "build_number", "build_result", "analyzed_at", "analyzer_version", "stats", "classification_chart"],
+      "properties": {
+        "title": { "type": "string", "const": "Pipeline Failure Analysis" },
+        "jenkins_url": { "type": "string", "format": "uri" },
+        "build_number": { "type": "integer" },
+        "build_result": { "type": "string", "enum": ["SUCCESS", "UNSTABLE", "FAILURE", "ABORTED"] },
+        "analyzed_at": { "type": "string", "format": "date" },
+        "analyzer_version": { "type": "string" },
+        "stats": {
+          "type": "object",
+          "required": ["total_tests", "passed", "failed", "pass_rate", "confidence"],
+          "properties": {
+            "total_tests": { "type": "integer" },
+            "passed": { "type": "integer" },
+            "failed": { "type": "integer" },
+            "pass_rate": { "type": "number", "minimum": 0, "maximum": 100 },
+            "confidence": { "type": "integer", "minimum": 0, "maximum": 100 }
+          }
+        },
+        "classification_chart": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["label", "value", "color"],
+            "properties": {
+              "label": { "type": "string" },
+              "value": { "type": "integer" },
+              "color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" }
+            }
+          }
+        }
+      }
+    },
+    "results": {
+      "description": "Main results tab — test analysis cards first, then action items. Three tabs: Results, Pipeline Logs, Environment.",
+      "type": "object",
+      "required": ["test_analysis", "action_items"],
+      "properties": {
+        "test_analysis": {
+          "description": "Test failure cards with filters by classification, feature area, and free-text search. Appears BEFORE action items.",
+          "type": "object",
+          "required": ["title", "total_failures", "filters", "cards"],
+          "properties": {
+            "title": { "type": "string", "const": "Test Analysis" },
+            "total_failures": { "type": "integer" },
+            "filters": {
+              "type": "object",
+              "required": ["by_classification", "by_feature_area", "search"],
+              "properties": {
+                "by_classification": {
+                  "description": "Pill buttons: All (default active), then each classification with count.",
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "label": { "type": "string" },
+                      "count": { "type": "integer" },
+                      "color": { "type": "string" }
+                    }
+                  }
+                },
+                "by_feature_area": {
+                  "description": "Pill buttons: All (default active), then each feature area with count.",
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "area": { "type": "string" },
+                      "count": { "type": "integer" }
+                    }
+                  }
+                },
+                "search": {
+                  "description": "Free-text input filtering test names.",
+                  "type": "object",
+                  "properties": {
+                    "placeholder": { "type": "string", "const": "Search tests..." }
+                  }
+                }
+              }
+            },
+            "cards": {
+              "description": "One collapsible card per failed test. Collapsed: shows classification badge, test name, confidence %, path. Expanded: root cause, analysis summary, evidence sources with tier badges, reasoning evidence list, conclusion, ruled-out alternatives, recommended fix with steps and owner.",
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["test_name", "classification", "confidence", "classification_path", "feature_area"],
+                "properties": {
+                  "test_name": { "type": "string" },
+                  "classification": { "type": "string" },
+                  "confidence": { "type": "number" },
+                  "classification_path": { "type": "string" },
+                  "feature_area": { "type": "string" },
+                  "failure_mode_category": { "type": "string" },
+                  "is_cascading_hook_failure": { "type": "boolean" },
+                  "blank_page_detected": { "type": "boolean" },
+                  "root_cause": { "type": "string" },
+                  "reasoning": {
+                    "type": "object",
+                    "properties": {
+                      "summary": { "type": "string" },
+                      "evidence": { "type": "array", "items": { "type": "string" } },
+                      "conclusion": { "type": "string" }
+                    }
+                  },
+                  "evidence_sources": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "source": { "type": "string" },
+                        "finding": { "type": "string" },
+                        "tier": { "type": "integer", "enum": [1, 2, 3] }
+                      }
+                    }
+                  },
+                  "ruled_out_alternatives": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "classification": { "type": "string" },
+                        "reason": { "type": "string" }
+                      }
+                    }
+                  },
+                  "recommended_fix": {
+                    "type": "object",
+                    "properties": {
+                      "action": { "type": "string" },
+                      "steps": { "type": "array", "items": { "type": "string" } },
+                      "owner": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "action_items": {
+          "description": "Prioritized action items. Each item is clickable/expandable to show fix steps and affected tests. Appears AFTER test analysis.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["priority", "action", "type", "owner"],
+            "properties": {
+              "priority": { "type": "integer" },
+              "action": { "type": "string" },
+              "details": { "type": "string" },
+              "type": { "type": "string" },
+              "owner": { "type": "string" },
+              "expanded": {
+                "description": "Expandable section showing fix steps and affected test names.",
+                "type": "object",
+                "properties": {
+                  "fix_steps": { "type": "array", "items": { "type": "string" } },
+                  "affected_tests": { "type": "array", "items": { "type": "string" } }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "logs": {
+      "description": "Pipeline Logs tab — stages in execution order (0, 1, 2, 3). Each stage is a collapsible accordion section. When expanded, log entries scroll within the section (max 600px). Other stage headers remain visible below. Level filters: All (default), Info, Warning, Debug.",
+      "type": "object",
+      "required": ["level_filters", "stages"],
+      "properties": {
+        "level_filters": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["all", "info", "warning", "debug"] }
+        },
+        "stages": {
+          "description": "Ordered by execution sequence. Each stage shows entry count in the header.",
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "object",
+            "required": ["stage_number", "stage_name", "source", "entry_count", "entries"],
+            "properties": {
+              "stage_number": { "type": "integer", "enum": [0, 1, 2, 3] },
+              "stage_name": {
+                "type": "string",
+                "enum": ["Environment Oracle", "Data Gathering", "AI Analysis", "Report Generation"]
+              },
+              "source": {
+                "type": "string",
+                "description": "Data source file",
+                "enum": ["pipeline.log.jsonl (stage=oracle)", "pipeline.log.jsonl (stage=gather)", ".claude/traces/<session>.jsonl", "pipeline.log.jsonl (stage=report)"]
+              },
+              "entry_count": { "type": "integer" },
+              "entries": {
+                "type": "array",
+                "items": {
+                  "oneOf": [
+                    {
+                      "description": "Python service log entry (stages 0, 1, 3)",
+                      "type": "object",
+                      "properties": {
+                        "timestamp": { "type": "string" },
+                        "level": { "type": "string", "enum": ["debug", "info", "warning", "error"] },
+                        "logger": { "type": "string" },
+                        "message": { "type": "string" }
+                      }
+                    },
+                    {
+                      "description": "Agent trace entry (stage 2)",
+                      "type": "object",
+                      "properties": {
+                        "timestamp": { "type": "string" },
+                        "event": { "type": "string", "enum": ["tool_call", "tool_result", "tool_error", "prompt", "subagent_complete", "turn_complete"] },
+                        "tool": { "type": "string" },
+                        "detail": { "type": "string", "description": "For tool_call: input summary. For tool_result: output summary. For prompt: prompt text or 'agent continuation'." }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "environment": {
+      "description": "Environment tab — combines base connectivity (environment-status.json) with oracle health data (core-data.json cluster_oracle + cluster_landscape). Shows the REAL health picture, not just K8s control plane status.",
+      "type": "object",
+      "required": ["overview", "k8s_control_plane", "namespace_access"],
+      "properties": {
+        "overview": {
+          "description": "Top-level health cards. Feature Health Score from oracle takes precedence over base env score.",
+          "type": "object",
+          "required": ["feature_health_score", "base_env_score", "cluster_connectivity", "api_server"],
+          "properties": {
+            "feature_health_score": { "type": "number", "description": "From cluster_oracle.overall_feature_health.score (0-1)" },
+            "oracle_signal": { "type": "string", "description": "From cluster_oracle.overall_feature_health.signal" },
+            "base_env_score": { "type": "number", "description": "From environment-status.json (K8s control plane only)" },
+            "cluster_connectivity": { "type": "boolean" },
+            "api_server": { "type": "boolean" }
+          }
+        },
+        "blocking_issues": {
+          "description": "From cluster_oracle.overall_feature_health.blocking_issues. Shown with red alert badges.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "dependency_health": {
+          "description": "From cluster_oracle.dependency_health. Each dependency shows name, type, status (healthy/degraded/missing), and detail.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "type": { "type": "string" },
+              "status": { "type": "string", "enum": ["healthy", "degraded", "missing"] },
+              "detail": { "type": "string" }
+            }
+          }
+        },
+        "managed_clusters": {
+          "description": "From cluster_landscape.managed_clusters or oracle raw_output. Shows Ready/NotReady status.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "status": { "type": "string" }
+            }
+          }
+        },
+        "operators": {
+          "description": "From cluster_landscape.operator_status.",
+          "type": "array"
+        },
+        "k8s_control_plane": {
+          "description": "From environment-status.json service_health.",
+          "type": "object"
+        },
+        "namespace_access": {
+          "description": "From environment-status.json namespace_access.",
+          "type": "object"
+        }
+      }
+    }
+  },
+  "_layout_rules": {
+    "description": "Rendering rules that are NOT data but define how the HTML is structured.",
+    "tabs": ["Results", "Pipeline Logs", "Environment"],
+    "default_tab": "Results",
+    "results_section_order": ["test_analysis", "action_items"],
+    "log_stage_order": [0, 1, 2, 3],
+    "log_stage_behavior": "Accordion — each stage header is always visible. Expanding a stage shows its entries in a scrollable area (max 600px). Other headers remain stacked below.",
+    "test_card_behavior": "Collapsed by default. Click header to expand. Shows classification badge, test name, badges (Hook Cascade, Blank Page), confidence %, path.",
+    "action_item_behavior": "Clickable to expand. Shows fix steps and affected test names.",
+    "classification_colors": {
+      "PRODUCT_BUG": "#ef4444",
+      "AUTOMATION_BUG": "#f59e0b",
+      "INFRASTRUCTURE": "#6366f1",
+      "NO_BUG": "#22c55e",
+      "MIXED": "#ec4899",
+      "UNKNOWN": "#6b7280",
+      "FLAKY": "#a855f7"
+    },
+    "theme": "Dark (--bg: #0f1117). Self-contained — no external CSS/JS dependencies.",
+    "output_filename": "analysis-report.html"
+  }
+}

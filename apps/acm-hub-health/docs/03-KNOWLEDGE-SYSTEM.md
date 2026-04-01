@@ -18,7 +18,7 @@ it triggers a self-healing process to investigate, learn, and record findings.
 │  │ knowledge/architecture/    │  │ knowledge/diagnostics/                │ │
 │  │                            │  │                                       │ │
 │  │ Per-component directories: │  │ dependency-chains.md                  │ │
-│  │   architecture.md          │  │   6 critical cascade paths            │ │
+│  │   architecture.md          │  │   8 critical cascade paths            │ │
 │  │   data-flow.md             │  │ evidence-tiers.md                     │ │
 │  │   known-issues.md          │  │   How to weight evidence (Tier 1/2/3) │ │
 │  │                            │  │ diagnostic-playbooks.md               │ │
@@ -75,7 +75,7 @@ Components with full coverage (`architecture.md`, `data-flow.md`, `known-issues.
 | `search/` | Search API, indexer, collector, postgres, federated search |
 | `governance/` | Policy framework, propagator, spoke controllers, compliance |
 | `observability/` | Thanos stack, Grafana, alertmanager, metrics pipeline |
-| `cluster-lifecycle/` | Managed clusters, provisioning, import, klusterlet |
+| `cluster-lifecycle/` | Managed clusters, provisioning, import, klusterlet, hub-side health patterns |
 | `console/` | Console frontend, plugins, API integration |
 | `application-lifecycle/` | Subscriptions, channels, GitOps, placement |
 | `virtualization/` | Fleet virtualization, CNV integration, MTV |
@@ -87,7 +87,7 @@ Components with partial coverage:
 |-----------|-------|---------------|
 | `addon-framework/` | `architecture.md` | Addon manager, ClusterManagementAddon lifecycle |
 | `networking/` | `architecture.md`, `known-issues.md` | Submariner, service discovery |
-| `infrastructure/` | `architecture.md`, `known-issues.md` | Nodes, storage, certificates |
+| `infrastructure/` | `architecture.md`, `known-issues.md`, `post-upgrade-patterns.md` | Nodes, storage, certificates, post-upgrade settling |
 
 ### How Architecture Knowledge Is Used
 
@@ -106,7 +106,7 @@ Health-check-specific methodology in `knowledge/diagnostics/`:
 
 ### dependency-chains.md
 
-Documents 6 critical cascade paths with tracing procedures:
+Documents 8 critical cascade paths with tracing procedures:
 
 1. **Console → Search → Managed Clusters** -- search-collector down = resources missing
 2. **Governance → Framework Addon → Config Policy → Clusters** -- policy propagation chain
@@ -114,6 +114,8 @@ Documents 6 critical cascade paths with tracing procedures:
 4. **HyperShift Addon → Import Controller → Klusterlet** -- hosted cluster import
 5. **MCRA → ClusterPermission → ManifestWork → RBAC** -- fine-grained RBAC propagation
 6. **Observability Operator → Addon → Thanos** -- metrics pipeline
+7. **Addon Manager → Addon Framework → Spoke Addon Pods** -- single point of failure for all addons
+8. **StorageClass → CSI Driver → PV → PVC → Pod** -- persistent storage for stateful components
 
 Used in Phase 5 (Correlate) to trace upstream from symptoms to root causes.
 
@@ -151,6 +153,25 @@ ordered investigation steps with specific commands:
 | Certificates | 4 steps | TLS secrets, cert expiration, webhook configs, service verification |
 | Add-ons (General) | 4 steps | Addon list, status, addon-manager, ClusterManagementAddon |
 
+### common-diagnostic-traps.md
+
+8 patterns where the obvious diagnosis is WRONG. Each trap describes what you
+see, what you might conclude, and what's actually happening:
+
+| Trap | Symptom | What to Check First |
+|------|---------|---------------------|
+| 1 | MCH says Running but things are broken | Operator pod replicas |
+| 2 | Console pod healthy, tabs missing | console-mce pod + ConsolePlugin CRDs |
+| 3 | Search all green, empty results | Postgres schema + data count |
+| 4 | Observability dashboards empty | Thanos pods + S3 secret |
+| 5 | GRC non-compliant after upgrade | Addon pod age (wait 15 min) |
+| 6 | ManagedCluster NotReady | Lease + conditions (not klusterlet) |
+| 7 | ALL addons Unavailable everywhere | addon-manager pod |
+| 8 | Multiple console pages broken | search-api pod |
+
+Loaded in Phase 2 (Learn). Verified against in Phase 5 (Correlate) before
+finalizing any diagnosis.
+
 ---
 
 ## Structured Operational Data
@@ -161,7 +182,7 @@ These complement the narrative documentation with machine-readable reference dat
 | File | Content | Used In |
 |------|---------|---------|
 | `healthy-baseline.yaml` | Expected pod counts, deployment states, node thresholds | Phase 3 (Check) -- compare actual vs expected |
-| `dependency-chains.yaml` | 6 cascade paths in structured YAML | Phase 5 (Correlate) -- structured lookups |
+| `dependency-chains.yaml` | 8 cascade paths in structured YAML | Phase 5 (Correlate) -- structured lookups |
 | `webhook-registry.yaml` | Validating/mutating webhooks, failure policies | Phase 3 (Check) -- detect missing webhooks |
 | `certificate-inventory.yaml` | TLS secrets, rotation, impact when corrupted | Phase 6 (Deep) -- cert investigation |
 | `addon-catalog.yaml` | All addons, health checks, dependencies | Phase 3 (Check) -- addon health audit |
@@ -178,7 +199,7 @@ Defines what "normal" looks like for a healthy ACM hub:
 
 ### dependency-chains.yaml
 
-Structured YAML complement to `diagnostics/dependency-chains.md`. Same 6 chains
+Structured YAML complement to `diagnostics/dependency-chains.md`. Same 8 chains
 in a format suitable for programmatic lookups:
 - Each chain has components with roles and dependencies
 - Impact descriptions per failure point

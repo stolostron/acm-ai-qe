@@ -7,7 +7,7 @@ Claude Code-powered tools for ACM (Advanced Cluster Management) quality engineer
 | App | What It Does | Status |
 |-----|-------------|--------|
 | [ACM Hub Health](apps/acm-hub-health/) | Diagnose and remediate ACM hub clusters through natural language. Checks operator health, image integrity, NetworkPolicies, ResourceQuotas, service connectivity, and data integrity. Knowledge database with per-subsystem architecture docs, baselines, webhooks, certs, addons. | Active |
-| [Z-Stream Analysis](apps/z-stream-analysis/) | Classify Jenkins pipeline failures (product bug, automation bug, infra) with Environment Oracle and per-subsystem knowledge database (46 files: architecture, data-flow, failure-signatures across 10 ACM subsystems + diagnostics methodology). | Active |
+| [Z-Stream Analysis](apps/z-stream-analysis/) | Classify Jenkins pipeline failures (product bug, automation bug, infra) with Environment Oracle and per-subsystem knowledge database (53 files: architecture, data-flow, failure-signatures across 12 ACM subsystems + diagnostics methodology). | Active |
 | [Claude Test Generator](apps/claude-test-generator/) | Generate test plans from JIRA tickets | In progress -- not functional |
 
 ## Prerequisites
@@ -141,9 +141,9 @@ ai_systems_v2/
 ```bash
 cd apps/z-stream-analysis/
 
-# Fast -- unit + regression (602+ tests, no external deps)
+# Fast -- unit + regression (667+ tests, no external deps)
 python -m pytest tests/unit/ tests/regression/ -q
 
-# Full suite (652+ tests, requires Jenkins VPN for integration)
+# Full suite (717+ tests, requires Jenkins VPN for integration)
 python -m pytest tests/ -q --timeout=300
 ```

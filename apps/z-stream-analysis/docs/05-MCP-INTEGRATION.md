@@ -273,6 +273,7 @@ Product text: 'Create cluster'                ← lowercase c
 |----------|------|---------|---------------|
 | **Version** | `set_acm_version` | Set ACM Console branch (2.11-2.17) | Start of Stage 2 |
 | | `set_cnv_version` | Set kubevirt-plugin branch (4.14-4.22) | Start of Stage 2 |
+| | `set_version` | Set version for any supported repo | Start of Stage 2 |
 | | `detect_cnv_version` | Auto-detect CNV from cluster | Start of Stage 2 |
 | | `list_versions` | Show version-to-branch mappings | As needed |
 | | `get_current_version` | Get active version | As needed |

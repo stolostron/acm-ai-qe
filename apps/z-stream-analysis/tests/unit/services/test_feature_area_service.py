@@ -176,6 +176,155 @@ class TestFeatureAreaIdentification:
         assert result.feature_area == 'GRC'
         assert result.identification_method == 'path'
 
+    # Foundation identification
+
+    def test_identify_foundation_from_path(self):
+        result = self.service.identify_feature_area(
+            test_name='test_addon_health',
+            test_file='pkg/tests/server_foundation/addon_test.go',
+        )
+        assert result.feature_area == 'Foundation'
+        assert result.confidence == 0.95
+        assert result.identification_method == 'path'
+
+    def test_identify_foundation_from_path_addon_framework(self):
+        result = self.service.identify_feature_area(
+            test_name='test_addon',
+            test_file='pkg/tests/addon_framework/managed_test.go',
+        )
+        assert result.feature_area == 'Foundation'
+        assert result.confidence == 0.95
+
+    def test_identify_foundation_from_path_registration(self):
+        result = self.service.identify_feature_area(
+            test_name='test_registration',
+            test_file='pkg/tests/registration/spoke_test.go',
+        )
+        assert result.feature_area == 'Foundation'
+        assert result.confidence == 0.95
+
+    def test_identify_foundation_from_name_ginkgo_label(self):
+        result = self.service.identify_feature_area(
+            test_name='[ServerFoundation] [P1][Sev1][addon-framework] Addon should reach Available',
+        )
+        assert result.feature_area == 'Foundation'
+        assert result.confidence == 0.85
+        assert result.identification_method == 'name_pattern'
+
+    def test_identify_foundation_from_name_addon_framework_label(self):
+        result = self.service.identify_feature_area(
+            test_name='[addon-framework] ManagedClusterAddon should be Available',
+        )
+        assert result.feature_area == 'Foundation'
+        assert result.confidence == 0.85
+
+    def test_identify_foundation_from_name_managedclusteraddon(self):
+        result = self.service.identify_feature_area(
+            test_name='RHACM4K-12345 - Verify managedclusteraddon health',
+        )
+        assert result.feature_area == 'Foundation'
+        assert result.confidence == 0.85
+
+    def test_identify_foundation_from_component(self):
+        result = self.service.identify_feature_area(
+            test_name='test_unknown',
+            detected_components=['registration-controller'],
+        )
+        assert result.feature_area == 'Foundation'
+        assert result.confidence == 0.80
+        assert result.identification_method == 'component'
+
+    def test_identify_foundation_from_component_work_agent(self):
+        result = self.service.identify_feature_area(
+            test_name='test_unknown',
+            detected_components=['work-agent'],
+        )
+        assert result.feature_area == 'Foundation'
+
+    def test_identify_foundation_from_component_addon_manager(self):
+        result = self.service.identify_feature_area(
+            test_name='test_unknown',
+            detected_components=['addon-manager'],
+        )
+        assert result.feature_area == 'Foundation'
+
+    # Install identification
+
+    def test_identify_install_from_path(self):
+        result = self.service.identify_feature_area(
+            test_name='test_acm_install',
+            test_file='pkg/tests/install/acm_install_test.go',
+        )
+        assert result.feature_area == 'Install'
+        assert result.confidence == 0.95
+        assert result.identification_method == 'path'
+
+    def test_identify_install_from_path_csv(self):
+        result = self.service.identify_feature_area(
+            test_name='test_csv_check',
+            test_file='pkg/tests/csv/csv_phase_test.go',
+        )
+        assert result.feature_area == 'Install'
+        assert result.confidence == 0.95
+
+    def test_identify_install_from_name_ginkgo_label(self):
+        result = self.service.identify_feature_area(
+            test_name='[Install] ACM CSV should reach Succeeded phase',
+        )
+        assert result.feature_area == 'Install'
+        assert result.confidence == 0.85
+        assert result.identification_method == 'name_pattern'
+
+    def test_identify_install_from_name_csv_phase(self):
+        result = self.service.identify_feature_area(
+            test_name='RHACM4K-99999 - Verify csv phase is Succeeded',
+        )
+        assert result.feature_area == 'Install'
+        assert result.confidence == 0.85
+
+    def test_identify_install_from_name_install_acm(self):
+        result = self.service.identify_feature_area(
+            test_name='install acm operator on cluster',
+        )
+        assert result.feature_area == 'Install'
+        assert result.confidence == 0.85
+
+    def test_identify_install_from_component(self):
+        result = self.service.identify_feature_area(
+            test_name='test_unknown',
+            detected_components=['multiclusterhub-operator'],
+        )
+        assert result.feature_area == 'Install'
+        assert result.confidence == 0.80
+        assert result.identification_method == 'component'
+
+    # Foundation vs Infrastructure priority (more specific wins)
+
+    def test_foundation_path_beats_infrastructure_catchall(self):
+        """Foundation-specific path patterns must match before Infrastructure catch-all."""
+        result = self.service.identify_feature_area(
+            test_name='test_addon_framework_health',
+            test_file='pkg/tests/addon_framework/health_test.go',
+        )
+        assert result.feature_area == 'Foundation', \
+            "addon_framework path should match Foundation, not Infrastructure"
+
+    def test_generic_addon_path_falls_to_infrastructure(self):
+        """Generic 'addon' in path without Foundation qualifiers matches Infrastructure."""
+        result = self.service.identify_feature_area(
+            test_name='test_something',
+            test_file='pkg/tests/addon_status.go',
+        )
+        assert result.feature_area == 'Infrastructure'
+
+    def test_install_path_beats_infrastructure_catchall(self):
+        """Install path patterns must match before Infrastructure catch-all."""
+        result = self.service.identify_feature_area(
+            test_name='test_operator_install',
+            test_file='pkg/tests/install/operator_test.go',
+        )
+        assert result.feature_area == 'Install'
+
 
 class TestGroupTestsByFeature:
     """Test grouping of failed tests by feature area."""
@@ -277,6 +426,21 @@ class TestGetGrounding:
         grounding = self.service.get_grounding('CLC')
         assert grounding.subsystem == 'Cluster Lifecycle'
         assert 'cluster-curator' in grounding.key_components
+
+    def test_foundation_grounding(self):
+        grounding = self.service.get_grounding('Foundation')
+        assert grounding.subsystem == 'Foundation'
+        assert 'registration-controller' in grounding.key_components
+        assert 'work-agent' in grounding.key_components
+        assert 'addon-manager' in grounding.key_components
+        assert 'open-cluster-management-hub' in grounding.key_namespaces
+
+    def test_install_grounding(self):
+        grounding = self.service.get_grounding('Install')
+        assert grounding.subsystem == 'Install'
+        assert 'multiclusterhub-operator' in grounding.key_components
+        assert 'hive-operator' in grounding.key_components
+        assert 'multicluster-engine' in grounding.key_namespaces
 
     def test_unknown_grounding(self):
         grounding = self.service.get_grounding('NonExistent')

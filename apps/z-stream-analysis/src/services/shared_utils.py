@@ -89,6 +89,20 @@ class RepositoryConfig:
         'acm-e2e': 'https://github.com/stolostron/acm-e2e.git',
         'grc-ui-e2e': 'https://github.com/stolostron/grc-ui-e2e.git',
         'search-e2e': 'https://github.com/stolostron/search-e2e-test.git',
+        'alc-e2e': 'https://github.com/stolostron/application-ui-test.git',
+        'alc_e2e': 'https://github.com/stolostron/application-ui-test.git',
+        'application-ui-test': 'https://github.com/stolostron/application-ui-test.git',
+        'app-e2e': 'https://github.com/stolostron/application-ui-test.git',
+        'server_foundation': 'https://github.com/stolostron/acmqe-autotest.git',
+        'acmqe-autotest': 'https://github.com/stolostron/acmqe-autotest.git',
+        'install_e2e': 'https://github.com/stolostron/acmqe-autotest.git',
+        'install_acm': 'https://github.com/stolostron/acmqe-autotest.git',
+        'install_mce': 'https://github.com/stolostron/acmqe-autotest.git',
+        'grc-upgrade': 'https://github.com/stolostron/acmqe-grc-test.git',
+        'grc-e2e': 'https://github.com/stolostron/acmqe-grc-test.git',
+        'acmqe-grc': 'https://github.com/stolostron/acmqe-grc-test.git',
+        'right_sizing': 'https://github.com/stolostron/acmqe-analytics.git',
+        'acmqe-analytics': 'https://github.com/stolostron/acmqe-analytics.git',
     })
 
     def __post_init__(self):
@@ -503,6 +517,8 @@ def mask_sensitive_dict(
         if any(p in key_lower for p in patterns):
             if isinstance(value, str):
                 result[key] = mask_sensitive_value(value)
+            elif isinstance(value, dict):
+                result[key] = mask_sensitive_dict(value, patterns)
             else:
                 result[key] = '***MASKED***'
         elif isinstance(value, dict):

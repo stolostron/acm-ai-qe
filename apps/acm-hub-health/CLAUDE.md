@@ -16,9 +16,10 @@ During Phases 1-6, the agent MUST NOT modify the cluster. All diagnostic
 commands are read-only and auto-approved:
 
 `oc get`, `oc describe`, `oc logs`, `oc api-resources`, `oc version`,
-`oc whoami`, `oc cluster-info`, `oc adm top`, `kubectl get`, `kubectl describe`,
-`jq`, `grep`, `wc`, `sort`, `head`, `tail`, `awk`, `cut`, `cat`, `ls`, `find`,
-`git clone` (documentation repos only)
+`oc whoami`, `oc cluster-info`, `oc adm top`, `oc exec` (read-only: psql
+queries, connectivity checks), `oc auth` (can-i checks), `kubectl get`,
+`kubectl describe`, `jq`, `grep`, `wc`, `sort`, `head`, `tail`, `awk`,
+`cut`, `cat`, `ls`, `find`, `git clone` (documentation repos only)
 
 ### Remediation Mode (Requires Explicit Approval)
 
@@ -125,7 +126,8 @@ Deep engineering-level knowledge about each ACM subsystem:
   `known-issues.md` for: search, governance, observability, cluster-lifecycle,
   console, application-lifecycle, virtualization, rbac
 - Additional component directories: addon-framework (architecture only),
-  networking and infrastructure (architecture + known-issues)
+  networking and infrastructure (architecture + known-issues +
+  post-upgrade-patterns)
 
 ### Structured Operational Data (`knowledge/*.yaml`)
 
@@ -133,7 +135,7 @@ Quantitative reference data for comparing cluster state against known-good value
 - `healthy-baseline.yaml` -- Expected pod counts, deployment states, conditions
   for a healthy ACM hub. Compare actual cluster state against this baseline.
 - `dependency-chains.yaml` -- Structured YAML complement to
-  `diagnostics/dependency-chains.md`. Same 6 chains in machine-readable format
+  `diagnostics/dependency-chains.md`. Same 8 chains in machine-readable format
   with impact descriptions and cross-chain patterns.
 - `webhook-registry.yaml` -- Validating and mutating webhooks expected on an ACM
   hub, their owners, failure policies, and impact when broken.
@@ -151,9 +153,10 @@ Top-level references spanning all components:
 ### Diagnostic Knowledge (`knowledge/diagnostics/`)
 
 Health-check-specific methodology:
-- `dependency-chains.md` -- 6 critical cascade paths with tracing procedures
+- `dependency-chains.md` -- 8 critical cascade paths with tracing procedures
 - `evidence-tiers.md` -- How to weight evidence (Tier 1/2/3, combination rules)
 - `diagnostic-playbooks.md` -- Per-subsystem investigation procedures
+- `common-diagnostic-traps.md` -- 8 patterns where the obvious diagnosis is wrong
 
 ### Learned Knowledge (`knowledge/learned/`)
 
@@ -252,6 +255,11 @@ Build understanding of what's deployed and what healthy looks like:
    c. Compare the cluster's actual state with the knowledge
 4. Read `knowledge/healthy-baseline.yaml` -- load expected pod counts,
    deployment states, and conditions to use as the reference in Phase 3.
+5. Read `knowledge/diagnostics/common-diagnostic-traps.md` -- load the 8
+   diagnostic traps so you can avoid common misdiagnoses in later phases.
+6. If managed clusters are present, read
+   `knowledge/architecture/cluster-lifecycle/health-patterns.md` -- hub-side
+   managed cluster diagnostic patterns.
 
 If there's a mismatch between knowledge and cluster topology, trigger
 self-healing (see above).
@@ -320,6 +328,9 @@ Match observed symptoms against known bug patterns:
 3. Compare symptoms, log patterns, and version to documented issues
 4. If a match is found, note the JIRA reference, fix version, and whether
    it's cluster-fixable or needs a code change
+5. Before reporting post-upgrade issues, check
+   `knowledge/architecture/infrastructure/post-upgrade-patterns.md` -- many
+   symptoms are normal settling behavior with specific timelines
 
 **Version-aware matching**: Check the exact ACM/MCE version:
 ```
@@ -332,12 +343,14 @@ Many bugs are version-specific. A bug in 2.15.0 may be fixed in 2.15.1.
 
 When multiple issues are found:
 1. Read `knowledge/diagnostics/dependency-chains.md` -- trace upstream
-   through the 6 chains to find the root cause
+   through the 8 chains to find the root cause
 2. Use `knowledge/dependency-chains.yaml` for structured chain lookups
    (machine-readable complement with impact descriptions and cross-chain patterns)
 3. Read `knowledge/diagnostics/evidence-tiers.md` -- weight your evidence
 4. Apply cross-chain patterns: is a shared dependency (klusterlet, storage,
    addon-manager) the common cause?
+5. Before finalizing any diagnosis, verify your conclusion does not match
+   a known diagnostic trap in `knowledge/diagnostics/common-diagnostic-traps.md`
 
 **Evidence requirements** (from evidence-tiers.md):
 - Every conclusion needs 2+ evidence sources

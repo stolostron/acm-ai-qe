@@ -110,11 +110,20 @@ any you don't have yet -- placeholder files are created that you can fill in lat
 | Jenkins | 11 | [redhat-community-ai-tools/jenkins-mcp](https://github.com/redhat-community-ai-tools/jenkins-mcp) | Jenkins pipeline API access for build data extraction |
 | JIRA | 25 | [stolostron/jira-mcp-server](https://github.com/stolostron/jira-mcp-server) | Issue search, creation, management for bug correlation |
 | Polarion | 25 | This repo | Polarion test case access (Red Hat VPN required) |
-| Neo4j RHACM | 2 | [mcp-neo4j-cypher](https://pypi.org/project/mcp-neo4j-cypher/) (PyPI) | Component dependency analysis via Cypher queries |
+| Neo4j RHACM (KG) | 2 | [stolostron/knowledge-graph](https://github.com/stolostron/knowledge-graph) | ACM component dependency analysis via Cypher queries |
 
-External MCP servers (JIRA, Jenkins) are cloned automatically by `setup.sh` into
-`mcp/.external/` (gitignored). This repo only contains the MCP servers we created
-(ACM UI, Polarion wrapper, Jenkins ACM analysis tools).
+External MCP servers (JIRA, Jenkins, Knowledge Graph) are cloned automatically by
+`setup.sh` into `mcp/.external/` (gitignored). The apps use forks with ACM-specific
+fixes on top of the upstream sources:
+
+| Server | Upstream | Fork used by setup.sh | Changes |
+|--------|----------|----------------------|---------|
+| JIRA | [stolostron/jira-mcp-server](https://github.com/stolostron/jira-mcp-server) | [atifshafi/jira-mcp-server](https://github.com/atifshafi/jira-mcp-server) `feat/redhat-fields` | Red Hat field support ([PR#24](https://github.com/stolostron/jira-mcp-server/pull/24)) |
+| Jenkins | [redhat-community-ai-tools/jenkins-mcp](https://github.com/redhat-community-ai-tools/jenkins-mcp) | [atifshafi/jenkins-mcp](https://github.com/atifshafi/jenkins-mcp) `fix/auth-logs-paths` | Auth + log path fixes ([PR#13](https://github.com/redhat-community-ai-tools/jenkins-mcp/pull/13)) |
+| Neo4j RHACM (KG) | [stolostron/knowledge-graph](https://github.com/stolostron/knowledge-graph) | [atifshafi/knowledge-graph](https://github.com/atifshafi/knowledge-graph) `atif-virt-extension` | Virtualization subsystem extension |
+
+This repo contains the MCP servers we created (ACM UI, Polarion wrapper,
+Jenkins ACM analysis tools).
 
 ## Directory Structure
 
@@ -131,7 +140,8 @@ ai_systems_v2/
 │   ├── jenkins-acm-tools.py   # Our code: 4 ACM-specific Jenkins analysis tools
 │   └── .external/             # Cloned at setup time (gitignored)
 │       ├── jira-mcp-server/   #   from stolostron/jira-mcp-server
-│       └── jenkins-mcp/       #   from redhat-community-ai-tools/jenkins-mcp
+│       ├── jenkins-mcp/       #   from redhat-community-ai-tools/jenkins-mcp
+│       └── knowledge-graph/   #   from stolostron/knowledge-graph
 ├── CLAUDE.md                  # Claude Code agent instructions
 └── README.md                  # This file
 ```

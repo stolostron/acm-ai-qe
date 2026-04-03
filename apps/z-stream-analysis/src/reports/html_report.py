@@ -498,13 +498,25 @@ def generate_html_report(run_dir: Path, trace_file: Optional[Path] = None) -> Pa
             return "degraded"
         return "down"
 
-    # v3.7: Read health score from cluster_health (ClusterHealthService)
+    # v3.7: Read health data from cluster_health (ClusterHealthService)
     # Fall back to environment-status.json for older runs
     cluster_health_data = core_data.get("cluster_health", {})
-    env_score_base = env_status.get("environment_score", 0) or 0
-    cluster_conn = env_status.get("cluster_connectivity", False)
-    api_acc = env_status.get("api_accessibility", False)
-    target_used = env_status.get("target_cluster_used", False)
+    environment_data = core_data.get("environment", {})
+
+    # Base scores: prefer v3.7 cluster_health, then environment key, then env_status file
+    if cluster_health_data.get("environment_health_score") is not None:
+        env_score_base = cluster_health_data["environment_health_score"]
+        cluster_conn = True  # health audit ran = cluster is reachable
+        api_acc = True
+    elif environment_data.get("environment_score") is not None:
+        env_score_base = environment_data.get("environment_score", 0) or 0
+        cluster_conn = environment_data.get("cluster_connectivity", False)
+        api_acc = True
+    else:
+        env_score_base = env_status.get("environment_score", 0) or 0
+        cluster_conn = env_status.get("cluster_connectivity", False)
+        api_acc = env_status.get("api_accessibility", False)
+    target_used = env_status.get("target_cluster_used", False) or bool(cluster_health_data)
 
     # Oracle data from core-data.json (feature context)
     cluster_oracle = core_data.get("cluster_oracle", {})

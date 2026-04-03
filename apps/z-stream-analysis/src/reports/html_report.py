@@ -131,9 +131,14 @@ def build_test_card(t, idx):
     blank = t.get("blank_page_detected", False)
 
     reasoning = t.get("reasoning", {})
-    r_summary = esc(reasoning.get("summary", ""))
-    r_conclusion = esc(reasoning.get("conclusion", ""))
-    r_evidence = reasoning.get("evidence", [])
+    if isinstance(reasoning, str):
+        r_summary = esc(reasoning)
+        r_conclusion = ""
+        r_evidence = []
+    else:
+        r_summary = esc(reasoning.get("summary", ""))
+        r_conclusion = esc(reasoning.get("conclusion", ""))
+        r_evidence = reasoning.get("evidence", [])
     evidence_sources = t.get("evidence_sources", [])
     ruled_out = t.get("ruled_out_alternatives", [])
     fix = t.get("recommended_fix", {})
@@ -146,30 +151,41 @@ def build_test_card(t, idx):
 
     evidence_html = ""
     for e in evidence_sources:
-        tier = e.get("tier", "?")
-        evidence_html += (
-            f'<div class="evidence-item tier-{tier}">'
-            f'<span class="tier-badge">T{tier}</span>'
-            f'{esc(e.get("source", ""))}: {esc(e.get("finding", ""))}'
-            f'</div>'
-        )
+        if isinstance(e, str):
+            evidence_html += f'<div class="evidence-item tier-2">{esc(e)}</div>'
+        else:
+            tier = e.get("tier", "?")
+            evidence_html += (
+                f'<div class="evidence-item tier-{tier}">'
+                f'<span class="tier-badge">T{tier}</span>'
+                f'{esc(e.get("source", ""))}: {esc(e.get("finding", ""))}'
+                f'</div>'
+            )
 
     ruled_html = ""
     for r in ruled_out:
-        ruled_html += (
-            f'<div class="ruled-out-item">'
-            f'<strong>{esc(r.get("classification", ""))}</strong>: '
-            f'{esc(r.get("reason", ""))}</div>'
-        )
+        if isinstance(r, str):
+            ruled_html += f'<div class="ruled-out-item">{esc(r)}</div>'
+        else:
+            ruled_html += (
+                f'<div class="ruled-out-item">'
+                f'<strong>{esc(r.get("classification", ""))}</strong>: '
+                f'{esc(r.get("reason", ""))}</div>'
+            )
 
     fix_html = ""
     if fix:
-        fix_html = f'<div class="fix-section"><div class="fix-action">{esc(fix.get("action", ""))}</div>'
-        for step in fix.get("steps", []):
-            fix_html += f'<div class="fix-step">{esc(step)}</div>'
-        fix_html += f'<div class="fix-owner">Owner: {esc(fix.get("owner", ""))}</div></div>'
+        if isinstance(fix, str):
+            fix_html = f'<div class="fix-section"><div class="fix-action">{esc(fix)}</div></div>'
+        else:
+            fix_html = f'<div class="fix-section"><div class="fix-action">{esc(fix.get("action", ""))}</div>'
+            for step in fix.get("steps", []):
+                fix_html += f'<div class="fix-step">{esc(step)}</div>'
+            fix_html += f'<div class="fix-owner">Owner: {esc(fix.get("owner", ""))}</div></div>'
 
-    reasoning_ev = "".join(f"<li>{esc(r)}</li>" for r in r_evidence)
+    reasoning_ev = "".join(
+        f"<li>{esc(r if isinstance(r, str) else json.dumps(r))}</li>" for r in r_evidence
+    )
 
     return f'''
     <div class="test-card" data-classification="{cls}" data-area="{fa}" id="test-{idx}">
@@ -349,8 +365,21 @@ def generate_html_report(run_dir: Path, trace_file: Optional[Path] = None) -> Pa
         s = l.get("stage", "unknown")
         logs_by_stage.setdefault(s, []).append(l)
 
-    # Build test cards
-    test_cards = "".join(build_test_card(t, i) for i, t in enumerate(tests))
+    # Build test cards (with per-test error isolation)
+    test_card_parts = []
+    for i, t in enumerate(tests):
+        try:
+            test_card_parts.append(build_test_card(t, i))
+        except Exception as card_err:
+            logger.warning(f"Failed to build card for test {i} ({t.get('test_name', '?')[:60]}): {card_err}")
+            test_card_parts.append(
+                f'<div class="test-card" id="test-{i}"><div class="test-header">'
+                f'<span class="cls-badge" style="background:#6b7280">ERROR</span>'
+                f'<span class="test-name">{esc(t.get("test_name", "Unknown"))}</span>'
+                f'<span style="color:var(--danger);font-size:12px">Report rendering error: {esc(str(card_err))}</span>'
+                f'</div></div>'
+            )
+    test_cards = "".join(test_card_parts)
 
     # Build classification filter buttons
     cls_filter_btns = ""
@@ -406,7 +435,7 @@ def generate_html_report(run_dir: Path, trace_file: Optional[Path] = None) -> Pa
             t_root = t.get("root_cause", "")
             # Match by overlapping keywords between action and root cause/fix
             if t_fix and t.get("classification") == cls:
-                fix_action = t_fix.get("action", "")
+                fix_action = t_fix.get("action", "") if isinstance(t_fix, dict) else str(t_fix)
                 # Check if this test's fix is related to the action item
                 action_words = set(action_text.lower().split())
                 fix_words = set(fix_action.lower().split())
@@ -414,9 +443,10 @@ def generate_html_report(run_dir: Path, trace_file: Optional[Path] = None) -> Pa
                 overlap = len(action_words & (fix_words | root_words))
                 if overlap >= 2:
                     affected_tests.append(t)
-                    for step in t_fix.get("steps", []):
-                        if step not in fix_steps_set:
-                            fix_steps_set.append(step)
+                    if isinstance(t_fix, dict):
+                        for step in t_fix.get("steps", []):
+                            if step not in fix_steps_set:
+                                fix_steps_set.append(step)
 
         # Build expandable fix detail
         fix_detail_html = ""
@@ -468,23 +498,30 @@ def generate_html_report(run_dir: Path, trace_file: Optional[Path] = None) -> Pa
             return "degraded"
         return "down"
 
-    # Base connectivity from environment-status.json
-    env_score_base = env_status.get("environment_score", 0)
+    # v3.7: Read health score from cluster_health (ClusterHealthService)
+    # Fall back to environment-status.json for older runs
+    cluster_health_data = core_data.get("cluster_health", {})
+    env_score_base = env_status.get("environment_score", 0) or 0
     cluster_conn = env_status.get("cluster_connectivity", False)
     api_acc = env_status.get("api_accessibility", False)
     target_used = env_status.get("target_cluster_used", False)
 
-    # Oracle data from core-data.json (the real health picture)
+    # Oracle data from core-data.json (feature context)
     cluster_oracle = core_data.get("cluster_oracle", {})
     cluster_landscape = core_data.get("cluster_landscape", {})
     oracle_feature_health = cluster_oracle.get("overall_feature_health", {})
     oracle_dep_health = cluster_oracle.get("dependency_health", {})
-    oracle_score = oracle_feature_health.get("score", env_score_base)
+    oracle_score = oracle_feature_health.get("score")
     oracle_signal = oracle_feature_health.get("signal", "")
     blocking_issues = oracle_feature_health.get("blocking_issues", [])
 
-    # Use oracle score if available, otherwise fall back to base
-    effective_score = oracle_score if cluster_oracle else env_score_base
+    # Use cluster health score (v3.7) > oracle score > base env score
+    if cluster_health_data.get("environment_health_score") is not None:
+        effective_score = cluster_health_data["environment_health_score"]
+    elif oracle_score is not None:
+        effective_score = oracle_score
+    else:
+        effective_score = env_score_base
 
     # K8s service health from environment-status.json
     svc_health_html = ""
@@ -858,7 +895,7 @@ body {{ background: var(--bg); color: var(--text); font-family: -apple-system, B
       <div class="env-item">
         <div class="env-label">Feature Health Score</div>
         <div class="env-value {env_class(effective_score)}">{effective_score:.2f}</div>
-        <div style="font-size:11px;color:var(--text-muted);margin-top:2px">{"Oracle: " + oracle_signal if oracle_signal else "Base connectivity only"}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px">{"Health Audit" if cluster_health_data.get("overall_verdict") else ("Oracle: " + oracle_signal if oracle_signal else "Base connectivity only")}</div>
       </div>
       <div class="env-item">
         <div class="env-label">Base Env Score</div>

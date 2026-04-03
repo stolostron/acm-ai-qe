@@ -76,17 +76,18 @@ The knowledge database (`knowledge/`) provides domain reference data that the AI
 
 | File | Records | Purpose | Refresh Source |
 |------|---------|---------|----------------|
-| `components.yaml` | 30+ components | Component registry with health checks | `oc get` via refresh.py |
-| `dependencies.yaml` | 7 chains | Cascade failure tracing | Neo4j KG + manual |
-| `failure-patterns.yaml` | 18 patterns + JIRA cache | Short-circuit classification + bug correlation | Manual + learned/ promotion |
+| `components.yaml` | 58 components | Component registry with health checks, pod labels, namespaces (validated against live ACM 2.16 GA) | `oc get` via refresh.py + live cluster |
+| `dependencies.yaml` | 10 chains | Cascade failure tracing (incl. operator management, addon delivery, registration) | Neo4j KG + manual |
+| `failure-patterns.yaml` | 19 patterns + JIRA cache | Short-circuit classification + bug correlation | Manual + learned/ promotion |
 | `version-constraints.yaml` | 1+ constraints | Version incompatibility detection | Manual QE review |
 | `selectors.yaml` | 50+ selectors | UI selector ground truth | ACM-UI MCP |
 | `api-endpoints.yaml` | 5 endpoints | Backend probe reference | ACM-UI MCP code search |
 | `feature-areas.yaml` | 13 areas | Test-to-feature mapping | Manual + code sync |
 | `test-mapping.yaml` | 10+ suites | Suite-to-area mapping | Manual |
-| `healthy-baseline.yaml` | 6 namespaces | Expected pod counts, deployment states, node thresholds | Cluster snapshot via refresh.py |
-| `addon-catalog.yaml` | 12 addons | Addon health checks, dependencies, classification impact | Manual + cluster audit |
-| `webhook-registry.yaml` | 18 webhooks | Expected webhooks with criticality and failure policies | Cluster snapshot via refresh.py |
+| `healthy-baseline.yaml` | 7 namespaces | Expected pod counts, deployment states, node thresholds (validated against live cluster) | Cluster snapshot via refresh.py + live cluster |
+| `addon-catalog.yaml` | 18 addons | Addon health checks, dependencies, classification impact + 17 ClusterManagementAddon CRs | Manual + cluster audit |
+| `webhook-registry.yaml` | 19 webhooks | Expected webhooks with criticality and failure policies | Cluster snapshot via refresh.py |
+| `prerequisites.yaml` | 34 definitions | Machine-checkable feature prerequisites (mch_component, addon, operator, crd, informational) | Extracted from playbooks + live cluster |
 | `learned/` | 3+ files | Agent-contributed knowledge (self-healing) | AI agent writes |
 | `refresh.py` | — | Updates knowledge from live sources | — |
 

@@ -6,12 +6,13 @@ One-stop reference for all Python services and the `ReportFormatter` class.
 
 ## Overview
 
-Z-Stream Analysis uses 17 service modules in `src/services/`, plus `ReportFormatter` in `src/scripts/report.py` and `DataGatherer` in `src/scripts/gather.py`. Services provide **factual data only** — all classification is performed by the AI agent in Stage 2.
+Z-Stream Analysis uses 18 service modules in `src/services/`, plus `ReportFormatter` in `src/scripts/report.py` and `DataGatherer` in `src/scripts/gather.py`. Services provide **factual data only** — all classification is performed by the AI agent in Stage 2.
 
 ```
 gather.py ──┬── JenkinsAPIClient ──────────── Jenkins REST API
             ├── JenkinsIntelligenceService ── Build info, console log, test report
-            ├── EnvironmentValidationService  Cluster health (oc/kubectl)
+            ├── ClusterHealthService ───────── 6-phase cluster health audit (v3.7)
+            ├── EnvironmentValidationService  OCP platform check (deprecated v3.7)
             ├── RepositoryAnalysisService ──── Git clone, file indexing
             ├── StackTraceParser ───────────── JS/TS stack trace → file:line
             ├── TimelineComparisonService ──── Git date comparison
@@ -21,7 +22,7 @@ gather.py ──┬── JenkinsAPIClient ──────────── 
             ├── ClusterInvestigationService ── Cluster landscape + pod diagnostics (v3.0)
             ├── FeatureAreaService ────────── Test-to-feature-area mapping (v3.0)
             ├── FeatureKnowledgeService ──── Playbook loading + symptom matching (v3.1)
-            ├── EnvironmentOracleService ── Feature-aware dependency health (v3.5)
+            ├── EnvironmentOracleService ── Feature context oracle (v3.5, Phase 6 skipped in v3.7)
             └── shared_utils ──────────────── Config, subprocess, credentials
 
 report.py ── ReportFormatter ─────────────── Markdown/JSON/text output

@@ -246,9 +246,15 @@ OUTPUT:
 
 ---
 
-## Step 4: Environment Validation
+## Step 4: Cluster Health Audit + Environment Validation
 
-**Service:** `EnvironmentValidationService.validate_environment()`
+**Services:** `ClusterHealthService.run_health_audit()` (v3.7, primary), `ClusterInvestigationService` (landscape), backend probes
+
+**v3.7 change:** Step 4 now runs a comprehensive 6-phase cluster health audit via `ClusterHealthService` before the cluster landscape and backend probes. The old `EnvironmentValidationService` is deprecated — credential extraction and login moved to `_login_to_cluster()`. See CLAUDE.md "New in v3.7" for details.
+
+**Output:** `cluster-health.json` (comprehensive health report) + `cluster_health` key in core-data.json (compact summary)
+
+**Previous (v3.6):** `EnvironmentValidationService.validate_environment()`
 
 **Commands:** `oc` / `kubectl` (READ-ONLY operations only)
 

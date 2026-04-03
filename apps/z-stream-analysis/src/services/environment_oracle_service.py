@@ -1,5 +1,5 @@
 """
-Environment Oracle Service (v3.5)
+Environment Oracle Service (v3.7)
 
 Feature-aware dependency health checking and comprehensive cluster state
 collection. Resolves the met=None gap in FeatureKnowledgeService for

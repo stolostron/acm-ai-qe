@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Data Gathering Script (v3.6)
+Data Gathering Script (v3.7)
 
 Collects FACTUAL DATA from Jenkins, environment, and repository.
 Clones repositories to persistent location for AI to access during analysis.
@@ -85,7 +85,7 @@ from src.logging_config import configure_logging, bind_context
 
 class DataGatherer:
     """
-    Data Gatherer v3.6 - Collects factual data and clones repos for AI access.
+    Data Gatherer v3.7 - Collects factual data and clones repos for AI access.
 
     This class performs MECHANICAL data collection only.
     NO classification or reasoning is done here - that's the AI's job.
@@ -4092,13 +4092,13 @@ def gather_all_data(jenkins_url: str, output_dir: str = './runs',
 def main():
     """CLI entry point."""
     parser = argparse.ArgumentParser(
-        description='Z-Stream Analysis - Data Gathering Script (v3.6)',
+        description='Z-Stream Analysis - Data Gathering Script (v3.7)',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 This script gathers FACTUAL DATA and clones repos for AI analysis.
 NO classification is performed - AI handles all classification.
 
-Key Features (v3.6):
+Key Features (v3.7):
   - 5-Phase systematic investigation framework
   - Complete context extraction upfront
   - Multi-evidence validation requirements

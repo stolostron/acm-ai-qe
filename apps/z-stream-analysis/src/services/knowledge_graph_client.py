@@ -54,6 +54,37 @@ _DEFAULT_NEO4J_USER = 'neo4j'
 _DEFAULT_NEO4J_PASSWORD = 'rhacmgraph'
 _DEFAULT_NEO4J_DATABASE = 'neo4j'
 
+# Mapping from app feature area names to KG subsystem names.
+# The KG uses broad subsystem categories (7 total: Overview, Cluster,
+# Governance, Console, Application, Observability, Search) while the
+# app uses 12+ feature area names. Some app areas map to multiple KG
+# subsystems (e.g., RBAC spans Cluster + Console).
+#
+# Verified against live KG (370 components, 541 relationships).
+KG_SUBSYSTEM_MAP: Dict[str, List[str]] = {
+    'CLC': ['Cluster'],
+    'GRC': ['Governance'],
+    'Search': ['Search'],
+    'Console': ['Console'],
+    'Application': ['Application'],
+    'Observability': ['Observability'],
+    'Virtualization': ['Cluster'],
+    'RBAC': ['Cluster', 'Console'],
+    'Automation': ['Cluster'],
+    'Infrastructure': ['Overview'],
+    'Foundation': ['Overview', 'Cluster'],
+    'Install': ['Overview'],
+    'CrossClusterMigration': ['Cluster'],
+    # Display names used as fallbacks by the oracle
+    'Cluster Lifecycle': ['Cluster'],
+    'Governance, Risk & Compliance': ['Governance'],
+    'Governance & Risk': ['Governance'],
+    'Search & Discovery': ['Search'],
+    'Application Lifecycle': ['Application'],
+    'ACM Console': ['Console'],
+    'Infrastructure Foundation': ['Overview'],
+}
+
 
 class KnowledgeGraphClient:
     """
@@ -401,12 +432,32 @@ class KnowledgeGraphClient:
             return result[0].get('common_dependency')
         return None
 
+    @staticmethod
+    def resolve_kg_subsystems(subsystem: str) -> List[str]:
+        """
+        Resolve an app feature area name to KG subsystem name(s).
+
+        Uses KG_SUBSYSTEM_MAP for translation. Returns the input as-is
+        if no mapping exists (allows direct KG subsystem names to pass through).
+
+        Args:
+            subsystem: App feature area name (e.g., 'CLC', 'GRC')
+
+        Returns:
+            List of KG subsystem names (e.g., ['Cluster'], ['Governance'])
+        """
+        return KG_SUBSYSTEM_MAP.get(subsystem, [subsystem])
+
     def get_subsystem_components(self, subsystem: str) -> List[str]:
         """
         Get all components in a subsystem.
 
+        Uses KG_SUBSYSTEM_MAP to translate app feature area names (e.g.,
+        'CLC', 'GRC') to KG subsystem names (e.g., 'Cluster', 'Governance').
+        Falls back to regex matching if the subsystem is not in the map.
+
         Args:
-            subsystem: Subsystem name (e.g., 'Governance', 'Search')
+            subsystem: Feature area or subsystem name (e.g., 'CLC', 'Search')
 
         Returns:
             List of component names in that subsystem
@@ -414,18 +465,33 @@ class KnowledgeGraphClient:
         if not self.available:
             return []
 
-        escaped = self._escape_regex(subsystem)
-        query = f"""
-        MATCH (c:RHACMComponent)
-        WHERE c.subsystem =~ '(?i).*{escaped}.*'
-        RETURN DISTINCT c.label as component
-        ORDER BY c.label
-        """
+        # Map app feature area name to KG subsystem name(s)
+        kg_subsystems = KG_SUBSYSTEM_MAP.get(subsystem, [subsystem])
 
-        result = self._execute_cypher(query)
-        if result:
-            return [r['component'] for r in result if r.get('component')]
-        return []
+        all_components = []
+        for kg_sub in kg_subsystems:
+            escaped = self._escape_regex(kg_sub)
+            query = f"""
+            MATCH (c:RHACMComponent)
+            WHERE c.subsystem =~ '(?i).*{escaped}.*'
+            RETURN DISTINCT c.label as component
+            ORDER BY c.label
+            """
+
+            result = self._execute_cypher(query)
+            if result:
+                all_components.extend(
+                    [r['component'] for r in result if r.get('component')]
+                )
+
+        # Deduplicate while preserving order
+        seen = set()
+        unique = []
+        for c in all_components:
+            if c not in seen:
+                seen.add(c)
+                unique.append(c)
+        return unique
 
     def analyze_failure_impact(
         self,

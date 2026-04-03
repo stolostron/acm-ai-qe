@@ -766,42 +766,48 @@ class EnvironmentOracleService:
         self, kg_client: Any, subsystem: str
     ) -> List[str]:
         """Query KG for internal data flow within a subsystem."""
-        escaped = kg_client._escape_regex(subsystem)
-        query = (
-            f"MATCH (c:RHACMComponent)-[r]->(dep:RHACMComponent) "
-            f"WHERE c.subsystem =~ '(?i).*{escaped}.*' "
-            f"AND dep.subsystem =~ '(?i).*{escaped}.*' "
-            f"RETURN DISTINCT c.label as source, type(r) as rel, dep.label as target "
-            f"ORDER BY c.label LIMIT 30"
-        )
-        results = kg_client._execute_cypher(query)
-        if not results:
-            return []
-        return [
-            f"{r.get('source')} --{r.get('rel')}--> {r.get('target')}"
-            for r in results
-        ]
+        kg_subsystems = kg_client.resolve_kg_subsystems(subsystem)
+        all_results = []
+        for kg_sub in kg_subsystems:
+            escaped = kg_client._escape_regex(kg_sub)
+            query = (
+                f"MATCH (c:RHACMComponent)-[r]->(dep:RHACMComponent) "
+                f"WHERE c.subsystem =~ '(?i).*{escaped}.*' "
+                f"AND dep.subsystem =~ '(?i).*{escaped}.*' "
+                f"RETURN DISTINCT c.label as source, type(r) as rel, dep.label as target "
+                f"ORDER BY c.label LIMIT 30"
+            )
+            results = kg_client._execute_cypher(query)
+            if results:
+                all_results.extend([
+                    f"{r.get('source')} --{r.get('rel')}--> {r.get('target')}"
+                    for r in results
+                ])
+        return all_results
 
     def _kg_query_cross_subsystem(
         self, kg_client: Any, subsystem: str
     ) -> List[str]:
         """Query KG for cross-subsystem dependencies."""
-        escaped = kg_client._escape_regex(subsystem)
-        query = (
-            f"MATCH (c:RHACMComponent)-[r]->(dep:RHACMComponent) "
-            f"WHERE c.subsystem =~ '(?i).*{escaped}.*' "
-            f"AND NOT dep.subsystem =~ '(?i).*{escaped}.*' "
-            f"RETURN DISTINCT c.label as source, type(r) as rel, "
-            f"dep.label as target, dep.subsystem as target_subsystem "
-            f"ORDER BY dep.subsystem LIMIT 20"
-        )
-        results = kg_client._execute_cypher(query)
-        if not results:
-            return []
-        return [
-            f"{r.get('source')} --{r.get('rel')}--> {r.get('target')} ({r.get('target_subsystem')})"
-            for r in results
-        ]
+        kg_subsystems = kg_client.resolve_kg_subsystems(subsystem)
+        all_results = []
+        for kg_sub in kg_subsystems:
+            escaped = kg_client._escape_regex(kg_sub)
+            query = (
+                f"MATCH (c:RHACMComponent)-[r]->(dep:RHACMComponent) "
+                f"WHERE c.subsystem =~ '(?i).*{escaped}.*' "
+                f"AND NOT dep.subsystem =~ '(?i).*{escaped}.*' "
+                f"RETURN DISTINCT c.label as source, type(r) as rel, "
+                f"dep.label as target, dep.subsystem as target_subsystem "
+                f"ORDER BY dep.subsystem LIMIT 20"
+            )
+            results = kg_client._execute_cypher(query)
+            if results:
+                all_results.extend([
+                    f"{r.get('source')} --{r.get('rel')}--> {r.get('target')} ({r.get('target_subsystem')})"
+                    for r in results
+                ])
+        return all_results
 
     def _kg_query_transitive_chains(
         self, kg_client: Any, components: List[str]

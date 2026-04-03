@@ -82,6 +82,7 @@ from .component_extractor import (
 )
 from .knowledge_graph_client import (
     KnowledgeGraphClient,
+    KG_SUBSYSTEM_MAP,
     ComponentInfo,
     DependencyChain,
     get_knowledge_graph_client,
@@ -214,6 +215,7 @@ __all__ = [
     'ComponentExtractor',
     'ExtractedComponent',
     'KnowledgeGraphClient',
+    'KG_SUBSYSTEM_MAP',
     'ComponentInfo',
     'DependencyChain',
     'get_knowledge_graph_client',

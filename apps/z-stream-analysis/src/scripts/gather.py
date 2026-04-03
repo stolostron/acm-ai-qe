@@ -292,10 +292,6 @@ class DataGatherer:
 
         self.logger.info(f"Output directory: {run_dir}")
 
-        # Create repos subdirectory
-        repos_dir = run_dir / 'repos'
-        repos_dir.mkdir(parents=True, exist_ok=True)
-
         # Initialize gathered data structure
         self.gathered_data = {
             'metadata': {

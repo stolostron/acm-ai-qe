@@ -1,6 +1,6 @@
-# Z-Stream Pipeline Analysis (v3.5.1)
+# Z-Stream Pipeline Analysis (v3.7)
 
-Enterprise Jenkins pipeline failure analysis with definitive PRODUCT BUG | AUTOMATION BUG | INFRASTRUCTURE classification. v3.5 adds environment oracle with feature-aware dependency health checking, Polarion test case context, KG-driven dependency learning, and oracle-informed classification routing.
+Enterprise Jenkins pipeline failure analysis with definitive PRODUCT BUG | AUTOMATION BUG | INFRASTRUCTURE classification. v3.7 adds automated 6-phase cluster health audit (ClusterHealthService) that replaces the narrow EnvironmentValidationService, producing comprehensive `cluster-health.json` with operator health, subsystem health, infrastructure issues, and classification guidance. The oracle's Phase 6 (cluster health checks) is now handled by the health audit, and the oracle focuses on feature context (Polarion, KG topology).
 
 ## Pipeline Execution UX (MANDATORY)
 
@@ -12,15 +12,21 @@ When a user asks to analyze a Jenkins run, **do NOT delegate the entire pipeline
    ```
    Stage 1: Gathering pipeline data from Jenkins...
    ```
-   After it completes, summarize what was collected (e.g., "Extracted 64 failed tests across 8 feature areas, cluster oracle ran").
+   After it completes, summarize what was collected (e.g., "Extracted 64 failed tests across 8 feature areas, health audit: 24% CRITICAL (4 issues)").
 
-2. **Stage 2** — Use the `z-stream-analysis` agent for AI analysis. Before launching, output:
+2. **Stage 1.5** — Spawn the `cluster-diagnostic` agent. Before launching, output:
+   ```
+   Stage 1.5: Running comprehensive cluster diagnostic...
+   ```
+   Pass the run directory path as the prompt. After it completes, show the verdict and key findings (e.g., "Verdict: DEGRADED — search-postgres OOM, 2 subsystems affected"). Skip this stage if `--skip-env` was used or cluster access is unavailable.
+
+3. **Stage 2** — Use the `z-stream-analysis` agent for AI analysis. Before launching, output:
    ```
    Stage 2: Analyzing <N> failed tests (5-phase investigation)...
    ```
    After it completes, show the classification breakdown (e.g., "44 AUTOMATION_BUG, 12 INFRASTRUCTURE, 7 NO_BUG, 1 PRODUCT_BUG").
 
-3. **Stage 3** — Run `report.py` yourself. Before running, output:
+4. **Stage 3** — Run `report.py` yourself. Before running, output:
    ```
    Stage 3: Generating report...
    ```
@@ -51,19 +57,25 @@ Before writing analysis-results.json, ALWAYS read `src/schemas/analysis_results_
 ## Architecture
 
 ```
-STAGE 0: gather.py    → cluster_oracle (environment oracle + knowledge database)
-STAGE 1: gather.py    → core-data.json + cluster.kubeconfig + repos/
-STAGE 2: AI Analysis  → analysis-results.json (5-phase investigation)
-STAGE 3: report.py    → Detailed-Analysis.md + analysis-report.html + per-test-breakdown.json + SUMMARY.txt
+STAGE 1: gather.py      → core-data.json + cluster-health.json + cluster.kubeconfig + repos/
+  Step 1: Jenkins build info + cluster credential extraction
+  Step 2: Console log download + parsing
+  Step 3: Test report extraction
+  Step 4: Cluster health audit (ClusterHealthService, 6-phase) + landscape + backend probes
+  Step 5: Feature context oracle (Polarion, KG topology — Phase 6 health checks skipped)
+  Step 6-11: Repo cloning, context extraction, feature grounding, knowledge, inventory, hints
+STAGE 1.5: cluster-diagnostic agent → cluster-diagnosis.json (optional deep investigation)
+STAGE 2: AI Analysis    → analysis-results.json (5-phase investigation, uses health + diagnostic data)
+STAGE 3: report.py      → Detailed-Analysis.md + analysis-report.html + per-test-breakdown.json + SUMMARY.txt
 ```
 
-Stage 0 runs inside gather.py (Step 5) after environment data is collected. Stage 1 covers the remaining gather steps. The terminal shows distinct banners for each stage.
+Stage 1 runs gather.py with 11 steps. Step 4 performs the comprehensive cluster health audit (6 phases: DISCOVER, LEARN, CHECK, COMPARE, CORRELATE, SCORE) producing `cluster-health.json`. Step 5 runs the oracle for feature context only (Polarion test cases, KG topology). Stage 1.5 is optional — runs the cluster-diagnostic agent for deeper AI-driven investigation. Stage 2 reads `cluster-health.json` + `core-data.json` for analysis.
 
 See `docs/00-OVERVIEW.md` for detailed diagrams.
 
 ## Run Directory
 
-See `docs/00-OVERVIEW.md` for full run directory structure. Key files: `core-data.json` (primary AI input), `cluster.kubeconfig` (persisted cluster auth for Stage 2), `pipeline.log.jsonl` (structured service logs), `analysis-results.json` (AI output), `Detailed-Analysis.md` (final report), `analysis-report.html` (interactive HTML report).
+See `docs/00-OVERVIEW.md` for full run directory structure. Key files: `core-data.json` (primary AI input), `cluster-health.json` (comprehensive health audit, 19KB), `cluster.kubeconfig` (persisted cluster auth for Stage 2), `pipeline.log.jsonl` (structured service logs), `analysis-results.json` (AI output), `Detailed-Analysis.md` (final report), `analysis-report.html` (interactive HTML report).
 
 ## Classification Guide
 
@@ -103,6 +115,26 @@ See `docs/00-OVERVIEW.md` for the full decision routing table. Summary:
   {"source": "timeline_evidence", "finding": "element_removed", "tier": 1}
 ]
 ```
+
+## New in v3.7
+
+- **Automated cluster health audit** (Stage 1 Step 4) — new `ClusterHealthService` performs a 6-phase health audit modeled on the acm-hub-health diagnostic pipeline: DISCOVER (inventory MCH, MCE, operators, nodes, clusters), LEARN (load knowledge baselines from YAML), CHECK (pod health, infrastructure guards, image integrity, managed clusters), COMPARE (baseline deviation detection), CORRELATE (map findings to feature areas), SCORE (compute `environment_health_score` 0.0-1.0 and overall verdict). Produces `cluster-health.json` (19KB) with operator health, per-subsystem health, infrastructure issues, managed cluster status, baseline comparison, console plugins, and classification guidance.
+- **Knowledge database validated against live cluster** — all YAML files validated against ACM 2.16 GA on Azure. `components.yaml` expanded from 31 to 58 components with health_check commands for every entry. `healthy-baseline.yaml` now has validated pod counts for 7 namespaces. `addon-catalog.yaml` expanded from 12 to 18 addons with `cluster_management_addons` section (17 hub-side CRs). `dependencies.yaml` gained 3 new chains (operator_management, addon_delivery, registration). New `prerequisites.yaml` with 34 machine-checkable prerequisite definitions extracted from playbooks.
+- **Oracle Phase 6 skipped** — the oracle's cluster health checks (Phase 6, ~420 lines) are now handled by the ClusterHealthService in Step 4. The oracle focuses on feature context: Phase 1 (feature area identification), Phase 2 (Polarion test case context), Phases 3-4 (KG subsystem topology), Phase 5 (synthesis). Always called with `skip_cluster=True`.
+- **EnvironmentValidationService deprecated** — replaced by `ClusterHealthService` for health assessment. Credential extraction and kubeconfig persistence moved to `_login_to_cluster()` in gather.py. The old service is kept for backward compatibility but no longer called in the pipeline.
+- **FeatureKnowledgeService cluster_health fallback** — `check_prerequisites()` now accepts `cluster_health` parameter as fallback when oracle `dependency_health` is empty (Phase 6 skipped). Operator prerequisites resolved from health audit data.
+- **core-data.json gains `cluster_health` key** — compact summary with `environment_health_score`, `overall_verdict`, `critical_issue_count`, `affected_feature_areas`, and cluster identity.
+- **Agent instructions updated** — Phase A-0 now reads `cluster-health.json` first. Phase A1 routing uses `overall_verdict` + `environment_health_score` instead of old `environment_score`. PR-7a uses `infrastructure_issues` from health audit as primary evidence source.
+
+## New in v3.6
+
+- **Comprehensive cluster diagnostic** (Stage 1.5) — after gather.py completes, a dedicated `cluster-diagnostic` agent performs a full hub-health-style 6-phase investigation of the cluster: Discover (operator inventory, webhooks, ConsolePlugins), Learn (baseline comparison, knowledge database), Check (per-namespace pod health, log pattern scanning, infrastructure guards, addon verification, trap detection), Pattern Match (failure signatures, JIRA bugs), Correlate (dependency chain tracing, cross-subsystem impact), Output (structured `cluster-diagnosis.json`). Stage 2 reads this for dramatically improved INFRASTRUCTURE vs PRODUCT_BUG disambiguation.
+- **4 new knowledge files** adapted from the ACM Hub Health agent: `healthy-baseline.yaml` (expected pod counts and deployment states), `addon-catalog.yaml` (all managed cluster addons with health checks and impact statements), `webhook-registry.yaml` (expected webhooks with criticality and failure policies), `diagnostics/diagnostic-traps.md` (10 patterns where the obvious diagnosis is wrong).
+- **Diagnostic trap detection** — 10 traps verified during Stage 1.5: stale MCH status, console tabs missing despite healthy pod, search empty with all green pods, observability empty due to S3, GRC non-compliant after upgrade, managed cluster NotReady misdiagnosis, mass addon failure from single pod, console cascade from search-api.
+- **Self-healing knowledge** — diagnostic agent writes discoveries about unknown operators and components to `knowledge/learned/` for future runs. Third-party operators (AAP, GitOps, CNV, MTV, OADP) are inventoried and their ACM integration assessed.
+- **Stage 2 optimization** — when diagnostic data is available, Stage 2 skips redundant Tier 2-4 cluster investigation for subsystems already covered. Pre-classified infrastructure issues and confirmed-healthy subsystems eliminate redundant root cause discovery.
+- **Classification guidance** — diagnostic produces `classification_guidance` with `pre_classified_infrastructure` (Tier 1 evidence with confidence), `confirmed_healthy` (subsystems where infrastructure is ruled out), and `partial_impact` (transitive dependency effects).
+- **Enhanced diagnostic output** — `cluster-diagnosis.json` includes 6 additional data sections beyond subsystem health and classification guidance: `component_log_excerpts` (key error lines from unhealthy pod logs, saves Agent #2 from re-running `oc logs`), `component_restart_counts` (catches "Running but restarted 12 times"), `managed_cluster_detail` (per-cluster conditions and unavailable addons), `ocp_operators_degraded` (degraded OCP operators like dns, monitoring, ingress), `console_plugin_status` (plugin registrations with backend health to prevent Trap 2 misclassifications).
 
 ## New in v3.5.1
 
@@ -265,7 +297,7 @@ Two-layer structured logging captures every operation across all pipeline stages
 
 ### Layer 1: Python Service Logs (`pipeline.log.jsonl`)
 
-Written to the run directory by `src/logging_config.py`. Captures all `logging.getLogger()` calls from 17 Python service modules with `run_id` and `stage` context on every entry. Console output shows colored human-readable format; the JSONL file captures DEBUG-level detail.
+Written to the run directory by `src/logging_config.py`. Captures all `logging.getLogger()` calls from 18 Python service modules with `run_id` and `stage` context on every entry. Console output shows colored human-readable format; the JSONL file captures DEBUG-level detail.
 
 ```bash
 # View all warnings/errors from a run
@@ -299,10 +331,10 @@ grep '"event": "tool_error"' .claude/traces/<session_id>.jsonl
 # Regression tests (fast, no external deps — 47 tests):
 python -m pytest tests/regression/ -v
 
-# Unit tests (620+ tests):
+# Unit tests (660+ tests):
 python -m pytest tests/unit/ -v
 
-# Unit + regression (667+ tests):
+# Unit + regression (707+ tests):
 python -m pytest tests/unit/ tests/regression/ -v
 
 # Integration tests (requires Jenkins VPN — 50 tests):
@@ -314,7 +346,7 @@ python -m pytest tests/ -v --timeout=300
 
 ### Test Structure
 
-- `tests/unit/` — 620+ unit tests across 18 service/script files (includes 77 oracle tests)
+- `tests/unit/` — 660+ unit tests across 19 service/script files (includes 77 oracle + 40 health service tests)
 - `tests/regression/` — 47 regression tests for cross-module consistency, playbook quality, AI instructions, schema coverage
 - `tests/integration/` — 50 integration tests for Stage 1 gather, Stage 3 report, and cross-stage data contracts
 - `tests/fixtures/` — Synthetic analysis-results.json exercising v3.2+ schema fields
@@ -356,6 +388,7 @@ Classification methodology documentation for the AI agent:
 | `classification-decision-tree.md` | Complete PR-1 through PR-7 decision tree with 3-path routing |
 | `evidence-tiers.md` | How Tier 1 and Tier 2 evidence is weighted for confidence scoring |
 | `common-misclassifications.md` | 6 documented cases where the pipeline gets confused and why |
+| `diagnostic-traps.md` | 10 patterns where the obvious diagnosis is WRONG (8 from hub health + 2 counter-traps) |
 
 ### Structured Data (YAML files)
 
@@ -369,7 +402,11 @@ Classification methodology documentation for the AI agent:
 | `failure-patterns.yaml` | Known failure signatures + known JIRA bugs cache + external service patterns | Fast pattern matching + JIRA correlation |
 | `version-constraints.yaml` | Product version incompatibility matrix (e.g., AAP 2.5+ workflow jobs) | Version-aware classification |
 | `test-mapping.yaml` | Test suite to feature area mapping with known issues | Investigation scoping |
-| `learned/` | Agent-contributed corrections, patterns, selector changes | Accumulated knowledge |
+| `healthy-baseline.yaml` | Expected pod counts, deployment states, node thresholds per namespace (validated against live cluster) | Baseline comparison in Step 4 health audit + Stage 1.5 diagnostic |
+| `addon-catalog.yaml` | 18 managed cluster addons with health checks, dependencies, impact + 17 ClusterManagementAddon CRs | Addon health verification in Step 4 + Stage 1.5 |
+| `webhook-registry.yaml` | 19 expected webhooks with criticality, failure policies, impact | Webhook verification in Stage 1.5 |
+| `prerequisites.yaml` | 34 machine-checkable prerequisites per feature area (mch_component, addon, operator, crd, informational) | Feature readiness in Step 9, prerequisite validation |
+| `learned/` | Agent-contributed corrections, patterns, selector changes, operator discoveries | Accumulated knowledge (self-healing) |
 | `refresh.py` | Updates knowledge from ACM-UI MCP, KG, cluster | Self-healing |
 
 ### How the Agent Uses the Knowledge Database
@@ -390,7 +427,7 @@ z-stream-analysis/
 │   ├── gather.py          # Stage 1: Data collection
 │   ├── report.py          # Stage 3: Report generation
 │   └── feedback.py        # Classification feedback CLI
-├── src/services/          # 17 Python service modules
+├── src/services/          # 18 Python service modules
 ├── src/reports/
 │   └── html_report.py     # Interactive HTML report generator (schema: src/schemas/html_report_schema.json)
 ├── src/schemas/           # JSON Schema validation
@@ -412,10 +449,11 @@ z-stream-analysis/
 │   │   ├── foundation/             # Foundation subsystem (3 files)
 │   │   ├── install/                # Install subsystem (3 files)
 │   │   └── infrastructure/          # Infrastructure (3 files)
-│   ├── diagnostics/       # Classification methodology
+│   ├── diagnostics/       # Classification methodology + diagnostic traps
 │   │   ├── classification-decision-tree.md
 │   │   ├── evidence-tiers.md
-│   │   └── common-misclassifications.md
+│   │   ├── common-misclassifications.md
+│   │   └── diagnostic-traps.md        # 10 traps where obvious diagnosis is wrong (v3.6)
 │   ├── components.yaml    # Component registry
 │   ├── dependencies.yaml  # Dependency chains
 │   ├── selectors.yaml     # UI selector ground truth
@@ -424,7 +462,11 @@ z-stream-analysis/
 │   ├── failure-patterns.yaml # Known failure patterns + JIRA bugs cache
 │   ├── version-constraints.yaml # Product version compatibility matrix
 │   ├── test-mapping.yaml  # Test suite mapping
-│   ├── learned/           # Agent-contributed knowledge
+│   ├── healthy-baseline.yaml  # Expected pod counts, deployments (Step 4 + Stage 1.5)
+│   ├── addon-catalog.yaml     # 18 addons + 17 ClusterManagementAddon CRs (Step 4 + Stage 1.5)
+│   ├── webhook-registry.yaml  # 19 expected webhooks + criticality (Stage 1.5)
+│   ├── prerequisites.yaml     # 34 feature prerequisites (Step 9 readiness)
+│   ├── learned/           # Agent-contributed knowledge (self-healing)
 │   └── refresh.py         # Knowledge refresh script
 ├── tests/
 │   ├── conftest.py        # Shared fixtures
@@ -434,7 +476,8 @@ z-stream-analysis/
 │   └── fixtures/          # Test data (synthetic analysis-results.json)
 ├── .claude/
 │   ├── agents/
-│   │   └── z-stream-analysis.md  # Agent definition
+│   │   ├── z-stream-analysis.md  # Stage 2 analysis agent
+│   │   └── cluster-diagnostic.md # Stage 1.5 cluster diagnostic agent
 │   ├── hooks/
 │   │   └── agent_trace.py        # Hook: logs tool calls, MCP, prompts to JSONL
 │   ├── traces/                   # Agent trace logs (per-session JSONL, gitignored)

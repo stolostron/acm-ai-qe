@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Data Gathering Script (v3.5)
+Data Gathering Script (v3.6)
 
 Collects FACTUAL DATA from Jenkins, environment, and repository.
 Clones repositories to persistent location for AI to access during analysis.
@@ -12,7 +12,7 @@ Extracts complete test context upfront for systematic AI analysis.
     Step 2:  Console log
     Step 3:  Test report
     Step 4:  Environment check + cluster landscape + backend probes
-    Step 5:  Environment Oracle — feature-aware dependency health (v3.5)
+    Step 5:  Environment Oracle — feature-aware dependency health (v3.5/v3.6)
     Step 6:  Clone repositories
     Step 7:  Extract test context (code, selectors, imports)
     Step 8:  Feature area grounding
@@ -79,12 +79,13 @@ from src.services.cluster_investigation_service import ClusterInvestigationServi
 from src.services.feature_area_service import FeatureAreaService
 from src.services.feature_knowledge_service import FeatureKnowledgeService
 from src.services.environment_oracle_service import EnvironmentOracleService
+from src.services.cluster_health_service import ClusterHealthService
 from src.logging_config import configure_logging, bind_context
 
 
 class DataGatherer:
     """
-    Data Gatherer v3.5 - Collects factual data and clones repos for AI access.
+    Data Gatherer v3.6 - Collects factual data and clones repos for AI access.
 
     This class performs MECHANICAL data collection only.
     NO classification or reasoning is done here - that's the AI's job.
@@ -138,6 +139,9 @@ class DataGatherer:
         # Environment Oracle (v3.5) — feature-aware dependency health
         self.environment_oracle_service = EnvironmentOracleService()
 
+        # Cluster Health Service (v3.7) — comprehensive ACM health audit
+        self.cluster_health_service = ClusterHealthService()
+
         # Knowledge Graph client (optional - for dependency queries in Phase 2)
         self.knowledge_graph_client: Optional[KnowledgeGraphClient] = None
         if is_knowledge_graph_available():
@@ -175,6 +179,51 @@ class DataGatherer:
         if subtitle:
             print(f"  {subtitle}", flush=True)
         print(f"{'=' * 60}", flush=True)
+
+    def _login_to_cluster(self, run_dir: Path):
+        """
+        Extract cluster credentials from Jenkins parameters, login to the
+        target cluster, and persist kubeconfig for all subsequent steps.
+
+        Populates gathered_data['cluster_access'] and configures kubeconfig
+        on ClusterHealthService, ClusterInvestigationService, and
+        EnvironmentValidationService.
+
+        Returns:
+            kubeconfig_path or None if login failed
+        """
+        api_url, username, password = self._extract_cluster_credentials()
+
+        self.gathered_data['cluster_access'] = {
+            'api_url': api_url,
+            'username': username,
+            'has_credentials': bool(api_url and username and password),
+            'password': password,
+            'note': 'Credentials from Jenkins parameters.',
+        }
+
+        kubeconfig_path = None
+        if api_url and username and password:
+            self.logger.info(f"Logging into target cluster: {api_url}")
+            kubeconfig_path = self._persist_cluster_kubeconfig(
+                run_dir, api_url, username, password
+            )
+            if kubeconfig_path:
+                # Share kubeconfig with all services that need cluster access
+                self.cluster_health_service.kubeconfig = kubeconfig_path
+                self.env_service.kubeconfig = kubeconfig_path
+                self.cluster_investigation_service.kubeconfig = kubeconfig_path
+                self.cluster_investigation_service.cli = self.env_service.cli
+                print(f"  Cluster kubeconfig persisted for all stages", flush=True)
+            else:
+                self.logger.warning("Failed to login to target cluster")
+        else:
+            self.logger.warning(
+                "Target cluster credentials not found in Jenkins parameters."
+            )
+
+        self.gathered_data['cluster_access']['kubeconfig_path'] = kubeconfig_path
+        return kubeconfig_path
 
     def _persist_cluster_kubeconfig(self, run_dir: Path, api_url: str,
                                      username: str, password: str) -> Optional[str]:
@@ -252,7 +301,7 @@ class DataGatherer:
             'metadata': {
                 'jenkins_url': jenkins_url,
                 'gathered_at': datetime.now().isoformat(),
-                'gatherer_version': '3.5.0',
+                'gatherer_version': '3.7.0',
                 'jenkins_api_available': is_jenkins_available(),
                 'acm_ui_mcp_available': True,  # Always available to Claude Code agent via native MCP
                 'knowledge_graph_available': None,  # Updated after _check_feature_knowledge()
@@ -297,41 +346,48 @@ class DataGatherer:
         if total_tests > 0:
             print(f"  Tests: {total_tests} total, {failed_count} failed ({pass_rate:.0f}% pass rate)", flush=True)
 
-        # Step 4: Environment check + cluster landscape + backend probes (optional)
+        # Step 4: Cluster login + health audit + landscape + backend probes
         if not skip_environment:
-            self._print_step(4, total_steps, "Checking environment & cluster landscape...")
-            self._gather_environment_status(run_dir)
+            self._print_step(4, total_steps, "Cluster health audit & landscape...")
+            # 4a: Login to cluster and persist kubeconfig
+            self._login_to_cluster(run_dir)
+            # 4b: Comprehensive cluster health audit (v3.7)
+            self._run_cluster_health_audit(run_dir)
+            # 4c: Cluster landscape (managed clusters, operators, resource pressure)
             self._gather_cluster_landscape()
+            # 4d: Backend API probes (5 console endpoints)
             self._probe_backend_apis()
-            # Show environment score
-            env_score = self.gathered_data.get('environment', {}).get('environment_score')
-            if env_score is not None:
-                print(f"  Environment score: {env_score:.0%}", flush=True)
+            # Show health score
+            health = self.gathered_data.get('cluster_health', {})
+            score = health.get('environment_health_score')
+            verdict = health.get('overall_verdict', '?')
+            if score is not None:
+                print(f"  Health: {score:.0%} ({verdict})", flush=True)
         else:
             self._print_step(4, total_steps, "Skipping environment check (--skip-env)")
             self.gathered_data['cluster_landscape'] = {'skipped': True}
+            self.gathered_data['cluster_health'] = {'skipped': True}
 
-        # ── STAGE 0: ENVIRONMENT ORACLE ──
+        # ── STAGE 0: FEATURE CONTEXT ORACLE ──
         if not skip_environment:
             bind_context(stage="oracle")
-            self._print_stage(0, 'ENVIRONMENT ORACLE',
-                              'Feature-aware dependency health & knowledge database')
-            self._print_step(5, total_steps, "Running environment oracle...")
-            self._run_environment_oracle(skip_cluster=skip_environment)
+            self._print_stage(0, 'FEATURE CONTEXT ORACLE',
+                              'Feature-area identification, Polarion context & KG topology')
+            self._print_step(5, total_steps, "Running feature context oracle...")
+            # skip_cluster=True: health checks now handled by Step 4
+            self._run_environment_oracle(skip_cluster=True)
             # Show oracle summary
             oracle = self.gathered_data.get('cluster_oracle', {})
             overall = oracle.get('overall_feature_health', {})
             healthy = overall.get('healthy_count', 0)
             total_deps = overall.get('total_dependencies', 0)
-            issues = overall.get('blocking_issues', [])
+            areas = oracle.get('feature_areas', [])
+            if areas:
+                print(f"  Feature areas: {', '.join(areas)}", flush=True)
             if total_deps > 0:
                 print(f"  Dependencies: {healthy}/{total_deps} healthy", flush=True)
-            for issue in issues[:3]:
-                print(f"  Issue: {issue}", flush=True)
-            if len(issues) > 3:
-                print(f"  ... and {len(issues) - 3} more issues", flush=True)
         else:
-            self._print_step(5, total_steps, "Skipping environment oracle (--skip-env)")
+            self._print_step(5, total_steps, "Skipping feature context oracle (--skip-env)")
             self.gathered_data['cluster_oracle'] = {'status': 'skipped'}
 
         # ── STAGE 1: DATA GATHERING (continued) ──
@@ -613,8 +669,62 @@ class DataGatherer:
 
         return api_url, username, password
 
+    def _run_cluster_health_audit(self, run_dir: Path):
+        """
+        Step 4a: Run comprehensive cluster health audit (v3.7).
+
+        Uses ClusterHealthService to perform a 6-phase health audit modeled
+        on the acm-hub-health diagnostic pipeline. Produces cluster-health.json
+        and a compact summary in gathered_data['cluster_health'].
+        """
+        self.logger.info("Running cluster health audit...")
+        try:
+            report = self.cluster_health_service.run_health_audit()
+
+            # Save full report to separate file
+            self.cluster_health_service.save_report(report, run_dir)
+
+            # Store compact summary in gathered_data for core-data.json
+            self.gathered_data['cluster_health'] = (
+                self.cluster_health_service.get_core_data_summary(report)
+            )
+
+            # Also populate environment_score for backward compatibility
+            self.gathered_data['environment'] = {
+                'environment_score': report.environment_health_score,
+                'overall_verdict': report.overall_verdict,
+                'cluster_connectivity': report.environment_health_score > 0,
+                'source': 'ClusterHealthService',
+            }
+
+            # Log summary
+            self.logger.info(
+                f"Health audit: score={report.environment_health_score:.0%}, "
+                f"verdict={report.overall_verdict}, "
+                f"critical={report.critical_issue_count}, "
+                f"warnings={report.warning_issue_count}"
+            )
+
+            return report
+
+        except Exception as e:
+            error_msg = f"Cluster health audit failed: {str(e)}"
+            self.logger.warning(error_msg)
+            self.gathered_data['errors'].append(error_msg)
+            self.gathered_data['cluster_health'] = {'error': error_msg}
+            self.gathered_data['environment'] = {
+                'environment_score': None,
+                'error': error_msg,
+                'cluster_connectivity': False,
+            }
+            return None
+
     def _gather_environment_status(self, run_dir: Path):
-        """Gather environment/cluster status."""
+        """Gather environment/cluster status.
+
+        DEPRECATED (v3.7): Replaced by _login_to_cluster() + _run_cluster_health_audit().
+        Kept for backward compatibility with integration tests.
+        """
         self.logger.info("Gathering environment status...")
 
         try:
@@ -1551,7 +1661,7 @@ class DataGatherer:
 
     def _run_environment_oracle(self, skip_cluster: bool = False):
         """
-        Step 5: Run Environment Oracle (v3.5) — feature-aware dependency health.
+        Step 5: Run Environment Oracle — feature-aware dependency health.
 
         Discovers feature dependencies from playbooks and checks their health
         on the live cluster. Results are used by Step 9 (feature knowledge)
@@ -1577,7 +1687,6 @@ class DataGatherer:
             self.gathered_data['cluster_oracle'] = oracle_result
 
             # Log summary
-            dep_health = oracle_result.get('dependency_health', {})
             overall = oracle_result.get('overall_feature_health', {})
             healthy = overall.get('healthy_count', 0)
             total = overall.get('total_dependencies', 0)
@@ -1616,9 +1725,9 @@ class DataGatherer:
             # Detect ACM version from Jenkins params or MCH
             jenkins_data = self.gathered_data.get('jenkins', {})
             params = jenkins_data.get('parameters', {})
+            landscape = self.gathered_data.get('cluster_landscape', {})
             acm_version = params.get('DOWNSTREAM_RELEASE')
             if not acm_version:
-                landscape = self.gathered_data.get('cluster_landscape', {})
                 mch_ver = landscape.get('mch_version', '')
                 if mch_ver:
                     # Extract major.minor from version like "2.16.1"
@@ -1643,7 +1752,6 @@ class DataGatherer:
             )
 
             # Get MCH component states from cluster landscape
-            landscape = self.gathered_data.get('cluster_landscape', {})
             mch_components = landscape.get('mch_enabled_components', {})
 
             # Get error messages per feature area for symptom matching
@@ -1668,14 +1776,16 @@ class DataGatherer:
                     test_errors[t] for t in area_tests if t in test_errors
                 ]
 
-                # Get readiness (pass oracle data to resolve addon/operator/crd)
+                # Get readiness (pass oracle + cluster health to resolve prerequisites)
                 oracle_data = self.gathered_data.get('cluster_oracle', {})
+                cluster_health = self.gathered_data.get('cluster_health', {})
                 readiness = self.feature_knowledge_service.get_feature_readiness(
                     area,
                     mch_components=mch_components,
                     cluster_landscape=landscape,
                     error_messages=area_errors,
                     oracle_data=oracle_data,
+                    cluster_health=cluster_health,
                 )
                 feature_readiness[area] = self.feature_knowledge_service.to_dict(readiness)
 
@@ -3276,7 +3386,7 @@ class DataGatherer:
 
         # Finalize metadata
         self.gathered_data['metadata']['status'] = 'complete'
-        self.gathered_data['metadata']['data_version'] = '3.5.0'
+        self.gathered_data['metadata']['data_version'] = '3.7.0'
 
         # Mask sensitive data
         masked_data = self._mask_sensitive_data(self.gathered_data)
@@ -3288,6 +3398,7 @@ class DataGatherer:
             'test_report': masked_data.get('test_report', {}),
             'console_log': masked_data.get('console_log', {}),
             'environment': masked_data.get('environment', {}),
+            'cluster_health': masked_data.get('cluster_health', {}),
             'repositories': masked_data.get('repositories', {}),
             'investigation_hints': masked_data.get('investigation_hints', {}),
             'cluster_landscape': masked_data.get('cluster_landscape', {}),
@@ -3981,13 +4092,13 @@ def gather_all_data(jenkins_url: str, output_dir: str = './runs',
 def main():
     """CLI entry point."""
     parser = argparse.ArgumentParser(
-        description='Z-Stream Analysis - Data Gathering Script (v3.5)',
+        description='Z-Stream Analysis - Data Gathering Script (v3.6)',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 This script gathers FACTUAL DATA and clones repos for AI analysis.
 NO classification is performed - AI handles all classification.
 
-Key Features (v3.5):
+Key Features (v3.6):
   - 5-Phase systematic investigation framework
   - Complete context extraction upfront
   - Multi-evidence validation requirements

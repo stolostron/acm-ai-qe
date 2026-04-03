@@ -1,4 +1,4 @@
-# Z-Stream Analysis Overview (v3.5)
+# Z-Stream Analysis Overview (v3.6)
 
 Jenkins pipeline failure analysis with definitive classification of each test failure.
 
@@ -7,29 +7,28 @@ Jenkins pipeline failure analysis with definitive classification of each test fa
 
 ---
 
-## Four-Stage Pipeline
+## Five-Stage Pipeline
 
 ```
-  STAGE 0              STAGE 1                 STAGE 2                  STAGE 3
-┌──────────┐        ┌──────────┐           ┌──────────┐            ┌──────────┐
-│  ORACLE  │  ───►  │  GATHER  │    ───►   │ ANALYZE  │    ───►    │  REPORT  │
-│(inside   │        │  (Python)│           │   (AI)   │            │ (Python) │
-│ gather)  │        │          │           │          │            │          │
-└──────────┘        └──────────┘           └──────────┘            └──────────┘
-     │                    │                      │                       │
-     ▼                    ▼                      ▼                       ▼
-cluster_oracle      core-data.json      analysis-results.json    Detailed-Analysis.md
-                    cluster.kubeconfig                           per-test-breakdown.json
-                    repos/                                       SUMMARY.txt
-                    pipeline.log.jsonl                           pipeline.log.jsonl
-                                        .claude/traces/<sid>.jsonl
+  STAGE 0        STAGE 1          STAGE 1.5          STAGE 2            STAGE 3
+┌──────────┐  ┌──────────┐    ┌────────────┐    ┌──────────┐      ┌──────────┐
+│  ORACLE  │─►│  GATHER  │───►│ DIAGNOSTIC │───►│ ANALYZE  │─────►│  REPORT  │
+│(inside   │  │  (Python)│    │   (AI)     │    │   (AI)   │      │ (Python) │
+│ gather)  │  │          │    │            │    │          │      │          │
+└──────────┘  └──────────┘    └────────────┘    └──────────┘      └──────────┘
+     │              │                │                │                  │
+     ▼              ▼                ▼                ▼                  ▼
+cluster_oracle  core-data.json  cluster-          analysis-         Detailed-Analysis.md
+                cluster.kubeconfig  diagnosis.json  results.json    per-test-breakdown.json
+                repos/          knowledge/learned/                  SUMMARY.txt
+                pipeline.log.jsonl                                  pipeline.log.jsonl
 ```
 
 | Stage | Command | What It Does |
 |-------|---------|--------------|
-| 0 | (inside gather.py, Step 5) | Environment oracle: feature-aware dependency health & knowledge database |
-| 1 | `python -m src.scripts.gather "<URL>"` | Collect data from Jenkins, cluster, and repos; persist kubeconfig |
-| 2 | AI agent reads core-data.json | 5-phase systematic investigation per test (uses kubeconfig for cluster access) |
+| 1 | `python -m src.scripts.gather "<URL>"` | Collect data from Jenkins, cluster health audit (6-phase), feature context oracle, and repos; persist kubeconfig. Produces `core-data.json` + `cluster-health.json`. |
+| 1.5 | `cluster-diagnostic` agent (optional) | Deep AI-driven cluster investigation; writes `cluster-diagnosis.json` |
+| 2 | `z-stream-analysis` agent reads core-data.json + cluster-health.json | 5-phase systematic investigation per test (uses health audit + diagnostic data + kubeconfig) |
 | 3 | `python -m src.scripts.report runs/<dir>` | Generate human-readable reports |
 
 ---
@@ -45,12 +44,13 @@ USER                     STAGE 1                STAGE 2              STAGE 3
   │                         │                    │                    │
   │                    Steps 1-11:                │                    │
   │                    Fetch Jenkins data        │                    │
-  │                    Check cluster health      │                    │
-  │                    Run environment oracle    │                    │
+  │                    Cluster health audit      │                    │
+  │                    Feature context oracle    │                    │
   │                    Clone repos               │                    │
   │                    Extract context           │                    │
   │                         │                    │                    │
-  │                    core-data.json            │                    │
+  │                    core-data.json +          │                    │
+  │                    cluster-health.json       │                    │
   │                         │────────────────────►                    │
   │                         │                    │                    │
   │                         │              Phase A: Assess            │
@@ -251,6 +251,9 @@ python -m src.scripts.report <dir> --keep-repos    # Don't delete repos/
 
 | Version | Changes |
 |---------|---------|
+| v3.7 | Automated cluster health audit via `ClusterHealthService` (6-phase: DISCOVER, LEARN, CHECK, COMPARE, CORRELATE, SCORE). Produces `cluster-health.json` with operator health, subsystem health, infrastructure issues, managed cluster status, baseline comparison, and classification guidance. Replaces `EnvironmentValidationService` for Step 4. Oracle Phase 6 skipped (health checks handled by health audit). Knowledge database validated against live ACM 2.16 GA cluster (58 components, 18 addons, 10 dependency chains, 19 webhooks, 34 prerequisites). New `prerequisites.yaml`. Agent instructions updated to read `cluster-health.json` in Phase A-0. |
+| v3.6 | Comprehensive AI-driven cluster diagnostic (Stage 1.5) adapted from ACM Hub Health agent. 6-phase investigation producing `cluster-diagnosis.json`. Knowledge files adapted from hub-health (healthy-baseline, addon-catalog, webhook-registry, diagnostic-traps). |
+| v3.5.1 | External service failure detection, version compatibility constraints, known JIRA bugs cache, ALC repo fallback. |
 | v3.5 | Environment Oracle (Step 5) — feature-aware dependency health checking via `EnvironmentOracleService`. Phase 1 identifies feature areas from pipeline/test names and extracts Polarion IDs, Phase 5 synthesizes dependency model from feature playbooks, Phase 6 runs targeted read-only `oc` commands (operator CSV, addon, CRD checks). Output stored in `cluster_oracle` key in core-data.json. Skipped with `--skip-env`. |
 | v3.4 | Backend probe source-of-truth validation (PR-6) — deterministic routing when probe has `classification_hint` and `anomaly_source`, K8s-vs-console comparison to distinguish PRODUCT_BUG from INFRASTRUCTURE. Cluster access confidence adjustment (PR-4b) — adjusts confidence based on cluster accessibility during analysis. |
 | v3.3 | Backend API probing (Step 4c) with 5 endpoint checks (`/authenticated`, `/hub`, `/username`, `/ansibletower`, `/proxy/search`) stored in `backend_probes`, `FEATURE_AREA_PROBE_MAP` linking feature areas to relevant probes, assertion value extraction (PR-5) with `assertion_analysis` per test, failure mode categorization (`failure_mode_category`: render_failure/element_missing/data_incorrect/timeout_general/assertion_logic/server_error/unknown), refined failure types (`assertion_data`/`assertion_selector`), per-feature-area health scoring (GAP-04) with graduated bands (definitive <0.3, strong 0.3-0.5, moderate 0.5-0.7, none >=0.7), per-test causal link verification (D4b), counter-bias 3-test threshold rule (D5 strengthened), new schema fields (`failure_mode_category`, `assertion_analysis`, `data_assertion_failures`, `feature_area_health`, `backend_probes`), graduated infrastructure thresholds (`INFRA_DEFINITIVE`/`INFRA_STRONG`/`INFRA_MODERATE`), schema version 3.3.0 |

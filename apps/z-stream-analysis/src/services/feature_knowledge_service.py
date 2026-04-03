@@ -148,6 +148,7 @@ class FeatureKnowledgeService:
         mch_components: Optional[Dict[str, bool]] = None,
         cluster_landscape: Optional[dict] = None,
         oracle_data: Optional[dict] = None,
+        cluster_health: Optional[dict] = None,
     ) -> List[PrerequisiteCheck]:
         """
         Check each prerequisite against cluster state.
@@ -212,9 +213,16 @@ class FeatureKnowledgeService:
                 if oracle_result is not None:
                     check.met, check.detail = oracle_result
                 else:
-                    # No oracle data — flagged for AI
-                    check.met = None
-                    check.detail = f"Requires live cluster check (type={prereq_type})"
+                    # Try cluster health data (v3.7) as fallback
+                    health_result = self._lookup_cluster_health(
+                        cluster_health, prereq_id, prereq_type, check_spec
+                    )
+                    if health_result is not None:
+                        check.met, check.detail = health_result
+                    else:
+                        # No data — flagged for AI
+                        check.met = None
+                        check.detail = f"Requires live cluster check (type={prereq_type})"
 
             elif prereq_type == 'informational':
                 check.met = None
@@ -254,6 +262,40 @@ class FeatureKnowledgeService:
             return False, f"Oracle: {detail}"
         else:
             return None
+
+    @staticmethod
+    def _lookup_cluster_health(
+        cluster_health: Optional[dict],
+        prereq_id: str,
+        prereq_type: str,
+        check_spec: dict,
+    ) -> Optional[tuple]:
+        """
+        Look up a prerequisite's health from ClusterHealthService data (v3.7).
+
+        Uses the cluster_health summary from core-data.json to infer
+        prerequisite status based on the overall health verdict and
+        affected feature areas.
+
+        Returns:
+            Tuple of (met: bool, detail: str) or None if not available.
+        """
+        if not cluster_health or cluster_health.get('skipped'):
+            return None
+
+        verdict = cluster_health.get('overall_verdict', 'UNKNOWN')
+        score = cluster_health.get('environment_health_score')
+
+        if score is None:
+            return None
+
+        # For operators: if health score is high, operators are likely healthy
+        if prereq_type == 'operator' and verdict == 'HEALTHY':
+            return True, f"ClusterHealthService: cluster HEALTHY (score={score})"
+
+        # For addons: can't definitively confirm from summary alone
+        # Return None to let AI check at runtime
+        return None
 
     def match_symptoms(
         self,
@@ -310,6 +352,7 @@ class FeatureKnowledgeService:
         cluster_landscape: Optional[dict] = None,
         error_messages: Optional[List[str]] = None,
         oracle_data: Optional[dict] = None,
+        cluster_health: Optional[dict] = None,
     ) -> FeatureReadiness:
         """
         Combine prerequisite checks + symptom matching into a
@@ -331,10 +374,11 @@ class FeatureKnowledgeService:
 
         architecture = profile.get('architecture', {})
 
-        # Check prerequisites (with oracle data for addon/operator/crd)
+        # Check prerequisites (with oracle + cluster health for addon/operator/crd)
         checks = self.check_prerequisites(
             feature_area, mch_components, cluster_landscape,
             oracle_data=oracle_data,
+            cluster_health=cluster_health,
         )
 
         # Determine unmet prerequisites

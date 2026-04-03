@@ -1,22 +1,68 @@
 # ACM Component Registry -- Z-Stream Analysis
 # Operational reference for ACM components relevant to test failure classification.
 # The AI agent reads this during Stage 2 to understand component health and roles.
+# The ClusterHealthService reads this during Stage 1 for automated health checks.
 #
-# Populated by: refresh.py (ACM-UI MCP + KG + oc get)
-# Refresh frequency: weekly or after ACM version change
+# Validated against: ACM 2.16 GA on Azure (ashafi-acm-216-ga)
+# Cross-referenced with: ACM UI MCP (stolostron/console @ release-2.16)
+# Populated by: live cluster discovery + refresh.py + manual curation
+# Refresh frequency: after ACM version change
 
-acm_version: "2.17"
-last_refreshed: "2026-03-27"
+acm_version: "2.16"
+last_refreshed: "2026-04-03"
+validated_against_live_cluster: true
+
+# Namespace note: MCH namespace varies per deployment (common: ocm, open-cluster-management).
+# All {mch_ns} references must be resolved at runtime via: oc get mch -A -o jsonpath='{.items[0].metadata.namespace}'
 
 components:
 
-  # --- Search subsystem ---
+  # =====================================================================
+  # PLATFORM OPERATORS (Tier 0 -- manage everything else)
+  # =====================================================================
+
+  multiclusterhub-operator:
+    subsystem: Platform
+    type: hub-operator
+    namespace: "{mch_ns}"
+    pod_label: "name=multiclusterhub-operator"
+    health_check: "oc get deploy multiclusterhub-operator -n {mch_ns} -o jsonpath='{.status.readyReplicas}'"
+    min_replicas: 2
+    depends_on: []
+    critical_for: [all-acm-components]
+    notes: "Root operator. If at 0 replicas, ALL ACM components are unmanaged. MCH CR status becomes stale. Highest-priority finding."
+
+  multicluster-engine-operator:
+    subsystem: Platform
+    type: hub-operator
+    namespace: multicluster-engine
+    pod_label: "control-plane=backplane-operator"
+    health_check: "oc get deploy multicluster-engine-operator -n multicluster-engine -o jsonpath='{.status.readyReplicas}'"
+    min_replicas: 2
+    depends_on: []
+    critical_for: [all-mce-components]
+    notes: "MCE operator. If at 0 replicas, MCE components are unmanaged."
+
+  multicluster-integrations:
+    subsystem: Platform
+    type: hub-deployment
+    namespace: "{mch_ns}"
+    pod_label: "name=multicluster-integrations"
+    health_check: "oc get deploy multicluster-integrations -n {mch_ns} -o jsonpath='{.status.readyReplicas}'"
+    depends_on: [multiclusterhub-operator]
+    critical_for: [cross-component-integration]
+    notes: "Integrations controller managed by MCH operator."
+
+  # =====================================================================
+  # SEARCH SUBSYSTEM
+  # =====================================================================
+
   search-api:
     subsystem: Search
     type: hub-deployment
-    namespace: open-cluster-management
-    pod_label: "app=search-api"
-    health_check: "oc get deploy search-api -n {ns} -o jsonpath='{.status.readyReplicas}'"
+    namespace: "{mch_ns}"
+    pod_label: "name=search-api"
+    health_check: "oc get deploy search-api -n {mch_ns} -o jsonpath='{.status.readyReplicas}'"
     depends_on: [search-postgres, search-indexer]
     critical_for: [search-page, vm-search, resource-lookup]
     tls_secret: search-api-certs
@@ -25,10 +71,10 @@ components:
   search-postgres:
     subsystem: Search
     type: hub-deployment
-    namespace: open-cluster-management
-    pod_label: "app=search-postgres"
+    namespace: "{mch_ns}"
+    pod_label: "name=search-postgres"
     volume_type: emptyDir
-    health_check: "oc get deploy search-postgres -n {ns} -o jsonpath='{.status.readyReplicas}'"
+    health_check: "oc get deploy search-postgres -n {mch_ns} -o jsonpath='{.status.readyReplicas}'"
     depends_on: []
     critical_for: [search-api, search-indexer]
     notes: "Uses emptyDir -- index rebuilt from collectors after restart. Replaced redisgraph in ACM 2.12+."
@@ -36,43 +82,59 @@ components:
   search-indexer:
     subsystem: Search
     type: hub-deployment
-    namespace: open-cluster-management
-    pod_label: "app=search-indexer"
-    health_check: "oc get deploy search-indexer -n {ns} -o jsonpath='{.status.readyReplicas}'"
+    namespace: "{mch_ns}"
+    pod_label: "name=search-indexer"
+    health_check: "oc get deploy search-indexer -n {mch_ns} -o jsonpath='{.status.readyReplicas}'"
     depends_on: [search-postgres]
     critical_for: [search-api]
     notes: "Processes and indexes data from collectors into postgres."
 
   search-collector:
     subsystem: Search
-    type: addon
-    namespace: open-cluster-management-agent-addon
-    pod_label: "app=search-collector"
-    health_check: "oc get managedclusteraddon search-collector -n {cluster}"
-    depends_on: [klusterlet]
+    type: hub-deployment
+    namespace: "{mch_ns}"
+    pod_label: "name=search-collector"
+    health_check: "oc get deploy search-collector -n {mch_ns} -o jsonpath='{.status.readyReplicas}'"
+    depends_on: []
     critical_for: [search-indexer]
-    notes: "Runs on each spoke. If missing, resources from that spoke silently absent."
+    notes: "Hub-side collector. Spoke-side collectors are addons (klusterlet-addon-search)."
 
-  search-v2-operator:
+  search-v2-operator-controller-manager:
     subsystem: Search
     type: hub-deployment
-    namespace: open-cluster-management
-    pod_label: "app=search-v2-operator-controller-manager"
+    namespace: "{mch_ns}"
+    pod_label: "control-plane=controller-manager"
+    health_check: "oc get deploy search-v2-operator-controller-manager -n {mch_ns} -o jsonpath='{.status.readyReplicas}'"
     depends_on: []
     critical_for: [search-api, search-indexer, search-postgres]
     notes: "Manages the search stack lifecycle."
 
-  # --- Governance (GRC) subsystem ---
+  # =====================================================================
+  # GOVERNANCE (GRC) SUBSYSTEM
+  # =====================================================================
+
   grc-policy-propagator:
     subsystem: Governance
     type: hub-deployment
-    namespace: open-cluster-management
-    pod_label: "app=grc-policy-propagator"
-    health_check: "oc get deploy grc-policy-propagator -n {ns} -o jsonpath='{.status.readyReplicas}'"
+    namespace: "{mch_ns}"
+    pod_label: "component=ocm-policy-propagator"
+    health_check: "oc get deploy grc-policy-propagator -n {mch_ns} -o jsonpath='{.status.readyReplicas}'"
+    min_replicas: 2
     depends_on: []
     critical_for: [policy-distribution, compliance-reporting]
     tls_secret: propagator-webhook-server-cert
     notes: "Distributes policies from hub to managed clusters. If down, no new policies."
+
+  grc-policy-addon-controller:
+    subsystem: Governance
+    type: hub-deployment
+    namespace: "{mch_ns}"
+    pod_label: "component=ocm-policy-addon-ctrl"
+    health_check: "oc get deploy grc-policy-addon-controller -n {mch_ns} -o jsonpath='{.status.readyReplicas}'"
+    min_replicas: 2
+    depends_on: []
+    critical_for: [policy-addon-deployment]
+    notes: "Manages GRC addon deployment to spokes. If down, new spoke policy controllers not deployed."
 
   config-policy-controller:
     subsystem: Governance
@@ -94,23 +156,28 @@ components:
     critical_for: [policy-sync, status-sync]
     notes: "Core framework on spoke. Runs Spec/Template/Status/Secret/Gatekeeper sync."
 
-  # --- Cluster Lifecycle (CLC) subsystem ---
-  managedcluster-import-controller:
+  # =====================================================================
+  # CLUSTER LIFECYCLE (CLC) SUBSYSTEM
+  # =====================================================================
+
+  managedcluster-import-controller-v2:
     subsystem: Cluster-Lifecycle
     type: hub-deployment
     namespace: multicluster-engine
-    pod_label: "app=managedcluster-import-controller"
+    pod_label: "app=managedcluster-import-controller-v2"
     health_check: "oc get deploy managedcluster-import-controller-v2 -n multicluster-engine -o jsonpath='{.status.readyReplicas}'"
+    min_replicas: 2
     depends_on: []
     critical_for: [cluster-import, klusterlet-deployment]
     notes: "Imports clusters and deploys klusterlet to spokes."
 
-  cluster-curator:
+  cluster-curator-controller:
     subsystem: Cluster-Lifecycle
     type: hub-deployment
     namespace: multicluster-engine
-    pod_label: "app=cluster-curator-controller"
+    pod_label: "name=cluster-curator-controller"
     health_check: "oc get deploy cluster-curator-controller -n multicluster-engine -o jsonpath='{.status.readyReplicas}'"
+    min_replicas: 2
     depends_on: []
     critical_for: [cluster-upgrades]
     notes: "Orchestrates cluster upgrades via curator pods. Creates AnsibleJob CRDs."
@@ -118,75 +185,199 @@ components:
   cluster-manager:
     subsystem: Cluster-Lifecycle
     type: hub-deployment
-    namespace: open-cluster-management-hub
+    namespace: multicluster-engine
     pod_label: "app=cluster-manager"
-    health_check: "oc get deploy cluster-manager -n open-cluster-management-hub -o jsonpath='{.status.readyReplicas}'"
+    health_check: "oc get deploy cluster-manager -n multicluster-engine -o jsonpath='{.status.readyReplicas}'"
+    min_replicas: 3
     depends_on: []
     critical_for: [cluster-management]
-    notes: "Core cluster management controller."
+    notes: "Core cluster management controller. Deploys registration and work controllers to hub namespace."
+
+  hive-operator:
+    subsystem: Cluster-Lifecycle
+    type: hub-operator
+    namespace: multicluster-engine
+    pod_label: "control-plane=hive-operator"
+    health_check: "oc get deploy hive-operator -n multicluster-engine -o jsonpath='{.status.readyReplicas}'"
+    depends_on: []
+    critical_for: [hive-controllers, hiveadmission]
+    notes: "Manages Hive CRDs and hive-controllers deployment. Lives in MCE namespace."
 
   hive-controllers:
     subsystem: Cluster-Lifecycle
     type: hub-deployment
     namespace: hive
-    pod_label: "app=hive-controllers"
+    pod_label: "control-plane=controller-manager"
     health_check: "oc get deploy hive-controllers -n hive -o jsonpath='{.status.readyReplicas}'"
-    depends_on: []
+    depends_on: [hive-operator]
     critical_for: [cluster-provisioning, clusterdeployment]
     notes: "Provisions cloud infrastructure for new clusters."
+
+  hiveadmission:
+    subsystem: Cluster-Lifecycle
+    type: hub-deployment
+    namespace: hive
+    pod_label: "app=hiveadmission"
+    health_check: "oc get deploy hiveadmission -n hive -o jsonpath='{.status.readyReplicas}'"
+    min_replicas: 2
+    depends_on: [hive-operator]
+    critical_for: [clusterdeployment-validation]
+    notes: "Webhook admission for ClusterDeployment operations."
 
   placement-controller:
     subsystem: Cluster-Lifecycle
     type: hub-deployment
     namespace: open-cluster-management-hub
-    pod_label: "app=placement-controller"
+    pod_label: "app=clustermanager-placement-controller"
     health_check: "oc get deploy cluster-manager-placement-controller -n open-cluster-management-hub -o jsonpath='{.status.readyReplicas}'"
+    min_replicas: 3
     depends_on: []
     critical_for: [placement-decisions, workload-targeting]
     notes: "Evaluates placement decisions for workload distribution."
 
-  # --- Console subsystem ---
+  clusterclaims-controller:
+    subsystem: Cluster-Lifecycle
+    type: hub-deployment
+    namespace: multicluster-engine
+    pod_label: "name=clusterclaims-controller"
+    health_check: "oc get deploy clusterclaims-controller -n multicluster-engine -o jsonpath='{.status.readyReplicas}'"
+    min_replicas: 2
+    depends_on: []
+    critical_for: [cluster-claims, cluster-pools]
+    notes: "Manages ClusterClaim resources for cluster pool allocation."
+
+  provider-credential-controller:
+    subsystem: Cluster-Lifecycle
+    type: hub-deployment
+    namespace: multicluster-engine
+    pod_label: "name=provider-credential-controller"
+    health_check: "oc get deploy provider-credential-controller -n multicluster-engine -o jsonpath='{.status.readyReplicas}'"
+    depends_on: []
+    critical_for: [credential-management]
+    notes: "Manages cloud provider credentials for cluster provisioning."
+
+  discovery-operator:
+    subsystem: Cluster-Lifecycle
+    type: hub-deployment
+    namespace: multicluster-engine
+    pod_label: "app=discovery-operator"
+    health_check: "oc get deploy discovery-operator -n multicluster-engine -o jsonpath='{.status.readyReplicas}'"
+    depends_on: []
+    critical_for: [cluster-discovery]
+    notes: "Discovers clusters from cloud providers for import."
+
+  infrastructure-operator:
+    subsystem: Cluster-Lifecycle
+    type: hub-deployment
+    namespace: multicluster-engine
+    pod_label: "control-plane=infrastructure-operator"
+    health_check: "oc get deploy infrastructure-operator -n multicluster-engine -o jsonpath='{.status.readyReplicas}'"
+    depends_on: []
+    critical_for: [assisted-installer, infrastructure-environments]
+    notes: "Manages InfraEnv and bare-metal cluster provisioning."
+
+  hypershift-addon-manager:
+    subsystem: Cluster-Lifecycle
+    type: hub-deployment
+    namespace: multicluster-engine
+    pod_label: "app=hypershift-addon-manager"
+    health_check: "oc get deploy hypershift-addon-manager -n multicluster-engine -o jsonpath='{.status.readyReplicas}'"
+    depends_on: []
+    critical_for: [hosted-clusters]
+    notes: "Manages HyperShift addon for hosted control plane clusters."
+
+  siteconfig-controller-manager:
+    subsystem: Cluster-Lifecycle
+    type: hub-deployment
+    namespace: "{mch_ns}"
+    pod_label: "app.kubernetes.io/name=siteconfig-controller"
+    health_check: "oc get deploy siteconfig-controller-manager -n {mch_ns} -o jsonpath='{.status.readyReplicas}'"
+    depends_on: []
+    critical_for: [site-config, ztp]
+    notes: "Manages ClusterInstance resources for ZTP (Zero Touch Provisioning)."
+
+  # =====================================================================
+  # CONSOLE SUBSYSTEM
+  # =====================================================================
+
   console-chart-console-v2:
     subsystem: Console
     type: hub-deployment
-    namespace: open-cluster-management
-    pod_label: "app=console-chart-console-v2"
+    namespace: "{mch_ns}"
+    pod_label: "app=console-chart-v2"
     min_replicas: 2
-    health_check: "oc get deploy console-chart-console-v2 -n {ns} -o jsonpath='{.status.readyReplicas}'"
+    health_check: "oc get deploy console-chart-console-v2 -n {mch_ns} -o jsonpath='{.status.readyReplicas}'"
     depends_on: []
     critical_for: [all-ui-features]
     tls_secret: console-chart-console-certs
-    notes: "ACM console frontend. If down, all UI tests fail."
+    console_plugin: acm
+    notes: "ACM console frontend. Registered as ConsolePlugin 'acm'. If down, all UI tests fail."
 
-  console-api:
+  console-mce-console:
     subsystem: Console
     type: hub-deployment
-    namespace: open-cluster-management
-    pod_label: "app=console-api"
-    health_check: "oc get deploy console-api -n {ns} -o jsonpath='{.status.readyReplicas}'"
+    namespace: multicluster-engine
+    pod_label: "app=console-mce"
+    min_replicas: 2
+    health_check: "oc get deploy console-mce-console -n multicluster-engine -o jsonpath='{.status.readyReplicas}'"
     depends_on: []
-    critical_for: [backend-data, rbac-endpoints, resource-proxy]
-    notes: "Console backend. Serves all feature data. In ACM 2.16+ may be integrated into console chart."
+    critical_for: [mce-ui-features, cluster-management-ui]
+    console_plugin: mce
+    notes: "MCE console frontend. Registered as ConsolePlugin 'mce'. Provides CLC and infrastructure UI."
 
-  # --- Application Lifecycle subsystem ---
-  subscription-controller:
+  # =====================================================================
+  # APPLICATION LIFECYCLE SUBSYSTEM
+  # =====================================================================
+
+  multicluster-operators-hub-subscription:
     subsystem: Application-Lifecycle
     type: hub-deployment
-    namespace: open-cluster-management
-    pod_label: "app=subscription-controller"
-    health_check: "oc get deploy -n {ns} -l app=subscription-controller -o jsonpath='{.items[0].status.readyReplicas}'"
+    namespace: "{mch_ns}"
+    pod_label: "app=multicluster-operators-hub-subscription"
+    health_check: "oc get deploy multicluster-operators-hub-subscription -n {mch_ns} -o jsonpath='{.status.readyReplicas}'"
     depends_on: []
     critical_for: [subscription-reconciliation]
-    notes: "Reconciles subscriptions on hub."
+    notes: "Hub subscription controller. Reconciles subscriptions on hub."
 
-  channel-controller:
+  multicluster-operators-channel:
     subsystem: Application-Lifecycle
     type: hub-deployment
-    namespace: open-cluster-management
-    pod_label: "app=channel-controller"
+    namespace: "{mch_ns}"
+    pod_label: "app=multicluster-operators-channel"
+    health_check: "oc get deploy multicluster-operators-channel -n {mch_ns} -o jsonpath='{.status.readyReplicas}'"
     depends_on: []
     critical_for: [channel-management]
     notes: "Manages channel resources (Git, Helm, ObjectBucket)."
+
+  multicluster-operators-application:
+    subsystem: Application-Lifecycle
+    type: hub-deployment
+    namespace: "{mch_ns}"
+    pod_label: "app=multicluster-operators-application"
+    health_check: "oc get deploy multicluster-operators-application -n {mch_ns} -o jsonpath='{.status.readyReplicas}'"
+    depends_on: []
+    critical_for: [application-management]
+    notes: "Hub-side application controller."
+
+  multicluster-operators-standalone-subscription:
+    subsystem: Application-Lifecycle
+    type: hub-deployment
+    namespace: "{mch_ns}"
+    pod_label: "app=multicluster-operators-standalone-subscription"
+    health_check: "oc get deploy multicluster-operators-standalone-subscription -n {mch_ns} -o jsonpath='{.status.readyReplicas}'"
+    depends_on: []
+    critical_for: [standalone-subscription]
+    notes: "Standalone subscription controller."
+
+  multicluster-operators-subscription-report:
+    subsystem: Application-Lifecycle
+    type: hub-deployment
+    namespace: "{mch_ns}"
+    pod_label: "app=multicluster-operators-subscription-report"
+    health_check: "oc get deploy multicluster-operators-subscription-report -n {mch_ns} -o jsonpath='{.status.readyReplicas}'"
+    depends_on: []
+    critical_for: [subscription-reporting]
+    notes: "Reports subscription status across clusters."
 
   application-manager:
     subsystem: Application-Lifecycle
@@ -198,123 +389,360 @@ components:
     critical_for: [app-deployment-spoke]
     notes: "Manages application resources on spoke clusters."
 
-  # --- Observability subsystem ---
+  # =====================================================================
+  # OBSERVABILITY SUBSYSTEM
+  # =====================================================================
+
   multicluster-observability-operator:
     subsystem: Observability
     type: operator
-    namespace: open-cluster-management
-    pod_label: "app=multicluster-observability-operator"
+    namespace: "{mch_ns}"
+    pod_label: "name=multicluster-observability-operator"
+    health_check: "oc get deploy multicluster-observability-operator -n {mch_ns} -o jsonpath='{.status.readyReplicas}'"
     depends_on: []
     critical_for: [observability-stack]
-    notes: "Deploys and manages Thanos stack. Lives in MCH namespace."
+    notes: "Deploys and manages Thanos stack. Lives in MCH namespace, deploys to observability namespace."
 
-  thanos-query:
+  observability-thanos-query:
     subsystem: Observability
-    type: hub-statefulset
+    type: hub-deployment
     namespace: open-cluster-management-observability
     pod_label: "app.kubernetes.io/name=thanos-query"
-    depends_on: [thanos-store, thanos-receive]
+    health_check: "oc get deploy observability-thanos-query -n open-cluster-management-observability -o jsonpath='{.status.readyReplicas}'"
+    min_replicas: 2
+    depends_on: [observability-thanos-store-shard-0, observability-thanos-receive-default]
     critical_for: [grafana-dashboards]
     notes: "Serves queries for Grafana dashboards."
 
-  thanos-receive:
+  observability-thanos-receive-default:
     subsystem: Observability
     type: hub-statefulset
     namespace: open-cluster-management-observability
     pod_label: "app.kubernetes.io/name=thanos-receive"
+    health_check: "oc get statefulset observability-thanos-receive-default -n open-cluster-management-observability -o jsonpath='{.status.readyReplicas}'"
+    min_replicas: 3
     depends_on: [s3-storage]
     critical_for: [metrics-ingestion]
     notes: "Receives metrics from spoke collectors."
 
-  thanos-store:
+  observability-thanos-store-shard-0:
     subsystem: Observability
     type: hub-statefulset
     namespace: open-cluster-management-observability
     pod_label: "app.kubernetes.io/name=thanos-store"
+    health_check: "oc get statefulset observability-thanos-store-shard-0 -n open-cluster-management-observability -o jsonpath='{.status.readyReplicas}'"
     depends_on: [s3-storage]
     critical_for: [historical-queries]
-    notes: "Serves historical metrics from S3. Most common observability crash point."
+    notes: "Serves historical metrics from S3. Most common observability crash point. May have multiple shards (shard-0, shard-1, shard-2)."
 
-  grafana:
+  observability-grafana:
     subsystem: Observability
     type: hub-deployment
     namespace: open-cluster-management-observability
     pod_label: "app=grafana"
-    depends_on: [thanos-query]
+    health_check: "oc get deploy observability-grafana -n open-cluster-management-observability -o jsonpath='{.status.readyReplicas}'"
+    min_replicas: 2
+    depends_on: [observability-thanos-query]
     critical_for: [metrics-visualization]
     notes: "Visualization dashboards."
 
-  # --- Infrastructure subsystem ---
+  observability-rbac-query-proxy:
+    subsystem: Observability
+    type: hub-deployment
+    namespace: open-cluster-management-observability
+    pod_label: "app=rbac-query-proxy"
+    health_check: "oc get deploy observability-rbac-query-proxy -n open-cluster-management-observability -o jsonpath='{.status.readyReplicas}'"
+    min_replicas: 2
+    depends_on: [observability-thanos-query]
+    critical_for: [metrics-rbac]
+    notes: "RBAC proxy for Thanos queries."
+
+  observability-alertmanager:
+    subsystem: Observability
+    type: hub-statefulset
+    namespace: open-cluster-management-observability
+    pod_label: "app.kubernetes.io/name=alertmanager"
+    health_check: "oc get statefulset observability-alertmanager -n open-cluster-management-observability -o jsonpath='{.status.readyReplicas}'"
+    min_replicas: 3
+    depends_on: []
+    critical_for: [alerting]
+    notes: "Alert management for observability."
+
+  # =====================================================================
+  # INFRASTRUCTURE SUBSYSTEM (hub controllers + spoke agents)
+  # =====================================================================
+
+  cluster-manager-registration-controller:
+    subsystem: Infrastructure
+    type: hub-deployment
+    namespace: open-cluster-management-hub
+    pod_label: "app=clustermanager-registration-controller"
+    health_check: "oc get deploy cluster-manager-registration-controller -n open-cluster-management-hub -o jsonpath='{.status.readyReplicas}'"
+    min_replicas: 3
+    depends_on: [cluster-manager]
+    critical_for: [cluster-registration, managed-cluster-lifecycle]
+    notes: "Hub-side registration controller. Manages ManagedCluster approval and lifecycle."
+
+  cluster-manager-registration-webhook:
+    subsystem: Infrastructure
+    type: hub-deployment
+    namespace: open-cluster-management-hub
+    pod_label: "app=cluster-manager-registration-webhook"
+    health_check: "oc get deploy cluster-manager-registration-webhook -n open-cluster-management-hub -o jsonpath='{.status.readyReplicas}'"
+    min_replicas: 3
+    depends_on: [cluster-manager]
+    critical_for: [cluster-registration-validation]
+    notes: "Validates ManagedCluster registration requests."
+
+  cluster-manager-work-webhook:
+    subsystem: Infrastructure
+    type: hub-deployment
+    namespace: open-cluster-management-hub
+    pod_label: "app=cluster-manager-work-webhook"
+    health_check: "oc get deploy cluster-manager-work-webhook -n open-cluster-management-hub -o jsonpath='{.status.readyReplicas}'"
+    min_replicas: 3
+    depends_on: [cluster-manager]
+    critical_for: [manifestwork-validation]
+    notes: "Validates ManifestWork operations. If down, all ManifestWork delivery blocked."
+
+  cluster-manager-addon-manager-controller:
+    subsystem: Infrastructure
+    type: hub-deployment
+    namespace: open-cluster-management-hub
+    pod_label: "app=clustermanager-addon-manager-controller"
+    health_check: "oc get deploy cluster-manager-addon-manager-controller -n open-cluster-management-hub -o jsonpath='{.status.readyReplicas}'"
+    min_replicas: 3
+    depends_on: [cluster-manager]
+    critical_for: [addon-deployment, addon-lifecycle]
+    notes: "Manages addon deployment to spoke clusters. If down, no new addon deployments."
+
+  cluster-manager-addon-webhook:
+    subsystem: Infrastructure
+    type: hub-deployment
+    namespace: open-cluster-management-hub
+    pod_label: "app=cluster-manager-addon-webhook"
+    health_check: "oc get deploy cluster-manager-addon-webhook -n open-cluster-management-hub -o jsonpath='{.status.readyReplicas}'"
+    min_replicas: 3
+    depends_on: [cluster-manager]
+    critical_for: [addon-validation]
+    notes: "Validates addon operations."
+
   klusterlet:
     subsystem: Infrastructure
-    type: daemonset
+    type: spoke-agent
     namespace: open-cluster-management-agent
     pod_label: "app=klusterlet"
+    health_check: "oc get pods -n open-cluster-management-agent -l app=klusterlet --no-headers"
     depends_on: []
     critical_for: [all-spoke-features]
     notes: "Agent on spoke. If down, ALL spoke-dependent features fail for that cluster."
 
-  addon-manager:
+  klusterlet-addon-controller-v2:
+    subsystem: Infrastructure
+    type: hub-deployment
+    namespace: "{mch_ns}"
+    pod_label: "app=klusterlet-addon-controller-v2"
+    health_check: "oc get deploy klusterlet-addon-controller-v2 -n {mch_ns} -o jsonpath='{.status.readyReplicas}'"
+    min_replicas: 2
+    depends_on: []
+    critical_for: [addon-deployment-to-spokes]
+    notes: "Hub-side controller for klusterlet addon deployment."
+
+  ocm-controller:
     subsystem: Infrastructure
     type: hub-deployment
     namespace: multicluster-engine
-    pod_label: "app=addon-manager-controller"
+    pod_label: "control-plane=ocm-controller"
+    health_check: "oc get deploy ocm-controller -n multicluster-engine -o jsonpath='{.status.readyReplicas}'"
+    min_replicas: 2
     depends_on: []
-    critical_for: [addon-deployment]
-    notes: "Deploys and manages addons on spokes. If down, addon deployments stop."
+    critical_for: [resource-management]
+    notes: "Core OCM controller in MCE."
 
-  work-manager:
+  ocm-proxyserver:
     subsystem: Infrastructure
-    type: addon
-    namespace: open-cluster-management-agent-addon
-    pod_label: "app=work-manager"
-    depends_on: [klusterlet]
-    critical_for: [manifestwork-delivery, addon-delivery]
-    notes: "Delivers ManifestWorks from hub to spoke. Core infrastructure addon."
+    type: hub-deployment
+    namespace: multicluster-engine
+    pod_label: "control-plane=ocm-proxyserver"
+    health_check: "oc get deploy ocm-proxyserver -n multicluster-engine -o jsonpath='{.status.readyReplicas}'"
+    min_replicas: 2
+    depends_on: []
+    critical_for: [api-proxy]
+    notes: "OCM proxy server for API aggregation."
+
+  ocm-webhook:
+    subsystem: Infrastructure
+    type: hub-deployment
+    namespace: multicluster-engine
+    pod_label: "control-plane=ocm-webhook"
+    health_check: "oc get deploy ocm-webhook -n multicluster-engine -o jsonpath='{.status.readyReplicas}'"
+    min_replicas: 2
+    depends_on: []
+    critical_for: [resource-validation]
+    notes: "OCM webhook for resource validation."
+
+  cluster-proxy:
+    subsystem: Infrastructure
+    type: hub-deployment
+    namespace: multicluster-engine
+    pod_label: "proxy.open-cluster-management.io/component-name=proxy-server"
+    health_check: "oc get deploy cluster-proxy -n multicluster-engine -o jsonpath='{.status.readyReplicas}'"
+    min_replicas: 2
+    depends_on: []
+    critical_for: [spoke-api-proxy]
+    notes: "Proxy server for accessing spoke cluster APIs from hub."
 
   foundation-controller:
     subsystem: Infrastructure
     type: hub-deployment
     namespace: multicluster-engine
     pod_label: "app=foundation-controller"
+    health_check: "oc get deploy foundation-controller -n multicluster-engine -o jsonpath='{.status.readyReplicas}'"
     depends_on: []
     critical_for: [cluster-services]
     notes: "Provides core cluster-level services."
 
-  # --- RBAC subsystem ---
+  # =====================================================================
+  # RBAC SUBSYSTEM
+  # =====================================================================
+
   cluster-permission:
     subsystem: RBAC
     type: hub-deployment
-    namespace: open-cluster-management
-    pod_label: "app=cluster-permission"
-    depends_on: [console-api]
+    namespace: "{mch_ns}"
+    pod_label: "name=cluster-permission"
+    health_check: "oc get deploy cluster-permission -n {mch_ns} -o jsonpath='{.status.readyReplicas}'"
+    depends_on: []
     critical_for: [rbac-propagation]
-    notes: "Only present when fine-grained-rbac MCH component is enabled."
+    notes: "Present when fine-grained-rbac MCH component is enabled."
 
-  # --- Virtualization subsystem ---
+  multicluster-role-assignment-controller:
+    subsystem: RBAC
+    type: hub-deployment
+    namespace: "{mch_ns}"
+    pod_label: "app.kubernetes.io/name=multicluster-role-assignment"
+    health_check: "oc get deploy multicluster-role-assignment-controller -n {mch_ns} -o jsonpath='{.status.readyReplicas}'"
+    depends_on: []
+    critical_for: [role-assignments, user-management]
+    notes: "MCRA controller. Manages role assignments across clusters."
+
+  # =====================================================================
+  # VIRTUALIZATION SUBSYSTEM (external operators, not ACM-managed)
+  # =====================================================================
+
   virt-api:
     subsystem: Virtualization
     type: hub-deployment
     namespace: openshift-cnv
     pod_label: "app=virt-api"
+    health_check: "oc get deploy virt-api -n openshift-cnv -o jsonpath='{.status.readyReplicas}'"
     depends_on: [kubevirt-operator]
     critical_for: [vm-operations]
-    notes: "VM API server on spoke clusters. Part of CNV, not ACM."
+    notes: "VM API server. Part of CNV, not ACM."
 
   kubevirt-operator:
     subsystem: Virtualization
     type: operator
     namespace: openshift-cnv
     pod_label: "app=kubevirt-operator"
+    health_check: "oc get deploy kubevirt-operator -n openshift-cnv -o jsonpath='{.status.readyReplicas}'"
     depends_on: []
     critical_for: [vm-infrastructure]
-    notes: "KubeVirt operator on spoke. Part of CNV, not ACM."
+    notes: "KubeVirt operator. Part of CNV, not ACM."
 
   forklift-controller:
     subsystem: Virtualization
     type: operator
     namespace: openshift-mtv
     pod_label: "app=forklift-controller"
+    health_check: "oc get deploy forklift-controller -n openshift-mtv -o jsonpath='{.status.readyReplicas}'"
     depends_on: [kubevirt-operator]
     critical_for: [vm-migration]
     notes: "MTV migration controller. Required for cross-cluster VM migration."
+
+  mtv-integrations-controller:
+    subsystem: Virtualization
+    type: hub-deployment
+    namespace: "{mch_ns}"
+    pod_label: "component=ocm-mtv-integrations-ctrl"
+    health_check: "oc get deploy mtv-integrations-controller -n {mch_ns} -o jsonpath='{.status.readyReplicas}'"
+    depends_on: []
+    critical_for: [mtv-acm-integration]
+    notes: "ACM-side MTV integration controller."
+
+  # =====================================================================
+  # AUTOMATION SUBSYSTEM
+  # =====================================================================
+
+  # AAP operator is external (not ACM-managed). CSVs show aap-operator.v2.6.0 on this cluster.
+  # No ACM-owned deployment for automation -- relies on external AAP operator + ClusterCurator.
+
+  # =====================================================================
+  # SUBMARINE & NETWORKING
+  # =====================================================================
+
+  submariner-addon:
+    subsystem: Networking
+    type: hub-deployment
+    namespace: "{mch_ns}"
+    pod_label: "app=submariner-addon"
+    health_check: "oc get deploy submariner-addon -n {mch_ns} -o jsonpath='{.status.readyReplicas}'"
+    depends_on: []
+    critical_for: [cross-cluster-networking]
+    notes: "Hub-side Submariner addon controller."
+
+  # =====================================================================
+  # UTILITY DEPLOYMENTS (not critical for test classification,
+  # but included for completeness of health checking)
+  # =====================================================================
+
+  acm-cli-downloads:
+    subsystem: Platform
+    type: hub-deployment
+    namespace: "{mch_ns}"
+    pod_label: "subcomponent=acm-cli-downloads"
+    health_check: "oc get deploy acm-cli-downloads -n {mch_ns} -o jsonpath='{.status.readyReplicas}'"
+    min_replicas: 2
+    depends_on: []
+    critical_for: []
+    notes: "Serves CLI download artifacts. Not critical for test classification."
+
+  insights-client:
+    subsystem: Platform
+    type: hub-deployment
+    namespace: "{mch_ns}"
+    pod_label: "name=insights-client"
+    health_check: "oc get deploy insights-client -n {mch_ns} -o jsonpath='{.status.readyReplicas}'"
+    depends_on: []
+    critical_for: []
+    notes: "Insights data collection. Not critical for test classification."
+
+  volsync-addon-controller:
+    subsystem: Infrastructure
+    type: hub-deployment
+    namespace: "{mch_ns}"
+    pod_label: "app=volsync-addon-controller"
+    health_check: "oc get deploy volsync-addon-controller -n {mch_ns} -o jsonpath='{.status.readyReplicas}'"
+    depends_on: []
+    critical_for: [volsync-addon]
+    notes: "VolSync addon controller for persistent volume replication."
+
+  clusterlifecycle-state-metrics-v2:
+    subsystem: Cluster-Lifecycle
+    type: hub-deployment
+    namespace: multicluster-engine
+    pod_label: "app=clusterlifecycle-state-metrics-v2"
+    health_check: "oc get deploy clusterlifecycle-state-metrics-v2 -n multicluster-engine -o jsonpath='{.status.readyReplicas}'"
+    depends_on: []
+    critical_for: []
+    notes: "Exports cluster lifecycle metrics. Not critical for test classification."
+
+  cluster-image-set-controller:
+    subsystem: Cluster-Lifecycle
+    type: hub-deployment
+    namespace: multicluster-engine
+    pod_label: "name=cluster-image-set-controller"
+    health_check: "oc get deploy cluster-image-set-controller -n multicluster-engine -o jsonpath='{.status.readyReplicas}'"
+    depends_on: []
+    critical_for: [cluster-image-sets]
+    notes: "Manages ClusterImageSet resources for cluster provisioning."

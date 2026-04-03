@@ -96,6 +96,16 @@ from .cluster_investigation_service import (
     ComponentDiagnostics,
 )
 
+# Cluster Health Service (v3.7)
+from .cluster_health_service import (
+    ClusterHealthService,
+    ClusterHealthReport,
+    ClusterIdentity,
+    HealthFinding,
+    SubsystemHealth,
+    ManagedClusterHealth,
+)
+
 # Feature Area Grounding (v3.0)
 from .feature_area_service import (
     FeatureAreaService,
@@ -213,6 +223,13 @@ __all__ = [
     'ClusterLandscape',
     'PodDiagnostics',
     'ComponentDiagnostics',
+    # Cluster Health Service (v3.7)
+    'ClusterHealthService',
+    'ClusterHealthReport',
+    'ClusterIdentity',
+    'HealthFinding',
+    'SubsystemHealth',
+    'ManagedClusterHealth',
     # Feature Area Grounding (v3.0)
     'FeatureAreaService',
     'FeatureGrounding',

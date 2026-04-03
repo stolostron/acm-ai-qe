@@ -84,7 +84,10 @@ The knowledge database (`knowledge/`) provides domain reference data that the AI
 | `api-endpoints.yaml` | 5 endpoints | Backend probe reference | ACM-UI MCP code search |
 | `feature-areas.yaml` | 13 areas | Test-to-feature mapping | Manual + code sync |
 | `test-mapping.yaml` | 10+ suites | Suite-to-area mapping | Manual |
-| `learned/` | 3 files | Agent-contributed knowledge | AI agent writes |
+| `healthy-baseline.yaml` | 6 namespaces | Expected pod counts, deployment states, node thresholds | Cluster snapshot via refresh.py |
+| `addon-catalog.yaml` | 12 addons | Addon health checks, dependencies, classification impact | Manual + cluster audit |
+| `webhook-registry.yaml` | 18 webhooks | Expected webhooks with criticality and failure policies | Cluster snapshot via refresh.py |
+| `learned/` | 3+ files | Agent-contributed knowledge (self-healing) | AI agent writes |
 | `refresh.py` | — | Updates knowledge from live sources | — |
 
 ---

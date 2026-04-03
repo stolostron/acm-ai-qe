@@ -1,0 +1,209 @@
+# ACM Webhook Registry
+# Validating and mutating webhook configurations expected on an ACM hub.
+# Used during cluster diagnostic (Stage 1.5) to detect missing or
+# misconfigured webhooks that can cause cascading test failures.
+#
+# Origin: Adapted from acm-hub-health knowledge database
+# Refresh frequency: after ACM version upgrade
+
+acm_version: "2.16"
+last_refreshed: "2026-04-03"
+validated_against_live_cluster: true
+# Validated: 47 validating + 15 mutating webhooks found on ACM 2.16 GA
+# Only ACM/MCE-relevant webhooks listed below (not OCP platform webhooks)
+
+validating_webhooks:
+- name: clusterdeploymentvalidators.admission.hive.openshift.io
+  owner: HiveConfig/hive
+  namespace: hive
+  failure_policy: Fail
+  critical_for:
+  - cluster-creation
+  - cluster-modification
+  - cluster-deletion
+  if_broken: All ClusterDeployment operations fail with webhook errors
+  classification_impact: "INFRASTRUCTURE for CLC cluster creation/destroy tests"
+  check_command: oc get validatingwebhookconfigurations clusterdeploymentvalidators.admission.hive.openshift.io
+
+- name: clusterimagesetvalidators.admission.hive.openshift.io
+  owner: HiveConfig/hive
+  namespace: default
+  failure_policy: Fail
+  critical_for:
+  - cluster-creation
+  if_broken: ClusterImageSet validation fails during cluster provisioning
+
+- name: clusterinstances.siteconfig.open-cluster-management.io
+  owner: SiteConfig
+  namespace: ocm
+  failure_policy: Fail
+  critical_for:
+  - cluster-provisioning
+  if_broken: ClusterInstance operations blocked
+
+- name: managedclustersetbindingvalidators.admission.cluster.open-cluster-management.io
+  owner: ClusterManager
+  namespace: open-cluster-management-hub
+  failure_policy: Fail
+  critical_for:
+  - clusterset-binding
+  if_broken: ManagedClusterSetBinding operations fail
+  classification_impact: "INFRASTRUCTURE for CLC/Application tests using clustersets"
+
+- name: managedclustervalidators.admission.cluster.open-cluster-management.io
+  owner: ClusterManager
+  namespace: open-cluster-management-hub
+  failure_policy: Fail
+  critical_for:
+  - cluster-import
+  - cluster-registration
+  if_broken: ManagedCluster create/update operations rejected
+  classification_impact: "INFRASTRUCTURE for CLC cluster import/registration tests"
+  check_command: oc get validatingwebhookconfigurations managedclustervalidators.admission.cluster.open-cluster-management.io
+
+- name: manifestworkvalidators.admission.work.open-cluster-management.io
+  owner: ClusterManager
+  namespace: open-cluster-management-hub
+  failure_policy: Fail
+  critical_for:
+  - manifestwork-delivery
+  - addon-deployment
+  if_broken: ManifestWork operations fail -- affects all addon and workload delivery
+  classification_impact: "INFRASTRUCTURE for ALL feature areas (ManifestWork is core delivery mechanism)"
+
+- name: multicluster-observability-operator
+  owner: MCO Operator
+  namespace: ocm
+  failure_policy: Fail
+  critical_for:
+  - observability-config
+  if_broken: Observability CR validation fails
+
+- name: multiclusterengines.multicluster.openshift.io
+  owner: MCE Operator
+  namespace: multicluster-engine
+  failure_policy: Fail
+  critical_for:
+  - mce-config-changes
+  if_broken: MCE configuration changes rejected
+
+- name: multiclusterhub-operator-validating-webhook
+  owner: MCH Operator
+  namespace: '{mch-ns}'
+  failure_policy: Fail
+  critical_for:
+  - mch-config-changes
+  if_broken: MCH configuration changes rejected
+
+- name: ocm-validating-webhook
+  owner: MCH Operator
+  namespace: '{mch-ns}'
+  failure_policy: Fail
+  critical_for:
+  - resource-validation
+  if_broken: OCM resource validation skipped (Ignore policy)
+
+- name: policy.open-cluster-management.io.webhook
+  owner: GRC
+  namespace: '{mch-ns}'
+  failure_policy: Fail
+  critical_for:
+  - policy-creation
+  - policy-modification
+  if_broken: Policy create/update operations rejected
+  classification_impact: "INFRASTRUCTURE for GRC policy lifecycle tests"
+  note: May be version-specific or conditionally deployed
+
+- name: placement.open-cluster-management.io
+  owner: ClusterManager
+  namespace: open-cluster-management-hub
+  failure_policy: Fail
+  critical_for:
+  - placement-decisions
+  if_broken: Placement operations fail -- affects app deployment and policy targeting
+  classification_impact: "INFRASTRUCTURE for Application and GRC placement tests"
+  note: May be version-specific or conditionally deployed
+
+# --- Discovered on live ACM 2.16 GA cluster (2026-04-03) ---
+
+- name: channels.apps.open.cluster.management.webhook.validator
+  owner: Application Lifecycle
+  namespace: '{mch_ns}'
+  failure_policy: Fail
+  critical_for:
+  - channel-creation
+  - subscription-management
+  if_broken: Channel create/update operations rejected
+  classification_impact: "INFRASTRUCTURE for Application channel tests"
+  validated_on_cluster: true
+
+- name: application-webhook-validator
+  owner: Application Lifecycle
+  namespace: '{mch_ns}'
+  failure_policy: Fail
+  critical_for:
+  - application-lifecycle
+  if_broken: Application resource validation fails
+  classification_impact: "INFRASTRUCTURE for Application tests"
+  validated_on_cluster: true
+
+- name: propagator-webhook-validating-configuration
+  owner: GRC
+  namespace: '{mch_ns}'
+  failure_policy: Fail
+  critical_for:
+  - policy-propagation
+  if_broken: Policy propagation webhook fails -- policies not distributed
+  classification_impact: "INFRASTRUCTURE for GRC policy lifecycle tests"
+  validated_on_cluster: true
+
+- name: cluster-backup-validating-webhook-configuration
+  owner: MCH Operator
+  namespace: '{mch_ns}'
+  failure_policy: Fail
+  critical_for:
+  - backup-restore
+  if_broken: Backup/restore operations rejected
+  validated_on_cluster: true
+
+- name: discovery.open-cluster-management.io
+  owner: Discovery Operator
+  namespace: multicluster-engine
+  failure_policy: Fail
+  critical_for:
+  - cluster-discovery
+  if_broken: DiscoveryConfig validation fails
+  validated_on_cluster: true
+
+mutating_webhooks:
+- name: managedclustermutators.admission.cluster.open-cluster-management.io
+  owner: ClusterManager
+  namespace: open-cluster-management-hub
+  failure_policy: Fail
+  critical_for:
+  - cluster-import
+  if_broken: ManagedCluster mutations fail during import
+
+- name: ocm-mutating-webhook
+  owner: MCH Operator
+  namespace: '{mch-ns}'
+  failure_policy: Fail
+  critical_for:
+  - mch-defaults
+  if_broken: MCH default values not applied
+
+common_webhook_issues:
+- issue: CA bundle mismatch after cert rotation
+  symptoms: 'x509: certificate signed by unknown authority'
+  resolution: Check webhook caBundle vs serving cert CA. service-ca-operator should auto-update.
+  classification_impact: "INFRASTRUCTURE if webhook cert expired; tests see webhook rejection errors"
+
+- issue: Webhook service not reachable
+  symptoms: 'failed calling webhook: connection refused'
+  resolution: Check that the webhook's target service and pod are Running.
+  classification_impact: "INFRASTRUCTURE -- webhook pod down blocks resource operations"
+
+- issue: Webhook timeout
+  symptoms: context deadline exceeded
+  resolution: Webhook pod may be overloaded. Check pod resource usage and restart count.
+  classification_impact: "INFRASTRUCTURE if timeouts are consistent; may cause test timeouts"

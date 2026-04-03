@@ -1,0 +1,275 @@
+# ACM Feature Prerequisites -- Z-Stream Analysis
+# Machine-checkable prerequisite definitions per feature area.
+# Used by FeatureKnowledgeService (Step 9) to determine feature readiness,
+# and by ClusterHealthService (Step 4) for prerequisite validation.
+#
+# Extracted from: src/data/feature_playbooks/base.yaml (34 prerequisites)
+# Validated against: ACM 2.16 GA on Azure (ashafi-acm-216-ga)
+# Refresh frequency: after ACM version change
+
+acm_version: "2.16"
+last_refreshed: "2026-04-03"
+
+# Types:
+#   mch_component -- MCH overrides component. Check: oc get mch -A -o jsonpath='{.items[0].spec.overrides.components}'
+#   addon         -- ManagedClusterAddon. Check: oc get managedclusteraddon <name> -n <cluster>
+#   operator      -- CSV or deployment. Check: oc get csv -n <ns> or oc get deploy <name> -n <ns>
+#   crd           -- CustomResourceDefinition. Check: oc get crd <name>
+#   informational -- Cannot be automatically checked. Context for AI only.
+
+prerequisites:
+
+  Search:
+    - id: search-mch-component
+      type: mch_component
+      component_name: search
+      default_enabled: true
+      description: "Search component enabled in MultiClusterHub"
+      if_disabled: "Search UI tab will not appear. All search tests fail with element not found. Classify NO_BUG."
+      check_command: "oc get mch -A -o jsonpath='{.items[0].spec.overrides.components}'"
+
+    - id: search-collector-addon
+      type: addon
+      addon_name: search-collector
+      default_enabled: true
+      description: "search-collector addon deployed to spoke clusters"
+      if_missing: "Resources from spoke silently absent from search results. No error produced."
+      check_command: "oc get managedclusteraddon search-collector -n {cluster}"
+
+  GRC:
+    - id: grc-mch-component
+      type: mch_component
+      component_name: grc
+      default_enabled: true
+      description: "GRC component enabled in MultiClusterHub"
+      if_disabled: "Governance UI tab will not appear. Classify NO_BUG."
+
+    - id: governance-framework-addon
+      type: addon
+      addon_name: governance-policy-framework
+      default_enabled: true
+      description: "governance-policy-framework addon on managed clusters"
+      if_missing: "Policies not synced to spoke. Compliance Unknown."
+      check_command: "oc get managedclusteraddon governance-policy-framework -n {cluster}"
+
+    - id: config-policy-addon
+      type: addon
+      addon_name: config-policy-controller
+      default_enabled: true
+      description: "config-policy-controller addon on managed clusters"
+      if_missing: "ConfigurationPolicies not evaluated on spoke."
+      check_command: "oc get managedclusteraddon config-policy-controller -n {cluster}"
+
+  CLC:
+    - id: clc-mch-component
+      type: mch_component
+      component_name: cluster-lifecycle
+      default_enabled: true
+      description: "Cluster Lifecycle component enabled in MultiClusterHub"
+      if_disabled: "CLC features disabled. Classify NO_BUG."
+
+    - id: hive-operator
+      type: operator
+      operator_name: hive-operator
+      namespace: multicluster-engine
+      default_enabled: true
+      description: "Hive operator installed (required for cluster provisioning)"
+      if_missing: "Cluster provisioning unavailable."
+      check_command: "oc get deploy hive-operator -n multicluster-engine"
+
+    - id: cloud-credentials
+      type: informational
+      description: "Appropriate cloud credentials configured for target provider"
+      if_missing: "Cluster creation tests will fail during setup (before all hook)."
+
+  Application:
+    - id: app-lifecycle-mch-component
+      type: mch_component
+      component_name: app-lifecycle
+      default_enabled: true
+      description: "Application Lifecycle component enabled in MultiClusterHub"
+      if_disabled: "Application UI tab will not appear. Classify NO_BUG."
+
+    - id: application-manager-addon
+      type: addon
+      addon_name: application-manager
+      default_enabled: true
+      description: "application-manager addon on managed clusters"
+      if_missing: "Application subscriptions not deployed to spoke."
+      check_command: "oc get managedclusteraddon application-manager -n {cluster}"
+
+  Console:
+    - id: console-mch-component
+      type: mch_component
+      component_name: console
+      default_enabled: true
+      description: "Console component enabled in MultiClusterHub"
+      if_disabled: "ACM console plugin not deployed. Classify NO_BUG."
+
+    - id: console-plugin-crs
+      type: crd
+      crd_name: consoleplugins.console.openshift.io
+      default_enabled: true
+      description: "ConsolePlugin CRs registered (acm, mce)"
+      if_missing: "Feature tabs will not appear in OCP console."
+      check_command: "oc get consoleplugins"
+
+  Infrastructure:
+    - id: mce-installed
+      type: operator
+      operator_name: multicluster-engine
+      namespace: multicluster-engine
+      default_enabled: true
+      description: "MCE operator installed and running"
+      if_missing: "Platform foundation unavailable. All features affected."
+      check_command: "oc get deploy multicluster-engine-operator -n multicluster-engine"
+
+    - id: klusterlet-deployed
+      type: addon
+      addon_name: klusterlet
+      default_enabled: true
+      description: "klusterlet agent deployed to managed clusters"
+      if_missing: "Spoke management unavailable for that cluster."
+
+  RBAC:
+    - id: rbac-mch-component
+      type: mch_component
+      component_name: fine-grained-rbac
+      default_enabled: false
+      description: "Fine-grained RBAC component enabled in MultiClusterHub"
+      if_disabled: "RBAC features disabled. All RBAC tests fail with element not found. Classify NO_BUG."
+
+    - id: idp-configured
+      type: informational
+      description: "Identity Provider (IDP) configured on the hub cluster for user management"
+      if_missing: "User management tests require IDP. Tests fail during login setup."
+
+  Virtualization:
+    - id: virt-mch-component
+      type: mch_component
+      component_name: cnv-mtv-integrations
+      default_enabled: false
+      description: "Virtualization integration component enabled in MultiClusterHub"
+      if_disabled: "Virtualization features disabled. Classify NO_BUG."
+
+    - id: cnv-operator-spoke
+      type: operator
+      operator_name: kubevirt-hyperconverged
+      namespace: openshift-cnv
+      default_enabled: false
+      description: "CNV/KubeVirt operator installed on spoke clusters"
+      if_missing: "VM operations unavailable. FailedScheduling errors for VMs."
+      check_command: "oc get csv -n openshift-cnv -l operators.coreos.com/kubevirt-hyperconverged.openshift-cnv"
+
+    - id: kubevirt-plugin-registered
+      type: crd
+      crd_name: consoleplugins.console.openshift.io
+      plugin_name: kubevirt-plugin
+      default_enabled: false
+      description: "kubevirt-plugin ConsolePlugin registered"
+      if_missing: "VM UI tabs will not appear."
+      check_command: "oc get consoleplugin kubevirt-plugin"
+
+  Automation:
+    - id: aap-operator-installed
+      type: operator
+      operator_name: aap-operator
+      namespace: aap
+      default_enabled: false
+      description: "AAP/Ansible Automation Platform operator installed"
+      if_missing: "Automation features unavailable. AnsibleJob tests fail."
+      check_command: "oc get csv -n aap -l operators.coreos.com/aap-operator.aap"
+
+  Observability:
+    - id: observability-mch-component
+      type: mch_component
+      component_name: multicluster-observability-operator
+      default_enabled: false
+      description: "Observability component enabled (MCO CR must exist)"
+      if_disabled: "Observability features disabled. Classify NO_BUG."
+
+    - id: metrics-collector-addon
+      type: addon
+      addon_name: observability-controller
+      default_enabled: false
+      description: "observability-controller addon on managed clusters"
+      if_missing: "No metrics from spoke. Grafana dashboards missing data for that cluster."
+      check_command: "oc get managedclusteraddon observability-controller -n {cluster}"
+
+    - id: s3-storage
+      type: informational
+      description: "S3-compatible storage configured for Thanos (MCO objectStorage)"
+      if_missing: "thanos-store and thanos-compact will crash. Most common observability failure."
+
+  Foundation:
+    - id: registration-operator
+      type: operator
+      operator_name: cluster-manager
+      namespace: multicluster-engine
+      default_enabled: true
+      description: "cluster-manager deployment in MCE namespace"
+      if_missing: "Hub-side registration controllers not deployed."
+      check_command: "oc get deploy cluster-manager -n multicluster-engine"
+
+    - id: work-manager-addon
+      type: addon
+      addon_name: work-manager
+      default_enabled: true
+      description: "work-manager addon on managed clusters"
+      if_missing: "ManifestWork delivery fails. All addon and workload delivery stops."
+      check_command: "oc get managedclusteraddon work-manager -n {cluster}"
+
+  Install:
+    - id: acm-csv-succeeded
+      type: operator
+      operator_name: advanced-cluster-management
+      namespace: "{mch_ns}"
+      default_enabled: true
+      description: "ACM CSV in Succeeded phase"
+      if_missing: "ACM operator not installed or installation failed."
+      check_command: "oc get csv -n {mch_ns} -l operators.coreos.com/advanced-cluster-management.{mch_ns}"
+
+    - id: mce-csv-succeeded
+      type: operator
+      operator_name: multicluster-engine
+      namespace: multicluster-engine
+      default_enabled: true
+      description: "MCE CSV in Succeeded phase"
+      if_missing: "MCE operator not installed or installation failed."
+      check_command: "oc get csv -n multicluster-engine -l operators.coreos.com/multicluster-engine.multicluster-engine"
+
+  CrossClusterMigration:
+    - id: cclm-virt-component
+      type: mch_component
+      component_name: cnv-mtv-integrations
+      default_enabled: false
+      description: "Virtualization integration component enabled"
+      if_disabled: "CCLM features disabled. Classify NO_BUG."
+
+    - id: mtv-operator-spoke
+      type: operator
+      operator_name: mtv-operator
+      namespace: openshift-mtv
+      default_enabled: false
+      description: "MTV (Migration Toolkit for Virtualization) operator on spoke"
+      if_missing: "Cross-cluster migration unavailable."
+      check_command: "oc get csv -n openshift-mtv -l operators.coreos.com/mtv-operator.openshift-mtv"
+
+    - id: forklift-controller-running
+      type: operator
+      operator_name: forklift-controller
+      namespace: openshift-mtv
+      default_enabled: false
+      description: "Forklift controller running on spoke"
+      if_missing: "Migration plans cannot be created or executed."
+      check_command: "oc get deploy forklift-controller -n openshift-mtv"
+
+    - id: cnv-on-source-and-target
+      type: informational
+      description: "CNV installed on both source and target clusters"
+      if_missing: "Migration requires KubeVirt on both clusters."
+
+    - id: storage-mapping-valid
+      type: informational
+      description: "StorageMap and NetworkMap configured between source and target"
+      if_missing: "Migration plans fail during validation."

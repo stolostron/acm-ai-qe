@@ -450,18 +450,27 @@ class DataGatherer:
         return run_dir, self.gathered_data
 
     def _create_run_directory(self, jenkins_url: str) -> Path:
-        """Create timestamped run directory."""
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        """Create timestamped run directory.
 
-        # Extract job name from URL
+        Format: {YYYY-MM-DD}_{HH-MM-SS}_{job_name}
+        Example: 2026-03-25_18-17-20_clc-e2e-pipeline
+
+        Timestamp-first ensures all runs sort chronologically regardless
+        of job name. Readable date format with dashes.
+        """
+        timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+
+        # Extract job name from URL (last segment of the job path)
         job_name = "analysis"
         if '/job/' in jenkins_url:
             parts = jenkins_url.split('/job/')
             if len(parts) > 1:
                 job_parts = [p.split('/')[0] for p in parts[1:] if p]
-                job_name = '_'.join(job_parts)[:50]
+                # Use only the pipeline name (last part), not the full folder path
+                job_name = job_parts[-1] if job_parts else 'analysis'
+                job_name = job_name[:50]
 
-        run_dir = self.output_dir / f"{job_name}_{timestamp}"
+        run_dir = self.output_dir / f"{timestamp}_{job_name}"
         run_dir.mkdir(parents=True, exist_ok=True)
 
         # Save run metadata

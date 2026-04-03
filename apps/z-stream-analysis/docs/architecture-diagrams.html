@@ -1,0 +1,1476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Z-Stream Analysis v3.7 &mdash; Interactive Architecture</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<style>
+:root { --bg: #080b14; --surface: #0f1320; --surface2: #141a2e; --border: #1e2640; --text: #d8dce8; --dim: #7a84a0; --accent: #38bdf8; --accent2: #f472b6; --green: #4ade80; --amber: #fbbf24; --red: #f87171; --purple: #a78bfa; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; display: flex; min-height: 100vh; }
+#main { flex: 1; padding: 40px 40px 40px 40px; overflow-y: auto; max-width: 65%; transition: max-width 0.3s; }
+#main.full { max-width: 100%; }
+#detail-panel { width: 35%; min-width: 35%; background: var(--surface); border-left: 2px solid var(--border); overflow-y: auto; position: sticky; top: 0; height: 100vh; transition: all 0.3s; }
+#detail-panel.hidden { width: 0; min-width: 0; border: none; overflow: hidden; }
+#detail-header { padding: 20px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; background: var(--surface); z-index: 10; }
+#detail-header h3 { font-size: 1rem; color: var(--accent); font-family: 'JetBrains Mono', monospace; }
+#detail-close { background: none; border: 1px solid var(--border); color: var(--dim); padding: 4px 12px; border-radius: 6px; cursor: pointer; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; }
+#detail-close:hover { color: var(--red); border-color: var(--red); }
+#detail-body { padding: 24px; }
+.detail-section { margin-bottom: 24px; }
+.detail-section h4 { font-size: 0.85rem; color: var(--accent2); text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 8px; font-family: 'JetBrains Mono', monospace; }
+.detail-section .label { font-size: 0.78rem; color: var(--dim); margin-bottom: 4px; font-family: 'JetBrains Mono', monospace; }
+.detail-section .value { font-size: 0.88rem; color: var(--text); margin-bottom: 12px; line-height: 1.5; }
+pre.data-block { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px; font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; color: var(--green); overflow-x: auto; white-space: pre-wrap; word-break: break-all; margin: 8px 0 16px 0; line-height: 1.6; }
+pre.data-block .key { color: var(--accent); }
+pre.data-block .str { color: var(--green); }
+pre.data-block .num { color: var(--amber); }
+pre.data-block .bool { color: var(--purple); }
+pre.data-block .null { color: var(--dim); }
+.tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; font-family: 'JetBrains Mono', monospace; font-weight: 700; }
+.tag-pass { background: rgba(74,222,128,0.15); color: var(--green); border: 1px solid rgba(74,222,128,0.3); }
+.tag-fail { background: rgba(248,113,113,0.15); color: var(--red); border: 1px solid rgba(248,113,113,0.3); }
+.tag-auto { background: rgba(251,191,36,0.15); color: var(--amber); border: 1px solid rgba(251,191,36,0.3); }
+.tag-stage { background: rgba(56,189,248,0.15); color: var(--accent); border: 1px solid rgba(56,189,248,0.3); }
+.tag-tier { background: rgba(167,139,250,0.15); color: var(--purple); border: 1px solid rgba(167,139,250,0.3); }
+.arrow-trail { display: flex; align-items: center; gap: 8px; margin: 12px 0; flex-wrap: wrap; }
+.arrow-step { padding: 6px 12px; border-radius: 6px; font-size: 0.78rem; font-family: 'JetBrains Mono', monospace; border: 1px solid var(--border); background: var(--surface2); }
+.arrow-step.active { border-color: var(--accent); color: var(--accent); }
+.arrow-sep { color: var(--dim); }
+h1 { font-size: 2.4rem; font-weight: 800; margin-bottom: 8px; background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.sub { color: var(--dim); font-size: 0.95rem; margin-bottom: 40px; font-family: 'JetBrains Mono', monospace; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 32px; margin-bottom: 48px; }
+.card h2 { font-size: 1.4rem; font-weight: 700; color: var(--accent); margin-bottom: 4px; }
+.card .desc { color: var(--dim); margin-bottom: 20px; font-size: 0.92rem; }
+.mermaid { display: flex; justify-content: center; overflow-x: auto; padding: 16px 0; }
+.click-hint { color: var(--accent2); font-size: 0.78rem; font-family: 'JetBrains Mono', monospace; margin-top: 12px; opacity: 0.7; }
+.example-banner { background: linear-gradient(135deg, rgba(56,189,248,0.08), rgba(244,114,182,0.08)); border: 1px solid rgba(56,189,248,0.2); border-radius: 10px; padding: 16px 20px; margin-bottom: 32px; }
+.example-banner h3 { color: var(--accent); font-size: 1rem; margin-bottom: 6px; }
+.example-banner p { color: var(--dim); font-size: 0.88rem; line-height: 1.5; }
+.example-banner code { background: rgba(56,189,248,0.1); padding: 2px 6px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; color: var(--accent); }
+nav { position: fixed; top: 16px; left: 16px; display: flex; flex-direction: column; gap: 4px; z-index: 100; }
+nav a { display: block; padding: 6px 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; color: var(--dim); text-decoration: none; font-size: 0.72rem; font-family: 'JetBrains Mono', monospace; transition: all 0.2s; }
+nav a:hover { color: var(--accent); border-color: var(--accent); }
+.node-clickable { cursor: pointer; }
+.separator { height: 1px; background: var(--border); margin: 16px 0; }
+</style>
+</head>
+<body>
+
+<div id="main" class="full">
+
+<h1>Z-Stream Analysis v3.7</h1>
+<p class="sub">Interactive Architecture &mdash; Click any box to see real data from pipeline run #3913</p>
+
+<div class="example-banner">
+  <h3>Live Example: RHACM4K-2576 &mdash; Correctly Classified</h3>
+  <p>All data shown in this document comes from a real analysis run against Jenkins build <code>#3913</code> on cluster <code>ashafi-aws-test</code>. The traced test case is <code>RHACM4K-2576</code> (legacy Carbon selector), which z-stream-analysis correctly classified as <strong>AUTOMATION_BUG</strong> with 90% confidence. Click any stage box to see what data was collected or produced at that point.</p>
+  <p style="margin-top:8px;font-size:0.82rem;color:var(--dim)"><strong>Key features by version:</strong> PR-5 data assertion pre-check, assertion analysis, failure mode categorization, backend API probes, graduated infrastructure scoring (v3.3). Backend probe source-of-truth validation with anomaly_source/classification_hint (v3.4). Environment Oracle (6-phase dependency health), Polarion test case context, KG-driven feature learning, PR-7 oracle dependency check (v3.5). Oracle pod-health fallback for CSV checks, managed cluster age filtering, DEFINITIVE signal requires 2+ confirmed failures, oracle signals are additive (not override) -- per-test evidence takes precedence (v3.5 fixes). External service failure detection, version compatibility constraints, known JIRA bugs cache (v3.5.1). Foundation and Install feature areas with Ginkgo test framework support, post-upgrade failure patterns, multi-pipeline repo mapping (v3.5.1 knowledge expansion). Comprehensive AI-driven cluster diagnostic (Stage 1.5) adapted from ACM Hub Health agent with 6-phase investigation, 10 diagnostic traps, baseline comparison, addon/webhook verification, self-healing knowledge, and classification guidance for improved INFRASTRUCTURE disambiguation (v3.6). 58-file knowledge database with per-subsystem architecture, data-flow, and failure-signatures across 12 ACM subsystems + diagnostics methodology + healthy baseline + addon catalog + webhook registry + diagnostic traps. 5 MCP servers: ACM-UI (20), Jenkins (11), JIRA (25), Polarion (25), Neo4j (2). Verified ~91-100% accuracy across multiple builds.</p>
+</div>
+
+<!-- DIAGRAM 1: PIPELINE OVERVIEW -->
+<div id="d1" class="card">
+  <h2>Diagram 1: Pipeline Overview</h2>
+  <p class="desc">Three main stages run in sequence. Stage 1 collects all data (11 steps including cluster health audit). Stage 2 classifies each test failure. Stage 3 generates reports. Click any box to see real data from RHACM4K-2576.</p>
+  <div class="mermaid">
+graph LR
+    URL["INPUT\nJenkins Build URL"]:::clickable --> G["STAGE 1: Data Collection\ngather.py — 11 steps\nHealth audit, oracle, repos\n~1-5 min"]:::clickable
+    G --> CD["core-data.json\ncluster-health.json\ncluster.kubeconfig\nrepos/"]:::clickable
+    CD --> AI["STAGE 2: AI Analysis\nz-stream-analysis agent\n7 pre-checks + 3-path routing\n5 MCP servers\n~15-40 min"]:::clickable
+    AI --> AR["analysis-results.json"]:::clickable
+    AR --> R["STAGE 3: Report\nreport.py\n~10 sec"]:::clickable
+    R --> MD["OUTPUT\nDetailed-Analysis.md\nanalysis-report.html\nSUMMARY.txt"]:::clickable
+    classDef clickable cursor:pointer
+    click URL showDetail
+    click G showDetail
+    click CD showDetail
+    click AI showDetail
+    click AR showDetail
+    click R showDetail
+    click MD showDetail
+  </div>
+  <p class="click-hint">Click any box above to see real data</p>
+</div>
+
+<!-- DIAGRAM 2: STAGE 1 DATA GATHERING -->
+<div id="d2" class="card">
+  <h2>Diagram 2: Stage 1 &mdash; Data Gathering Steps</h2>
+  <p class="desc">Each step collects a specific piece of evidence. Click to see what was collected for RHACM4K-2576. Step 4 includes backend probes (v3.3) and source-of-truth validation (v3.4). Step 5 (Environment Oracle) is a v3.5 addition.</p>
+  <div class="mermaid">
+graph TD
+    S1["Step 1: Jenkins API\nFetch build result, params, test list\nOutput: test_name, duration, status"]:::clickable --> S2["Step 2: Console Log Parser\nRegex scan of 10MB+ Cypress log\nOutput: failure_type, blank_page_detected"]:::clickable
+    S2 --> S3["Step 3: JUnit + Stack Trace\nParse XML test report + stack frames\nOutput: root_cause_file, line, hook_type"]:::clickable
+    S3 --> S4["Step 4: Cluster Health Audit\n6-phase health audit + landscape + probes\nOutput: cluster-health.json,\nenvironment_health_score, backend_probes"]:::clickable
+    S4 --> S5["Step 5: Feature Context Oracle (v3.7)\nPolarion + KG topology (Phase 6 skipped)\nOutput: cluster_oracle (feature context)"]:::clickable
+    S5 --> S6["Step 6: Clone Repos\ngit clone automation + console repos\nOutput: repos/ directory"]:::clickable
+    S6 --> S7["Step 7: Extract Test Context\nCode, selectors, console search,\nassertion analysis, selector changes\nOutput: extracted_context per test"]:::clickable
+    S7 --> S8["Step 8: Feature Area Grounding\nMap tests to feature areas\nwith subsystem + component context\nOutput: feature_grounding groups"]:::clickable
+    S8 --> S9["Step 9: Feature Knowledge\nPlaybooks + KG dependency context\nOutput: feature_readiness, kg_context"]:::clickable
+    S9 --> S10["Step 10: Element Inventory\nBuild selector location map from repos\nOutput: element_lookup, CNV version"]:::clickable
+    S10 --> S11["Step 11: Investigation Hints\nTimeline evidence + search patterns\nOutput: timeline_evidence, stale_test_signal"]:::clickable
+    S11 --> OUT["core-data.json\n+ cluster-health.json\nAll outputs bundled for Stage 2"]:::clickable
+    classDef clickable cursor:pointer
+    click S1 showDetail
+    click S2 showDetail
+    click S3 showDetail
+    click S4 showDetail
+    click S5 showDetail
+    click S6 showDetail
+    click S7 showDetail
+    click S8 showDetail
+    click S9 showDetail
+    click S10 showDetail
+    click S11 showDetail
+    click OUT showDetail
+  </div>
+  <p class="click-hint">Click any step to see the actual data collected</p>
+</div>
+
+<!-- DIAGRAM 2b: ENVIRONMENT ORACLE INTERNAL PIPELINE -->
+<div id="d2b" class="card">
+  <h2>Diagram 2b: Feature Context Oracle &mdash; Step 5 Internal Pipeline</h2>
+  <p class="desc">Step 5 runs 5 phases (Phase 6 health checks skipped in v3.7 — handled by Step 4 health audit). Provides feature architecture context for Stage 2. Click any phase to see its output.</p>
+  <div class="mermaid">
+graph TD
+    P1["Phase 1: IDENTIFY\nWhat component are we testing?\nSource: pipeline name + test names\nOutput: feature area, Polarion IDs"]:::clickable --> P2["Phase 2: DISCOVER\nWhat do the failed tests depend on?\nSource: Polarion REST API\nOutput: test case context\n(description, setup, steps)"]:::clickable
+    P2 --> P3["Phase 3: LEARN THE FEATURE\nHow does this feature work?\nSource: Knowledge Graph + rhacm-docs\nOutput: all components, data flows,\ncross-subsystem dependencies"]:::clickable
+    P3 --> P4["Phase 4: LEARN THE DEPENDENCIES\nHow do the dependencies work?\nSource: Knowledge Graph (same depth)\nOutput: dependency subsystem\narchitectures + component details"]:::clickable
+    P4 --> P5["Phase 5: SYNTHESIZE\nMerge ALL sources into collection plan\nSource: Phases 2-4 combined\nOutput: complete target list\n(operators, addons, CRDs, pods)"]:::clickable
+    P5 --> P6["Phase 6: SKIPPED (v3.7)\nHealth checks handled by\nStep 4 ClusterHealthService\n(see cluster-health.json)"]:::clickable
+    P5 --> DB["cluster_oracle\nFeature context for Stage 2:\nPolarion, KG topology,\ndependency architecture"]:::clickable
+
+    style P1 fill:#0f1320,stroke:#38bdf8,color:#d8dce8
+    style P2 fill:#0f1320,stroke:#f472b6,color:#d8dce8
+    style P3 fill:#0f1320,stroke:#4ade80,color:#d8dce8
+    style P4 fill:#0f1320,stroke:#4ade80,color:#d8dce8
+    style P5 fill:#0f1320,stroke:#fbbf24,color:#d8dce8
+    style P6 fill:#0f1320,stroke:#7a84a0,color:#7a84a0
+    style DB fill:#141a2e,stroke:#38bdf8,stroke-width:3px,color:#38bdf8
+
+    classDef clickable cursor:pointer
+    click P1 showDetail
+    click P2 showDetail
+    click P3 showDetail
+    click P4 showDetail
+    click P5 showDetail
+    click P6 showDetail
+    click DB showDetail
+  </div>
+  <p class="click-hint">Click any phase to see its data sources and output structure</p>
+</div>
+
+<!-- DIAGRAM 3: STAGE 2 CLASSIFICATION -->
+<div id="d3" class="card">
+  <h2>Diagram 3: Stage 2 &mdash; AI Classification Decision Tree</h2>
+  <p class="desc">How the AI routes each test through pre-checks and path selection. Each box shows which Stage 1 step provides the data. PR-5 (v3.3), PR-6 (v3.4), PR-7 (v3.5) are newer additions.</p>
+  <div class="mermaid">
+graph TD
+    TEST["Failed test enters pipeline\nwith all Stage 1 data"]:::clickable --> PR1{"PR-1: Blank page?\nuses Step 2: blank_page_detected\nJS never loaded = page empty"}:::clickable
+    PR1 -->|"No: page loaded"| PR2{"PR-2: Cascading hook?\nuses Step 3: hook_type from JUnit\nafter-all + prior failure = NO_BUG\nbefore-all = investigate normally"}:::clickable
+    PR2 -->|"No: independent test"| PR3{"PR-3: Recent product change?\nuses Step 7: temporal_summary\nstale_test_signal + refactor commit"}:::clickable
+    PR3 -->|"No: no recent change"| PR5{"PR-5: Data assertion? (v3.3)\nuses Step 7: assertion_analysis\nfailure_mode_category=data_incorrect"}:::clickable
+    PR5 -->|"No: not a data assertion"| PR6{"PR-6: Backend data corrupt? (v3.4)\nuses Step 4: backend_probes\nanomaly_source + classification_hint"}:::clickable
+    PR6 -->|"No: data matches"| PR7{"PR-7: Oracle dep check (v3.5)\nuses Step 5: cluster_oracle\nADDITIVE signal, not override\nper-test evidence takes precedence"}:::clickable
+    PR7 -->|"No: deps healthy"| PR4{"PR-4: Feature knowledge? (v3.1)\nuses Step 9: playbook results\nTier 2-4 investigation findings"}:::clickable
+    PR4 -->|"No: no playbook match"| D0{"D0: Backend component down?\nuses Steps 4+7+8: pod health,\nconsole log 500s, KG dependencies"}:::clickable
+    PR7 -->|"Yes: broken dep BUT\ncheck per-test error first"| PATHINFRA["INFRASTRUCTURE only if\nper-test error matches infra cause\nStale selector = AUTOMATION_BUG\neven with broken deps"]
+    PR4 -->|"Yes: playbook confirmed"| PATHPB4["Playbook classification\nSuggested by feature playbook\n0.90-0.95 confidence"]
+    D0 -->|"No: backend healthy"| ROUTING{"3-Path Routing\nuses Step 7: console_search.found\n+ Step 4: cluster-health.json"}:::clickable
+    ROUTING -->|"found=false + env OK"| PATHA["PATH A: AUTOMATION_BUG\nSelector not in product source\nuses Steps 7+11 as evidence"]:::clickable
+    ROUTING -->|"mass timeouts + env degraded"| PATHB1["PATH B1: INFRASTRUCTURE\nCluster-wide issue\nuses cluster-health.json"]
+    ROUTING -->|"found=true but feature broken"| PATHB2["PATH B2: PRODUCT_BUG\nJIRA-informed investigation\nuses JIRA + KG MCPs"]
+    PR3 -->|"Yes: recent product change"| PATHPB3["PRODUCT_BUG hypothesis\nRecent refactor/rename broke tests\nValidated through Path B2"]
+    PR5 -->|"Yes: data values wrong"| PATHPB5["PRODUCT_BUG hypothesis\nAPI returned wrong data values\nValidated through Path B2"]
+    PR6 -->|"Yes: console != cluster"| PATHPB["PRODUCT_BUG evidence\nStep 4 found data mismatch\nconsole code is corrupting data"]
+    PATHA --> CONF["Confidence scoring\nTier 1 evidence x1.0 each\nTier 2 evidence x0.5 each\nminimum 1.8 to classify"]:::clickable
+    classDef clickable cursor:pointer
+    click TEST showDetail
+    click PR1 showDetail
+    click PR2 showDetail
+    click PR3 showDetail
+    click PR5 showDetail
+    click PR6 showDetail
+    click PR7 showDetail
+    click PR4 showDetail
+    click D0 showDetail
+    click ROUTING showDetail
+    click PATHA showDetail
+    click CONF showDetail
+  </div>
+  <p class="click-hint">Click any decision node to see the actual evidence used</p>
+</div>
+
+<!-- DIAGRAM 4: STAGE 3 REPORT -->
+<div id="d4" class="card">
+  <h2>Diagram 4: Stage 3 &mdash; Report Output</h2>
+  <p class="desc">How the classification appears in the final reports.</p>
+  <div class="mermaid">
+graph LR
+    AR["analysis-results.json\nfrom Stage 2"]:::clickable --> VAL["Schema Validation\ncheck required fields:\nclassification, evidence,\nruled_out_alternatives"]:::clickable
+    VAL --> FMT["Report Formatter\ngroup by feature area,\nprioritize action items"]
+    FMT --> MD["Detailed-Analysis.md\nHuman-readable report\nper-test breakdown"]:::clickable
+    FMT --> JSON["per-test-breakdown.json\nMachine-readable\nfor dashboards/CI"]:::clickable
+    FMT --> TXT["SUMMARY.txt\nBrief counts +\nclassification totals"]:::clickable
+    classDef clickable cursor:pointer
+    click AR showDetail
+    click VAL showDetail
+    click MD showDetail
+    click JSON showDetail
+    click TXT showDetail
+  </div>
+  <p class="click-hint">Click any output to see the actual content</p>
+</div>
+
+</div><!-- /main -->
+
+<!-- DETAIL PANEL (right side) -->
+<div id="detail-panel" class="hidden">
+  <div id="detail-header">
+    <h3 id="detail-title">Select a component</h3>
+    <button id="detail-close" onclick="hideDetail()">Close</button>
+  </div>
+  <div id="detail-body"></div>
+</div>
+
+<script>
+const DATA = {
+  'jenkins-url': {
+    title: 'Jenkins Build URL (Input)',
+    html: `
+      <div class="detail-section">
+        <h4>Build Input</h4>
+        <div class="label">URL provided to z-stream-analysis:</div>
+<pre class="data-block">https://jenkins-csb-rhacm-tests.dno.corp.redhat.com
+  /job/qe-acm-automation-poc/job/clc-e2e-pipeline/<span class="num">3913</span>/</pre>
+        <div class="label">Build Result:</div>
+        <div class="value"><span class="tag tag-fail">UNSTABLE</span> 68 failures / 118 tests (42.4% pass rate)</div>
+        <div class="label">Target Cluster:</div>
+        <div class="value"><code>ashafi-aws-test.dev09.red-chesterfield.com</code></div>
+        <div class="label">ACM Version:</div>
+        <div class="value">2.17.0-76 (custom bugged image: <code>quay.io/16005577/console:bug-injection-v5</code>)</div>
+      </div>
+    `
+  },
+  'step5-oracle': {
+    title: 'Step 5: Environment Oracle (v3.5)',
+    html: `
+      <div class="detail-section">
+        <h4>6-phase knowledge database builder</h4>
+        <div class="value">EnvironmentOracleService runs 6 chained phases to build a comprehensive knowledge database about the feature, its dependencies, and their live cluster state. See <strong>Diagram 2b</strong> for the full internal pipeline.</div>
+        <div class="label">Data flow:</div>
+        <div class="value">Phase 1 (Identify) &rarr; Phase 2 (Polarion) &rarr; Phase 3 (Learn Feature) &rarr; Phase 4 (Learn Dependencies) &rarr; Phase 5 (Synthesize) &rarr; Phase 6 (Collect Cluster State)</div>
+        <div class="label">Output stored in:</div>
+        <div class="value"><code>cluster_oracle</code> key in core-data.json &mdash; contains <code>dependency_health</code>, <code>knowledge_context</code>, <code>polarion_discovery</code>, <code>overall_feature_health</code></div>
+        <div class="label">Skipped when:</div>
+        <div class="value"><code>--skip-env</code> flag is used or cluster access is unavailable</div>
+      </div>
+    `
+  },
+  'oracle-phase1': {
+    title: 'Oracle Phase 1: IDENTIFY',
+    html: `
+      <div class="detail-section">
+        <h4>What component are we testing?</h4>
+        <div class="label">Sources:</div>
+        <div class="value">Jenkins pipeline name (<code>clc-e2e-pipeline</code> &rarr; CLC) + failed test names (regex for feature keywords)</div>
+        <div class="label">Polarion IDs:</div>
+        <div class="value">Extracts <code>RHACM4K-\\d+</code> from each failed test name for Phase 2 lookup</div>
+        <div class="label">Output:</div>
+<pre class="data-block">{
+  <span class="key">"feature_areas"</span>: [<span class="str">"CLC"</span>],
+  <span class="key">"failed_test_count"</span>: <span class="num">3</span>,
+  <span class="key">"polarion_ids"</span>: [<span class="str">"RHACM4K-7473"</span>, <span class="str">"RHACM4K-2576"</span>]
+}</pre>
+      </div>
+    `
+  },
+  'oracle-phase2': {
+    title: 'Oracle Phase 2: DISCOVER DEPENDENCIES',
+    html: `
+      <div class="detail-section">
+        <h4>What do the failed tests depend on?</h4>
+        <div class="label">Source:</div>
+        <div class="value">Polarion REST API &mdash; fetches title, description, setup section, and test steps table for each Polarion ID. Read-only GET requests.</div>
+        <div class="label">What it captures:</div>
+        <div class="value">Raw test case content stored for AI interpretation. No keyword matching or hardcoded parsing &mdash; the AI decides what dependencies are mentioned.</div>
+        <div class="label">Output:</div>
+<pre class="data-block">{
+  <span class="key">"test_case_context"</span>: {
+    <span class="key">"RHACM4K-7473"</span>: {
+      <span class="key">"title"</span>: <span class="str">"CLC: Create an AWS managed cluster via the UI"</span>,
+      <span class="key">"setup"</span>: <span class="str">"Have an AWS provider connection prepared."</span>,
+      <span class="key">"test_steps"</span>: [<span class="str">"Navigate to clusters"</span>, <span class="str">"Click Create"</span>, ...]
+    }
+  }
+}</pre>
+      </div>
+    `
+  },
+  'oracle-phase3': {
+    title: 'Oracle Phase 3: LEARN THE FEATURE',
+    html: `
+      <div class="detail-section">
+        <h4>How does this feature actually work?</h4>
+        <div class="label">Source 1 &mdash; Knowledge Graph:</div>
+        <div class="value">Queries Neo4j for ALL components in the feature subsystem, internal data flow between components, cross-subsystem dependencies, and transitive dependency chains (depth 3). Gets detailed component info (type, upstream, downstream) for every component.</div>
+        <div class="label">Source 2 &mdash; rhacm-docs:</div>
+        <div class="value">Provides the docs directory path so the AI agent can search architecture documentation during Stage 2 analysis. AI decides what to read based on the failure context.</div>
+        <div class="label">Source 3 &mdash; Playbook architecture:</div>
+        <div class="value">Key insights from feature playbooks (e.g., "If search-collector addon is not running on a spoke, resources from that spoke silently disappear from results").</div>
+        <div class="label">Example output (Search):</div>
+<pre class="data-block">{
+  <span class="key">"feature_components"</span>: [<span class="str">"search-api"</span>, <span class="str">"search-collector"</span>, <span class="str">"search-indexer"</span>],
+  <span class="key">"internal_data_flow"</span>: [
+    <span class="str">"search-collector --DEPENDS_ON--> search-indexer"</span>,
+    <span class="str">"search-indexer --DEPENDS_ON--> search-api"</span>
+  ],
+  <span class="key">"cross_subsystem_dependencies"</span>: [
+    <span class="str">"search-api --DEPENDS_ON--> console (Console)"</span>
+  ]
+}</pre>
+      </div>
+    `
+  },
+  'oracle-phase4': {
+    title: 'Oracle Phase 4: LEARN THE DEPENDENCIES',
+    html: `
+      <div class="detail-section">
+        <h4>How do the dependencies work? (same depth as Phase 3)</h4>
+        <div class="label">Input:</div>
+        <div class="value">Cross-subsystem dependencies discovered in Phase 3 (e.g., Search depends on Console subsystem). Each dependency subsystem is learned at the same depth as the primary feature.</div>
+        <div class="label">What it learns per dependency:</div>
+        <div class="value">All components in the subsystem, internal data flow, per-component upstream/downstream relationships. This tells the AI what pods, deployments, and services belong to each dependency.</div>
+        <div class="label">Example output:</div>
+<pre class="data-block">{
+  <span class="key">"Console"</span>: {
+    <span class="key">"components"</span>: [<span class="str">"console-api"</span>, <span class="str">"acm-console"</span>, <span class="str">"mce-console"</span>],
+    <span class="key">"internal_data_flow"</span>: [<span class="str">"acm-console --DEPENDS_ON--> console-api"</span>],
+    <span class="key">"component_details"</span>: {
+      <span class="key">"console-api"</span>: { <span class="key">"type"</span>: <span class="str">"Service"</span>, <span class="key">"depends_on"</span>: [...] }
+    }
+  }
+}</pre>
+      </div>
+    `
+  },
+  'oracle-phase5': {
+    title: 'Oracle Phase 5: SYNTHESIZE',
+    html: `
+      <div class="detail-section">
+        <h4>Merge ALL sources into one collection plan</h4>
+        <div class="label">Sources merged:</div>
+        <div class="value">
+          <strong>1. Playbook prerequisites</strong> &mdash; operators, addons, CRDs from base.yaml<br>
+          <strong>2. KG feature components</strong> &mdash; all pods/deployments from Phase 3<br>
+          <strong>3. KG dependency components</strong> &mdash; all pods from Phase 4<br>
+          <strong>4. Managed clusters</strong> &mdash; always collected
+        </div>
+        <div class="label">Target types produced:</div>
+<pre class="data-block"><span class="key">operator</span>  &rarr; check via <span class="str">oc get csv -n {namespace}</span>
+<span class="key">addon</span>     &rarr; check via <span class="str">oc get managedclusteraddon -A</span>
+<span class="key">crd</span>       &rarr; check via <span class="str">oc get crd {name}</span>
+<span class="key">component</span> &rarr; check via <span class="str">oc get deployment -A | grep {name}</span>
+<span class="key">managed_clusters</span> &rarr; check via <span class="str">oc get managedclusters</span></pre>
+        <div class="label">Typical count:</div>
+        <div class="value">15-30 targets for a single feature area (e.g., Search: 2 playbook deps + 10 KG components + 5 dependency components + 1 managed clusters = 18 targets)</div>
+      </div>
+    `
+  },
+  'oracle-phase6': {
+    title: 'Oracle Phase 6: COLLECT CLUSTER STATE',
+    html: `
+      <div class="detail-section">
+        <h4>Comprehensive data collection for EVERY target</h4>
+        <div class="label">Process:</div>
+        <div class="value">Logs into the cluster with Jenkins credentials, then runs a read-only <code>oc get</code> command for <strong>every single target</strong> from Phase 5. Not a sample &mdash; everything.</div>
+        <div class="label">What it collects per target type:</div>
+        <div class="value">
+          <strong>Operators:</strong> CSV name, phase (Succeeded/Failed), version<br>
+          <strong>Addons:</strong> Available on which clusters, degraded on which<br>
+          <strong>CRDs:</strong> Exists or not<br>
+          <strong>Components:</strong> Deployment ready count, pod status, restart count<br>
+          <strong>Managed clusters:</strong> Which are Ready, which are NotReady
+        </div>
+        <div class="label">Example output:</div>
+<pre class="data-block">{
+  <span class="key">"search-collector-addon"</span>: {
+    <span class="key">"status"</span>: <span class="str">"degraded"</span>,
+    <span class="key">"detail"</span>: <span class="str">"Available on 3/5 clusters. Degraded on: spoke-2, spoke-3"</span>
+  },
+  <span class="key">"kg-search-search-api"</span>: {
+    <span class="key">"status"</span>: <span class="str">"healthy"</span>,
+    <span class="key">"detail"</span>: <span class="str">"Deployment search-api in ocm: ready=1/1, available=1"</span>
+  },
+  <span class="key">"managed-clusters-status"</span>: {
+    <span class="key">"status"</span>: <span class="str">"degraded"</span>,
+    <span class="key">"detail"</span>: <span class="str">"4/6 clusters ready. spoke-2: NotReady; spoke-3: NotReady"</span>
+  }
+}</pre>
+        <div class="value" style="color:var(--accent);font-weight:700">This is the complete knowledge database that the AI agent references during Stage 2 classification. The AI doesn't guess &mdash; it looks at the database.</div>
+      </div>
+    `
+  },
+  'oracle-output': {
+    title: 'cluster_oracle: The Knowledge Database',
+    html: `
+      <div class="detail-section">
+        <h4>Complete structure in core-data.json</h4>
+        <div class="value">The AI agent reads this during Stage 2 to understand the environment before classifying any failure. Key sections:</div>
+        <div class="label">dependency_health</div>
+        <div class="value">Per-target health status (healthy/degraded/missing) for every operator, addon, CRD, component, and managed cluster</div>
+        <div class="label">knowledge_context</div>
+        <div class="value">Feature architecture from KG (components, data flows, transitive chains) + dependency subsystem architectures + rhacm-docs path + playbook key insights</div>
+        <div class="label">polarion_discovery</div>
+        <div class="value">Raw Polarion test case content (description, setup, steps) for AI interpretation of test prerequisites</div>
+        <div class="label">overall_feature_health</div>
+        <div class="value">Aggregate health score with signal strength (definitive/strong/moderate/none) and blocking issues list</div>
+        <div class="label">Used by:</div>
+        <div class="value"><strong>PR-7</strong> in Stage 2 classification &mdash; the AI walks the data flow chain, checks each component against dependency_health, and routes to INFRASTRUCTURE if any link is broken</div>
+      </div>
+    `
+  },
+  'stage15-diagnostic': {
+    title: 'Stage 1.5: Cluster Diagnostic (v3.6)',
+    html: `
+      <div class="detail-section">
+        <h4>Comprehensive AI-driven cluster investigation</h4>
+        <div class="value">After gather.py completes, a dedicated <code>cluster-diagnostic</code> agent performs a full hub-health-style 6-phase investigation of the cluster. This produces structured <code>cluster-diagnosis.json</code> with classification guidance that Stage 2 uses for dramatically improved INFRASTRUCTURE vs PRODUCT_BUG disambiguation.</div>
+        <div class="label">6 Diagnostic Phases:</div>
+        <div class="value">
+          <strong>Phase 1: DISCOVER</strong> &mdash; Full cluster inventory (MCH/MCE, ALL CSVs, webhooks, nodes, managed clusters)<br>
+          <strong>Phase 2: LEARN</strong> &mdash; Compare inventory against healthy-baseline.yaml, addon-catalog.yaml, webhook-registry.yaml, diagnostic traps<br>
+          <strong>Phase 3: CHECK</strong> &mdash; Per-namespace pod health with baseline comparison, log pattern scanning (7 patterns), infrastructure guards, addon/webhook verification, trap detection<br>
+          <strong>Phase 4: PATTERN MATCH</strong> &mdash; Cross-reference findings against failure-patterns.yaml, failure-signatures.md, known JIRA bugs<br>
+          <strong>Phase 5: CORRELATE</strong> &mdash; Trace dependency chains, cross-subsystem impact analysis, env var dependency discovery for unknown operators<br>
+          <strong>Phase 6: OUTPUT</strong> &mdash; Write cluster-diagnosis.json + self-healing discoveries to knowledge/learned/
+        </div>
+        <div class="label">Key capabilities from ACM Hub Health:</div>
+        <div class="value">
+          &bull; 10 diagnostic traps (where obvious diagnosis is wrong)<br>
+          &bull; Baseline comparison (expected vs actual pod counts)<br>
+          &bull; Addon catalog verification (health + impact assessment)<br>
+          &bull; Webhook registry comparison (missing or changed webhooks)<br>
+          &bull; Structured log pattern scanning (OOM, nil pointer, cache sync, etc.)<br>
+          &bull; Previous pod logs (pre-restart evidence)<br>
+          &bull; Infrastructure guards (NetworkPolicy, ResourceQuota)<br>
+          &bull; Third-party operator inventory and ACM integration assessment<br>
+          &bull; Self-healing knowledge (writes discoveries for future runs)
+        </div>
+        <div class="label">Runtime:</div>
+        <div class="value">~5-10 minutes. Uses cluster.kubeconfig persisted by gather.py Step 4.</div>
+      </div>
+    `
+  },
+  'stage15-output': {
+    title: 'cluster-diagnosis.json (v3.6)',
+    html: `
+      <div class="detail-section">
+        <h4>Structured diagnostic output for Stage 2</h4>
+        <div class="label">13 output sections:</div>
+        <div class="value">
+          <strong>subsystem_health</strong> &mdash; Per-subsystem status with root cause, evidence tier, log patterns, traps checked<br>
+          <strong>operator_inventory</strong> &mdash; ALL operators (ACM + third-party) with CSV phase, ACM integration<br>
+          <strong>addon_health</strong> &mdash; Per-addon availability across clusters with impact statements<br>
+          <strong>webhook_status</strong> &mdash; Expected vs actual webhooks, missing entries, cross-operator hooks<br>
+          <strong>component_log_excerpts</strong> &mdash; Key error lines from unhealthy pod logs (saves Stage 2 from re-running oc logs)<br>
+          <strong>component_restart_counts</strong> &mdash; Restart counts for all pods (catches running-but-unstable)<br>
+          <strong>managed_cluster_detail</strong> &mdash; Per-cluster status with conditions, lease, unavailable addons<br>
+          <strong>ocp_operators_degraded</strong> &mdash; OCP-level operator issues (dns, monitoring, ingress, auth)<br>
+          <strong>console_plugin_status</strong> &mdash; Plugin registrations with backend health assessment<br>
+          <strong>infrastructure_issues</strong> &mdash; Node pressure, NetworkPolicy, ResourceQuota, cert expiry, OCP degradation<br>
+          <strong>dependency_chains_verified</strong> &mdash; Each chain verified as healthy or broken<br>
+          <strong>baseline_comparison</strong> &mdash; Missing/under-replicated deployments vs healthy-baseline.yaml<br>
+          <strong>classification_guidance</strong> &mdash; Pre-classified INFRASTRUCTURE, confirmed healthy, partial impact
+        </div>
+        <div class="label">Example classification_guidance:</div>
+<pre class="data-block">{
+  <span class="key">"pre_classified_infrastructure"</span>: [{
+    <span class="key">"feature_areas"</span>: [<span class="str">"Search"</span>],
+    <span class="key">"reason"</span>: <span class="str">"search-postgres CrashLoopBackOff (OOM killed)"</span>,
+    <span class="key">"confidence"</span>: <span class="num">0.95</span>,
+    <span class="key">"evidence_tier"</span>: <span class="num">1</span>
+  }],
+  <span class="key">"confirmed_healthy"</span>: [<span class="str">"Governance"</span>, <span class="str">"CLC"</span>, <span class="str">"Application"</span>],
+  <span class="key">"diagnostic_traps_applied"</span>: [<span class="str">"search_empty_all_green"</span>]
+}</pre>
+        <div class="value" style="color:var(--accent);font-weight:700">Stage 2 reads this at Phase A-0 before any investigation. Pre-classified INFRASTRUCTURE signals eliminate redundant Tier 2-4 cluster investigation. Confirmed-healthy areas skip cluster checks entirely.</div>
+      </div>
+    `
+  },
+  'step6-repos': {
+    title: 'Step 6: Repository Cloning',
+    html: `
+      <div class="detail-section">
+        <h4>Repos cloned at the exact commit</h4>
+<pre class="data-block"><span class="key">repos/</span>
+  <span class="str">automation/</span>  &larr; clc-ui-e2e @ main
+  <span class="str">console/</span>    &larr; stolostron/console @ release-2.17</pre>
+        <div class="value">These local clones enable Step 7's <code>grep</code>-based selector search. The automation repo has the test code; the console repo has the product code.</div>
+      </div>
+    `
+  },
+  'step7-search': {
+    title: 'Step 7: Extract Test Context',
+    html: `
+      <div class="detail-section">
+        <h4>Complete per-test context extraction</h4>
+        <div class="value">After repos are cloned (Step 6), this step extracts all context the AI needs for each failed test: test code, page objects, console search results, assertion analysis, failure mode categorization, selector change history, and temporal data.</div>
+        <div class="label">For RHACM4K-2576:</div>
+<pre class="data-block">{
+  <span class="key">"test_file"</span>: {
+    <span class="key">"path"</span>: <span class="str">"cypress/tests/.../clusterImage.spec.js"</span>,
+    <span class="key">"content"</span>: <span class="str">"// actual test code (up to 200 lines)"</span>
+  },
+  <span class="key">"page_objects"</span>: [{
+    <span class="key">"path"</span>: <span class="str">"cypress/views/clusters/managedCluster.js"</span>,
+    <span class="key">"contains_failing_selector"</span>: <span class="bool">true</span>
+  }],
+  <span class="key">"console_search"</span>: {
+    <span class="key">"selector"</span>: <span class="str">".tf--list-box__menu-item"</span>,
+    <span class="key">"found"</span>: <span class="bool">false</span>,
+    <span class="key">"locations"</span>: [],
+    <span class="key">"similar_selectors"</span>: []
+  },
+  <span class="key">"assertion_analysis"</span>: {
+    <span class="key">"has_data_assertion"</span>: <span class="bool">false</span>
+  },
+  <span class="key">"failure_mode_category"</span>: <span class="str">"element_missing"</span>,
+  <span class="key">"recent_selector_changes"</span>: [],
+  <span class="key">"temporal_summary"</span>: {
+    <span class="key">"stale_test_signal"</span>: <span class="bool">false</span>,
+    <span class="key">"automation_last_modified"</span>: <span class="str">"2022-05-21"</span>
+  }
+}</pre>
+        <div class="value" style="color:var(--red);font-weight:700">The console_search is THE critical evidence. The selector the test uses does not exist anywhere in the product source code. Zero matches.</div>
+      </div>
+    `
+  },
+  'step8-feature': {
+    title: 'Step 8: Feature Area Grounding',
+    html: `
+      <div class="detail-section">
+        <h4>Mapped from test name + file path</h4>
+<pre class="data-block">{
+  <span class="key">"feature_area"</span>: <span class="str">"CLC"</span>,
+  <span class="key">"subsystem"</span>: <span class="str">"Cluster Lifecycle"</span>,
+  <span class="key">"investigation_focus"</span>: <span class="str">"Cluster creation, import,
+    upgrade, destroy, cluster pools, placements"</span>,
+  <span class="key">"match_reason"</span>: <span class="str">"test name contains 'CLC',
+    file path is cypress/tests/clusters/"</span>
+}</pre>
+      </div>
+    `
+  },
+  'step9-timeline': {
+    title: 'Step 9: Feature Knowledge + KG Context',
+    html: `
+      <div class="detail-section">
+        <h4>Playbooks + Knowledge Graph dependency context</h4>
+        <div class="value">Loads feature investigation playbooks (YAML) for each detected feature area, checks MCH prerequisites using oracle data, queries the Knowledge Graph for dependency topology, and pre-matches error symptoms to known failure paths.</div>
+        <div class="label">For RHACM4K-2576 (CLC feature area):</div>
+<pre class="data-block">{
+  <span class="key">"feature_readiness"</span>: {
+    <span class="key">"CLC"</span>: {
+      <span class="key">"all_prerequisites_met"</span>: <span class="bool">true</span>,
+      <span class="key">"unmet_prerequisites"</span>: [],
+      <span class="key">"pre_matched_paths"</span>: []
+    }
+  },
+  <span class="key">"investigation_playbooks"</span>: {
+    <span class="key">"CLC"</span>: {
+      <span class="key">"architecture"</span>: <span class="str">"Cluster lifecycle management..."</span>,
+      <span class="key">"failure_paths"</span>: [<span class="dim">/* known CLC failure patterns */</span>]
+    }
+  },
+  <span class="key">"kg_dependency_context"</span>: {
+    <span class="key">"CLC"</span>: {
+      <span class="key">"internal_data_flow"</span>: [<span class="str">"hive --DEPENDS_ON--> ..."</span>],
+      <span class="key">"cross_subsystem_dependencies"</span>: [...]
+    }
+  }
+}</pre>
+        <div class="value">Playbooks provide structured investigation paths the AI follows during Stage 2. KG context maps component relationships so the AI can trace cascading failures.</div>
+      </div>
+    `
+  },
+  'step9b-drift': {
+    title: 'Selector Drift (part of Step 7)',
+    html: `
+      <div class="detail-section">
+        <h4>Selector change detection (inside Step 7)</h4>
+        <div class="value">As part of Step 7 (Extract Test Context), the pipeline scans recent product commits for selector changes &mdash; data-testid, data-test, aria-label, CSS classes that were added, removed, or renamed. Results are stored in <code>recent_selector_changes</code> within extracted_context.</div>
+        <div class="label">For RHACM4K-2576:</div>
+<pre class="data-block"><span class="key">recent_selector_changes</span>: []
+<span class="dim">// .tf--list-box__menu-item was removed so long ago
+// it's outside the recent commit window</span></pre>
+        <div class="value">No recent changes found for this selector. The removal happened years ago during the Carbon-to-PatternFly migration.</div>
+      </div>
+    `
+  },
+  'step10-probes': {
+    title: 'Step 10: Element Inventory',
+    html: `
+      <div class="detail-section">
+        <h4>Build selector location map from cloned repos</h4>
+        <div class="value">Builds a comprehensive inventory of UI elements from the cloned product repos. Maps failing selectors to their locations in source code, detects CNV version for kubevirt-plugin tests, and pre-computes element lookup data for the AI.</div>
+        <div class="label">For RHACM4K-2576:</div>
+<pre class="data-block">{
+  <span class="key">"element_lookup"</span>: {
+    <span class="key">".tf--list-box__menu-item"</span>: {
+      <span class="key">"found_in_console"</span>: <span class="bool">false</span>,
+      <span class="key">"locations"</span>: [],
+      <span class="key">"selector_type"</span>: <span class="str">"class"</span>,
+      <span class="key">"selector_category"</span>: <span class="str">"primary"</span>
+    }
+  },
+  <span class="key">"cnv_version"</span>: {
+    <span class="key">"version"</span>: <span class="str">"4.21"</span>,
+    <span class="key">"detected_from"</span>: <span class="str">"oc exec"</span>
+  }
+}</pre>
+        <div class="value">The element inventory confirms the selector is nowhere in the product codebase, corroborating Step 7's console_search result.</div>
+      </div>
+    `
+  },
+  'step11-sot': {
+    title: 'Step 11: Investigation Hints + Timeline Evidence',
+    html: `
+      <div class="detail-section">
+        <h4>Build investigation hints and temporal summaries</h4>
+        <div class="value">Generates investigation starting points (which files to read, which dirs to search), builds timeline evidence comparing git histories of automation vs product repos, and injects temporal summaries into each test's extracted_context.</div>
+        <div class="label">For RHACM4K-2576:</div>
+<pre class="data-block">{
+  <span class="key">"timeline_evidence"</span>: {
+    <span class="key">".tf--list-box__menu-item"</span>: {
+      <span class="key">"exists_in_console"</span>: <span class="bool">false</span>,
+      <span class="key">"element_removed"</span>: <span class="bool">true</span>,
+      <span class="key">"stale_test_signal"</span>: <span class="bool">false</span>
+    }
+  },
+  <span class="key">"start_here"</span>: [
+    <span class="str">"1. Read failed test files from stack traces"</span>,
+    <span class="str">"2. Check timeline_evidence for selector history"</span>,
+    <span class="str">"3. Search relevant_console_dirs for the element"</span>
+  ],
+  <span class="key">"key_directories"</span>: {
+    <span class="key">"automation_tests"</span>: <span class="str">"repos/automation/cypress/e2e/"</span>,
+    <span class="key">"console_routes"</span>: <span class="str">"repos/console/frontend/src/routes/"</span>
+  }
+}</pre>
+        <div class="value">The test file last modified <strong>May 2022</strong> &mdash; four years ago. The selector <code>.tf--list-box__menu-item</code> is from the Carbon era. This is <span class="tag tag-tier">Tier 1</span> corroborating evidence.</div>
+      </div>
+    `
+  },
+  'pr7-check': {
+    title: 'PR-7: Environment Oracle Dependency Check (v3.5)',
+    html: `
+      <div class="detail-section">
+        <h4>Pre-routing check #7: Oracle dependency health (ADDITIVE, not override)</h4>
+        <div class="label">Stage 1 data used (from Step 5):</div>
+<pre class="data-block"><span class="key">cluster_oracle</span>: {
+  <span class="key">"dependency_health"</span>: { ... },
+  <span class="key">"overall_feature_health"</span>: {
+    <span class="key">"score"</span>: <span class="num">0.75</span>,
+    <span class="key">"signal"</span>: <span class="str">"moderate"</span>
+  }
+}</pre>
+        <div class="separator"></div>
+        <h4>Critical: Oracle is ADDITIVE, not an override</h4>
+        <div class="value" style="color:var(--amber);font-weight:700">Oracle signals provide infrastructure context, but per-test error analysis ALWAYS takes precedence when it produces Tier 1 evidence for a different classification.</div>
+        <div class="value">Key rules:</div>
+<pre class="data-block"><span class="dim">// Rule 1: Stale selector beats oracle</span>
+<span class="key">console_search.found</span> == <span class="bool">false</span>
+  + oracle says INFRASTRUCTURE
+  &rarr; <span class="str">AUTOMATION_BUG</span> (selector doesn't exist regardless of infra)
+
+<span class="dim">// Rule 2: Known failure pattern beats oracle</span>
+failure-signatures.md match with 95% confidence
+  + oracle says INFRASTRUCTURE
+  &rarr; <span class="str">Use the known pattern classification</span>
+
+<span class="dim">// Rule 3: DEFINITIVE requires 2+ confirmed failures</span>
+Single dependency missing &rarr; "strong" signal (not DEFINITIVE)
+2+ confirmed missing &rarr; "definitive" signal
+
+<span class="dim">// Rule 4: Managed cluster age filter</span>
+Clusters &lt; 4 hours old excluded (test artifacts)
+
+<span class="dim">// Rule 5: Operator pod fallback</span>
+No CSV found but pods Running &rarr; "healthy" (not "missing")
+(e.g., Hive deploys without OLM/CSV)</pre>
+        <div class="separator"></div>
+        <div class="label">For RHACM4K-2576:</div>
+        <div class="value">Even if oracle reports infrastructure issues, the Carbon selector <code>.tf--list-box__menu-item</code> doesn't exist in the product (console_search.found = false). Per-test evidence takes precedence &rarr; <strong>AUTOMATION_BUG</strong>.</div>
+        <div class="label">When PR-7 correctly fires:</div>
+<pre class="data-block"><span class="dim">// VM test timeout + oracle shows no KVM nodes</span>
+<span class="dim">// The timeout IS caused by the missing nodes</span>
+<span class="key">error</span>: <span class="str">"VM did not reach Running within 600s"</span>
+<span class="key">oracle</span>: <span class="str">"kvm_nodes = 0"</span>
+  &rarr; <span class="str">INFRASTRUCTURE</span> (error matches infra cause)</pre>
+      </div>
+    `
+  },
+  'stage1': {
+    title: 'Stage 1: Data Gathering (Python)',
+    html: `
+      <div class="detail-section">
+        <h4>What happens</h4>
+        <div class="value">Python ETL pipeline runs 11 steps to collect factual data. No classification. Facts only. Step 4 runs a 6-phase cluster health audit. Step 5 gathers feature context (Polarion, KG topology).</div>
+        <div class="label">Runtime:</div>
+        <div class="value">~2-5 minutes</div>
+        <div class="label">Command:</div>
+<pre class="data-block">python -m src.scripts.gather \\
+  "<span class="str">https://jenkins.../clc-e2e-pipeline/3913/</span>"</pre>
+        <div class="label">Terminal output:</div>
+        <div class="value">Shows stage banners (STAGE 1: DATA GATHERING, STAGE 0: ENVIRONMENT ORACLE) with key stats (build result, test count, environment score, oracle health summary) as each step completes.</div>
+        <div class="label">Kubeconfig persistence:</div>
+        <div class="value">After environment validation, creates <code>cluster.kubeconfig</code> in the run directory. Stage 2 uses <code>--kubeconfig</code> on all <code>oc</code> commands instead of re-authenticating with the (masked) password.</div>
+        <div class="label">Services used:</div>
+        <div class="value">JenkinsAPIClient, JenkinsIntelligenceService, StackTraceParser, EnvironmentValidationService, ClusterInvestigationService, EnvironmentOracleService, RepositoryAnalysisService, TimelineComparisonService (with 200-commit selector drift detection), ComponentExtractor, FeatureAreaService, FeatureKnowledgeService, KnowledgeGraphClient, ACMUIMCPClient</div>
+      </div>
+    `
+  },
+  'step1-jenkins': {
+    title: 'Step 1: Jenkins API (RHACM4K-2576)',
+    html: `
+      <div class="detail-section">
+        <h4>Data collected from Jenkins for this test</h4>
+<pre class="data-block">{
+  <span class="key">"test_name"</span>: <span class="str">"RHACM4K-2576: CLC: Verify that only n, n-1,
+    n-2 and/or n+1 ocp versions are visible in
+    Release Images section"</span>,
+  <span class="key">"status"</span>: <span class="str">"FAILED"</span>,
+  <span class="key">"duration"</span>: <span class="num">48.347</span>,
+  <span class="key">"error_message"</span>: <span class="str">"Timed out retrying after 30000ms:
+    Expected to find element:
+    .tf--list-box__menu-item > div > div > div:first-of-type"</span>,
+  <span class="key">"failure_type"</span>: <span class="str">"timeout"</span>
+}</pre>
+        <div class="label">Key data point extracted:</div>
+        <div class="value">The failing CSS selector: <code>.tf--list-box__menu-item</code><br/>This single string drives the entire downstream investigation.</div>
+      </div>
+    `
+  },
+  'step2-console': {
+    title: 'Step 2: Console Log Parsing',
+    html: `
+      <div class="detail-section">
+        <h4>Regex pattern classification</h4>
+        <div class="value">JenkinsIntelligenceService scans the 10MB+ console log with regex patterns to classify each failure type.</div>
+        <div class="label">For RHACM4K-2576:</div>
+<pre class="data-block"><span class="key">failure_type</span>: <span class="str">"timeout"</span>
+<span class="key">pattern_matched</span>: <span class="str">"Timed out retrying after \\d+ms"</span>
+<span class="key">element_selector</span>: <span class="str">".tf--list-box__menu-item"</span></pre>
+        <div class="label">Possible types:</div>
+        <div class="value"><code>timeout</code>, <code>element_not_found</code>, <code>network</code>, <code>assertion</code>, <code>server_error</code>, <code>auth_error</code>, <code>not_found</code>, <code>unknown</code></div>
+      </div>
+    `
+  },
+  'step3-stacktrace': {
+    title: 'Step 3: Stack Trace Parser (RHACM4K-2576)',
+    html: `
+      <div class="detail-section">
+        <h4>Extracted from raw stack trace</h4>
+<pre class="data-block"><span class="key">Raw stack trace:</span>
+at Object.validateSupportedReleaseImages
+  (webpack://clc-ui-e2e-test/./cypress/views/
+   clusters/<span class="str">managedCluster.js</span>:<span class="num">1087</span>:7)
+at Context.eval
+  (webpack://clc-ui-e2e-test/./cypress/tests/
+   clusters/managedClusters/<span class="str">clusterImage.spec.js</span>:<span class="num">30</span>:31)</pre>
+        <h4>Parser extracted</h4>
+<pre class="data-block">{
+  <span class="key">"root_cause_file"</span>: <span class="str">"cypress/views/clusters/managedCluster.js"</span>,
+  <span class="key">"root_cause_line"</span>: <span class="num">1087</span>,
+  <span class="key">"test_file"</span>: <span class="str">"cypress/tests/.../clusterImage.spec.js"</span>,
+  <span class="key">"test_line"</span>: <span class="num">30</span>,
+  <span class="key">"failing_selector"</span>: <span class="str">".tf--list-box__menu-item"</span>,
+  <span class="key">"error_type"</span>: <span class="str">"AssertionError"</span>,
+  <span class="key">"frames_count"</span>: <span class="num">2</span>
+}</pre>
+        <div class="value">The parser tells Stage 2 <strong>exactly where to look</strong> in the code.</div>
+      </div>
+    `
+  },
+  'step4-env': {
+    title: 'Step 4: Environment + Landscape + Backend Probes',
+    html: `
+      <div class="detail-section">
+        <h4>Cluster health, landscape snapshot, and backend probes</h4>
+        <div class="value">Step 4 runs three sub-steps: environment validation (oc get mch, pods, nodes), cluster landscape snapshot (managed clusters, operator statuses), and backend API probes (v3.3) with source-of-truth validation (v3.4).</div>
+<pre class="data-block">{
+  <span class="key">"environment_score"</span>: <span class="num">0.75</span>,
+  <span class="key">"cluster_api"</span>: <span class="str">"reachable"</span>,
+  <span class="key">"console_pods"</span>: <span class="str">"2/2 Running (6-7 restarts)"</span>,
+  <span class="key">"mch_status"</span>: <span class="str">"Running"</span>,
+  <span class="key">"mch_version"</span>: <span class="str">"2.17.0-76"</span>,
+  <span class="key">"managed_clusters"</span>: [<span class="str">"local-cluster"</span>, <span class="str">"test-aws"</span>],
+  <span class="key">"resource_pressure"</span>: <span class="bool">false</span>
+}</pre>
+        <div class="label">Backend probes (v3.3):</div>
+        <div class="value">Curls 5 console backend endpoints (<code>/authenticated</code>, <code>/hub</code>, <code>/username</code>, <code>/ansibletower</code>, <code>/proxy/search</code>) from inside the console pod. Each probe records HTTP status, response body, and anomalies.</div>
+        <div class="label">Source-of-truth validation (v3.4):</div>
+        <div class="value">Compares probe responses against direct <code>oc</code> CLI ground truth. Detects data corruption in the console backend layer (e.g., reversed username, wrong hub name). Adds <code>anomaly_source</code> (console_backend vs upstream) and <code>classification_hint</code> per anomaly.</div>
+        <div class="label">Score gate:</div>
+        <div class="value">Score 0.75 > 0.3 threshold &rarr; NOT all-infrastructure. Proceed to per-test analysis.</div>
+      </div>
+    `
+  },
+  'pr4-check': {
+    title: 'PR-4: Feature Knowledge Override (v3.1)',
+    html: `
+      <div class="detail-section">
+        <h4>Pre-routing check #4: Did a playbook investigation confirm the cause?</h4>
+        <div class="label">Stage 1 data used (from Step 9):</div>
+<pre class="data-block"><span class="key">feature_readiness</span>: {
+  <span class="key">"CLC"</span>: {
+    <span class="key">"all_prerequisites_met"</span>: <span class="bool">true</span>,
+    <span class="key">"pre_matched_paths"</span>: []
+  }
+}</pre>
+        <div class="separator"></div>
+        <h4>What this check does</h4>
+        <div class="value">If Step 9's feature knowledge playbooks pre-matched a known failure path, or if Tier 2-4 investigation during Stage 2 confirmed a playbook-predicted failure, PR-4 overrides the standard routing with the playbook's suggested classification (0.90-0.95 confidence).</div>
+        <div class="label">For RHACM4K-2576:</div>
+        <div class="value">No playbook match (the failure is a stale selector, not a known CLC failure path). <strong>SKIP</strong> &rarr; proceed to D0.</div>
+        <div class="label">Example where PR-4 fires:</div>
+<pre class="data-block"><span class="dim">// Step 9 pre-matched a known failure path:</span>
+<span class="key">pre_matched_paths</span>: [{
+  <span class="key">"id"</span>: <span class="str">"search-addon-missing"</span>,
+  <span class="key">"suggested_classification"</span>: <span class="str">"INFRASTRUCTURE"</span>,
+  <span class="key">"investigation_steps"</span>: [<span class="str">"oc get managedclusteraddon"</span>]
+}]
+<span class="dim">// Tier 2 confirms addon is missing on spoke</span>
+<span class="dim">// PR-4: INFRASTRUCTURE (0.95 confidence)</span></pre>
+        <div class="separator"></div>
+        <div class="label">PR-4b: Cluster Access Adjustment</div>
+        <div class="value">If cluster re-authentication failed at start of Phase A, PR-4b reduces ALL classification confidence by 0.15, since Tier 1-4 live commands are unavailable.</div>
+      </div>
+    `
+  },
+  'pr5-check': {
+    title: 'PR-5: Data Assertion Pre-Check (v3.3)',
+    html: `
+      <div class="detail-section">
+        <h4>Pre-routing check #5: Does the test fail on wrong data values?</h4>
+        <div class="label">Stage 1 data used (from Step 7):</div>
+<pre class="data-block"><span class="key">assertion_analysis</span>: {
+  <span class="key">"has_data_assertion"</span>: <span class="bool">false</span>
+}
+<span class="key">failure_mode_category</span>: <span class="str">"element_missing"</span></pre>
+        <div class="separator"></div>
+        <h4>What this check does</h4>
+        <div class="value">If Step 7 parsed Cypress/Chai assertion errors (e.g., <code>expected 5 to equal 3</code>) and categorized the failure as <code>data_incorrect</code>, PR-5 sets a strong PRODUCT_BUG hypothesis &mdash; the API returned wrong data values, not a selector or infrastructure issue. Does NOT short-circuit; validated through Path B2.</div>
+        <div class="label">For RHACM4K-2576:</div>
+        <div class="value">Not a data assertion (it's a missing element timeout). <strong>SKIP</strong> &rarr; proceed to PR-6.</div>
+        <div class="label">Example where PR-5 fires:</div>
+<pre class="data-block"><span class="dim">// Cypress error: expected 0 to equal 5</span>
+<span class="key">assertion_analysis</span>: {
+  <span class="key">"has_data_assertion"</span>: <span class="bool">true</span>,
+  <span class="key">"assertion_type"</span>: <span class="str">"count_mismatch"</span>,
+  <span class="key">"expected"</span>: <span class="num">5</span>,
+  <span class="key">"actual"</span>: <span class="num">0</span>
+}
+<span class="key">failure_mode_category</span>: <span class="str">"data_incorrect"</span>
+<span class="dim">// PR-5: PRODUCT_BUG hypothesis (0.85)</span></pre>
+      </div>
+    `
+  },
+  'pr6-check': {
+    title: 'PR-6: Backend Probe Source-of-Truth (v3.4)',
+    html: `
+      <div class="detail-section">
+        <h4>Pre-routing check #6: Does the console return corrupted data?</h4>
+        <div class="label">Stage 1 data used (from Step 4 backend probes):</div>
+<pre class="data-block"><span class="key">backend_probes</span>: {
+  <span class="key">"probe_timestamp"</span>: <span class="str">"2026-03-20T18:45:00Z"</span>,
+  <span class="key">"total_anomalies"</span>: <span class="num">0</span>,
+  <span class="key">"username"</span>: {
+    <span class="key">"status"</span>: <span class="num">200</span>,
+    <span class="key">"anomalies"</span>: [],
+    <span class="key">"response_valid"</span>: <span class="bool">true</span>
+  }
+}</pre>
+        <div class="separator"></div>
+        <h4>What this check does</h4>
+        <div class="value">If Step 4's backend probes found that the console backend returns different data than the Kubernetes API (via source-of-truth validation), PR-6 provides strong Tier 1 evidence. Uses <code>anomaly_source</code> to distinguish console bugs from upstream infrastructure issues. Does NOT short-circuit; provides directional evidence.</div>
+        <div class="label">For RHACM4K-2576:</div>
+        <div class="value">No backend discrepancies found. <strong>SKIP</strong> &rarr; proceed to PR-7.</div>
+        <div class="label">Example where PR-6 fires:</div>
+<pre class="data-block"><span class="dim">// Console says username is "admin:kube"</span>
+<span class="dim">// Cluster says username is "kube:admin"</span>
+<span class="key">anomaly_source</span>: <span class="str">"console_backend"</span>
+<span class="key">classification_hint</span>: <span class="str">"PRODUCT_BUG"</span>
+<span class="dim">// PR-6: console code reversed the username</span></pre>
+      </div>
+    `
+  },
+  'core-data': {
+    title: 'Stage 1 Output Bundle',
+    html: `
+      <div class="detail-section">
+        <h4>All Stage 1 output files</h4>
+        <div class="value">Stage 1 produces 7 files that Stage 2 reads:</div>
+        <div class="arrow-trail">
+          <span class="arrow-step active">core-data.json (~1MB)</span>
+        </div>
+        <div class="value" style="font-size:0.82rem">Primary AI input — jenkins, test_report, console_log, cluster_health, cluster_landscape, cluster_oracle, feature_grounding, feature_knowledge, extracted_context, backend_probes, investigation_hints</div>
+        <div class="arrow-trail">
+          <span class="arrow-step active">cluster-health.json (19KB)</span>
+        </div>
+        <div class="value" style="font-size:0.82rem">Full 6-phase health audit — operator health, subsystem health, infrastructure issues, managed clusters, baseline comparison, classification guidance</div>
+        <div class="arrow-trail">
+          <span class="arrow-step active">cluster.kubeconfig</span>
+        </div>
+        <div class="value" style="font-size:0.82rem">Persistent cluster auth for Stage 2 live <code>oc</code> commands</div>
+        <div class="arrow-trail">
+          <span class="arrow-step">test-report.json</span>
+          <span class="arrow-sep">&rarr;</span>
+          <span class="arrow-step">console-log.txt</span>
+          <span class="arrow-sep">&rarr;</span>
+          <span class="arrow-step">element-inventory.json</span>
+          <span class="arrow-sep">&rarr;</span>
+          <span class="arrow-step">repos/</span>
+        </div>
+        <div class="separator"></div>
+        <h4>Per-test data for RHACM4K-2576</h4>
+        <div class="value">All data points collected, packaged for the AI:</div>
+        <div class="arrow-trail">
+          <span class="arrow-step active">#1 Selector name</span>
+          <span class="arrow-sep">&rarr;</span>
+          <span class="arrow-step active">#2 Stack trace location</span>
+          <span class="arrow-sep">&rarr;</span>
+          <span class="arrow-step active">#3 Console search = false</span>
+          <span class="arrow-sep">&rarr;</span>
+          <span class="arrow-step active">#4 Feature area = CLC</span>
+          <span class="arrow-sep">&rarr;</span>
+          <span class="arrow-step active">#5 File date = 2022</span>
+        </div>
+        <div class="separator"></div>
+        <div class="value">No classification has been made yet. This is pure fact collection. Stage 2 will read these files and decide.</div>
+      </div>
+    `
+  },
+  'stage2': {
+    title: 'Stage 2: AI Analysis',
+    html: `
+      <div class="detail-section">
+        <h4>Claude AI with 5 MCP servers</h4>
+        <div class="value">The AI reads <code>core-data.json</code> + <code>cluster-health.json</code> and uses the persisted <code>cluster.kubeconfig</code> for live cluster access. Phase A-0 reads the health audit first to know which subsystems are broken before investigating individual tests.</div>
+        <div class="label">Phases:</div>
+        <div class="arrow-trail">
+          <span class="arrow-step">A: Assessment</span>
+          <span class="arrow-sep">&rarr;</span>
+          <span class="arrow-step">B: Investigation</span>
+          <span class="arrow-sep">&rarr;</span>
+          <span class="arrow-step">C: Validation</span>
+          <span class="arrow-sep">&rarr;</span>
+          <span class="arrow-step">D: Classification</span>
+          <span class="arrow-sep">&rarr;</span>
+          <span class="arrow-step">E: JIRA Context</span>
+        </div>
+        <div class="label">Cluster re-authentication:</div>
+        <div class="value">Phase A-1 verifies the kubeconfig with <code>oc whoami --kubeconfig cluster.kubeconfig</code>. If verification fails, reduces all classification confidence by 0.15 and proceeds with snapshot data only.</div>
+        <div class="label">MCP servers available:</div>
+        <div class="value">ACM-UI (20 tools) &bull; JIRA (25 tools) &bull; Jenkins (11 tools) &bull; Polarion (25 tools) &bull; Neo4j RHACM (2 tools)</div>
+        <div class="label">Runtime:</div>
+        <div class="value">~20-60 minutes for full build analysis</div>
+      </div>
+    `
+  },
+  'test-input': {
+    title: 'Test Input: RHACM4K-2576',
+    html: `
+      <div class="detail-section">
+        <h4>Failed test entering the AI pipeline</h4>
+        <div class="value">The AI receives this bundle of facts from Stage 1's <code>core-data.json</code>:</div>
+<pre class="data-block">{
+  <span class="key">"test_name"</span>: <span class="str">"RHACM4K-2576: CLC: Verify that only n, n-1,
+    n-2 and/or n+1 ocp versions are visible"</span>,
+  <span class="key">"failure_type"</span>: <span class="str">"timeout"</span>,
+  <span class="key">"selector"</span>: <span class="str">".tf--list-box__menu-item"</span>,
+  <span class="key">"console_search.found"</span>: <span class="bool">false</span>,
+  <span class="key">"feature_area"</span>: <span class="str">"CLC"</span>,
+  <span class="key">"automation_last_modified"</span>: <span class="str">"2022-05-21"</span>,
+  <span class="key">"root_cause_file"</span>: <span class="str">"cypress/views/clusters/managedCluster.js"</span>,
+  <span class="key">"root_cause_line"</span>: <span class="num">1087</span>,
+  <span class="key">"environment_score"</span>: <span class="num">0.75</span>,
+  <span class="key">"is_cascading_hook_failure"</span>: <span class="bool">false</span>,
+  <span class="key">"blank_page_detected"</span>: <span class="bool">false</span>,
+  <span class="key">"stale_test_signal"</span>: <span class="bool">false</span>
+}</pre>
+        <div class="value">Each of these fields was collected by a specific Stage 1 step. The AI now uses them as inputs to its decision tree.</div>
+      </div>
+    `
+  },
+  'pr1-check': {
+    title: 'PR-1: Blank Page Check',
+    html: `
+      <div class="detail-section">
+        <h4>Pre-routing check #1: Is the page blank?</h4>
+        <div class="label">Stage 1 data used for this decision:</div>
+<pre class="data-block"><span class="key">blank_page_detected</span>: <span class="bool">false</span></pre>
+        <div class="separator"></div>
+        <h4>How Stage 1 determined this</h4>
+        <div class="value">In Step 2 (Console Log Parsing), JenkinsIntelligenceService scanned the Cypress error output for patterns like:</div>
+<pre class="data-block"><span class="dim">// Patterns that trigger blank_page_detected = true:</span>
+<span class="str">class="no-js"</span>       &larr; JavaScript never loaded
+<span class="str">about:blank</span>        &larr; empty page
+<span class="str">"blank page"</span>      &larr; explicit blank page error</pre>
+        <div class="value">For RHACM4K-2576, the error was <code>"Timed out retrying... .tf--list-box__menu-item"</code> &mdash; a selector timeout, not a blank page. The page loaded and rendered; the specific dropdown element just wasn't there.</div>
+        <div class="separator"></div>
+        <div class="label">AI decision:</div>
+        <div class="value">Page loaded normally &rarr; <strong>SKIP</strong> &mdash; proceed to PR-2</div>
+        <div class="label">If this were true:</div>
+        <div class="value">Would check MCH prerequisites (CNV, AAP, IDP). If prereqs missing &rarr; INFRASTRUCTURE (0.90). If prereqs met &rarr; AUTOMATION_BUG (0.80).</div>
+      </div>
+    `
+  },
+  'pr2-check': {
+    title: 'PR-2: Cascading Hook Check',
+    html: `
+      <div class="detail-section">
+        <h4>Pre-routing check #2: Is this a cascading cleanup failure?</h4>
+        <div class="label">Stage 1 data used for this decision:</div>
+<pre class="data-block"><span class="key">is_cascading_hook_failure</span>: <span class="bool">false</span>
+<span class="key">test_name</span>: <span class="str">"RHACM4K-2576: CLC: Verify..."</span></pre>
+        <div class="separator"></div>
+        <h4>How Stage 1 determined this</h4>
+        <div class="value">In Step 3 (Test Report Parsing), the JUnit parser checks the Cypress-generated test name from the JUnit XML. When a Mocha <code>before()</code> or <code>after()</code> hook fails, Cypress reports it as a <strong>synthetic testcase</strong> with the hook type prepended:</div>
+<pre class="data-block"><span class="dim">// Cypress JUnit output format for hook failures:</span>
+<span class="str">"before all" hook for "RHACM4K-60769 - Fleet Virt..."</span>
+<span class="str">"after all" hook for "RHACM4K-60467 - RBAC UI..."</span>
+
+<span class="dim">// Regular test cases keep the original title:</span>
+<span class="str">"RHACM4K-2576: CLC: Verify that only n, n-1..."</span></pre>
+        <div class="separator"></div>
+        <h4>The two-part check (important distinction)</h4>
+        <div class="value">PR-2 only classifies as NO_BUG for <strong>"after all"</strong> hooks, not "before all". The logic:</div>
+<pre class="data-block"><span class="dim">// AFTER ALL hooks → cascading cleanup failures</span>
+<span class="dim">// These fail because a prior it() left state corrupted.</span>
+<span class="dim">// The hook itself isn't the problem.</span>
+test_name.startsWith(<span class="str">"after all"</span>) AND
+  prior_test_in_same_spec_failed == <span class="bool">true</span>
+  &rarr; <span class="str">NO_BUG</span> (fix the root cause test)
+
+<span class="dim">// BEFORE ALL hooks → genuine setup failures</span>
+<span class="dim">// These fail BEFORE any it() runs. No prior test to blame.</span>
+<span class="dim">// They get investigated on their own merit.</span>
+test_name.startsWith(<span class="str">"before all"</span>)
+  &rarr; <span class="str">NOT cascading</span> — proceed through PR-3..D0
+  &rarr; classified by root cause (e.g., VM timeout → INFRA)
+
+<span class="dim">// For RHACM4K-2576:</span>
+test_name = <span class="str">"RHACM4K-2576: CLC: Verify..."</span>
+  &rarr; No hook prefix at all → independent test</pre>
+        <div class="separator"></div>
+        <h4>Real examples from build #3913</h4>
+<pre class="data-block"><span class="dim">// "after all" → NO_BUG (5 tests, 100% correct)</span>
+<span class="str">"after all" hook for "RHACM4K-60467"</span> &rarr; NO_BUG
+<span class="str">"after all" hook for "RHACM4K-60251"</span> &rarr; NO_BUG
+  Prior RBAC test failed → cleanup hook cascaded
+
+<span class="dim">// "before all" → investigated normally (4 tests)</span>
+<span class="str">"before all" hook for "RHACM4K-60769"</span> &rarr; INFRA
+  VM provisioning timeout, managed clusters NotReady
+<span class="str">"before all" hook for "RHACM4K-60251"</span> &rarr; INFRA
+  Corrupted bash 'which' on CI runner</pre>
+        <div class="separator"></div>
+        <h4>Why this distinction matters</h4>
+        <div class="value">Cypress repos (CLC, ALC) use Mocha's <code>before()</code> for suite setup (login, create resources) and <code>after()</code> for cleanup (delete namespaces, remove credentials). When <code>before()</code> fails, Cypress <strong>skips</strong> all remaining <code>it()</code> blocks — only the hook appears in JUnit. When <code>after()</code> fails, it's because a prior <code>it()</code> already failed and left state corrupted. Treating both as NO_BUG would miss real infrastructure and product issues hiding in <code>before()</code> hooks.</div>
+        <div class="separator"></div>
+        <div class="label">AI decision for RHACM4K-2576:</div>
+        <div class="value">Independent test (no hook prefix) &rarr; <strong>SKIP</strong> &mdash; proceed to PR-3</div>
+      </div>
+    `
+  },
+  'pr3-check': {
+    title: 'PR-3: Stale Test Signal Check',
+    html: `
+      <div class="detail-section">
+        <h4>Pre-routing check #3: Did a recent product change break this test?</h4>
+        <div class="label">Stage 1 data used for this decision:</div>
+<pre class="data-block"><span class="key">stale_test_signal</span>: <span class="bool">false</span>
+<span class="key">product_commit_type</span>: <span class="null">null</span>
+<span class="key">automation_last_modified</span>: <span class="str">"2022-05-21"</span>
+<span class="key">product_last_modified</span>: <span class="null">null</span></pre>
+        <div class="separator"></div>
+        <h4>How Stage 1 determined this</h4>
+        <div class="value">In Step 7 (Extract Test Context), temporal data is built comparing git histories. Step 11 (Investigation Hints) enriches this further:</div>
+<pre class="data-block"><span class="dim">// What the temporal analysis checks:</span>
+
+<span class="dim">1. Recent product commits that touch the selector's file?</span>
+   git log --since="2 weeks ago" -- <span class="str">"**/managedCluster*"</span>
+   &rarr; <span class="null">No recent product changes found</span>
+
+<span class="dim">2. Commit message patterns suggesting refactor?</span>
+   Checks for: <span class="str">"rename"</span>, <span class="str">"refactor"</span>, <span class="str">"PF6"</span>,
+   <span class="str">"migration"</span>, <span class="str">"remove"</span>, <span class="str">"delete"</span>
+   &rarr; <span class="null">No matching commits</span>
+
+<span class="dim">3. stale_test_signal requires BOTH:</span>
+   a) Recent product change (&lt;2 weeks)
+   b) Automation not updated after that change
+   &rarr; <span class="bool">false</span> (no recent product change exists)
+
+<span class="dim">4. Automation age (informational):</span>
+   managedCluster.js last modified: <span class="str">2022-05-21</span>
+   &rarr; <span class="num">1,398 days old</span> (very stale, but PR-3 looks
+      for RECENT product changes, not old test code)</pre>
+        <div class="separator"></div>
+        <div class="label">AI decision:</div>
+        <div class="value">No recent product refactor &rarr; <strong>SKIP</strong> &mdash; proceed to PR-5</div>
+        <div class="label">Note:</div>
+        <div class="value">The 2022 timestamp is used later as Tier 1 evidence in Path A (corroborates "ancient selector"), but PR-3 itself only fires when there's a <em>recent</em> product change that the test didn't adapt to.</div>
+        <div class="label">If this were true:</div>
+        <div class="value">Would create a strong PRODUCT_BUG hypothesis (0.85 confidence) and feed into Path B2 for JIRA-informed investigation. Does NOT short-circuit &mdash; the hypothesis is validated through standard routing.</div>
+      </div>
+    `
+  },
+  'd0-check': {
+    title: 'D0: Backend Cross-Check',
+    html: `
+      <div class="detail-section">
+        <h4>Did a backend failure cause this UI failure?</h4>
+        <div class="label">Stage 1 data used for this decision:</div>
+<pre class="data-block">{
+  <span class="key">"backend_cross_check"</span>: {
+    <span class="key">"performed"</span>: <span class="bool">true</span>,
+    <span class="key">"backend_caused_ui_failure"</span>: <span class="bool">false</span>,
+    <span class="key">"failing_components"</span>: [],
+    <span class="key">"evidence"</span>: [],
+    <span class="key">"overrides_path_a"</span>: <span class="bool">false</span>
+  }
+}</pre>
+        <div class="separator"></div>
+        <h4>How the AI determined this (Phase B7)</h4>
+        <div class="value">The AI checks multiple data sources from Stage 1:</div>
+<pre class="data-block"><span class="dim">// 1. Console log: any 500 errors during this test?</span>
+   Searched console log around test timestamp
+   &rarr; <span class="null">No 500 errors found for clusterImage.spec.js</span>
+
+<span class="dim">// 2. Cluster landscape: are CLC components healthy?</span>
+   From Step 4b (ClusterInvestigationService):
+   <span class="key">hive-operator</span>: <span class="str">Running</span>
+   <span class="key">cluster-manager</span>: <span class="str">Running</span>
+   <span class="key">cluster-image-set-controller</span>: <span class="str">Running</span>
+   &rarr; <span class="green">All CLC components healthy</span>
+
+<span class="dim">// 3. KG dependency check:</span>
+   Neo4j query: which components serve Release Images?
+   &rarr; cluster-image-set-controller &rarr; <span class="str">Running</span>
+   &rarr; No cascade from any failed component
+
+<span class="dim">// 4. MCP: ACM-UI search for the feature</span>
+   mcp__acm-ui__search_code("Release Images")
+   &rarr; Component exists, renders correctly in source</pre>
+        <div class="separator"></div>
+        <div class="label">AI decision:</div>
+        <div class="value">No backend issues for this feature area &rarr; Path A is NOT overridden &rarr; proceed to 3-path routing</div>
+        <div class="label">If backend_caused_ui_failure were true:</div>
+        <div class="value">Would force Path B2 (skip Path A), because a backend failure causing a UI element to not render looks like a selector issue but is actually a product bug.</div>
+      </div>
+    `
+  },
+  'routing': {
+    title: '3-Path Routing Decision',
+    html: `
+      <div class="detail-section">
+        <h4>Which path does this test take?</h4>
+        <div class="label">The critical Stage 1 data point (from Step 7):</div>
+<pre class="data-block"><span class="key">console_search</span>: {
+  <span class="key">"selector"</span>: <span class="str">".tf--list-box__menu-item"</span>,
+  <span class="key">"found"</span>: <span class="bool">false</span>,
+  <span class="key">"locations"</span>: [],
+  <span class="key">"similar_selectors"</span>: []
+}</pre>
+        <div class="separator"></div>
+        <h4>How the 3-path routing works</h4>
+<pre class="data-block"><span class="dim">// PATH A triggers when:</span>
+   failure_type == <span class="str">"element_not_found"</span> or <span class="str">"timeout"</span>
+   AND console_search.found == <span class="bool">false</span> <span class="dim">(from Step 7)</span>
+   AND backend_caused_ui_failure == <span class="bool">false</span>
+   &rarr; Selector exists in test code but NOT in product
+   &rarr; <span class="str">AUTOMATION_BUG</span>
+
+<span class="dim">// PATH B1 triggers when:</span>
+   Mass timeouts across multiple tests
+   AND environment_score &lt; 0.5 <span class="dim">(from Step 4)</span>
+   AND resource_pressure or pod crashes
+   &rarr; <span class="str">INFRASTRUCTURE</span>
+
+<span class="dim">// PATH B2 triggers when:</span>
+   500 errors, assertion failures, wrong data
+   OR console_search.found == <span class="bool">true</span> (selector exists
+      but feature is broken)
+   OR backend_caused_ui_failure == <span class="bool">true</span>
+   &rarr; Investigate via JIRA MCP
+   &rarr; <span class="str">PRODUCT_BUG</span> or other</pre>
+        <div class="separator"></div>
+        <h4>For RHACM4K-2576:</h4>
+        <div class="value" style="color:var(--accent);font-weight:700">failure_type = "timeout" + console_search.found = false + backend OK &rarr; PATH A (selector mismatch)</div>
+        <div class="separator"></div>
+        <div class="label">Additional MCP verification:</div>
+        <div class="value">The AI also called <code>mcp__acm-ui__get_acm_selectors</code> for the Release Images component. The MCP confirmed that the current selectors use PatternFly classes (e.g., <code>.pf-v6-c-menu__list-item</code>), not the Carbon <code>.tf--list-box__menu-item</code> class.</div>
+      </div>
+    `
+  },
+  'path-a': {
+    title: 'Path A: Selector Mismatch',
+    html: `
+      <div class="detail-section">
+        <h4>Building the evidence case</h4>
+        <div class="label">Evidence Source 1 <span class="tag tag-tier">Tier 1</span></div>
+<pre class="data-block"><span class="key">source</span>: <span class="str">"console_search"</span>
+<span class="key">finding</span>: <span class="str">"Selector .tf--list-box__menu-item not found
+  in console - legacy Carbon Design System class"</span></pre>
+        <div class="label">Evidence Source 2 <span class="tag tag-tier">Tier 1</span></div>
+<pre class="data-block"><span class="key">source</span>: <span class="str">"timeline_evidence"</span>
+<span class="key">finding</span>: <span class="str">"Automation last modified 2022-05-21
+  - very old selector"</span></pre>
+        <div class="separator"></div>
+        <div class="label">Multi-evidence requirement:</div>
+        <div class="value">2x Tier 1 = 2.0 &ge; minimum 1.8 &rarr; <span class="tag tag-pass">SATISFIED</span></div>
+        <div class="separator"></div>
+        <h4>Ruled out alternatives</h4>
+<pre class="data-block"><span class="key">PRODUCT_BUG?</span> <span class="str">"Legacy Carbon selector from 2022,
+  long since replaced. Product didn't break."</span>
+
+<span class="key">INFRASTRUCTURE?</span> <span class="str">"Cluster healthy, no resource
+  pressure affecting this test."</span>
+
+<span class="key">NO_BUG?</span> <span class="str">"Independent failure, not a hook cascade."</span></pre>
+      </div>
+    `
+  },
+  'final-classification': {
+    title: 'Final Classification: AUTOMATION_BUG (90%)',
+    html: `
+      <div class="detail-section">
+        <h4>Output for RHACM4K-2576</h4>
+<pre class="data-block">{
+  <span class="key">"classification"</span>: <span class="str">"AUTOMATION_BUG"</span>,
+  <span class="key">"classification_path"</span>: <span class="str">"A"</span>,
+  <span class="key">"confidence"</span>: <span class="num">0.90</span>,
+  <span class="key">"reasoning"</span>: {
+    <span class="key">"summary"</span>: <span class="str">"Selector .tf--list-box__menu-item is
+      a legacy Carbon Design System class from 2022,
+      replaced by PatternFly"</span>,
+    <span class="key">"conclusion"</span>: <span class="str">"Ancient selector from
+      pre-PatternFly era needs replacement"</span>
+  },
+  <span class="key">"recommended_fix"</span>: {
+    <span class="key">"action"</span>: <span class="str">"Replace legacy selector"</span>,
+    <span class="key">"owner"</span>: <span class="str">"Automation Team"</span>
+  }
+}</pre>
+        <div class="value"><span class="tag tag-auto">AUTOMATION_BUG</span> <span class="tag tag-pass">CORRECT</span> &mdash; This is indeed a test maintenance issue, not a product bug.</div>
+      </div>
+    `
+  },
+  'analysis-results': {
+    title: 'analysis-results.json (Stage 2 Output)',
+    html: `
+      <div class="detail-section">
+        <h4>Full structured output for RHACM4K-2576</h4>
+<pre class="data-block">{
+  <span class="key">"test_name"</span>: <span class="str">"RHACM4K-2576: CLC: Verify..."</span>,
+  <span class="key">"test_file"</span>: <span class="str">"cypress/views/clusters/managedCluster.js"</span>,
+  <span class="key">"is_cascading_hook_failure"</span>: <span class="bool">false</span>,
+  <span class="key">"blank_page_detected"</span>: <span class="bool">false</span>,
+  <span class="key">"classification"</span>: <span class="str">"AUTOMATION_BUG"</span>,
+  <span class="key">"classification_path"</span>: <span class="str">"A"</span>,
+  <span class="key">"confidence"</span>: <span class="num">0.9</span>,
+  <span class="key">"evidence_sources"</span>: [
+    { <span class="key">"source"</span>: <span class="str">"console_search"</span>, <span class="key">"tier"</span>: <span class="num">1</span> },
+    { <span class="key">"source"</span>: <span class="str">"timeline_evidence"</span>, <span class="key">"tier"</span>: <span class="num">1</span> }
+  ],
+  <span class="key">"ruled_out_alternatives"</span>: [
+    { <span class="key">"classification"</span>: <span class="str">"PRODUCT_BUG"</span>,
+      <span class="key">"reason"</span>: <span class="str">"Legacy Carbon selector"</span> },
+    { <span class="key">"classification"</span>: <span class="str">"INFRASTRUCTURE"</span>,
+      <span class="key">"reason"</span>: <span class="str">"Not infrastructure"</span> }
+  ]
+}</pre>
+      </div>
+    `
+  },
+  'stage3': {
+    title: 'Stage 3: Report Generation',
+    html: `
+      <div class="detail-section">
+        <h4>Pure Python formatter</h4>
+        <div class="value">Reads <code>analysis-results.json</code>, validates against schema, generates 3 output files.</div>
+        <div class="label">Command:</div>
+<pre class="data-block">python -m src.scripts.report \\
+  runs/qe-acm-automation-poc_clc-e2e-pipeline_20260320_184355/</pre>
+        <div class="label">Runtime:</div>
+        <div class="value">~10 seconds</div>
+        <div class="label">Outputs:</div>
+        <div class="value">Detailed-Analysis.md (1932 lines) &bull; per-test-breakdown.json &bull; SUMMARY.txt</div>
+      </div>
+    `
+  },
+  'report-md': {
+    title: 'Detailed-Analysis.md (Test #31)',
+    html: `
+      <div class="detail-section">
+        <h4>How RHACM4K-2576 appears in the final report</h4>
+<pre class="data-block"><span class="key">### 31. RHACM4K-2576</span>
+
+<span class="key">Classification:</span> <span class="str">AUTOMATION_BUG</span>
+<span class="key">Confidence:</span> <span class="num">90%</span>
+
+<span class="key">Analysis:</span> Selector .tf--list-box__menu-item
+is a legacy Carbon Design System class from
+2022, replaced by PatternFly
+
+<span class="key">Evidence:</span>
+- .tf--list-box__menu-item not found in console
+- Automation file last modified: 2022-05-21
+- Console migrated from Carbon to PatternFly
+
+<span class="key">Recommended Fix:</span>
+- Find current PF6 listbox/menu item component
+- Update selector in cluster imageset tests
+- <span class="str">Owner: Automation Team</span></pre>
+      </div>
+    `
+  },
+  'report-json': {
+    title: 'per-test-breakdown.json',
+    html: `
+      <div class="detail-section">
+        <h4>Machine-readable per-test data</h4>
+        <div class="value">Used by dashboards, tooling, and CI/CD integrations to track classifications programmatically.</div>
+<pre class="data-block">{
+  <span class="key">"test_name"</span>: <span class="str">"RHACM4K-2576..."</span>,
+  <span class="key">"classification"</span>: <span class="str">"AUTOMATION_BUG"</span>,
+  <span class="key">"confidence"</span>: <span class="num">0.9</span>,
+  <span class="key">"feature_area"</span>: <span class="str">"CLC"</span>,
+  <span class="key">"priority"</span>: <span class="str">"LOW"</span>,
+  <span class="key">"owner"</span>: <span class="str">"Automation Team"</span>
+}</pre>
+      </div>
+    `
+  },
+  'report-summary': {
+    title: 'SUMMARY.txt',
+    html: `
+      <div class="detail-section">
+        <h4>Brief text summary of full build</h4>
+<pre class="data-block">Build: qe-acm-automation-poc #3913
+Result: UNSTABLE
+Tests: 118 total, 50 passed, 68 failed
+Pass Rate: 42.4%
+
+Classifications:
+  AUTOMATION_BUG: 44  <span class="str">&larr; RHACM4K-2576 is one of these</span>
+  INFRASTRUCTURE: 12
+  PRODUCT_BUG:     7
+  NO_BUG:          5
+
+Accuracy: ~91% (62/68 correct)
+  AUTOMATION_BUG: 44/44 correct
+  INFRASTRUCTURE: 12/12 correct
+  NO_BUG:          5/5  correct
+  PRODUCT_BUG:     1/7  correct (6 misclassified)</pre>
+      </div>
+    `
+  },
+  'schema': {
+    title: 'Schema Validation',
+    html: `
+      <div class="detail-section">
+        <h4>JSON Schema check</h4>
+        <div class="value">Stage 3 validates <code>analysis-results.json</code> against <code>src/schemas/analysis_results_schema.json</code>.</div>
+        <div class="label">Required fields checked:</div>
+        <div class="value"><code>per_test_analysis</code> (not <code>failed_tests</code>), <code>summary.by_classification</code>, <code>investigation_phases_completed</code>, <code>evidence_sources</code> per test, <code>ruled_out_alternatives</code> per test</div>
+        <div class="label">Result for this run:</div>
+        <div class="value"><span class="tag tag-pass">VALID</span> &mdash; all required fields present</div>
+      </div>
+    `
+  },
+  'reports': {
+    title: 'Final Outputs',
+    html: `
+      <div class="detail-section">
+        <h4>Three files generated</h4>
+        <div class="label">Detailed-Analysis.md</div>
+        <div class="value">1819 lines. Executive summary, per-test analysis, common patterns, recommended actions, feature grouping.</div>
+        <div class="label">per-test-breakdown.json</div>
+        <div class="value">Structured JSON for each of the 68 failed tests. Machine-readable for dashboards.</div>
+        <div class="label">SUMMARY.txt</div>
+        <div class="value">Brief text: build info, failure counts, classification breakdown.</div>
+        <div class="separator"></div>
+        <div class="value">All output saved to:<br/><code>runs/qe-acm-automation-poc_clc-e2e-pipeline_20260320_184355/</code></div>
+      </div>
+    `
+  }
+};
+
+const NODE_MAP = {
+  'URL': 'jenkins-url', 'G': 'stage1', 'S0': 'step5-oracle', 'CD': 'core-data',
+  'S15': 'stage15-diagnostic', 'CDX': 'stage15-output',
+  'AI': 'stage2', 'AR': 'analysis-results', 'R': 'stage3', 'MD': 'reports',
+  'S1': 'step1-jenkins', 'S2': 'step2-console', 'S3': 'step3-stacktrace',
+  'S4': 'step4-env', 'S5': 'step5-oracle', 'S6': 'step6-repos', 'S7': 'step7-search',
+  'S8': 'step8-feature', 'S9': 'step9-timeline',
+  'S10': 'step10-probes', 'S11': 'step11-sot',
+  'OUT': 'core-data',
+  'TEST': 'test-input', 'PR1': 'pr1-check', 'PR2': 'pr2-check',
+  'PR3': 'pr3-check', 'PR5': 'pr5-check', 'PR6': 'pr6-check',
+  'PR7': 'pr7-check', 'PR4': 'pr4-check', 'D0': 'd0-check', 'ROUTING': 'routing',
+  'PATHA': 'path-a', 'CONF': 'final-classification',
+  'VAL': 'schema', 'JSON': 'report-json', 'TXT': 'report-summary',
+  'P1': 'oracle-phase1', 'P2': 'oracle-phase2', 'P3': 'oracle-phase3',
+  'P4': 'oracle-phase4', 'P5': 'oracle-phase5', 'P6': 'oracle-phase6',
+  'DB': 'oracle-output'
+};
+
+window.showDetail = function(nodeId) {
+  const key = NODE_MAP[nodeId] || nodeId;
+  const panel = document.getElementById('detail-panel');
+  const title = document.getElementById('detail-title');
+  const body = document.getElementById('detail-body');
+  const main = document.getElementById('main');
+  const data = DATA[key];
+  if (!data) { console.log('No data for:', nodeId, key); return; }
+  title.textContent = data.title;
+  body.innerHTML = data.html;
+  panel.classList.remove('hidden');
+  main.classList.remove('full');
+}
+
+function hideDetail() {
+  document.getElementById('detail-panel').classList.add('hidden');
+  document.getElementById('main').classList.add('full');
+}
+
+mermaid.initialize({
+  startOnLoad: true,
+  theme: 'dark',
+  securityLevel: 'loose',
+  themeVariables: {
+    primaryColor: '#1a2a4a',
+    primaryTextColor: '#d8dce8',
+    primaryBorderColor: '#38bdf8',
+    lineColor: '#38bdf8',
+    secondaryColor: '#2a1a3f',
+    tertiaryColor: '#1a2f1a',
+    fontSize: '15px',
+    fontFamily: 'Inter, sans-serif'
+  },
+  flowchart: {
+    curve: 'basis',
+    padding: 18,
+    nodeSpacing: 40,
+    rankSpacing: 55,
+    useMaxWidth: true
+  }
+});
+</script>
+</body>
+</html>

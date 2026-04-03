@@ -717,18 +717,28 @@ No CSV found but pods Running &rarr; "healthy" (not "missing")
     html: `
       <div class="detail-section">
         <h4>What happens</h4>
-        <div class="value">Python ETL pipeline runs 11 steps to collect factual data. No classification. Facts only. Step 4 runs a 6-phase cluster health audit. Step 5 gathers feature context (Polarion, KG topology).</div>
+        <div class="value">Python ETL pipeline runs 11 steps to collect all factual data. No classification — facts only. Produces <code>core-data.json</code> + <code>cluster-health.json</code> + <code>cluster.kubeconfig</code> + cloned repos.</div>
+        <div class="label">11 Steps:</div>
+        <div class="value" style="font-size:0.85rem; line-height:1.8">
+          <strong>1.</strong> Jenkins build info + cluster credentials<br>
+          <strong>2.</strong> Console log download + parsing<br>
+          <strong>3.</strong> Test report extraction (JUnit XML)<br>
+          <strong>4.</strong> Cluster health audit (6-phase) + landscape + backend probes<br>
+          <strong>5.</strong> Feature context oracle (Polarion, KG topology)<br>
+          <strong>6.</strong> Clone repositories (test + product source)<br>
+          <strong>7.</strong> Extract test context (code, selectors, assertions)<br>
+          <strong>8.</strong> Feature area grounding (test → subsystem mapping)<br>
+          <strong>9.</strong> Feature knowledge (prerequisites, failure pattern matching)<br>
+          <strong>10.</strong> Element inventory (UI selector cross-reference)<br>
+          <strong>11.</strong> Investigation hints (pre-routing signals)
+        </div>
         <div class="label">Runtime:</div>
-        <div class="value">~2-5 minutes</div>
+        <div class="value">~1-5 minutes (depends on repo cloning)</div>
         <div class="label">Command:</div>
 <pre class="data-block">python -m src.scripts.gather \\
   "<span class="str">https://jenkins.../clc-e2e-pipeline/3913/</span>"</pre>
-        <div class="label">Terminal output:</div>
-        <div class="value">Shows stage banners (STAGE 1: DATA GATHERING, STAGE 0: ENVIRONMENT ORACLE) with key stats (build result, test count, environment score, oracle health summary) as each step completes.</div>
-        <div class="label">Kubeconfig persistence:</div>
-        <div class="value">After environment validation, creates <code>cluster.kubeconfig</code> in the run directory. Stage 2 uses <code>--kubeconfig</code> on all <code>oc</code> commands instead of re-authenticating with the (masked) password.</div>
-        <div class="label">Services used:</div>
-        <div class="value">JenkinsAPIClient, JenkinsIntelligenceService, StackTraceParser, EnvironmentValidationService, ClusterInvestigationService, EnvironmentOracleService, RepositoryAnalysisService, TimelineComparisonService (with 200-commit selector drift detection), ComponentExtractor, FeatureAreaService, FeatureKnowledgeService, KnowledgeGraphClient, ACMUIMCPClient</div>
+        <div class="label">Key services:</div>
+        <div class="value" style="font-size:0.85rem">ClusterHealthService (Step 4), EnvironmentOracleService (Step 5), JenkinsAPIClient, ClusterInvestigationService, FeatureKnowledgeService, KnowledgeGraphClient, RepositoryAnalysisService, TimelineComparisonService, FeatureAreaService, ComponentExtractor</div>
       </div>
     `
   },
@@ -935,21 +945,24 @@ at Context.eval
           <span class="arrow-step">repos/</span>
         </div>
         <div class="separator"></div>
-        <h4>Per-test data for RHACM4K-2576</h4>
-        <div class="value">All data points collected, packaged for the AI:</div>
+        <h4>Per-test extracted context</h4>
+        <div class="value">Each failed test gets pre-extracted evidence (Step 7):</div>
         <div class="arrow-trail">
-          <span class="arrow-step active">#1 Selector name</span>
+          <span class="arrow-step active">test_file.content</span>
           <span class="arrow-sep">&rarr;</span>
-          <span class="arrow-step active">#2 Stack trace location</span>
+          <span class="arrow-step active">page_objects</span>
           <span class="arrow-sep">&rarr;</span>
-          <span class="arrow-step active">#3 Console search = false</span>
+          <span class="arrow-step active">console_search.found</span>
+        </div>
+        <div class="arrow-trail">
+          <span class="arrow-step active">assertion_analysis</span>
           <span class="arrow-sep">&rarr;</span>
-          <span class="arrow-step active">#4 Feature area = CLC</span>
+          <span class="arrow-step active">failure_mode_category</span>
           <span class="arrow-sep">&rarr;</span>
-          <span class="arrow-step active">#5 File date = 2022</span>
+          <span class="arrow-step active">recent_selector_changes</span>
         </div>
         <div class="separator"></div>
-        <div class="value">No classification has been made yet. This is pure fact collection. Stage 2 will read these files and decide.</div>
+        <div class="value">No classification has been made yet. This is pure fact collection. Stage 2 reads these files and classifies each test.</div>
       </div>
     `
   },

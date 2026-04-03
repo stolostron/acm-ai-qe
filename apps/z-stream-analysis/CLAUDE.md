@@ -125,6 +125,7 @@ See `docs/00-OVERVIEW.md` for the full decision routing table. Summary:
 - **FeatureKnowledgeService cluster_health fallback** — `check_prerequisites()` now accepts `cluster_health` parameter as fallback when oracle `dependency_health` is empty (Phase 6 skipped). Operator prerequisites resolved from health audit data.
 - **core-data.json gains `cluster_health` key** — compact summary with `environment_health_score`, `overall_verdict`, `critical_issue_count`, `affected_feature_areas`, and cluster identity.
 - **Agent instructions updated** — Phase A-0 now reads `cluster-health.json` first. Phase A1 routing uses `overall_verdict` + `environment_health_score` instead of old `environment_score`. PR-7a uses `infrastructure_issues` from health audit as primary evidence source.
+- **KG subsystem name mismatch fixed** — `KG_SUBSYSTEM_MAP` in `knowledge_graph_client.py` maps all 12 app feature area names to their KG subsystem equivalents (e.g., CLC→Cluster, GRC→Governance). Previously, `get_subsystem_components("CLC")` returned 0 components because the KG uses `Cluster`, not `CLC`. Now returns 84 components. Multi-subsystem support for areas like RBAC (Cluster + Console). Also fixed oracle `_kg_query_internal_flow()` and `_kg_query_cross_subsystem()` to use the mapping.
 
 ## New in v3.6
 
@@ -254,6 +255,8 @@ Five MCP servers provide tools during Stage 2 (AI Analysis). New users: run `bas
 **Knowledge Graph:** The KG client (`knowledge_graph_client.py`) queries Neo4j directly via HTTP API (`http://localhost:7474`). It works in both Stage 1 (gather.py populates `kg_dependency_context` in core-data.json) and Stage 2 (AI agent uses MCP tools for ad-hoc queries via `uvx`). `setup.sh` handles the full Neo4j setup automatically: creates the Podman container, clones the knowledge-graph repo (base graph + extensions), and loads all data. To restart manually: `podman start neo4j-rhacm`. Connection settings configurable via `NEO4J_HTTP_URL`, `NEO4J_USER`, `NEO4J_PASSWORD` env vars (defaults: `localhost:7474`, `neo4j`, `rhacmgraph`).
 
 **KG label mapping:** The Knowledge Graph uses descriptive labels (e.g., `"API Gateway Controller"`), not pod names (e.g., `"search-api"`). The AI instructions include a `pod_to_kg_label` map and a `query_strategy` that directs the AI to use `get_subsystem_components` first to discover actual KG labels before querying by component.
+
+**KG subsystem mapping (v3.7):** The KG uses 7 broad subsystem names (Overview, Cluster, Governance, Console, Application, Observability, Search) while the app uses 12+ feature area names. `KG_SUBSYSTEM_MAP` in `knowledge_graph_client.py` translates automatically (e.g., CLC→Cluster, GRC→Governance, RBAC→Cluster+Console). The `resolve_kg_subsystems()` static method is available for custom queries.
 
 See `docs/05-MCP-INTEGRATION.md` for full tool reference, or `.claude/agents/z-stream-analysis.md` for the trigger matrix specifying when to use each tool.
 
@@ -470,7 +473,7 @@ z-stream-analysis/
 │   └── refresh.py         # Knowledge refresh script
 ├── tests/
 │   ├── conftest.py        # Shared fixtures
-│   ├── unit/              # Unit tests (620+)
+│   ├── unit/              # Unit tests (660+)
 │   ├── regression/        # Regression tests (47)
 │   ├── integration/       # Integration tests (50)
 │   └── fixtures/          # Test data (synthetic analysis-results.json)

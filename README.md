@@ -6,8 +6,8 @@ Claude Code-powered tools for ACM (Advanced Cluster Management) quality engineer
 
 | App | What It Does | Status |
 |-----|-------------|--------|
-| [ACM Hub Health](apps/acm-hub-health/) | Diagnose and remediate ACM hub clusters through natural language. Checks operator health, image integrity, NetworkPolicies, ResourceQuotas, service connectivity, and data integrity. Knowledge database with per-subsystem architecture docs, baselines, webhooks, certs, addons. | Active |
-| [Z-Stream Analysis](apps/z-stream-analysis/) | Classify Jenkins pipeline failures (product bug, automation bug, infra) with Environment Oracle and per-subsystem knowledge database (53 files: architecture, data-flow, failure-signatures across 12 ACM subsystems + diagnostics methodology). | Active |
+| [ACM Hub Health](apps/acm-hub-health/) | Diagnose and remediate ACM hub clusters through natural language. Checks operator health, image integrity, NetworkPolicies, ResourceQuotas, service connectivity, and data integrity. Knowledge database with per-subsystem architecture docs, baselines, webhooks, certs, addons. Session tracing via Claude Code hooks (JSONL traces with oc command parsing, MCP tracking, phase inference, mutation detection). | Active |
+| [Z-Stream Analysis](apps/z-stream-analysis/) | Classify Jenkins pipeline failures (product bug, automation bug, infra) with comprehensive cluster diagnostic (Stage 1.5), Environment Oracle, and per-subsystem knowledge database (58 files: architecture, data-flow, failure-signatures across 12 ACM subsystems + diagnostics methodology + healthy baselines + addon catalog + webhook registry + diagnostic traps). | Active |
 | [Claude Test Generator](apps/claude-test-generator/) | Generate test plans from JIRA tickets | In progress -- not functional |
 
 ## Prerequisites
@@ -16,7 +16,7 @@ All apps require:
 - **Claude Code CLI** -- [install guide](https://docs.anthropic.com/en/docs/claude-code/getting-started)
 
 App-specific:
-- **Hub Health**: `oc` CLI logged into an ACM hub cluster. Python 3 + PyYAML only if using `knowledge/refresh.py` (optional).
+- **Hub Health**: `oc` CLI logged into an ACM hub cluster. Podman for Neo4j knowledge graph container (optional but recommended). Python 3 + PyYAML only if using `knowledge/refresh.py` (optional).
 - **Z-Stream**: Python 3.10+, `oc` CLI, Red Hat VPN (for Jenkins/Polarion), JIRA API token, GitHub CLI (`gh`)
 
 ## Quick Start: ACM Hub Health Agent
@@ -96,7 +96,7 @@ It asks which app you want to configure and only installs the servers that app n
 
 | App | MCP Servers Installed |
 |-----|----------------------|
-| Hub Health | acm-ui |
+| Hub Health | acm-ui, neo4j-rhacm |
 | Z-Stream | acm-ui, jira, jenkins, polarion, neo4j-rhacm |
 
 Credentials are prompted only for the servers being installed. Press Enter to skip
@@ -120,7 +120,7 @@ fixes on top of the upstream sources:
 |--------|----------|----------------------|---------|
 | JIRA | [stolostron/jira-mcp-server](https://github.com/stolostron/jira-mcp-server) | [atifshafi/jira-mcp-server](https://github.com/atifshafi/jira-mcp-server) `feat/redhat-fields` | Red Hat field support ([PR#24](https://github.com/stolostron/jira-mcp-server/pull/24)) |
 | Jenkins | [redhat-community-ai-tools/jenkins-mcp](https://github.com/redhat-community-ai-tools/jenkins-mcp) | [atifshafi/jenkins-mcp](https://github.com/atifshafi/jenkins-mcp) `fix/auth-logs-paths` | Auth + log path fixes ([PR#13](https://github.com/redhat-community-ai-tools/jenkins-mcp/pull/13)) |
-| Neo4j RHACM (KG) | [stolostron/knowledge-graph](https://github.com/stolostron/knowledge-graph) | [atifshafi/knowledge-graph](https://github.com/atifshafi/knowledge-graph) `atif-virt-extension` | Virtualization subsystem extension |
+| Neo4j RHACM (KG) | [stolostron/knowledge-graph](https://github.com/stolostron/knowledge-graph) | [atifshafi/knowledge-graph](https://github.com/atifshafi/knowledge-graph) `atif-depth-improvements` | Virtualization, Hive, Klusterlet, Addon Framework, HyperShift + depth improvements |
 
 This repo contains the MCP servers we created (ACM UI, Polarion wrapper,
 Jenkins ACM analysis tools).

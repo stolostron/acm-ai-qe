@@ -174,7 +174,10 @@ when it encounters something not in the static knowledge.
    webhook/cert issues, use `dependency-chains.yaml` for structured lookups
 4. **Use diagnostics/** -- Follow dependency chains and evidence tier rules
 5. **Check learned/** -- Previous discoveries on this or similar clusters
-6. **If nothing matches** -- Use self-healing (rhacm-docs + acm-ui MCP)
+6. **If nothing matches** -- Use self-healing: reverse-engineer
+   dependencies from cluster metadata (8 introspection sources),
+   cross-reference with `neo4j-rhacm` MCP, then use `acm-ui` MCP to
+   understand how those dependencies work (source code, data flow)
 
 **These are references, NOT checklists.** Always discover what's actually
 deployed on THIS cluster first (structural observation). Then use the
@@ -188,11 +191,101 @@ knowledge as the ground truth for what correct, healthy behavior looks like
 When you observe something not covered by or contradicting the knowledge files:
 
 1. Collect more evidence from the cluster (`oc describe`, events, labels)
-2. Search `docs/rhacm-docs/` for documentation (if available):
-   `grep -r "<keyword>" docs/rhacm-docs/ --include="*.adoc" -l`
-3. Use `acm-ui` MCP to search ACM Console source code
-4. Write findings to `knowledge/learned/<topic>.md`
-5. Continue the health check with the new understanding
+2. **Reverse-engineer dependencies from cluster metadata** -- Use the
+   8 introspection sources below to build a dependency map directly from
+   the live cluster. This works without any external tools or MCPs.
+3. **Cross-reference with knowledge graph** -- Query `neo4j-rhacm` MCP
+   to supplement the cluster-derived map with broader ACM component
+   relationships (if available).
+4. **Understand the dependencies** -- For each dependency discovered in
+   steps 2-3, use `acm-ui` MCP to search the source code and understand
+   HOW those dependencies work (implementation, data flow, integration
+   points). Also search `docs/rhacm-docs/` if available.
+5. Write findings to `knowledge/learned/<topic>.md`
+6. Continue the health check with the new understanding
+
+### Cluster Introspection Sources
+
+When the static knowledge doesn't cover a component, reverse-engineer its
+dependencies from these 8 metadata sources (all read-only `oc` commands):
+
+**1. Owner references** -- Trace `.metadata.ownerReferences` up the chain:
+```
+oc get deploy <name> -n <ns> -o jsonpath='{.metadata.ownerReferences}'
+```
+Follows: Pod -> Deployment -> CSV or CR -> Operator. MCE deployments
+have rich owner refs; ACM's own deployments often lack them.
+
+**2. OLM labels** -- The `olm.owner` label maps resources to their CSV:
+```
+oc get clusterroles -l olm.owner=<csv-name> -o json
+```
+The RBAC rules reveal which API groups the operator accesses -- these
+are its implicit dependencies (e.g., `monitoring.coreos.com` means it
+depends on the monitoring stack).
+
+**3. CSV metadata** -- What the operator provides:
+```
+oc get csv <name> -n <ns> -o jsonpath='{.spec.customresourcedefinitions.owned}'
+oc get csv <name> -n <ns> -o jsonpath='{.spec.install.spec.deployments[*].name}'
+```
+Maps an operator to its owned CRDs and managed deployments. Note: the
+`.spec.customresourcedefinitions.required` field is almost always empty
+-- operators do not formally declare OLM dependencies.
+
+**4. Kubernetes labels** -- Logical grouping:
+```
+oc get deploy <name> -n <ns> -o jsonpath='{.metadata.labels}'
+```
+Look for `app.kubernetes.io/managed-by`, `part-of`, `component`. Not
+all operators set these, but when present they're authoritative.
+
+**5. Environment variables and volumes** -- Runtime service dependencies:
+```
+oc get deploy <name> -n <ns> -o jsonpath='{.spec.template.spec.containers[*].env}'
+```
+Scan for: `*.svc` references (service deps), `DB_HOST`/`*_HOST` (database),
+`*_URL`/`*_ENDPOINT` (API deps), `OPERAND_IMAGE_*` (managed operands),
+secret/configmap references (configuration deps). This is the richest
+source for runtime dependencies.
+
+**6. Webhooks** -- Cross-operator validation dependencies:
+```
+oc get validatingwebhookconfigurations -o json
+oc get mutatingwebhookconfigurations -o json
+```
+Check `.webhooks[*].clientConfig.service` -- this reveals which service
+handles validation for which resources. Webhook services that are down
+can block resource creation across operators.
+
+**7. ConsolePlugins** -- UI integration topology:
+```
+oc get consoleplugins -o json
+```
+Shows which operators extend the console UI and what backend services
+they proxy to. Critical for "why is this console tab broken" questions.
+
+**8. APIServices** -- API aggregation dependencies:
+```
+oc get apiservices -o json
+```
+Non-local APIServices (those with `.spec.service`) identify operators
+that extend the Kubernetes API. If the serving pod is down, the entire
+API group becomes unavailable.
+
+### How to Use Introspection Results
+
+Combine the 8 sources into a dependency map:
+- **Owner refs + OLM labels + CSV** identify the operator hierarchy
+- **Env vars** identify runtime service dependencies
+- **Webhooks + APIServices** identify cross-operator API dependencies
+- **ConsolePlugins** identify UI integration dependencies
+- Cross-reference with MCH `.status.components` and MCE `.status.components`
+  to determine whether the component is ACM-managed or independent
+
+The cluster-derived map is always available (just `oc` commands). The
+knowledge graph supplements it with broader ACM-specific relationships.
+The acm-ui MCP provides implementation details for each dependency.
 
 ---
 
@@ -346,10 +439,18 @@ When multiple issues are found:
    through the 8 chains to find the root cause
 2. Use `knowledge/dependency-chains.yaml` for structured chain lookups
    (machine-readable complement with impact descriptions and cross-chain patterns)
-3. Read `knowledge/diagnostics/evidence-tiers.md` -- weight your evidence
-4. Apply cross-chain patterns: is a shared dependency (klusterlet, storage,
+3. **Cluster introspection fallback** -- If the affected component is not
+   in the curated chains, reverse-engineer its dependencies from live
+   cluster metadata (owner refs, env vars, webhooks, CSVs -- see
+   "Cluster Introspection Sources" in the Self-Healing section).
+4. **Knowledge graph fallback** -- Cross-reference with `neo4j-rhacm` MCP
+   to supplement the cluster-derived map with broader ACM relationships.
+   For discovered dependencies not in the knowledge database, use
+   `acm-ui` MCP to understand how they work (source code, data flow).
+5. Read `knowledge/diagnostics/evidence-tiers.md` -- weight your evidence
+6. Apply cross-chain patterns: is a shared dependency (klusterlet, storage,
    addon-manager) the common cause?
-5. Before finalizing any diagnosis, verify your conclusion does not match
+7. Before finalizing any diagnosis, verify your conclusion does not match
    a known diagnostic trap in `knowledge/diagnostics/common-diagnostic-traps.md`
 
 **Evidence requirements** (from evidence-tiers.md):
@@ -378,6 +479,107 @@ source code via GitHub. Use during self-healing to understand component
 integration, routes, data flows, and selectors.
 
 Set the ACM version context before searching to match the cluster's version.
+
+## MCP Integration: Knowledge Graph (neo4j-rhacm)
+
+The `neo4j-rhacm` MCP server provides read-only Cypher query access to a
+Neo4j graph database containing 370 ACM components and 541 dependency
+relationships across 7 subsystems (including Hive, Klusterlet, Addon Framework,
+HyperShift, Virtualization, MTV, CCLM, Fine-Grained RBAC).
+Use it as a **fallback** when the curated knowledge database
+(`dependency-chains.yaml`, `known-issues.md`) does not cover the component
+or dependency path you need.
+
+### Role in the discovery chain
+
+The knowledge graph supplements the dependency map built by cluster
+introspection. Cluster introspection discovers dependencies from live
+metadata (always available). The graph adds broader ACM-specific
+relationships. Together they feed into acm-ui MCP which provides
+implementation details:
+
+```
+  Static knowledge doesn't cover it
+           │
+           ▼
+  Cluster introspection: reverse-engineer dependencies
+  from live metadata (owner refs, OLM labels, CSVs,
+  env vars, webhooks, ConsolePlugins, APIServices)
+           │
+           ▼
+  neo4j-rhacm MCP: cross-reference and supplement
+  with broader ACM component relationships
+           │
+           ▼
+  acm-ui MCP: understand each discovered dependency
+  (source code, data flow, implementation details)
+           │
+           ▼
+  Write synthesized understanding to knowledge/learned/
+```
+
+### When to use
+
+- A component appears in the cluster that is not in `component-registry.md`
+  or the 8 curated dependency chains
+- You need to trace a dependency path not covered by `dependency-chains.yaml`
+- Multiple failures share no obvious connection in the curated chains --
+  the graph can find common upstream dependencies
+- Self-healing: a component's architecture is unknown and not in the
+  knowledge files -- query the graph first, then use acm-ui to understand
+  the discovered dependencies
+
+### When NOT to use
+
+- The curated chains already cover the dependency path -- prefer the curated
+  knowledge (it includes impact descriptions and investigation procedures
+  that the raw graph does not)
+- Quick sanity checks (Phase 1 only) -- the graph adds latency and is not
+  needed for a pulse check
+
+### Example Cypher queries
+
+```cypher
+-- What does component X depend on?
+MATCH (c:RHACMComponent)-[:DEPENDS_ON]->(dep:RHACMComponent)
+WHERE c.label =~ '(?i).*search-api.*'
+RETURN dep.label, dep.subsystem
+
+-- What breaks if component X fails? (up to 3 hops)
+MATCH path = (dep:RHACMComponent)-[:DEPENDS_ON*1..3]->(c:RHACMComponent)
+WHERE c.label =~ '(?i).*search-api.*'
+RETURN DISTINCT dep.label, dep.subsystem
+
+-- Find shared root cause for multiple failing components
+MATCH (c:RHACMComponent)-[:DEPENDS_ON]->(common:RHACMComponent)
+WHERE c.label =~ '(?i).*(search|console).*'
+WITH common, collect(DISTINCT c.label) AS dependents, count(DISTINCT c) AS cnt
+WHERE cnt > 1
+RETURN common.label, common.subsystem, dependents
+
+-- All components in a subsystem
+MATCH (c:RHACMComponent)
+WHERE c.subsystem =~ '(?i).*governance.*'
+RETURN c.label, c.type
+```
+
+### Availability
+
+The knowledge graph requires a local Neo4j container (`neo4j-rhacm`).
+Before querying the graph, check if the container is running and start
+it if needed:
+
+```bash
+# Check if running
+podman ps --format '{{.Names}}' | grep neo4j-rhacm
+
+# If not running, start it (container exists from setup)
+podman start neo4j-rhacm
+```
+
+If the container does not exist at all (never set up), skip graph queries
+and rely on the curated knowledge files. Advise the user to run
+`bash mcp/setup.sh` from the repo root to create the container.
 
 ## Official ACM Documentation (Optional)
 
@@ -470,3 +672,62 @@ For targeted investigations, use narrative format with evidence chain.
 
 8. **Learn and record.** Write discoveries to `knowledge/learned/` so future
    runs benefit.
+
+---
+
+## Session Tracing
+
+Every diagnostic session is automatically traced via Claude Code hooks.
+The trace captures all tool calls, MCP interactions, prompts, subagent
+operations, and errors in structured JSONL format.
+
+### What Gets Traced
+
+| Event | What's Captured |
+|-------|----------------|
+| `oc` commands | verb, resource type, namespace, mutation flag |
+| MCP calls | server name, tool name, input/output summaries |
+| Knowledge reads | file path, diagnostic phase inference |
+| Knowledge writes | file path (learned/ directory) |
+| Agent/subagent ops | prompts, subagent type, completion |
+| Prompts | user input, diagnostic type detection |
+| Errors | tool failures, MCP errors |
+
+### Trace Files
+
+```
+.claude/traces/
+├── <session-id>.jsonl     # Per-session detailed trace (one JSON per line)
+└── sessions.jsonl         # Session index (one-line summary per session)
+```
+
+Each trace entry includes: `timestamp`, `event`, `session_id`, `tool`,
+summarized `input`/`output`, and diagnostic enrichments (`oc_verb`,
+`oc_resource`, `oc_namespace`, `is_mutation`, `mcp_server`, `mcp_tool`,
+`diagnostic_phase`, `is_knowledge_read`, `is_knowledge_write`).
+
+The session index (`sessions.jsonl`) is appended on session end with
+aggregate stats: diagnostic type, duration, tool call count, MCP call
+count, oc command count, mutation count, knowledge reads/writes, errors.
+
+### Diagnostic Phase Inference
+
+Knowledge file reads are tagged with the diagnostic phase they support:
+
+| File Pattern | Inferred Phase |
+|-------------|----------------|
+| `architecture/`, `component-registry` | learn |
+| `healthy-baseline`, `addon-catalog`, `webhook-registry`, `certificate-inventory` | check |
+| `failure-patterns`, `known-issues` | pattern-match |
+| `dependency-chains`, `evidence-tiers`, `diagnostics/` | correlate |
+| `learned/` | learn |
+
+### Implementation
+
+- Hook script: `.claude/hooks/agent_trace.py`
+- Hook configuration: `.claude/settings.json` (hooks section)
+- Trace storage: `.claude/traces/` (gitignored)
+
+Hooks are configured for 6 event types: `PreToolUse` (Bash, MCP, Agent,
+Read, Write, Edit), `PostToolUse` (Bash, MCP), `PostToolUseFailure`
+(Bash, MCP), `UserPromptSubmit`, `SubagentStop`, `Stop`.

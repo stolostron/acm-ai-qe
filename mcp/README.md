@@ -22,7 +22,7 @@ and query component dependency graphs -- without needing API keys embedded in pr
 | **jira** | Z-Stream | Searches/creates JIRA issues for bug correlation | 25 | [stolostron/jira-mcp-server](https://github.com/stolostron/jira-mcp-server) |
 | **jenkins** | Z-Stream | Jenkins pipeline analysis, build monitoring, failure investigation | 11 | [redhat-community-ai-tools/jenkins-mcp](https://github.com/redhat-community-ai-tools/jenkins-mcp) |
 | **polarion** | Z-Stream | Reads/writes Polarion test cases (RHACM4K project) | 25 | This repo (wrapper around [polarion-mcp](https://pypi.org/project/polarion-mcp/)) |
-| **neo4j-rhacm** | Z-Stream | Queries RHACM component dependency graph (291+ components) | 3 | [mcp-neo4j-cypher](https://pypi.org/project/mcp-neo4j-cypher/) (PyPI) + [stolostron/knowledge-graph](https://github.com/stolostron/knowledge-graph) (data) |
+| **neo4j-rhacm** | Z-Stream | Queries RHACM component dependency graph (370 components, 541 relationships across 7 subsystems incl. Hive, Klusterlet, Addon Framework, HyperShift, Virtualization, MTV, CCLM, Fine-Grained RBAC) | 2 | [mcp-neo4j-cypher](https://pypi.org/project/mcp-neo4j-cypher/) (PyPI) + [stolostron/knowledge-graph](https://github.com/stolostron/knowledge-graph) (data) |
 
 The setup script handles this automatically -- select your app and it installs only the servers that app needs.
 

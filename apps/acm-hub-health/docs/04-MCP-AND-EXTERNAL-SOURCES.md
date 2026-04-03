@@ -1,35 +1,37 @@
 # MCP Integration and External Sources
 
-The agent augments its cluster observations with two external information sources:
-the ACM UI MCP server (source code search) and the official ACM documentation
-(AsciiDoc reference). These are used primarily during the self-healing process
-(Phase 2) to understand components not covered by static knowledge.
+The agent augments its cluster observations with three external information
+sources: the ACM UI MCP server (source code search), the Neo4j RHACM knowledge
+graph (component dependency analysis), and the official ACM documentation
+(AsciiDoc reference). These are used during self-healing (Phase 2), dependency
+correlation (Phase 5), and whenever the static knowledge doesn't cover a
+component or dependency path.
 
 ---
 
 ## Overview
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                        Agent Investigation                             │
-│                                                                        │
-│  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────────┐ │
-│  │  Live Cluster   │    │  ACM-UI MCP     │    │  rhacm-docs/        │ │
-│  │  (oc CLI)       │    │  Server         │    │  (AsciiDoc)         │ │
-│  │                 │    │                 │    │                     │ │
-│  │  Primary source │    │  Source code    │    │  Official docs      │ │
-│  │  of truth.      │    │  from GitHub.   │    │  from GitHub.       │ │
-│  │  Always used.   │    │  Used during    │    │  Used during        │ │
-│  │                 │    │  self-healing.  │    │  self-healing.      │ │
-│  │                 │    │                 │    │  Optional.          │ │
-│  └─────────────────┘    └─────────────────┘    └─────────────────────┘ │
-│         │                      │                        │              │
-│         └──────────────────────┼────────────────────────┘              │
-│                                │                                       │
-│                                ▼                                       │
-│                     Synthesized Understanding                          │
-│                     (written to learned/*.md)                          │
-└─────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────────────┐
+│                              Agent Investigation                                     │
+│                                                                                      │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  ┌─────────────────────┐  │
+│  │ Live Cluster │  │ ACM-UI MCP   │  │ neo4j-rhacm MCP  │  │ rhacm-docs/         │  │
+│  │ (oc CLI)     │  │ Server       │  │ (Knowledge Graph)│  │ (AsciiDoc)          │  │
+│  │              │  │              │  │                  │  │                     │  │
+│  │ Primary      │  │ Source code  │  │ 370 component    │  │ Official docs       │  │
+│  │ source of    │  │ from GitHub. │  │ dependency graph.│  │ from GitHub.        │  │
+│  │ truth.       │  │ Used during  │  │ Fallback when    │  │ Used during         │  │
+│  │ Always used. │  │ self-healing.│  │ curated chains   │  │ self-healing.       │  │
+│  │              │  │              │  │ don't cover it.  │  │ Optional.           │  │
+│  └──────────────┘  └──────────────┘  └──────────────────┘  └─────────────────────┘  │
+│         │                 │                   │                       │               │
+│         └─────────────────┼───────────────────┼───────────────────────┘               │
+│                           │                   │                                       │
+│                           ▼                   ▼                                       │
+│                       Synthesized Understanding                                      │
+│                       (written to learned/*.md)                                      │
+└──────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -42,7 +44,7 @@ the app root.
 
 ### Configuration
 
-`.mcp.json`:
+`.mcp.json` (acm-ui entry shown; see neo4j-rhacm section for its config):
 ```json
 {
   "mcpServers": {
@@ -50,7 +52,8 @@ the app root.
       "command": "<venv>/bin/python",
       "args": ["-m", "acm_ui_mcp_server.main"],
       "timeout": 30
-    }
+    },
+    "neo4j-rhacm": { "..." : "see Knowledge Graph section below" }
   }
 }
 ```
@@ -69,8 +72,9 @@ bash setup.sh
 bash mcp/setup.sh
 ```
 
-Either script creates the virtual environment and generates the `.mcp.json`
-config. The app-level `setup.sh` also clones rhacm-docs.
+Either script creates the virtual environment, generates the `.mcp.json`
+config (with acm-ui and neo4j-rhacm), and checks prerequisites. The
+app-level `setup.sh` also clones rhacm-docs.
 
 ### Available Tools
 
@@ -119,6 +123,117 @@ This ensures search results match the code that's actually running on the cluste
 | Verifying component architecture | `get_component_source`, `get_component_types` |
 | Finding UI navigation paths | `get_routes` |
 | Understanding data flow | `search_code` with API/endpoint keywords |
+
+---
+
+## Neo4j RHACM Knowledge Graph (neo4j-rhacm)
+
+The `neo4j-rhacm` MCP server provides read-only Cypher query access to a
+Neo4j graph database containing 370 ACM components and 541 dependency
+relationships (incl. Hive, Klusterlet, HyperShift, Virtualization, RBAC).
+It supplements the 8 curated dependency chains in
+`knowledge/dependency-chains.yaml` with a broader, dynamic component graph.
+
+### Configuration
+
+`.mcp.json` (generated by setup.sh):
+```json
+{
+  "mcpServers": {
+    "neo4j-rhacm": {
+      "command": "uvx",
+      "args": ["--with", "fastmcp<3", "mcp-neo4j-cypher",
+               "--db-url", "bolt://localhost:7687",
+               "--username", "neo4j", "--password", "rhacmgraph",
+               "--read-only"],
+      "timeout": 60
+    }
+  }
+}
+```
+
+The MCP server connects to a local Neo4j container via the Bolt protocol.
+The container is created and loaded with graph data by `mcp/setup.sh`.
+
+### Setup
+
+```bash
+# Repo-level setup (creates container, loads graph data)
+bash mcp/setup.sh     # Select option 1 or 3
+
+# App-level setup (configures .mcp.json; container must exist)
+bash setup.sh
+```
+
+The repo-level `mcp/setup.sh` handles the full lifecycle: installing Podman
+if needed, creating the Neo4j container, loading the base graph (~291 base
+components) and extensions (Hive, Klusterlet, Addon Framework, HyperShift,
+Virtualization, RBAC, depth connections), and generating `.mcp.json`.
+The app-level `setup.sh` only writes the MCP config -- use `mcp/setup.sh`
+if the container doesn't exist yet.
+
+### Available Tools
+
+The MCP server exposes two Cypher query tools:
+
+| Tool | Purpose | When Used |
+|------|---------|-----------|
+| `read_query` | Execute a read-only Cypher query | Dependency tracing, impact analysis, common root cause detection |
+| `get_schema` | Get the graph schema (node types, relationships) | Understanding what's queryable |
+
+### When to Use
+
+| Scenario | Query Pattern |
+|----------|---------------|
+| Component not in the 8 curated chains | Query direct dependencies and dependents |
+| Multiple failures with no obvious link | Find common upstream dependencies |
+| Unknown component during self-healing | Query subsystem membership and dependencies |
+| Tracing transitive failure impact | Query dependents up to 3 hops deep |
+
+### When NOT to Use
+
+- **Curated chains cover it** -- prefer `dependency-chains.yaml` (it includes
+  impact descriptions and investigation procedures the raw graph doesn't)
+- **Quick sanity checks** (Phase 1 only) -- adds latency, not needed for pulse
+- **Health definitions** -- the graph shows structural relationships, not
+  what "healthy" looks like (use `healthy-baseline.yaml` for that)
+
+### Example Queries
+
+```cypher
+-- What does a component depend on?
+MATCH (c:RHACMComponent)-[:DEPENDS_ON]->(dep:RHACMComponent)
+WHERE c.label =~ '(?i).*search-api.*'
+RETURN dep.label, dep.subsystem
+
+-- What breaks if a component fails? (transitive, up to 3 hops)
+MATCH path = (dep:RHACMComponent)-[:DEPENDS_ON*1..3]->(c:RHACMComponent)
+WHERE c.label =~ '(?i).*search-api.*'
+RETURN DISTINCT dep.label, dep.subsystem
+
+-- Find shared root cause for multiple failing components
+MATCH (c:RHACMComponent)-[:DEPENDS_ON]->(common:RHACMComponent)
+WHERE c.label =~ '(?i).*(search|console).*'
+WITH common, collect(DISTINCT c.label) AS dependents, count(DISTINCT c) AS cnt
+WHERE cnt > 1
+RETURN common.label, common.subsystem, dependents
+
+-- All components in a subsystem
+MATCH (c:RHACMComponent)
+WHERE c.subsystem =~ '(?i).*governance.*'
+RETURN c.label, c.type
+```
+
+### Availability
+
+The knowledge graph requires a local Neo4j container (`neo4j-rhacm`). If
+the MCP is unavailable (container not running, Podman not installed), the
+agent skips graph queries silently and relies on the curated knowledge files.
+The agent operates correctly without it -- the graph provides broader
+coverage but is not required.
+
+To check status: `podman ps | grep neo4j-rhacm`
+To start a stopped container: `podman start neo4j-rhacm`
 
 ---
 
@@ -184,28 +299,44 @@ the external sources are consulted in sequence:
   Step 1: Cluster evidence (oc CLI)         ← Always available
          │
          ▼
-  Step 2: Official docs (rhacm-docs/)       ← Optional (skipped if not cloned)
+  Step 2: Cluster introspection             ← Reverse-engineer deps from
+         (live metadata)                       owner refs, OLM labels, CSVs,
+         │                                     env vars, webhooks, ConsolePlugins,
+         ▼                                     APIServices (always available)
+  Step 3: Knowledge graph                   ← neo4j-rhacm MCP
+         (cross-reference)                     Supplement cluster-derived map
+         │                                     with broader ACM relationships
+         ▼
+  Step 4: Understand dependencies           ← acm-ui MCP + rhacm-docs
+         (source code + docs)                  For each dep from steps 2-3:
+         │                                     HOW does it work?
+         ▼
+  Step 5: Synthesize all evidence
          │
          ▼
-  Step 3: Source code (acm-ui MCP)          ← Available if MCP server is set up
-         │
-         ▼
-  Step 4: Synthesize all evidence
-         │
-         ▼
-  Step 5: Write learned knowledge
+  Step 6: Write learned knowledge
 ```
+
+The self-healing process uses a **layered discovery flow**: cluster
+introspection builds a dependency map from live metadata (always
+available, no external tools), the knowledge graph supplements it with
+broader ACM relationships, then acm-ui MCP and rhacm-docs fill in the
+implementation details. Each step is informed by the previous step's output.
 
 Each source provides different context:
 
-| Source | What It Provides |
-|--------|-----------------|
-| Cluster (oc CLI) | Current state: what's deployed, its status, its configuration |
-| rhacm-docs | Intent: what the component is designed to do, how it should be configured |
-| acm-ui MCP | Implementation: how it integrates with the console, its API surface, data flow |
+| Source | What It Provides | Role |
+|--------|-----------------|------|
+| Cluster (oc CLI) | Current state: what's deployed, its status, its configuration | What IS |
+| Cluster introspection | Dependencies from owner refs, OLM labels, CSVs, env vars, webhooks | The map (always available) |
+| neo4j-rhacm MCP | Broader ACM component relationships, subsystem membership | Supplements the map |
+| acm-ui MCP | Implementation: source code, data flow, integration points | How it works |
+| rhacm-docs | Intent: what the component is designed to do, how it should be configured | Why it exists |
 
-The combination of all three gives the agent a complete picture: current state
-(cluster), intended behavior (docs), and implementation details (source code).
+Cluster introspection provides the map from live metadata. The knowledge
+graph supplements it. The acm-ui MCP provides implementation details.
+Together they let the agent understand any component's full context --
+including third-party operators not in the knowledge database.
 
 ---
 
@@ -214,8 +345,9 @@ The combination of all three gives the agent a complete picture: current state
 The `.claude/settings.json` file auto-approves two categories of commands:
 
 - **Diagnostic** (always available): read-only `oc`/`kubectl` commands,
-  text processing utilities, file inspection, `git clone`, and all acm-ui
-  MCP tools. File writes limited to `knowledge/learned/` only.
+  text processing utilities, file inspection, `git clone`, all acm-ui
+  MCP tools, and all neo4j-rhacm MCP tools (read-only Cypher queries).
+  File writes limited to `knowledge/learned/` only.
 - **Remediation** (methodology-gated): `oc patch`, `oc scale`,
   `oc rollout restart`, `oc delete pod`, `oc annotate`, `oc label`,
   `oc apply`. These are auto-approved in settings.json but the agent's

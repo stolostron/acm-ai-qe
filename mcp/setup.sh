@@ -8,7 +8,7 @@
 # Run from the repository root:  bash mcp/setup.sh
 #
 # Apps and their MCP requirements:
-#   acm-hub-health    -> acm-ui
+#   acm-hub-health    -> acm-ui, neo4j-rhacm
 #   z-stream-analysis -> acm-ui, jira, jenkins, polarion, neo4j-rhacm
 #
 # All paths are resolved dynamically -- no machine-specific references.
@@ -37,7 +37,7 @@ fail()  { echo -e "${RED}[FAIL]${NC} $1"; }
 # -----------------------------------------------
 
 # Which MCPs each app requires (space-separated)
-APP_HUB_HEALTH_MCPS="acm-ui"
+APP_HUB_HEALTH_MCPS="acm-ui neo4j-rhacm"
 APP_ZSTREAM_MCPS="acm-ui jira jenkins polarion neo4j-rhacm"
 
 # App directory names (relative to $REPO_ROOT/apps/)
@@ -67,7 +67,7 @@ echo ""
 echo "  Which app(s) would you like to configure?"
 echo ""
 echo -e "    ${CYAN}1)${NC} ACM Hub Health Agent"
-echo -e "       Needs: acm-ui"
+echo -e "       Needs: acm-ui, neo4j-rhacm"
 echo ""
 echo -e "    ${CYAN}2)${NC} Z-Stream Pipeline Analysis"
 echo -e "       Needs: acm-ui, jira, jenkins, polarion, neo4j-rhacm"
@@ -186,7 +186,7 @@ JENKINS_BRANCH="fix/auth-logs-paths"
 
 # Knowledge Graph: https://github.com/stolostron/knowledge-graph/pull/19
 KG_REPO="https://github.com/atifshafi/knowledge-graph.git"
-KG_BRANCH="atif-virt-extension"
+KG_BRANCH="atif-depth-improvements"
 
 EXTERNAL_DIR="$MCP_DIR/.external"
 
@@ -548,7 +548,7 @@ setup_neo4j() {
         # Load base graph
         BASE_CYPHER="$KG_DATA_DIR/rhacm_architecture_comprehensive_final.cypher"
         if [ -f "$BASE_CYPHER" ]; then
-            info "Loading base graph (291 components)..."
+            info "Loading base graph (~291 base components)..."
             if podman exec -i neo4j-rhacm cypher-shell -u neo4j -p rhacmgraph < "$BASE_CYPHER" >/dev/null 2>&1; then
                 ok "Base graph loaded"
             else

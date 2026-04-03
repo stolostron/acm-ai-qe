@@ -99,6 +99,14 @@ def load_data(run_dir: Path, trace_file: Optional[Path] = None):
     if core_path.exists():
         with open(core_path) as f:
             core_data = json.load(f)
+    # v3.7: Load cluster-health.json for rich environment data
+    cluster_health_full = {}
+    ch_path = run_dir / "cluster-health.json"
+    if ch_path.exists():
+        with open(ch_path) as f:
+            ch_raw = json.load(f)
+            cluster_health_full = ch_raw.get("cluster_health", ch_raw)
+    core_data["_cluster_health_full"] = cluster_health_full
     trace = []
     if trace_file is None:
         trace_file = _find_trace_file(run_dir)
@@ -261,9 +269,21 @@ def _summarize_trace_output(output_str):
         return text[:300]
 
 
-def build_trace_entries(trace):
+def build_trace_entries(trace, run_start_ts=None):
+    """Build HTML rows for trace entries.
+
+    Args:
+        trace: List of trace event dicts
+        run_start_ts: ISO timestamp string. Only include entries at or after
+                      this time. If None, include all entries.
+    """
     rows = ""
     for e in trace:
+        # Filter out entries from before the run started
+        if run_start_ts:
+            entry_ts = e.get("timestamp", "")
+            if entry_ts and entry_ts < run_start_ts:
+                continue
         event = e.get("event", "")
         tool = e.get("tool", "")
         ts = fmt_ts(e.get("timestamp", ""))
@@ -405,12 +425,16 @@ def generate_html_report(run_dir: Path, trace_file: Optional[Path] = None) -> Pa
     gather_logs = build_log_entries(logs_by_stage.get("gather", []))
     oracle_logs = build_log_entries(logs_by_stage.get("oracle", []))
     report_logs = build_log_entries(logs_by_stage.get("report", []))
-    trace_rows = build_trace_entries(trace)
+    # Filter trace entries to only include those from the analysis run
+    run_start_ts = meta.get("gathered_at", "")
+    trace_rows = build_trace_entries(trace, run_start_ts=run_start_ts)
+    # Count filtered entries (not total trace entries)
+    filtered_trace = [e for e in trace if not run_start_ts or e.get("timestamp", "") >= run_start_ts]
 
     gather_count = len(logs_by_stage.get("gather", []))
     oracle_count = len(logs_by_stage.get("oracle", []))
     report_count = len(logs_by_stage.get("report", []))
-    trace_count = len(trace)
+    trace_count = len(filtered_trace)
 
     # Chart data
     chart_data = json.dumps([
@@ -535,20 +559,107 @@ def generate_html_report(run_dir: Path, trace_file: Optional[Path] = None) -> Pa
     else:
         effective_score = env_score_base
 
-    # K8s service health from environment-status.json
-    svc_health_html = ""
-    for k, v in env_status.get("service_health", {}).items():
-        svc_health_html += (
-            f'<div class="env-item"><div class="env-label">{esc(k)}</div>'
-            f'<div class="env-value {env_class(v)}">{"Healthy" if v else "Unhealthy"}</div></div>'
+    # v3.7: Build rich environment sections from cluster-health.json
+    ch_full = core_data.get("_cluster_health_full", {})
+
+    # Infrastructure issues from health audit
+    infra_issues_html = ""
+    for issue in ch_full.get("infrastructure_issues", []):
+        sev = issue.get("severity", "INFO")
+        sev_color = "var(--danger)" if sev == "CRITICAL" else "var(--warning)" if sev == "WARNING" else "var(--text-dim)"
+        infra_issues_html += (
+            f'<div class="evidence-item tier-1" style="margin-bottom:6px;border-left:3px solid {sev_color};padding-left:10px">'
+            f'<span style="color:{sev_color};font-weight:600;font-size:11px">{esc(sev)}</span> '
+            f'<strong>{esc(issue.get("component", ""))}</strong>'
+            f'<div style="font-size:12px;margin-top:2px">{esc(issue.get("finding", ""))}</div>'
+            f'<div style="font-size:11px;color:var(--text-dim);margin-top:2px">{esc(issue.get("impact", ""))}</div>'
+            f'{"<div style=font-size:11px;color:var(--accent);margin-top:2px>Trap: " + esc(issue.get("diagnostic_trap")) + "</div>" if issue.get("diagnostic_trap") else ""}'
+            f'</div>'
         )
 
-    ns_html = ""
-    for k, v in env_status.get("namespace_access", {}).items():
-        ns_html += (
-            f'<div class="env-item"><div class="env-label">{esc(k)}</div>'
-            f'<div class="env-value {env_class(v)}">{"Accessible" if v else "Denied"}</div></div>'
+    # Subsystem health from health audit
+    subsystem_html = ""
+    for sub_name, sub_data in ch_full.get("subsystem_health", {}).items():
+        if not isinstance(sub_data, dict):
+            continue
+        status = sub_data.get("status", "UNKNOWN")
+        checked = sub_data.get("components_checked", 0)
+        healthy = sub_data.get("components_healthy", 0)
+        root = sub_data.get("root_issue", "")
+        s_class = "healthy" if status == "OK" else "degraded" if status == "DEGRADED" else "down"
+        subsystem_html += (
+            f'<div class="env-item">'
+            f'<div class="env-label">{esc(sub_name)}</div>'
+            f'<div class="env-value {s_class}">{esc(status)} ({healthy}/{checked})</div>'
+            f'{"<div style=font-size:11px;color:var(--text-dim);margin-top:2px>" + esc(root) + "</div>" if root else ""}'
+            f'</div>'
         )
+
+    # Operator health from health audit
+    ch_operator_html = ""
+    for op_name, op_data in ch_full.get("operator_health", {}).items():
+        if not isinstance(op_data, dict):
+            continue
+        status = op_data.get("status", "UNKNOWN")
+        desired = op_data.get("desired_replicas", 0)
+        available = op_data.get("available_replicas", 0)
+        detail = op_data.get("detail", "")
+        s_class = "healthy" if status == "OK" else "degraded" if status == "DEGRADED" else "down"
+        ch_operator_html += (
+            f'<div class="env-item">'
+            f'<div class="env-label">{esc(op_name)}</div>'
+            f'<div class="env-value {s_class}">{esc(status)} ({available}/{desired})</div>'
+            f'{"<div style=font-size:11px;color:var(--text-dim);margin-top:2px>" + esc(detail) + "</div>" if detail else ""}'
+            f'</div>'
+        )
+
+    # Managed clusters from health audit
+    ch_mc_html = ""
+    for mc_name, mc_data in ch_full.get("managed_cluster_health", {}).items():
+        if not isinstance(mc_data, dict):
+            continue
+        avail = mc_data.get("available", False)
+        addons_h = mc_data.get("addons_healthy", 0)
+        addons_t = mc_data.get("addon_count", 0)
+        ch_mc_html += (
+            f'<div class="env-item">'
+            f'<div class="env-label">{esc(mc_name)}</div>'
+            f'<div class="env-value {"healthy" if avail else "down"}">{"Ready" if avail else "NotReady"}'
+            f' ({addons_h}/{addons_t} addons)</div>'
+            f'</div>'
+        )
+
+    # Cluster identity from health audit
+    ch_identity = ch_full.get("cluster_identity", {})
+    identity_html = ""
+    if ch_identity:
+        identity_html = (
+            f'<div class="env-grid">'
+            f'<div class="env-item"><div class="env-label">ACM Version</div><div class="env-value healthy">{esc(ch_identity.get("acm_version", ""))}</div></div>'
+            f'<div class="env-item"><div class="env-label">OCP Version</div><div class="env-value healthy">{esc(ch_identity.get("ocp_version", ""))}</div></div>'
+            f'<div class="env-item"><div class="env-label">MCH Namespace</div><div class="env-value healthy">{esc(ch_identity.get("mch_namespace", ""))}</div></div>'
+            f'<div class="env-item"><div class="env-label">Nodes</div><div class="env-value healthy">{ch_identity.get("node_ready_count", 0)}/{ch_identity.get("node_count", 0)} Ready</div></div>'
+            f'<div class="env-item"><div class="env-label">Managed Clusters</div><div class="env-value {"healthy" if ch_identity.get("managed_cluster_ready_count", 0) == ch_identity.get("managed_cluster_count", 0) else "degraded"}">{ch_identity.get("managed_cluster_ready_count", 0)}/{ch_identity.get("managed_cluster_count", 0)} Ready</div></div>'
+            f'<div class="env-item"><div class="env-label">MCH Phase</div><div class="env-value {"healthy" if ch_identity.get("mch_phase") == "Running" else "down"}">{esc(ch_identity.get("mch_phase", ""))}</div></div>'
+            f'</div>'
+        )
+
+    # K8s service health — prefer health audit subsystem data, fall back to env_status
+    svc_health_html = ""
+    if not ch_full:
+        for k, v in env_status.get("service_health", {}).items():
+            svc_health_html += (
+                f'<div class="env-item"><div class="env-label">{esc(k)}</div>'
+                f'<div class="env-value {env_class(v)}">{"Healthy" if v else "Unhealthy"}</div></div>'
+            )
+
+    ns_html = ""
+    if not ch_full:
+        for k, v in env_status.get("namespace_access", {}).items():
+            ns_html += (
+                f'<div class="env-item"><div class="env-label">{esc(k)}</div>'
+                f'<div class="env-value {env_class(v)}">{"Accessible" if v else "Denied"}</div></div>'
+            )
 
     # Dependency health from oracle
     dep_health_html = ""
@@ -924,29 +1035,32 @@ body {{ background: var(--bg); color: var(--text); font-family: -apple-system, B
       </div>
     </div>
 
-    <!-- Blocking Issues (from oracle) -->
-    {"<div style='margin-top:20px'><div class='section-label' style='color:var(--danger)'>Blocking Issues</div><div style='margin-top:8px'>" + blocking_html + "</div></div>" if blocking_html else ""}
+    <!-- Cluster Identity (v3.7) -->
+    {"<div style='margin-top:20px'><div class='section-label'>Cluster Identity</div><div style='margin-top:8px'>" + identity_html + "</div></div>" if identity_html else ""}
 
-    <!-- Dependency Health (from oracle) -->
-    {"<div style='margin-top:20px'><div class='section-label'>Dependency Health (Oracle)</div><div class='env-grid' style='margin-top:8px'>" + dep_health_html + "</div></div>" if dep_health_html else ""}
+    <!-- Infrastructure Issues (v3.7) -->
+    {"<div style='margin-top:20px'><div class='section-label' style='color:var(--danger)'>Infrastructure Issues (" + str(len(ch_full.get('infrastructure_issues', []))) + ")</div><div style='margin-top:8px'>" + infra_issues_html + "</div></div>" if infra_issues_html else ""}
+
+    <!-- Blocking Issues (from oracle, legacy) -->
+    {"<div style='margin-top:20px'><div class='section-label' style='color:var(--danger)'>Blocking Issues</div><div style='margin-top:8px'>" + blocking_html + "</div></div>" if blocking_html and not infra_issues_html else ""}
+
+    <!-- Operator Health (v3.7) -->
+    {"<div style='margin-top:20px'><div class='section-label'>Operator Health</div><div class='env-grid' style='margin-top:8px'>" + ch_operator_html + "</div></div>" if ch_operator_html else ("" if not operator_html else "<div style='margin-top:20px'><div class='section-label'>Operators</div><div class='env-grid' style='margin-top:8px'>" + operator_html + "</div></div>")}
+
+    <!-- Subsystem Health (v3.7) -->
+    {"<div style='margin-top:20px'><div class='section-label'>Subsystem Health</div><div class='env-grid' style='margin-top:8px'>" + subsystem_html + "</div></div>" if subsystem_html else ""}
 
     <!-- Managed Clusters -->
-    {"<div style='margin-top:20px'><div class='section-label'>Managed Clusters</div><div class='env-grid' style='margin-top:8px'>" + managed_html + "</div></div>" if managed_html else ""}
+    {"<div style='margin-top:20px'><div class='section-label'>Managed Clusters</div><div class='env-grid' style='margin-top:8px'>" + (ch_mc_html or managed_html) + "</div></div>" if (ch_mc_html or managed_html) else ""}
 
-    <!-- Operators -->
-    {"<div style='margin-top:20px'><div class='section-label'>Operators</div><div class='env-grid' style='margin-top:8px'>" + operator_html + "</div></div>" if operator_html else ""}
+    <!-- Dependency Health (from oracle, shown when no health audit) -->
+    {"<div style='margin-top:20px'><div class='section-label'>Dependency Health (Oracle)</div><div class='env-grid' style='margin-top:8px'>" + dep_health_html + "</div></div>" if dep_health_html and not ch_full else ""}
 
-    <!-- K8s Control Plane -->
-    <div style="margin-top:20px">
-      <div class="section-label">K8s Control Plane</div>
-      <div class="env-grid" style="margin-top:8px">{svc_health_html}</div>
-    </div>
+    <!-- K8s Control Plane (legacy, shown when no health audit) -->
+    {"<div style='margin-top:20px'><div class='section-label'>K8s Control Plane</div><div class='env-grid' style='margin-top:8px'>" + svc_health_html + "</div></div>" if svc_health_html else ""}
 
-    <!-- Namespace Access -->
-    <div style="margin-top:20px">
-      <div class="section-label">Namespace Access</div>
-      <div class="env-grid" style="margin-top:8px">{ns_html}</div>
-    </div>
+    <!-- Namespace Access (legacy, shown when no health audit) -->
+    {"<div style='margin-top:20px'><div class='section-label'>Namespace Access</div><div class='env-grid' style='margin-top:8px'>" + ns_html + "</div></div>" if ns_html else ""}
   </div>
 </div>
 

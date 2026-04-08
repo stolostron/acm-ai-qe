@@ -675,3 +675,37 @@ Add new constraints after discovering version-dependent misclassifications:
     confidence: 0.80
     diagnostic: "How to verify"
 ```
+
+---
+
+## Architecture Docs (`knowledge/architecture/`)
+
+Per-subsystem deep knowledge: architecture, data flow, and failure signatures. The AI agent reads the relevant subsystem docs at the start of Phase A0 based on the detected feature area.
+
+| Subsystem | Files | Key content |
+|-----------|-------|-------------|
+| Platform | `acm-platform.md`, `kubernetes-fundamentals.md` | Operator hierarchy, MCH, namespaces, K8s concepts |
+| Search | `search/{architecture,data-flow,failure-signatures}.md` | search-api/postgres/collector, GraphQL flow, DB corruption |
+| Console | `console/{architecture,data-flow,failure-signatures}.md` | React frontend, Node.js backend, SSE events, proxy routes |
+| Governance | `governance/{architecture,data-flow,failure-signatures}.md` | Policy propagator, spoke addons, compliance flow |
+| Cluster Lifecycle | `cluster-lifecycle/{architecture,data-flow,failure-signatures}.md` | Hive, webhooks, import controller, cluster ops |
+| Virtualization | `virtualization/{architecture,data-flow,failure-signatures}.md` | CNV, MTV, VM actions, CCLM, KVM nodes |
+| App Lifecycle | `application-lifecycle/{architecture,data-flow,failure-signatures}.md` | Subscriptions, channels, ArgoCD, app status |
+| RBAC | `rbac/{architecture,data-flow,failure-signatures}.md` | FG-RBAC, MCRA, ClusterPermission, IDP auth |
+| Automation | `automation/{architecture,data-flow,failure-signatures}.md` | ClusterCurator, Ansible Tower integration |
+| Observability | `observability/{architecture,failure-signatures}.md` | MCO, Thanos, Grafana |
+| Foundation | `foundation/{architecture,test-dependencies,failure-signatures}.md` | Addon framework, registration, cluster-proxy, multi-cloud spokes |
+| Install | `install/{architecture,test-dependencies,failure-signatures}.md` | ACM/MCE install, CSV phases, operator lifecycle |
+| Infrastructure | `infrastructure/{architecture,failure-signatures,post-upgrade-patterns}.md` | Nodes, quotas, NetworkPolicies, certs, post-upgrade |
+
+## Diagnostics Docs (`knowledge/diagnostics/`)
+
+Classification methodology documentation for the AI agent:
+
+| File | Content |
+|------|---------|
+| `classification-decision-tree.md` | Complete PR-1 through PR-7 decision tree with 3-path routing (v3.8: PRs serve as validation checks for layer-based investigation) |
+| `diagnostic-layers.md` | 12-layer diagnostic investigation methodology (v3.8): per-layer checklists, error-to-layer mapping, WHO/WHY investigation, classification-after-root-cause rules |
+| `evidence-tiers.md` | How Tier 1 and Tier 2 evidence is weighted for confidence scoring |
+| `common-misclassifications.md` | 6 documented cases where the pipeline gets confused and why |
+| `diagnostic-traps.md` | 10 patterns where the obvious diagnosis is WRONG (8 from hub health + 2 counter-traps) |

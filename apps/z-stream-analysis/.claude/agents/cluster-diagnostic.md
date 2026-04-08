@@ -512,6 +512,13 @@ For each finding from Phases 3-5, determine:
 - Tests in the affected feature areas are expected to fail
 - Confidence: 0.90-0.95 for direct dependency, 0.80-0.85 for transitive
 
+**IMPORTANT (v3.9):** Pre-classified INFRASTRUCTURE is guidance, not final
+classification. Stage 2 (z-stream-analysis agent) MUST perform per-test
+counterfactual verification (D-V5) to confirm each test's specific error
+is caused by this infrastructure issue. Tests with dead selectors
+(`console_search.found=false`) may be AUTOMATION_BUG even in affected
+feature areas.
+
 **Confirmed Healthy:**
 - All components for this subsystem are Running with expected replica counts
 - No traps triggered, no infrastructure guards flagged

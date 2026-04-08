@@ -46,6 +46,29 @@
       "Bash(iconv:*)",
       "Bash(lsof:*)",
       "Bash(claude:*)",
+      "Bash(KUBECONFIG:*)",
+      "Bash(KC:*)",
+      "Bash(bash:*)",
+      "Bash(rm:*)",
+      "Bash(sed:*)",
+      "Bash(awk:*)",
+      "Bash(pwd:*)",
+      "Bash(date:*)",
+      "Bash(touch:*)",
+      "Bash(diff:*)",
+      "Bash(which:*)",
+      "Bash(du:*)",
+      "Bash(open:*)",
+      "Bash(test:*)",
+      "Bash([:*)",
+      "Bash(printf:*)",
+      "Bash(tr:*)",
+      "Bash(cut:*)",
+      "Bash(uniq:*)",
+      "Bash(tee:*)",
+      "Bash(realpath:*)",
+      "Bash(basename:*)",
+      "Bash(dirname:*)",
 
       "mcp__acm-ui__list_repos",
       "mcp__acm-ui__get_current_version",
@@ -140,25 +163,6 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "mcp__.*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 $CLAUDE_PROJECT_DIR/.claude/hooks/agent_trace.py"
-          }
-        ]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 $CLAUDE_PROJECT_DIR/.claude/hooks/agent_trace.py"
-          }
-        ]
-      },
-      {
-        "matcher": "Agent",
         "hooks": [
           {
             "type": "command",
@@ -169,16 +173,6 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "mcp__.*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 $CLAUDE_PROJECT_DIR/.claude/hooks/agent_trace.py"
-          }
-        ]
-      },
-      {
-        "matcher": "Bash",
         "hooks": [
           {
             "type": "command",
@@ -189,7 +183,6 @@
     ],
     "PostToolUseFailure": [
       {
-        "matcher": "mcp__.*",
         "hooks": [
           {
             "type": "command",

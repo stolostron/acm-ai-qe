@@ -301,6 +301,196 @@ before investigating individual features.
 
 ---
 
+## Trap 9: ResourceQuota Blocking Pod Restarts
+
+**What you see:** Pods gradually disappear from ACM namespaces. Services
+degrade one by one over time. `oc get pods` shows fewer pods than expected.
+Pod restart counts don't increase because the pod isn't restarting -- it's
+not being recreated.
+
+**What you might conclude:** Individual component failures. Each missing
+pod is a separate issue.
+
+**What's actually happening:** A ResourceQuota in the ACM namespace limits
+the total pod count or resource consumption. When a pod crashes or is
+evicted, the replacement pod can't be created because creating it would
+exceed the quota. The Deployment shows `desiredReplicas=2` but
+`availableReplicas=0`.
+
+ACM does not create ResourceQuotas by default. Any ResourceQuota in an ACM
+namespace was added externally (by an admin, policy, or cluster operator).
+
+**How to detect:**
+```bash
+# Check for ResourceQuotas in ACM namespaces
+oc get resourcequota -n <mch-ns> --no-headers
+oc get resourcequota -n multicluster-engine --no-headers
+
+# If found, check what's being limited
+oc describe resourcequota -n <mch-ns>
+# Look at Used vs Hard limits for pods, cpu, memory
+```
+
+**Rule:** If pods are missing but not restarting, check for ResourceQuotas
+before investigating individual component failures.
+
+---
+
+## Trap 10: Hive Webhook Misconfigured Blocks ALL Cluster Operations
+
+**What you see:** Cluster creation fails. Cluster import fails. Cluster
+deletion fails. All operations on ClusterDeployment CRs return errors
+like `failed calling webhook "clusterdeploymentvalidators"`.
+
+**What you might conclude:** Hive operator is broken or needs restart.
+
+**What's actually happening:** Hive registers a ValidatingWebhookConfiguration
+with `failurePolicy: Fail`. If the webhook service pod (`hiveadmission`)
+is down, crashed, or its TLS cert is expired, the API server rejects
+ALL create/update/delete operations on Hive CRDs. The Hive operator itself
+may be perfectly healthy -- it's the admission webhook that's blocking.
+
+**How to detect:**
+```bash
+# Check the webhook configuration
+oc get validatingwebhookconfiguration | grep hive
+
+# Check the webhook service endpoint
+oc get pods -n hive | grep hiveadmission
+oc logs -n hive -l app=hiveadmission --tail=20
+
+# Test if the webhook is actually blocking
+oc get events -n <any-cluster-ns> --sort-by=.lastTimestamp | grep webhook
+```
+
+**Rule:** When ALL cluster lifecycle operations fail, check Hive webhook
+before investigating the Hive operator or controllers.
+
+---
+
+## Trap 11: NetworkPolicy Silently Blocking Pod Communication
+
+**What you see:** All pods are Running and Ready (probes pass). But
+specific inter-service communication fails. For example, search-api
+can't reach search-postgres, or console can't reach search-api.
+Services that depend on the blocked path return errors or empty results.
+
+**What you might conclude:** The service itself is broken or has a bug.
+
+**What's actually happening:** A NetworkPolicy in the ACM namespace is
+blocking ingress or egress traffic between pods. ACM does NOT create
+NetworkPolicies by default. Any NetworkPolicy in an ACM namespace was
+added externally and may silently break pod-to-pod communication that
+ACM expects to work.
+
+The insidious aspect: pods are Running (health probes use localhost, not
+cross-pod connections), but cross-pod communication fails. The failure
+is invisible until a feature that requires the blocked communication
+path is used.
+
+**How to detect:**
+```bash
+# Check for NetworkPolicies in ACM namespaces
+oc get networkpolicy -n <mch-ns> --no-headers
+oc get networkpolicy -n multicluster-engine --no-headers
+oc get networkpolicy -n open-cluster-management-hub --no-headers
+
+# If found, check what traffic is blocked
+oc describe networkpolicy -n <mch-ns>
+# Look at Ingress/Egress rules and which pods they affect
+```
+
+**Rule:** When pods are Running but cross-service communication fails,
+check for NetworkPolicies before concluding the service has a bug.
+Any NetworkPolicy in an ACM namespace is suspicious.
+
+---
+
+## Trap 12: TLS Cert Corrupted but service-CA Doesn't Auto-Repair
+
+**What you see:** A service returns TLS handshake errors. The pod may be
+CrashLooping with TLS-related errors in logs. service-ca-operator is
+healthy and running.
+
+**What you might conclude:** service-ca-operator is broken and not
+rotating certificates properly.
+
+**What's actually happening:** The TLS secret for the service exists but
+contains corrupted or manually modified certificate data. service-ca-operator
+only creates secrets -- it does NOT overwrite existing secrets. If someone
+(or a process) modified the secret content, service-ca-operator sees the
+secret already exists and skips it.
+
+This is common when:
+- A secret was manually edited for debugging and not reverted
+- A backup/restore process corrupted the secret
+- An operator patched the wrong secret
+
+**How to detect:**
+```bash
+# Check cert validity
+oc get secret <secret-name> -n <ns> -o jsonpath='{.data.tls\.crt}' | base64 -d | openssl x509 -noout -dates -issuer 2>&1
+# If "unable to load certificate" -> cert data is corrupted
+# If expired -> rotation didn't happen because secret exists
+
+# Check if service-ca annotations are intact
+oc get secret <secret-name> -n <ns> -o yaml | grep -i service
+# Should have service.beta.openshift.io annotations
+```
+
+**Fix:** Delete the corrupted secret. service-ca-operator will detect
+the missing secret and recreate it with a fresh certificate. Restart
+the affected pod to pick up the new cert.
+
+**Rule:** service-ca-operator creates but doesn't overwrite. If a cert
+is broken, check the secret contents before blaming the operator.
+
+---
+
+## Trap 13: ConsolePlugin Registered but Plugin Service Unreachable
+
+**What you see:** ConsolePlugin CRs exist and are registered in the
+OCP console config. The main console pod is healthy. But specific
+feature tabs render with loading errors, blank content, or JavaScript
+errors -- not entirely missing, but broken.
+
+**What you might conclude:** The console has a UI rendering bug.
+
+**What's actually happening:** The ConsolePlugin CR references a backend
+Service that serves the plugin's JavaScript bundle and API. If the
+plugin's backend pod is unhealthy (crashed, image pull failure, resource
+limits), the OCP console successfully loads the plugin shell but fails
+to fetch the plugin's content at runtime. The tab appears in navigation
+(because the plugin is registered) but renders errors (because the
+content can't be loaded).
+
+This is different from Trap 2:
+- **Trap 2:** Tabs entirely missing (ConsolePlugin not registered or
+  console-mce pod is down)
+- **Trap 13:** Tabs present but render errors (plugin registered but
+  its backend is unhealthy)
+
+**How to detect:**
+```bash
+# Check ConsolePlugin CRs
+oc get consoleplugins -o yaml
+# Note the .spec.backend.service for each plugin
+
+# Check the plugin backend pods
+oc get pods -n <mch-ns> -l app=console-chart-console-v2
+oc get pods -n multicluster-engine -l app=console-mce-console
+
+# Check if the plugin service endpoint has ready addresses
+oc get endpoints -n <ns> <service-name>
+# If no ready addresses -> backend pod is down
+```
+
+**Rule:** Feature tabs present but broken -> check plugin backend pod
+health. Feature tabs missing entirely -> check ConsolePlugin CRDs
+and console-mce pod (Trap 2).
+
+---
+
 ## Quick Reference: Trap Index
 
 | Trap | Symptom | Check First |
@@ -313,3 +503,8 @@ before investigating individual features.
 | 6 | ManagedCluster NotReady | Lease + conditions (not klusterlet) |
 | 7 | ALL addons Unavailable everywhere | addon-manager pod |
 | 8 | Multiple console pages broken | search-api pod |
+| 9 | Pods gradually disappearing | ResourceQuota in ACM namespace |
+| 10 | ALL cluster operations fail | Hive webhook service |
+| 11 | Pods Running but cross-service fails | NetworkPolicy in ACM namespace |
+| 12 | TLS errors, service-ca healthy | Corrupted cert secret (delete to fix) |
+| 13 | Feature tabs present but broken | Plugin backend pod health |

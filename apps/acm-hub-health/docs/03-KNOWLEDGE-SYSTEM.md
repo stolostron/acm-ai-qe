@@ -81,13 +81,14 @@ Components with full coverage (`architecture.md`, `data-flow.md`, `known-issues.
 | `virtualization/` | Fleet virtualization, CNV integration, MTV |
 | `rbac/` | Fine-grained RBAC, cluster permissions |
 
-Components with partial coverage:
+All components have full coverage (`architecture.md`, `data-flow.md`, `known-issues.md`):
 
-| Component | Files | What It Covers |
-|-----------|-------|---------------|
-| `addon-framework/` | `architecture.md` | Addon manager, ClusterManagementAddon lifecycle |
-| `networking/` | `architecture.md`, `known-issues.md` | Submariner, service discovery |
-| `infrastructure/` | `architecture.md`, `known-issues.md`, `post-upgrade-patterns.md` | Nodes, storage, certificates, post-upgrade settling |
+| Component | What It Covers |
+|-----------|---------------|
+| `automation/` | ClusterCurator, AAP integration, cluster upgrade hooks |
+| `addon-framework/` | Addon manager, ManifestWork delivery, addon health |
+| `networking/` | Submariner, tunnels, service discovery, GlobalNet |
+| `infrastructure/` | Nodes, storage, certificates, etcd + `post-upgrade-patterns.md` |
 
 ### How Architecture Knowledge Is Used
 
@@ -103,6 +104,16 @@ Components with partial coverage:
 ## Diagnostic Knowledge
 
 Health-check-specific methodology in `knowledge/diagnostics/`:
+
+### diagnostic-layers.md
+
+The 12-layer diagnostic model provides a systematic investigation framework
+for finding root causes. Each layer is a distinct failure domain -- a failure
+at a lower layer cascades upward and manifests as symptoms at higher layers.
+The layers (bottom to top): Compute, Control Plane, Network, Storage,
+Configuration, Auth, RBAC, API/CRD/Webhook, Operator, Cross-Cluster, Data
+Flow, UI/Plugin. Used in Phase 3 (layer-organized health checking), Phase 5
+(vertical tracing), and Phase 6 (fallback for unknown issues).
 
 ### dependency-chains.md
 
@@ -152,10 +163,14 @@ ordered investigation steps with specific commands:
 | Node & Infrastructure | 6 steps | Node status, conditions, resource usage, unschedulable, clusterversion, etcd |
 | Certificates | 4 steps | TLS secrets, cert expiration, webhook configs, service verification |
 | Add-ons (General) | 4 steps | Addon list, status, addon-manager, ClusterManagementAddon |
+| Networking / Submariner | 8 steps | Addon deployed, operator, broker, gateway, tunnels, OCP compat, DNS |
+| RBAC / User Management | 6 steps | FG-RBAC enabled, MCRA controller, ClusterPermission, acm-roles addon |
+| Addon Framework Deep | 6 steps | addon-manager health, CMA registrations, ManifestWork, work-agent, finalizers |
+| Hive / Cluster Provisioning | 6 steps | Hive operator, ClusterDeployment, provision jobs, cloud creds, webhook |
 
 ### common-diagnostic-traps.md
 
-8 patterns where the obvious diagnosis is WRONG. Each trap describes what you
+13 patterns where the obvious diagnosis is WRONG. Each trap describes what you
 see, what you might conclude, and what's actually happening:
 
 | Trap | Symptom | What to Check First |
@@ -168,6 +183,11 @@ see, what you might conclude, and what's actually happening:
 | 6 | ManagedCluster NotReady | Lease + conditions (not klusterlet) |
 | 7 | ALL addons Unavailable everywhere | addon-manager pod |
 | 8 | Multiple console pages broken | search-api pod |
+| 9 | Pods gradually disappearing | ResourceQuota in ACM namespace |
+| 10 | ALL cluster operations fail | Hive webhook service |
+| 11 | Pods Running but cross-service fails | NetworkPolicy in ACM namespace |
+| 12 | TLS errors, service-ca healthy | Corrupted cert secret (delete to fix) |
+| 13 | Feature tabs present but broken | Plugin backend pod health |
 
 Loaded in Phase 2 (Learn). Verified against in Phase 5 (Correlate) before
 finalizing any diagnosis.
@@ -186,6 +206,7 @@ These complement the narrative documentation with machine-readable reference dat
 | `webhook-registry.yaml` | Validating/mutating webhooks, failure policies | Phase 3 (Check) -- detect missing webhooks |
 | `certificate-inventory.yaml` | TLS secrets, rotation, impact when corrupted | Phase 6 (Deep) -- cert investigation |
 | `addon-catalog.yaml` | All addons, health checks, dependencies | Phase 3 (Check) -- addon health audit |
+| `version-constraints.yaml` | Known version incompatibilities | Phase 4 (Pattern Match) -- version-aware diagnosis |
 
 ### healthy-baseline.yaml
 
@@ -350,34 +371,46 @@ When a mismatch is detected, the agent runs a self-healing process:
            │
            ▼
   ┌──────────────────┐
-  │ Step 2: Search    │     grep -r "<keyword>" docs/rhacm-docs/
-  │ official docs     │     --include="*.adoc" -l
-  │ (if available)    │     Read relevant AsciiDoc files
+  │ Step 2: CLUSTER   │     Reverse-engineer dependencies from
+  │ INTROSPECTION     │     live metadata: owner refs, OLM labels,
+  │ (live metadata)   │     CSV owned CRDs, env vars with .svc
+  │                   │     refs, webhooks, ConsolePlugins,
+  │                   │     APIServices (always available)
   └────────┬─────────┘
            │
            ▼
   ┌──────────────────┐
-  │ Step 3: Search    │     acm-ui MCP: search_code, search_component,
-  │ ACM source code   │     get_component_source, get_routes
-  │ via MCP           │
+  │ Step 3: CROSS-    │     neo4j-rhacm MCP: supplement the
+  │ REFERENCE WITH    │     cluster-derived map with broader
+  │ KNOWLEDGE GRAPH   │     ACM component relationships
+  │                   │     (skipped if container unavailable)
   └────────┬─────────┘
            │
            ▼
   ┌──────────────────┐
-  │ Step 4: Synthesize│     Combine cluster + docs + source evidence.
-  │ and resolve       │     Classify as: knowledge gap, knowledge drift,
+  │ Step 4: UNDERSTAND│     For each dependency from steps 2-3:
+  │ DEPENDENCIES      │     acm-ui MCP: search source code for
+  │ (acm-ui MCP +     │     implementation details, data flow
+  │  rhacm-docs)      │     rhacm-docs: search for intended behavior
+  └────────┬─────────┘
+           │
+           ▼
+  ┌──────────────────┐
+  │ Step 5: Synthesize│     Combine cluster evidence + introspection
+  │ and resolve       │     + graph + source + docs. Classify as:
+  │                   │     knowledge gap, knowledge drift,
   │                   │     version-specific change, or actual issue
   └────────┬─────────┘
            │
            ▼
   ┌──────────────────┐
-  │ Step 5: Write     │     Write to knowledge/learned/<topic>.md
+  │ Step 6: Write     │     Write to knowledge/learned/<topic>.md
   │ learned knowledge │     using the standard format
   └────────┬─────────┘
            │
            ▼
   ┌──────────────────┐
-  │ Step 6: Continue  │     Use new knowledge for remaining
+  │ Step 7: Continue  │     Use new knowledge for remaining
   │ health check      │     health check phases
   └──────────────────┘
 ```

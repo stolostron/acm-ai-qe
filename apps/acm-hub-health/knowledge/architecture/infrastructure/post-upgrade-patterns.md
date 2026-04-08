@@ -119,3 +119,58 @@ oc get pods -n <mch-ns> -l name=multiclusterhub-operator \
 
 If the operator pod is older than 30 minutes and issues persist, they are
 NOT settling -- investigate as real issues.
+
+---
+
+### 7. Addon Version Compatibility Check (5-10 minutes)
+
+**What happens:** After ACM upgrade, addon-manager regenerates ManifestWorks
+with new image references for all addons on all clusters. Addons on spokes
+need version reconciliation: the new ManifestWork is applied, spoke pods
+rolling-update to the new version.
+
+**Timeline:** 5-10 minutes for most addons. Longer for large fleets
+(200+ clusters) because addon-manager processes clusters sequentially.
+
+**Signals:** Some ManagedClusterAddons show `Progressing=True` or
+`Available=False` temporarily. ManifestWork status shows `Applied=True`
+but addon pod on spoke is still updating.
+
+**When to escalate:** If addon Progressing persists beyond 15 minutes for
+a single cluster, check for spoke resource issues (pod stuck Pending,
+image pull failure). If ALL addons across ALL clusters are stuck, check
+addon-manager pod health (Trap 7).
+
+### 8. Webhook Certificate Rotation During Upgrade (2-5 minutes)
+
+**What happens:** ACM webhook serving certificates are rotated during
+upgrade as new webhook deployments start. During the brief window between
+old pod termination and new pod readiness, webhook calls may fail. This
+causes transient errors on resource creation/update for resources validated
+by those webhooks.
+
+**Timeline:** 2-5 minutes per webhook service.
+
+**Signals:** Transient `failed calling webhook` errors in events. Webhook
+endpoints briefly show 0 ready addresses. Operations succeed on retry.
+
+**When to escalate:** If webhook failures persist beyond 10 minutes, check
+the webhook service pod (it may be stuck in ImagePullBackOff or CrashLoop).
+Cross-reference with `webhook-registry.yaml` for expected webhooks and
+their failure policies.
+
+### 9. API Deprecation Warnings After OCP Upgrade (Informational)
+
+**What happens:** After OCP upgrades, the API server may log deprecation
+warnings for APIs that ACM uses. These are informational warnings, not
+failures -- the deprecated API still works, it's just flagged for future
+removal. Actual failures only occur if the API is fully removed (not just
+deprecated).
+
+**Signals:** Operator logs contain `deprecated API` warnings. API calls
+succeed despite the warnings. No functional impact.
+
+**When to escalate:** If operator logs show actual API `404 Not Found`
+errors (not just deprecation warnings), the API has been removed. Check
+if the ACM version is compatible with the OCP version. Cross-reference
+with `version-constraints.yaml`.

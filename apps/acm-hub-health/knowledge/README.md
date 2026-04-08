@@ -1,84 +1,96 @@
 # Knowledge System
 
-This directory contains the agent's knowledge about ACM, organized in layers.
-
-## How to Use
-
-At the start of every health check, read the relevant knowledge files to build
-context before investigating. The knowledge is organized so you can quickly find
-what you need based on the component or subsystem you're investigating.
+The agent's knowledge about ACM -- 54 files organized in 5 layers. The
+knowledge defines what correct, healthy behavior looks like (ground truth).
+The cluster shows current state. The gap between the two is what the agent
+diagnoses and reports.
 
 ## Structure
 
-### `architecture/` -- How ACM Works (per-component)
+### `architecture/` -- How ACM Works (40 files)
 
-Deep engineering-level knowledge about each ACM subsystem. Each component
-directory contains:
+Engineering-level knowledge about each ACM subsystem. Each component
+directory contains up to 4 files:
 
-- `architecture.md` -- How the component works from the ground up: controllers,
-  CRDs, reconciliation, watches, health reporting, dependencies
+- `architecture.md` -- How the component works: controllers, CRDs,
+  reconciliation, watches, health reporting, dependencies
 - `data-flow.md` -- End-to-end data movement with protocol-level detail
 - `known-issues.md` -- Bug patterns, diagnostic signals, version-specific issues
+- Special files: `health-patterns.md`, `post-upgrade-patterns.md`
 
-Foundation files at the architecture root:
+Foundation files (apply to all components):
 - `kubernetes-fundamentals.md` -- K8s primitives ACM is built on
 - `acm-platform.md` -- MCH/MCE hierarchy, operator lifecycle, addon framework
 
-### `diagnostics/` -- Health Check Methodology
+Component directories:
 
+| Directory | Files | Notes |
+|-----------|-------|-------|
+| `search/` | architecture, data-flow, known-issues | search-v2, postgres, RBAC filtering |
+| `governance/` | architecture, data-flow, known-issues | GRC, propagator, sync controllers |
+| `observability/` | architecture, data-flow, known-issues | Thanos stack, Grafana, S3 storage |
+| `cluster-lifecycle/` | architecture, data-flow, known-issues, **health-patterns** | Hive, import, upgrade, HyperShift |
+| `console/` | architecture, data-flow, known-issues | Plugin model, console-api, fleet virt |
+| `application-lifecycle/` | architecture, data-flow, known-issues | Subscriptions, AppSets, GitOps |
+| `virtualization/` | architecture, data-flow, known-issues | Fleet virt, KubeVirt, MTV |
+| `rbac/` | architecture, data-flow, known-issues | MCRA, ClusterPermission, roles |
+| `automation/` | architecture, data-flow, known-issues | ClusterCurator, AAP hooks, upgrades |
+| `addon-framework/` | architecture, data-flow, known-issues | Addon manager, ManifestWork delivery |
+| `networking/` | architecture, data-flow, known-issues | Submariner, tunnels, service discovery |
+| `infrastructure/` | architecture, data-flow, known-issues, **post-upgrade-patterns** | Node/cert/etcd/storage flows |
+
+### `diagnostics/` -- Investigation Methodology (5 files)
+
+- `diagnostic-layers.md` -- 12-layer investigation framework for systematic
+  root cause tracing (vertical layer tracing complements horizontal chains)
 - `dependency-chains.md` -- 8 critical cascade paths with tracing procedures
-- `common-diagnostic-traps.md` -- 8 patterns where the obvious diagnosis is wrong
-- `diagnostic-playbooks.md` -- Per-subsystem investigation procedures
-- `evidence-tiers.md` -- What counts as strong vs weak evidence
+- `common-diagnostic-traps.md` -- 13 patterns where the obvious diagnosis is wrong
+- `evidence-tiers.md` -- Tier 1/2/3 evidence weighting rules + confidence levels
+- `diagnostic-playbooks.md` -- 14 per-subsystem investigation procedures
 
-### Structured Operational Data (YAML)
+### Structured Operational Data (6 YAML files)
 
-Quantitative reference data for comparing cluster state against known-good values:
+Quantitative baselines for comparing cluster state against known-good values:
 
 - `healthy-baseline.yaml` -- Expected pod counts, deployment states, conditions
-  for a healthy ACM hub. Compare actual cluster state against this baseline.
-- `dependency-chains.yaml` -- Structured YAML complement to
-  `diagnostics/dependency-chains.md`. Same 8 chains in machine-readable format
-  for correlation lookups.
-- `webhook-registry.yaml` -- All validating and mutating webhooks expected on
-  an ACM hub, their owners, failure policies, and impact when broken.
-- `certificate-inventory.yaml` -- TLS secrets per namespace, what uses them,
-  who manages rotation, and impact when corrupted.
-- `addon-catalog.yaml` -- All managed cluster addons, deployment expectations,
-  health checks, and dependencies.
+- `dependency-chains.yaml` -- 8 cascade paths in machine-readable format
+- `webhook-registry.yaml` -- Validating/mutating webhooks, owners, failure policies
+- `certificate-inventory.yaml` -- TLS secrets, rotation owners, impact when corrupted
+- `addon-catalog.yaml` -- Managed cluster addons, health checks, dependencies
+- `version-constraints.yaml` -- Known version incompatibilities for version-aware diagnosis
 
-### Cross-Cutting Knowledge (markdown)
+### Cross-Cutting Knowledge (2 markdown files)
 
-Top-level references spanning all components:
 - `component-registry.md` -- Master inventory of ACM components, CRDs, and namespaces
-- `failure-patterns.md` -- Common failure signatures mapped to root causes
+- `failure-patterns.md` -- Symptom-to-root-cause correlation heuristics
 
 ### `learned/` -- Agent-Discovered Knowledge
 
-Written by the agent during health checks when it discovers something not
-in the static knowledge. Grows over time.
+Written by the agent during health checks when it encounters something not
+in the static knowledge. Grows over time. Version- and cluster-specific.
 
-- Component discoveries: `<component>.md`
+## How Knowledge is Used
 
-## Priority Order
+When investigating a component, the agent follows this priority order:
 
-When investigating a component:
-1. Read its `architecture/` files first (understand how it should work)
-2. Check `known-issues.md` for matching bug patterns
-3. Consult structured YAML data (`healthy-baseline.yaml`, `dependency-chains.yaml`,
-   `addon-catalog.yaml`, `webhook-registry.yaml`, `certificate-inventory.yaml`)
-   for quantitative expectations
-4. Use `diagnostics/` for investigation methodology
-5. Check `learned/` for previous discoveries on this cluster
-6. If nothing matches, use self-healing (rhacm-docs + acm-ui MCP)
+1. Read `architecture/<component>/architecture.md` -- understand how it should work
+2. Check `known-issues.md` -- match symptoms against documented bug patterns
+3. Consult structured YAML -- compare cluster state against quantitative baselines
+4. Use `diagnostics/` -- follow investigation methodology and evidence rules
+5. Check `learned/` -- look for previous discoveries on this cluster
+6. If nothing matches -- trigger self-healing:
+   - Reverse-engineer dependencies from live cluster metadata
+     (owner refs, OLM labels, CSVs, env vars, webhooks, ConsolePlugins, APIServices)
+   - Cross-reference with neo4j-rhacm knowledge graph MCP
+   - Use acm-ui MCP to understand dependency implementation (source code)
+   - Write findings to `learned/` for future runs
 
 ## Refreshing Knowledge
 
-Run the refresh script to update knowledge from a live cluster:
+Update YAML baselines from a live cluster:
 
 ```bash
-# From the acm-hub-health directory:
-python -m knowledge.refresh                 # Refresh all YAML files from connected cluster
+python -m knowledge.refresh                 # Refresh all YAML files
 python -m knowledge.refresh --baseline      # Update healthy-baseline.yaml
 python -m knowledge.refresh --webhooks      # Update webhook-registry.yaml
 python -m knowledge.refresh --certs         # Update certificate-inventory.yaml
@@ -87,10 +99,10 @@ python -m knowledge.refresh --promote       # Review learned/ entries for promot
 python -m knowledge.refresh --dry-run       # Show what would change without writing
 ```
 
-All refresh flags use smart merge: new items found on the cluster are added with
-placeholder descriptions, existing curated content (impact descriptions,
-dependencies, diagnostic guidance) is preserved, and items no longer on the
-cluster are flagged but kept. The script also detects version drift between
-YAML metadata and the cluster's actual ACM version.
+Smart merge behavior: curated content (impact descriptions, dependencies,
+diagnostic guidance) is preserved. New items found on the cluster get
+placeholder descriptions. Items no longer on the cluster are flagged but
+kept. Version drift between YAML metadata and the cluster's ACM version
+is detected and reported.
 
 Requires: `oc` CLI logged into an ACM hub cluster, `pyyaml` package.

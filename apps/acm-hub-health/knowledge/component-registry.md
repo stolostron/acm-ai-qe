@@ -283,6 +283,43 @@ Cross-cluster VM management. Optional feature requiring CNV on spoke clusters.
 
 ---
 
+## Automation (ClusterCurator)
+
+Integrates ACM with Ansible Automation Platform (AAP) for lifecycle hook
+execution during cluster operations (install, upgrade, destroy, scale).
+
+### cluster-curator-controller
+
+- **Namespace**: `multicluster-engine` (owned by MCE, not MCH)
+- **Pod label**: `name=cluster-curator-controller`
+- **Expected replicas**: 2
+- **Health check**: `oc get deploy cluster-curator-controller -n multicluster-engine`
+- **Healthy**: 2/2 replicas available
+- **CRD**: ClusterCurator (`cluster.open-cluster-management.io/v1beta1`)
+
+### Console Integration
+
+- **Backend proxy**: `ansibletower.ts` proxies AAP API calls for template
+  discovery
+- **SSE events**: ClusterCurator status changes via `events.ts`
+
+### Common Issues
+
+- AAP operator not installed -> template dropdown empty, hooks can't execute
+- ansibletower.ts proxy returns empty results -> template selection broken
+  (AAP healthy but console shows no templates)
+- ClusterCurator Job timeout -> default 5-minute hook timeout too short
+- Expired kubeconfig in hosted mode -> upgrade operations fail
+- ACM ≤2.15 incompatible with OCP 4.21 upgrade API (ACM-30314)
+
+### Dependencies
+
+- MCE operator (owns the controller deployment)
+- AAP operator (external, provides AnsibleJob CRD)
+- Cluster lifecycle / Hive (target must be a managed cluster)
+
+---
+
 ## Infrastructure Foundation
 
 ### Nodes

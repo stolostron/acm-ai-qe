@@ -297,7 +297,7 @@ class DataGatherer:
             'metadata': {
                 'jenkins_url': jenkins_url,
                 'gathered_at': datetime.now().isoformat(),
-                'gatherer_version': '3.7.0',
+                'gatherer_version': '3.9.0',
                 'jenkins_api_available': is_jenkins_available(),
                 'acm_ui_mcp_available': True,  # Always available to Claude Code agent via native MCP
                 'knowledge_graph_available': None,  # Updated after _check_feature_knowledge()
@@ -3391,7 +3391,7 @@ class DataGatherer:
 
         # Finalize metadata
         self.gathered_data['metadata']['status'] = 'complete'
-        self.gathered_data['metadata']['data_version'] = '3.7.0'
+        self.gathered_data['metadata']['data_version'] = '3.9.0'
 
         # Mask sensitive data
         masked_data = self._mask_sensitive_data(self.gathered_data)

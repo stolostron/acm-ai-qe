@@ -3,7 +3,7 @@
     "jenkins_url": "https://jenkins-csb-rhacm-tests.dno.corp.redhat.com/job/qe-acm-automation-poc/job/clc-e2e-pipeline/3757/",
     "analyzed_at": "2026-02-15T12:00:00Z",
     "analyzer": "z-stream-analysis",
-    "analyzer_version": "3.2.0",
+    "analyzer_version": "3.9.0",
     "investigation_framework": "5-phase-systematic",
     "build_result": "UNSTABLE",
     "branch": "release-2.16",
@@ -148,6 +148,15 @@
         "conclusion": "Product bug in ClusterCurator API — PATCH fails for digest-based upgrade spec"
       },
       "root_cause": "ClusterCurator API does not handle digest-based upgrade channel spec",
+      "root_cause_layer": 11,
+      "root_cause_layer_name": "Data Flow / Content Integrity",
+      "investigation_steps_taken": [
+        "Layer 12: Console pods Running, plugins registered -> HEALTHY",
+        "Layer 11: PATCH /api/v1/clustercurators returns 500 for digest-based spec -> ROOT CAUSE",
+        "Layer 9: cluster-curator pod 1/1 Running, 0 restarts -> HEALTHY (pod runs but API logic broken)"
+      ],
+      "cause_owner": "product operator",
+      "verification_status": "individually_investigated",
       "error": {
         "message": "expected status code 200 but got 500",
         "type": "AssertionError",
@@ -262,6 +271,13 @@
       ],
       "reasoning": "Selector #prehook-status-btn was renamed to #curator-prehook-btn in release-2.16. Test needs selector update.",
       "root_cause": "Stale selector #prehook-status-btn in test code",
+      "root_cause_layer": 12,
+      "root_cause_layer_name": "UI / Plugin / Rendering",
+      "investigation_steps_taken": [
+        "Layer 12: Selector #prehook-status-btn not found in product source, renamed to #curator-prehook-btn -> ROOT CAUSE"
+      ],
+      "cause_owner": "test code",
+      "verification_status": "verified_in_group",
       "error": {
         "message": "Timed out retrying after 10000ms: Expected to find element: #prehook-status-btn, but never found it.",
         "type": "AssertionError"
@@ -322,6 +338,15 @@
         "conclusion": "Infrastructure issue — spoke cluster connectivity lost"
       },
       "root_cause": "Spoke cluster spoke-2 lost connectivity — klusterlet lease expired",
+      "root_cause_layer": 10,
+      "root_cause_layer_name": "Cross-Cluster / Hub-Spoke",
+      "investigation_steps_taken": [
+        "Layer 12: Console rendered, detach button clicked -> HEALTHY",
+        "Layer 11: Detach API call sent to hub, hub attempted ManifestWork -> HEALTHY",
+        "Layer 10: Spoke-2 ManagedCluster Available=False, lease expired -> ROOT CAUSE"
+      ],
+      "cause_owner": "platform",
+      "verification_status": "split_from_group",
       "error": {
         "message": "Timed out waiting for cluster detach to complete",
         "type": "TimeoutError"

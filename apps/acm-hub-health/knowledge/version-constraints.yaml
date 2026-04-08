@@ -1,0 +1,96 @@
+# Version Compatibility Constraints
+# Known product version incompatibilities that affect hub health diagnostics.
+# The agent cross-references operator versions from the cluster against this
+# list during Phase 4 (Pattern Match) for version-aware matching.
+#
+# Populated by: manual QE review + z-stream failure analysis
+# Refresh frequency: after each GA release or when new constraints discovered
+# Last updated: 2026-04-06
+# Reference version: ACM 2.16 GA
+
+constraints:
+
+  - id: ansiblejob-aap25-workflow
+    component: AnsibleJob CR / ClusterCurator
+    affected_versions:
+      aap: ">=2.5"
+      acm: "<=2.13"
+    description: >
+      AnsibleJob CR does not support AAP 2.5+ workflow job templates.
+      The AnsibleJob controller attempts to mount AAP 2.4-style secrets
+      that do not exist in AAP 2.5+, causing CreateContainerConfigError.
+    health_signal: CreateContainerConfigError on AnsibleJob pods
+    detection: >
+      oc get csv -A | grep aap
+      If AAP version >= 2.5 and ACM version <= 2.13, this is a known
+      compatibility gap.
+    correct_diagnosis: Product compatibility gap, not infrastructure failure
+    fix: Upgrade ACM to 2.14+
+
+  - id: submariner-ovnk-ocp418
+    component: Submariner Gateway
+    affected_versions:
+      ocp: ">=4.18"
+      submariner: "<0.18"
+    description: >
+      Submariner gateway fails on OCP 4.18+ due to OVN-Kubernetes
+      networking changes. Gateway shows "Connecting" indefinitely and
+      never establishes tunnels.
+    health_signal: Gateway CR status stuck on "Connecting"
+    detection: >
+      oc get clusterversion version -o jsonpath='{.status.desired.version}'
+      oc get csv -A | grep submariner
+      If OCP >= 4.18 and Submariner < 0.18, this is the cause.
+    correct_diagnosis: Product compatibility gap with OVN-K changes
+    fix: Upgrade Submariner to 0.18+
+    jira: ACM-22805
+
+  - id: clustercurator-ocp421-upgrade-api
+    component: ClusterCurator / cluster-curator-controller
+    affected_versions:
+      ocp_spoke: ">=4.21"
+      acm: "<=2.15"
+    description: >
+      ClusterCurator upgrade logic uses the pre-4.21 ClusterVersion API
+      to patch the desired update. OCP 4.21 changed the upgrade API,
+      causing the curator upgrade Job to fail immediately when attempting
+      to patch the spoke ClusterVersion.
+    health_signal: Curator upgrade Job fails at ClusterVersion patch step
+    detection: >
+      Check spoke OCP version and curator Job logs.
+      If spoke is OCP 4.21+ and ACM is <= 2.15, this is a known issue.
+    correct_diagnosis: API incompatibility, not infrastructure failure
+    fix: Upgrade ACM to 2.16+
+    jira: ACM-30314
+
+  - id: submariner-ovnk-ocp420-transit
+    component: Submariner Gateway
+    affected_versions:
+      ocp: ">=4.20"
+    description: >
+      OCP 4.20+ introduces OVN-Kubernetes transit switch mode which
+      changes routing assumptions that Submariner relies on. Continuing
+      compatibility issues beyond the 4.18 fixes.
+    health_signal: Similar to ocp418 pattern on newer OCP versions
+    detection: >
+      oc get clusterversion version -o jsonpath='{.status.desired.version}'
+      Check Submariner version compatibility matrix before OCP upgrades.
+    correct_diagnosis: Ongoing OVN-K compatibility issue
+    fix: Check Submariner release notes for OCP 4.20+ compatibility
+
+  - id: console-mce-connection-pooling
+    component: console-mce / Console Plugin
+    affected_versions:
+      acm: ">=2.13,<=2.15.0"
+    description: >
+      console-mce pod enters CrashLoopBackOff due to missing HTTP
+      connection pooling. Each request opens a new TCP connection;
+      on large clusters, probe responses arrive after the timeout
+      threshold. Fixed in 2.15.1 z-stream.
+    health_signal: console-mce CrashLoopBackOff, MCE feature tabs disappear
+    detection: >
+      oc get pods -n multicluster-engine -l app=console-mce
+      Check for Liveness/Readiness probe failures in events.
+    correct_diagnosis: Product bug in connection handling, not resource pressure
+    fix: Upgrade to ACM 2.15.1+ or 2.16+
+    jira: ACM-24965

@@ -10,7 +10,8 @@
       "Bash(git check-ignore:*)",
       "Bash(while IFS= read -r line)",
       "Bash(do echo:*)",
-      "Bash(done)"
+      "Bash(done)",
+      "Bash(python3 -c ':*)"
     ]
   }
 }

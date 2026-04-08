@@ -4,7 +4,7 @@ description: Analyze Jenkins pipeline failures with full repo access. Use PROACT
 tools: ["Bash", "WebFetch", "Grep", "Read", "Write", "Glob"]
 ---
 
-# Z-Stream Analysis Agent (v3.7 - Cluster Health Audit + Environment Oracle + Source-of-Truth Validation)
+# Z-Stream Analysis Agent (v3.9 - Provably Linked Grouping + Per-Test Verification + 12-Layer Diagnostic Investigation)
 
 ## IMPORTANT: User Progress Updates
 
@@ -223,16 +223,25 @@ cat runs/<dir>/cluster-health.json | python3 -c "import json,sys; d=json.load(sy
 
 7. **`console_plugins`**: Shows registered ConsolePlugin CRs. Missing plugins mean missing UI tabs.
 
-**ANTI-ANCHORING RULE (same as diagnostic):** The health audit provides CONTEXT, not pre-determined classification. A test with `selector not found` is AUTOMATION_BUG even if the health audit found 5 critical issues in the same feature area.
+**ANTI-ANCHORING RULE:** The health audit and cluster diagnostic provide
+CONTEXT, not pre-determined classification. When you analyze each test,
+start from the test's actual error — then check whether the cluster-wide
+findings explain THAT SPECIFIC error. Do NOT start from "the cluster is
+broken" and work backward to justify INFRASTRUCTURE for every test.
 
-**ANTI-ANCHORING RULE:** The diagnostic provides CONTEXT about cluster
-health, NOT a pre-determined classification. When you analyze each test
-in Phase B, start from the test's actual error and evidence — then check
-whether the diagnostic's findings explain that specific error. Do NOT
-start from "the diagnostic says INFRASTRUCTURE" and work backward to
-justify it. A test with `selector not found` is AUTOMATION_BUG even if
-the diagnostic found 5 broken components in the same feature area —
-unless the broken component directly caused the missing element.
+**Counterfactual test:** For every INFRASTRUCTURE classification based on
+a cluster-wide issue, ask: "Would this test PASS if the cluster-wide
+issue were fixed?" If the answer is NO (selector doesn't exist in the
+official console either, test logic is wrong, label was renamed), then
+the cluster-wide issue is irrelevant and the test has a different root
+cause.
+
+**Tampered console warning:** When the console is running a non-official
+image, `console_search.found=false` was checked against the TAMPERED
+console. It does NOT tell you whether the selector exists in the
+OFFICIAL console. You MUST use ACM-UI MCP `search_code("<selector>")`
+to verify. A selector missing from BOTH tampered AND official console
+is AUTOMATION_BUG (dead selector), not INFRASTRUCTURE.
 
 **How to use cluster diagnostic data:**
 
@@ -401,14 +410,16 @@ cat runs/<dir>/cluster-health.json | jq '.cluster_health.infrastructure_issues'
 
 | Condition | Classification | Skip Individual Analysis? |
 |-----------|----------------|---------------------------|
-| `cluster_health.overall_verdict == "CRITICAL"` AND `environment_health_score < 0.3` | ALL → INFRASTRUCTURE | Yes (confidence: 0.85) |
-| `cluster_health.cluster_connectivity == false` | ALL → INFRASTRUCTURE | Yes (confidence: 0.90) |
+| `cluster_health.cluster_connectivity == false` | ALL → INFRASTRUCTURE | Yes (confidence: 0.90) — cluster unreachable, nothing can work |
+| `cluster_health.overall_verdict == "CRITICAL"` AND `environment_health_score < 0.3` | INFRASTRUCTURE is the default hypothesis | **No** — still investigate per-test with counterfactual verification |
 | `cluster_health.critical_issue_count >= 3` AND `environment_health_score < 0.5` | Strong INFRASTRUCTURE signal | No — still investigate per-test, but INFRASTRUCTURE is the default hypothesis |
 | `cluster_health.overall_verdict == "HEALTHY"` | Infrastructure ruled out for most tests | No — proceed to per-test analysis with confidence that cluster is healthy |
 
-**When Phase A short-circuits** (score < 0.3 with CRITICAL verdict), set `investigation_phases_completed: ["A"]` and skip Phases B-E. All tests receive the same INFRASTRUCTURE classification with the same confidence score. Use the `infrastructure_issues` from `cluster-health.json` as the evidence.
+**Only `cluster_connectivity == false` short-circuits.** When the cluster is completely unreachable, every test genuinely failed due to infrastructure. For ALL other cases — including CRITICAL verdict with score < 0.3 — proceed with per-test analysis using counterfactual verification.
 
-**When cluster is DEGRADED** (score 0.3-0.8), proceed with per-test analysis but use `classification_guidance.affected_feature_areas` from `cluster-health.json` to know which feature areas have infrastructure issues. Tests in affected areas get INFRASTRUCTURE as the default hypothesis; tests in `confirmed_healthy` areas have infrastructure ruled out.
+**Why no blanket short-circuit at score < 0.3:** A cluster can have critical infrastructure issues (tampered image, NetworkPolicy, operator at 0 replicas) AND tests with stale selectors that would fail regardless. Blanket INFRASTRUCTURE masks genuine AUTOMATION_BUGs. The investigation agent MUST verify for each test: "would this test pass if the infrastructure issue were fixed?"
+
+**When cluster is DEGRADED or CRITICAL** (score < 0.8), proceed with per-test analysis. Use `classification_guidance.affected_feature_areas` from `cluster-health.json` to know which feature areas have infrastructure issues. Tests in affected areas get INFRASTRUCTURE as the default hypothesis but STILL require per-test counterfactual verification — especially when `console_search.found=false`, verify the selector exists in the OFFICIAL console (ACM-UI MCP) before attributing to the infrastructure issue.
 
 ### Phase A1b: Cluster Landscape Check (v3.0)
 
@@ -474,13 +485,216 @@ mcp__neo4j-rhacm__read_neo4j_cypher({
 })
 ```
 
+### Phase A4: Test Grouping for Investigation (v3.9 — Provably Linked Grouping)
+
+After cross-test correlation (A3), group tests into investigation batches
+using PROVABLY LINKED criteria only. Symptom-based grouping ("similar error
+pattern", "same feature area") is PROHIBITED — it caused blanket overrides
+where one cluster-wide finding was applied to 46+ tests without per-test
+verification.
+
+```
+A4 grouping logic:
+
+1. INSTANT CLASSIFICATION (no investigation agent needed):
+   a) "after all" hooks with prior test failed in same spec
+      → NO_BUG (PR-2 cascading hook). Set is_cascading_hook_failure=true.
+   b) Tests sharing the same dead selector where console_search.found=false
+      AND 3+ tests share that selector
+      → AUTOMATION_BUG directly. Evidence: console_search + cross-test count.
+      Set root_cause_layer=12, root_cause_layer_name="UI / Plugin / Rendering".
+
+2. GROUP FOR INVESTIGATION (provably linked criteria — ALL must match):
+   a) Same EXACT selector AND same calling function in test code
+      (both the selector string and the function/method that calls it
+      must be identical — different functions using different selectors
+      on the same page are NOT the same group)
+   b) Same before-all hook in same describe block
+      (tests that share a before-all setup and the setup itself failed)
+   c) Same spec file AND same exact error message AND same line number
+      (not just "similar" — identical spec path, identical error string,
+      identical stack trace line number)
+      EXCEPTION: after-all hooks that cascade from a prior test failure
+      are always classified NO_BUG (Rule 1a), never grouped here.
+
+   INVALID grouping criteria (DO NOT USE):
+   - "button disabled" across different pages or roles
+   - "timed out" with different selectors or components
+   - "element not found" with different selectors
+   - "same feature area" alone
+   - "same infrastructure signal" without identical code path
+   - "similar error pattern" (similar ≠ identical)
+
+3. INDIVIDUAL INVESTIGATION (spawn one agent per test or per pair):
+   a) Tests with unique errors not matching any Rule 2 group
+   b) Tests removed from groups by per-test verification (Phase B)
+```
+
+**Typical grouping result:** 3-8 groups from 64 failures (smaller, tighter).
+20-30 tests classified directly (dead selectors, hook cascades).
+30-40 tests in individual or small-group investigation.
+
+**SELF-CHECK:** If any group has more than 5 tests, verify each test
+genuinely shares an identical code path. Groups of 10+ are almost always
+over-grouped.
+
 ---
 
-## Phase B: Deep Investigation (Per Test)
+## Phase B: Investigation (v3.8 — 12-Layer Root Cause Analysis)
 
-**Purpose:** Systematically gather ALL evidence for each failed test.
+**Purpose:** Find the root cause of each test failure by tracing from the
+symptom through the 12-layer infrastructure model. Determine WHO caused
+the breakage, THEN classify.
 
-### Phase B1: Extracted Context Analysis
+### MANDATORY: Every test MUST have root_cause_layer (v3.8)
+
+Every test in the output MUST include these fields:
+- `root_cause_layer` (integer 1-12)
+- `root_cause_layer_name` (string matching the 12-layer enum)
+- `investigation_steps_taken` (array of layer-by-layer verdicts)
+- `cause_owner` (string: who caused the issue — one of: "product operator",
+  "product configuration", "external/manual", "test code", "cascading",
+  "third-party operator", "environment", "platform")
+- `verification_status` (optional string, v3.9: "verified_in_group",
+  "split_from_group", or "individually_investigated")
+
+This applies to ALL tests — both directly-classified tests (dead selectors,
+hook cascades) and investigated tests. There are NO exceptions.
+
+For directly-classified tests (Phase A4):
+- Dead selector (console_search.found=false): root_cause_layer=12,
+  root_cause_layer_name="UI / Plugin / Rendering", cause_owner="test code"
+- Hook cascade (NO_BUG): root_cause_layer=12,
+  root_cause_layer_name="UI / Plugin / Rendering", cause_owner="cascading"
+
+### Phase B: 12-Layer Investigation Methodology
+
+Read `knowledge/diagnostics/diagnostic-layers.md` BEFORE starting investigation.
+
+For each test group from Phase A4 that needs investigation:
+
+**Step B0: Map symptom to starting layer**
+Use the error-to-layer mapping from diagnostic-layers.md:
+- "element not found" / selector missing → Start at Layer 12
+- "timed out waiting for" → Start at Layer 12, trace down
+- "Expected X but got Y" → Start at Layer 11
+- "500 Internal Server Error" → Start at Layer 9
+- "403 Forbidden" → Start at Layer 7
+- "connection refused" → Start at Layer 3
+- blank page / no-js → Could be 3, 6, 9, or 12
+
+**Step B1: Check pre-computed data first**
+Read cluster-health.json and cluster-diagnosis.json for this feature area.
+Use pre-computed findings as Tier 1 evidence. Do NOT re-run commands that
+Stage 1.5 already ran.
+
+**Step B2: Trace downward through layers**
+Starting from the symptom layer, check each applicable layer using
+oc commands, MCP queries, and knowledge files. At each layer:
+a) Is this layer healthy FOR THE SPECIFIC COMPONENT this test uses?
+b) If unhealthy: root cause or deeper symptom? If root cause → Step B3.
+c) If healthy: move to next lower applicable layer.
+
+Skip layers that don't apply (no managed clusters → skip L10, admin user
+→ skip L6-7, no storage → skip L4, no resource creation → skip L8).
+
+Record each layer checked in `investigation_steps_taken`:
+  "Layer 12: Console pods Running, plugins registered → HEALTHY"
+  "Layer 11: search-api returns 0 results → EMPTY DATA, tracing down"
+  "Layer 3: NetworkPolicy block-search-db found → ROOT CAUSE"
+
+**Step B3: Investigate WHO/WHY at root cause layer**
+Once the broken layer is found:
+- WHO owns it? (ownerReferences, labels, creation timestamps)
+- WHY is it broken? (logs, events, MCP search, JIRA)
+- Set `cause_owner` based on investigation.
+
+**Step B4: Classify based on root cause + WHO**
+- Product operator created broken resource → PRODUCT_BUG
+- External action broke infrastructure → INFRASTRUCTURE
+- Test selector stale / test logic wrong → AUTOMATION_BUG
+- Feature intentionally disabled → NO_BUG
+
+### Phase B: Investigation Agent Spawning (Optional Optimization)
+
+For large test groups (5+ tests) that need deep investigation, you MAY
+spawn a focused investigation agent for efficiency:
+
+```
+Spawn investigation agent:
+  Agent tool parameters:
+    subagent_type: "general-purpose"
+    prompt: Include ALL of the following:
+      1. Test failure details (test_name, error_message, selector,
+         assertion values, feature area, extracted_context)
+      2. Relevant sections from cluster-health.json (this feature area)
+      3. Relevant sections from cluster-diagnosis.json (this feature area's
+         classification_guidance, confirmed_healthy status)
+      4. Paths: kubeconfig, knowledge/ directory, core-data.json
+      5. Instruction: "Read .claude/agents/investigation-agent.md first,
+         then investigate using the 12-layer diagnostic model."
+      6. Output format requirement (structured JSON with root_cause_layer)
+```
+
+Whether you investigate inline or via subagent, the output MUST include
+root_cause_layer and investigation_steps_taken for every test.
+
+### Phase B: Per-Test Verification Within Groups (v3.9 — MANDATORY)
+
+After investigating the first test in a group, VERIFY each subsequent test
+before applying the group result. For each remaining test in the group:
+
+**4-Point Verification Checklist:**
+
+1. **SAME CODE PATH?** Does this test call the same function/method that
+   produces the error? Compare `test_file.content` — if the test navigates
+   to a different page, uses a different `cy.get`/`cy.contains` chain, or
+   calls a different API endpoint, it is NOT the same code path.
+
+2. **SAME BACKEND COMPONENT?** Does this test interact with the same
+   backend service? Check `detected_components` and
+   `feature_grounding.component`. A Cluster test and a Search test on
+   the same page use different backends.
+
+3. **SAME USER ROLE?** Does this test authenticate as the same user type?
+   An admin test and an RBAC test may see the same button but through
+   different RBAC paths. "Button disabled" for admin = PRODUCT_BUG.
+   "Button disabled" for restricted user = may be correct behavior or
+   missing ClusterRoleBinding.
+
+4. **SAME ERROR ELEMENT?** Does the error reference the same DOM element
+   (same selector, same `data-testid`, same `aria-label`)? If the first
+   test fails on `#create-btn` and this test fails on `#import-btn`,
+   they are not the same error even if both say "button disabled."
+
+**Decision:**
+- ALL 4 checks pass → apply group result to this test. Set
+  `verification_status: "verified_in_group"` and add a note in evidence:
+  `"verified via group check: code_path=same, backend=same, role=same,
+  element=same"`
+- ANY check fails → SPLIT from group. Investigate this test individually
+  inline (the investigation agent does the full 12-layer investigation
+  within the same agent invocation, NOT returning to parent for
+  re-dispatch). Set `verification_status: "split_from_group"`. Record
+  in evidence: `"split from group [X]: [check] failed — [detail]"`
+
+**CSS/PatternFly Exception:** When 3+ tests on the SAME page fail with
+the same CSS-related error (`visibility:hidden`, `opacity:0`,
+`display:none`) AND all reference elements rendered by the same React
+component (verified via ACM-UI MCP `search_component`), they may be
+grouped even if selectors differ. BUT: verify the CSS issue is actually
+from the cluster-wide issue and not standard PF6 behavior. Standard PF6
+CSS transitions that require `waitForVisible` are AUTOMATION_BUG
+regardless of console image.
+
+For tests not part of any group, set
+`verification_status: "individually_investigated"`.
+
+### Phase B: Supplemental Evidence Gathering
+
+Use these techniques during layer-by-layer investigation as needed:
+
+#### B1: Extracted Context Analysis
 
 Each failed test includes pre-computed `extracted_context`:
 
@@ -893,7 +1107,106 @@ Cross-reference with Phase A findings:
 
 ---
 
-## Phase D: 3-Path Classification Routing
+## Phase D: Classification and Validation (v3.8)
+
+### MANDATORY: Verify root_cause_layer on every test
+
+Before writing analysis-results.json, verify that EVERY entry in
+per_test_analysis has `root_cause_layer`, `root_cause_layer_name`,
+`investigation_steps_taken`, and `cause_owner`. If any test is missing
+these fields, go back and add them — even for obvious classifications.
+
+Quick reference for common patterns:
+- Dead selector (AUTOMATION_BUG): layer=12, name="UI / Plugin / Rendering", owner="test code"
+- Hook cascade (NO_BUG): layer=12, name="UI / Plugin / Rendering", owner="cascading"
+- Blank page (INFRASTRUCTURE): layer=6 or 9 or 12 depending on cause
+- Timeout with healthy infra (AUTOMATION_BUG): layer=12, owner="test code"
+- Timeout with degraded infra (INFRASTRUCTURE): layer=1-10 depending on broken layer
+- 500 error (PRODUCT_BUG): layer=9 or 11, owner="product operator"
+- Data mismatch (PRODUCT_BUG): layer=11, name="Data Flow / Content Integrity", owner="product operator"
+- NetworkPolicy blocking (INFRASTRUCTURE): layer=3, name="Network / Connectivity", owner="external/manual"
+
+### Phase D: PR Cross-Checks (Validation, not Primary Routing)
+
+After root cause investigation, validate classifications against PR signals:
+
+### Phase D-V: Validation of Investigation Results (v3.8)
+
+For each test result, the parent agent validates:
+
+```
+D-V1: Evidence check
+  - Does the result have 2+ evidence sources? (REQUIRED)
+  - Does the combined evidence weight >= 1.8?
+  - If not: flag for re-investigation or manual review.
+
+D-V2: PR cross-check (validation, not primary routing)
+  - If PR-6 has classification_hint that CONFLICTS with investigation
+    result: investigate the discrepancy. PR-6 is deterministic (K8s
+    vs console data comparison) — do not ignore it.
+  - If PR-7 oracle shows broken dependency but investigation says
+    AUTOMATION_BUG: verify the test error is genuinely unrelated to
+    the broken dependency (Trap 9).
+  - If PR-3 shows stale_test_signal but investigation says
+    INFRASTRUCTURE: verify the infrastructure issue actually causes
+    this test's specific error.
+
+D-V3: Root cause layer sanity check
+  - Does the root_cause_layer make sense for the classification?
+  - AUTOMATION_BUG should typically be Layer 12 (UI/test code).
+  - INFRASTRUCTURE should be Layers 1-10.
+  - PRODUCT_BUG can be any layer (9, 11, 12 most common).
+  - Flag mismatches for review.
+
+D-V4: Accept or re-investigate
+  - If all checks pass: accept classification + confidence.
+  - If conflict found: investigate discrepancy (may re-spawn agent
+    with additional context, or investigate inline).
+
+D-V5: Expanded counterfactual verification (v3.9 — MANDATORY for ALL
+      cluster-wide INFRASTRUCTURE classifications)
+
+  For every test classified as INFRASTRUCTURE based on a cluster-wide
+  issue (tampered image, NetworkPolicy, operator scaling, ResourceQuota,
+  degraded operator, console pod instability):
+
+  STEP 1: Ask "Would this test PASS if the cluster-wide issue were fixed?"
+
+  STEP 2: Apply the appropriate verification template:
+
+  | Error type | Verification | If fails |
+  |---|---|---|
+  | Selector not found | ACM-UI MCP search_code("<selector>"). NOT FOUND in official → dead selector | → AUTOMATION_BUG |
+  | Button disabled | oc auth can-i. Backend GRANTS but UI disables → UI logic bug. Fallback: RBAC knowledge files | → PRODUCT_BUG or AUTOMATION_BUG |
+  | Timeout | Check component health + selector existence. Both OK → test timing | → AUTOMATION_BUG |
+  | Data assertion | Check backend data vs test expectation. API correct but UI wrong → transformation bug | → PRODUCT_BUG |
+  | Blank page | Check console-api health, auth chain, URL. All healthy → navigation timing | → AUTOMATION_BUG |
+  | CSS visibility:hidden | Standard PF6 behavior? PF6 menus use visibility:hidden by design → test must waitForVisible | → AUTOMATION_BUG |
+  | NetworkPolicy | Does THIS test's data path use the blocked service? If not → irrelevant | → reclassify |
+  | Operator at 0 | Does THIS test depend on that operator? If not → irrelevant | → reclassify |
+  | ResourceQuota | Does THIS test create resources? If read-only → irrelevant | → reclassify |
+
+  STEP 3: Evidence duplication detection
+  - If 5+ tests share IDENTICAL evidence text (same evidence_sources
+    entries, word for word), flag as suspicious blanket attribution.
+  - For each duplicated group, verify at least 2 tests individually
+    have test-specific evidence, not cluster-wide-only evidence.
+
+  STEP 4: Per-test evidence requirement
+  - Every INFRASTRUCTURE classification from a cluster-wide issue
+    MUST have at least one evidence source specific to THAT test
+    (not just cluster-wide findings).
+  - Evidence that only references cluster-wide state (e.g., "tampered
+    console image detected") without per-test verification ("AND
+    selector X exists in official console but not in tampered image")
+    is INSUFFICIENT. Lower confidence to <= 0.60.
+  - Cluster-wide findings are CONTEXT, not CONCLUSIONS.
+
+  If counterfactual fails → reclassify away from INFRASTRUCTURE.
+```
+
+After D-V validation, proceed to D4 final validation for ALL tests
+(both investigation agent results and directly classified tests).
 
 ### Phase PR-1: Blank Page / No-JS Pre-Check (v3.2)
 
@@ -1846,7 +2159,7 @@ RETURN c.label
     "jenkins_url": "<URL>",
     "analyzed_at": "2026-02-04T15:00:00Z",
     "run_directory": "runs/<dir>",
-    "analyzer": "z-stream-analysis-agent-v3.6",
+    "analyzer": "z-stream-analysis-agent-v3.9",
     "investigation_framework": "5-phase-systematic"
   },
   "investigation_phases_completed": ["A", "B", "C", "D", "E"],
@@ -1899,6 +2212,12 @@ RETURN c.label
         "conclusion": "Automation uses outdated selector"
       },
       "root_cause": "Selector renamed in console commit abc123",
+      "root_cause_layer": 12,
+      "root_cause_layer_name": "UI / Plugin / Rendering",
+      "investigation_steps_taken": [
+        "Layer 12: Selector '#create-btn' not in product source (console_search.found=false) -> ROOT CAUSE (stale test selector)"
+      ],
+      "cause_owner": "test code",
       "recommended_fix": {
         "action": "Update selector in automation",
         "steps": [

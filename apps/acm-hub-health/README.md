@@ -12,12 +12,13 @@ networking) and traces dependency chains to find root causes, not just symptoms.
 
 - **`oc` CLI** -- logged into your ACM hub cluster
 - **Claude Code CLI** -- [install guide](https://docs.anthropic.com/en/docs/claude-code/getting-started)
+- **Podman** -- for Neo4j knowledge graph container (optional but recommended)
 
 ## Quick Start
 
 ```bash
 cd acm-hub-health
-bash setup.sh         # one-time: clones rhacm-docs, sets up MCP
+bash setup.sh         # one-time: clones rhacm-docs, sets up MCPs (acm-ui, neo4j-rhacm)
 oc login <hub-api>    # login to your hub
 claude                # start the agent
 ```
@@ -45,16 +46,19 @@ Why are managed clusters Unknown?     # symptom investigation
 
 1. **Discover** -- inventory what's deployed (MCH, MCE, components, nodes, fleet)
 2. **Learn** -- consult architecture knowledge + previous discoveries
-3. **Check** -- verify health per component (pods, logs, events, CRD status)
+3. **Check** -- layer-organized health checks (foundational layers first, then components)
 4. **Pattern Match** -- match symptoms against documented known issues with JIRA references
-5. **Correlate** -- trace 8 dependency chains to find root cause
-6. **Deep Investigate** -- logs, events, storage, networking for critical findings
+5. **Correlate** -- trace horizontal (8 dependency chains) + vertical (12 infrastructure layers)
+6. **Deep Investigate** -- logs, events, storage, networking + layer-based fallback
 
 ### Self-Healing Knowledge
 
-When the agent encounters something not in its knowledge base, it investigates
-using ACM documentation and source code (via MCP), records findings in
-`knowledge/learned/`, and future runs benefit from the discovery.
+When the agent encounters something not in its knowledge base, it
+reverse-engineers dependencies from live cluster metadata (owner refs,
+OLM labels, CSV metadata, env vars, webhooks), cross-references with
+the knowledge graph (neo4j-rhacm MCP), then uses ACM source code
+(acm-ui MCP) to understand how those dependencies work. Findings are
+recorded in `knowledge/learned/` so future runs benefit.
 
 ### Evidence-Based Diagnosis
 
@@ -70,10 +74,32 @@ exact fix commands in a structured remediation plan, then asks for your
 explicit approval before making any changes. You review the full plan and
 decide -- the agent never modifies the cluster without your consent.
 
+## Session Tracing
+
+Every diagnostic session is automatically traced to structured JSONL files
+via Claude Code hooks. No setup required -- tracing is active from the
+first session.
+
+```
+.claude/traces/
+├── <session-id>.jsonl     # Detailed per-session trace
+└── sessions.jsonl         # One-line summary per session (aggregate stats)
+```
+
+Each trace entry captures: tool calls (with `oc` verb/resource/namespace
+parsing), MCP interactions (server, tool, input/output), knowledge file
+reads (with diagnostic phase inference), mutation detection (remediation
+commands), prompts (with diagnostic type detection), subagent operations,
+and errors. The session index tracks aggregate stats: duration, tool call
+count, MCP calls, oc commands, mutations, knowledge reads/writes, errors.
+
+Trace files are gitignored. See the "Session Tracing" section in
+[CLAUDE.md](CLAUDE.md) for the full field reference.
+
 ## Knowledge Base
 
-46 knowledge files covering 11 ACM subsystems -- architecture docs, structured
-operational data, and diagnostic methodology.
+54 knowledge files covering 12 ACM subsystems -- architecture docs, structured
+operational data, 12-layer diagnostic model, and diagnostic methodology.
 
 See [docs/06-SLASH-COMMANDS.md](docs/06-SLASH-COMMANDS.md) for full command reference.
 
@@ -86,6 +112,7 @@ knowledge/
   webhook-registry.yaml                 # Validating/mutating webhooks
   certificate-inventory.yaml            # TLS secrets, rotation, impact
   addon-catalog.yaml                    # Addon health checks and dependencies
+  version-constraints.yaml              # Known version incompatibilities
   refresh.py                            # Update YAML from live cluster
   architecture/                         # How ACM works (per-component)
     kubernetes-fundamentals.md          # K8s primitives ACM uses
@@ -93,19 +120,21 @@ knowledge/
     search/                             # architecture.md, data-flow.md, known-issues.md
     governance/                         # "
     observability/                      # "
-    cluster-lifecycle/                  # "
+    cluster-lifecycle/                  # " + health-patterns.md
     console/                            # "
     application-lifecycle/              # "
     virtualization/                     # "
     rbac/                               # "
-    addon-framework/                    # architecture.md
-    networking/                         # architecture.md, known-issues.md
-    infrastructure/                     # architecture.md, known-issues.md, post-upgrade-patterns.md
+    automation/                         # " (ClusterCurator, AAP hooks)
+    addon-framework/                    # " (addon manager, ManifestWork delivery)
+    networking/                         # " (Submariner, tunnels, service discovery)
+    infrastructure/                     # " + post-upgrade-patterns.md
   diagnostics/                          # Health check methodology
+    diagnostic-layers.md                # 12-layer investigation framework
     dependency-chains.md                # 8 cascade paths (narrative)
-    common-diagnostic-traps.md          # 8 patterns where obvious diagnosis is wrong
+    common-diagnostic-traps.md          # 13 patterns where obvious diagnosis is wrong
     evidence-tiers.md                   # Evidence weighting rules
-    diagnostic-playbooks.md             # Investigation procedures
+    diagnostic-playbooks.md             # 14 per-subsystem investigation procedures
   learned/                              # Agent-discovered knowledge (grows over time)
 ```
 

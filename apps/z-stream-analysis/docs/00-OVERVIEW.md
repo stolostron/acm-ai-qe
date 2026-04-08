@@ -1,4 +1,4 @@
-# Z-Stream Analysis Overview (v3.6)
+# Z-Stream Analysis Overview (v3.9)
 
 Jenkins pipeline failure analysis with definitive classification of each test failure.
 
@@ -28,7 +28,7 @@ cluster_oracle  core-data.json  cluster-          analysis-         Detailed-Ana
 |-------|---------|--------------|
 | 1 | `python -m src.scripts.gather "<URL>"` | Collect data from Jenkins, cluster health audit (6-phase), feature context oracle, and repos; persist kubeconfig. Produces `core-data.json` + `cluster-health.json`. |
 | 1.5 | `cluster-diagnostic` agent (optional) | Deep AI-driven cluster investigation; writes `cluster-diagnosis.json` |
-| 2 | `z-stream-analysis` agent reads core-data.json + cluster-health.json | 5-phase systematic investigation per test (uses health audit + diagnostic data + kubeconfig) |
+| 2 | `z-stream-analysis` agent reads core-data.json + cluster-health.json | 12-layer diagnostic investigation with provably linked grouping (v3.9): groups by strict code-path criteria, traces root cause through infrastructure layers, per-test verification within groups, expanded counterfactual (9 templates), classifies based on WHO caused the breakage |
 | 3 | `python -m src.scripts.report runs/<dir>` | Generate human-readable reports |
 
 ---
@@ -123,7 +123,7 @@ separately in .claude/traces/<session_id>.jsonl — one file per session.
 
 **3-path routing:** **Path A** (selector mismatch → AUTOMATION_BUG), **Path B1** (non-selector timeout → INFRASTRUCTURE, graduated health scoring with definitive/strong/moderate bands) (v3.3), **Path B2** (everything else → JIRA-informed investigation). **PR-4** checks feature knowledge override first (unmet prerequisites, playbook-confirmed failure paths). **D0** checks backend cross-check — if a backend issue caused the UI failure, routes to Path B2 regardless.
 
-**Post-classification validation:** **D4** final validation, **D4b** per-test causal link verification (every test attributed to a dominant pattern must have a documented causal mechanism) (v3.3), **D5** counter-bias validation (3-test threshold rule: if 3+ tests share the same root_cause, at least 1 must be independently re-investigated) (v3.3).
+**Post-classification validation:** **D-V5** counterfactual verification — for every INFRASTRUCTURE based on a cluster-wide issue, verify "would this test pass if the issue were fixed?" using ACM-UI MCP to check official console source (v3.8.1), **D4** final validation, **D4b** per-test causal link verification (every test attributed to a dominant pattern must have a documented causal mechanism) (v3.3), **D5** counter-bias validation (3-test threshold rule: if 3+ tests share the same root_cause, at least 1 must be independently re-investigated) (v3.3).
 
 See [02-STAGE2-AI-ANALYSIS.md](02-STAGE2-AI-ANALYSIS.md) Phase D for the full decision routing with evidence tables and confidence scores.
 
@@ -251,6 +251,8 @@ python -m src.scripts.report <dir> --keep-repos    # Don't delete repos/
 
 | Version | Changes |
 |---------|---------|
+| v3.9 | Provably linked grouping replaces symptom-based grouping in Phase A4 — strict code-path criteria only (same selector+function, same before-all hook, same spec+error+line). Per-test verification within groups (4-point check: code path, backend, role, element). Expanded counterfactual verification (D-V5) with 9 templates (selector, button-disabled, timeout, data-assertion, blank-page, CSS, NetworkPolicy, operator, ResourceQuota) + evidence duplication detection + per-test evidence requirement. New optional schema field: `verification_status`. |
+| v3.8 | 12-layer diagnostic investigation model for root-cause-first classification. Parent agent groups tests (Phase A4), traces root cause through 12 infrastructure layers (Compute → Control Plane → Network → Storage → Config → Auth → RBAC → API → Operator → Cross-Cluster → Data Flow → UI), classifies based on WHO caused the breakage. Investigation agents can be spawned per group for deeper analysis. Phase D-V validates results against PR signals. New schema fields: `root_cause_layer`, `root_cause_layer_name`, `investigation_steps_taken`, `cause_owner`. New knowledge file: `diagnostics/diagnostic-layers.md`. New agent: `investigation-agent.md`. `dependencies.yaml` gains `layers_involved` per chain. Hook matchers changed to catch-all for complete trace coverage. |
 | v3.7 | Automated cluster health audit via `ClusterHealthService` (6-phase: DISCOVER, LEARN, CHECK, COMPARE, CORRELATE, SCORE). Produces `cluster-health.json` with operator health, subsystem health, infrastructure issues, managed cluster status, baseline comparison, and classification guidance. Replaces `EnvironmentValidationService` for Step 4. Oracle Phase 6 skipped (health checks handled by health audit). Knowledge database validated against live ACM 2.16 GA cluster (58 components, 18 addons, 10 dependency chains, 19 webhooks, 34 prerequisites). New `prerequisites.yaml`. Agent instructions updated to read `cluster-health.json` in Phase A-0. |
 | v3.6 | Comprehensive AI-driven cluster diagnostic (Stage 1.5) adapted from ACM Hub Health agent. 6-phase investigation producing `cluster-diagnosis.json`. Knowledge files adapted from hub-health (healthy-baseline, addon-catalog, webhook-registry, diagnostic-traps). |
 | v3.5.1 | External service failure detection, version compatibility constraints, known JIRA bugs cache, ALC repo fallback. |

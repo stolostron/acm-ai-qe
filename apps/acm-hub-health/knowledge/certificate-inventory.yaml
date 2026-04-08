@@ -5,8 +5,8 @@
 # Populated by: refresh.py (oc get secrets -l type=kubernetes.io/tls)
 # Refresh frequency: after ACM version upgrade or cert rotation
 
-acm_version: "2.17"
-last_refreshed: "2026-03-27"
+acm_version: "2.16.0"
+last_refreshed: "2026-04-03"
 
 certificates:
 
@@ -14,12 +14,21 @@ certificates:
   mch_namespace:
     note: "Namespace varies -- discover with oc get mch -A"
     secrets:
+
+      # --- Console ---
       - secret: console-chart-console-certs
         used_by: console-chart-console-v2
         managed_by: service-ca-operator
         rotation: "Automatic by service-ca, ~2 year validity"
         if_corrupted: "Console plugin fails to load. OCP console loses ACM navigation."
 
+      - secret: acm-cli-cert
+        used_by: acm-cli-downloads
+        managed_by: service-ca-operator
+        rotation: "Automatic by service-ca"
+        if_corrupted: "CLI downloads endpoint HTTPS fails. oc/kubectl plugin downloads unavailable."
+
+      # --- Search ---
       - secret: search-api-certs
         used_by: search-api
         managed_by: service-ca-operator
@@ -32,38 +41,188 @@ certificates:
         rotation: "Automatic by service-ca"
         if_corrupted: "Search indexer can't communicate with search-api."
 
+      - secret: search-postgres-certs
+        used_by: search-postgres
+        managed_by: service-ca-operator
+        rotation: "Automatic by service-ca"
+        if_corrupted: "Search postgres TLS fails. search-indexer and search-api cannot connect to database."
+
+      # --- Governance ---
       - secret: propagator-webhook-server-cert
         used_by: grc-policy-propagator
         managed_by: service-ca-operator
         rotation: "Automatic by service-ca"
         if_corrupted: "GRC webhook fails TLS. Policy creation/propagation breaks."
 
-      - secret: multicluster-observability-operator-certs
-        used_by: multicluster-observability-operator
+      - secret: grc-grc-metrics-cert
+        used_by: grc-policy-propagator-metrics
         managed_by: service-ca-operator
         rotation: "Automatic by service-ca"
-        if_corrupted: "Observability operator webhook fails."
+        if_corrupted: "GRC metrics endpoint HTTPS fails. Prometheus scraping breaks for governance metrics."
 
+      # --- App-Lifecycle ---
+      - secret: channels-apps-open-cluster-management-webhook-svc-ca
+        used_by: multicluster-operators-channel (webhook CA)
+        managed_by: multicluster-operators-channel (self-signed CA)
+        rotation: "Managed by channel operator"
+        if_corrupted: "Channel webhook CA invalid. Channel create/update validation fails."
+
+      - secret: channels-apps-open-cluster-management-webhook-svc-signed-ca
+        used_by: multicluster-operators-channel (webhook serving cert)
+        managed_by: multicluster-operators-channel (signed by svc-ca)
+        rotation: "Managed by channel operator"
+        if_corrupted: "Channel webhook serving cert invalid. Channel validation webhook rejects connections."
+
+      - secret: multicluster-operators-application-svc-ca
+        used_by: multicluster-operators-application (webhook CA)
+        managed_by: multicluster-operators-application (self-signed CA)
+        rotation: "Managed by application operator"
+        if_corrupted: "Application webhook CA invalid. Application create/update validation fails."
+
+      - secret: multicluster-operators-application-svc-signed-ca
+        used_by: multicluster-operators-application (webhook serving cert)
+        managed_by: multicluster-operators-application (signed by svc-ca)
+        rotation: "Managed by application operator"
+        if_corrupted: "Application webhook serving cert invalid. Application validation webhook rejects connections."
+
+      - secret: multicluster-operators-subscription
+        used_by: multicluster-operators-hub-subscription
+        managed_by: service-ca-operator
+        rotation: "Automatic by service-ca"
+        if_corrupted: "Subscription operator TLS fails. Subscription webhook and metrics endpoint unavailable."
+
+      # --- Observability ---
+      - secret: multicluster-observability-operator-webhook-server-cert
+        used_by: multicluster-observability-webhook-service
+        managed_by: service-ca-operator
+        rotation: "Automatic by service-ca"
+        if_corrupted: "Observability operator webhook fails. MCO configuration changes not validated."
+        note: "Replaces multicluster-observability-operator-certs in 2.16+"
+
+      # --- Virtualization ---
+      - secret: mtv-plan-webhook-server-cert
+        used_by: mtv-plan-webhook-service
+        managed_by: service-ca-operator
+        rotation: "Automatic by service-ca"
+        if_corrupted: "MTV plan webhook TLS fails. Migration plan creation/validation breaks."
+        note: "Only present when cnv-mtv-integrations is enabled"
+
+      # --- MCH Operator ---
       - secret: multiclusterhub-operator-webhook
         used_by: multiclusterhub-operator
         managed_by: service-ca-operator
         rotation: "Automatic by service-ca"
         if_corrupted: "MCH webhook rejects configuration changes."
 
+      # --- Infrastructure (Insights) ---
+      - secret: insights-client-certs
+        used_by: insights-client
+        managed_by: service-ca-operator
+        rotation: "Automatic by service-ca"
+        if_corrupted: "Insights client HTTPS fails. Red Hat Insights telemetry stops."
+
+      - secret: insights-metrics-certs
+        used_by: insights-metrics
+        managed_by: service-ca-operator
+        rotation: "Automatic by service-ca"
+        if_corrupted: "Insights metrics endpoint HTTPS fails. Prometheus scraping breaks for insights."
+
+      # --- SiteConfig ---
+      - secret: siteconfig-metrics-server-cert
+        used_by: siteconfig-controller-manager (metrics endpoint)
+        managed_by: service-ca-operator
+        rotation: "Automatic by service-ca"
+        if_corrupted: "SiteConfig metrics endpoint HTTPS fails."
+        note: "Only present when siteconfig is enabled"
+
+      - secret: siteconfig-webhook-server-cert
+        used_by: siteconfig-controller-manager (webhook endpoint)
+        managed_by: service-ca-operator
+        rotation: "Automatic by service-ca"
+        if_corrupted: "SiteConfig webhook TLS fails. ClusterInstance validation breaks. ZTP provisioning blocked."
+        note: "Only present when siteconfig is enabled"
+
   # MCE namespace certificates
   multicluster-engine:
     secrets:
-      - secret: managedcluster-import-controller-webhook-certs
-        used_by: managedcluster-import-controller
-        managed_by: service-ca-operator
-        rotation: "Automatic"
-        if_corrupted: "Cluster import webhook fails. New cluster imports rejected."
 
-      - secret: foundation-controller-webhook-certs
-        used_by: foundation-controller
+      # --- Console (MCE plugin) ---
+      - secret: console-mce-console-certs
+        used_by: console-mce-console
         managed_by: service-ca-operator
-        rotation: "Automatic"
-        if_corrupted: "Foundation webhook fails."
+        rotation: "Automatic by service-ca"
+        if_corrupted: "MCE console plugin fails to load. Infrastructure and Credentials tabs disappear from OCP console."
+
+      # --- Cluster Lifecycle ---
+      - secret: managedcluster-import-agent-registration-serving-cert
+        used_by: agent-registration service
+        managed_by: service-ca-operator
+        rotation: "Automatic by service-ca"
+        if_corrupted: "Agent registration TLS fails. Managed cluster registration breaks."
+
+      - secret: clusterlifecycle-state-metrics-certs
+        used_by: clusterlifecycle-state-metrics-v2
+        managed_by: service-ca-operator
+        rotation: "Automatic by service-ca"
+        if_corrupted: "Cluster lifecycle metrics endpoint HTTPS fails. Prometheus scraping breaks."
+
+      # --- Discovery ---
+      - secret: discovery-operator-webhook-service
+        used_by: discovery-operator (webhook endpoint)
+        managed_by: service-ca-operator
+        rotation: "Automatic by service-ca"
+        if_corrupted: "Discovery operator webhook TLS fails. DiscoveredCluster validation breaks."
+
+      # --- MCE Operator ---
+      - secret: multicluster-engine-operator-webhook
+        used_by: multicluster-engine-operator-webhook-service
+        managed_by: service-ca-operator
+        rotation: "Automatic by service-ca"
+        if_corrupted: "MCE operator webhook TLS fails. MCE configuration changes rejected."
+
+      # --- OCM Hub (registration/work) ---
+      - secret: ocm-webhook
+        used_by: ocm-webhook
+        managed_by: service-ca-operator
+        rotation: "Automatic by service-ca"
+        if_corrupted: "OCM validation webhook TLS fails. OCM resource validation breaks."
+
+      - secret: ocm-proxyserver
+        used_by: ocm-proxyserver
+        managed_by: service-ca-operator
+        rotation: "Automatic by service-ca"
+        if_corrupted: "OCM proxy server TLS fails. Aggregated API requests to managed clusters fail."
+
+      # --- Cluster Proxy ---
+      - secret: cluster-proxy-user-serving-cert
+        used_by: cluster-proxy-addon-user
+        managed_by: service-ca-operator
+        rotation: "Automatic by service-ca"
+        if_corrupted: "Cluster proxy user-facing TLS fails. Proxy access to spoke API unavailable."
+
+      - secret: cluster-proxy-service-proxy-server-cert
+        used_by: cluster-proxy (internal proxy server)
+        managed_by: cluster-proxy operator
+        rotation: "Managed by cluster-proxy operator"
+        if_corrupted: "Cluster proxy internal TLS fails. All proxy connections to spoke clusters break."
+
+      - secret: proxy-client
+        used_by: cluster-proxy (client cert for spoke connections)
+        managed_by: cluster-proxy operator
+        rotation: "Managed by cluster-proxy operator"
+        if_corrupted: "Proxy client authentication fails. Hub cannot establish proxy tunnels to spokes."
+
+      - secret: proxy-server
+        used_by: cluster-proxy (server cert for spoke tunnels)
+        managed_by: cluster-proxy operator
+        rotation: "Managed by cluster-proxy operator"
+        if_corrupted: "Proxy server TLS fails. Spoke clusters cannot establish tunnel to hub."
+
+      - secret: agent-server
+        used_by: cluster-proxy (agent server for spoke agents)
+        managed_by: cluster-proxy operator
+        rotation: "Managed by cluster-proxy operator"
+        if_corrupted: "Agent server TLS fails. Spoke proxy agents cannot connect to hub."
 
   # Hub namespace certificates
   open-cluster-management-hub:
@@ -80,21 +239,57 @@ certificates:
         rotation: "Automatic"
         if_corrupted: "ManifestWork webhook fails. Addon/workload delivery breaks."
 
+      - secret: addon-webhook-serving-cert
+        used_by: cluster-manager-addon-webhook (addon validation)
+        managed_by: cluster-manager operator
+        rotation: "Managed by cluster-manager"
+        if_corrupted: "Addon webhook TLS fails. ManagedClusterAddon validation breaks."
+
+      - secret: signer-secret
+        used_by: cluster-manager (root signing key)
+        managed_by: cluster-manager operator
+        rotation: "Managed by cluster-manager"
+        if_corrupted: "Registration signer key invalid. New cluster certificate signing fails. Critical -- affects all new cluster registrations."
+
   # Observability namespace certificates
   open-cluster-management-observability:
     note: "Only present when observability is enabled"
     secrets:
-      - secret: observability-server-certs
-        used_by: thanos-query, thanos-receive
-        managed_by: observability-operator
-        rotation: "Managed by observability-operator"
-        if_corrupted: "Thanos components can't communicate. All observability fails."
+      - secret: alertmanager-tls
+        used_by: observability-alertmanager
+        managed_by: service-ca-operator
+        rotation: "Automatic by service-ca"
+        if_corrupted: "Alertmanager HTTPS fails. Alert routing and notification breaks."
 
-      - secret: observability-grafana-certs
-        used_by: grafana
-        managed_by: observability-operator
-        rotation: "Managed by observability-operator"
-        if_corrupted: "Grafana HTTPS fails."
+      - secret: alertmanager-tls-metrics
+        used_by: observability-alertmanager (metrics endpoint)
+        managed_by: service-ca-operator
+        rotation: "Automatic by service-ca"
+        if_corrupted: "Alertmanager metrics endpoint HTTPS fails."
+
+      - secret: grafana-tls
+        used_by: observability-grafana
+        managed_by: service-ca-operator
+        rotation: "Automatic by service-ca"
+        if_corrupted: "Grafana HTTPS fails. Observability dashboards inaccessible."
+
+      - secret: metrics-collector-kube-rbac-tls
+        used_by: metrics-collector (kube-rbac-proxy sidecar)
+        managed_by: service-ca-operator
+        rotation: "Automatic by service-ca"
+        if_corrupted: "Metrics collector RBAC proxy fails. Hub-side metric collection breaks."
+
+      - secret: rbac-proxy-certs
+        used_by: observability-rbac-query-proxy
+        managed_by: service-ca-operator
+        rotation: "Automatic by service-ca"
+        if_corrupted: "RBAC query proxy HTTPS fails. Grafana cannot query Thanos with RBAC enforcement."
+
+      - secret: uwl-metrics-collector-kube-rbac-tls
+        used_by: uwl-metrics-collector (user workload metrics)
+        managed_by: service-ca-operator
+        rotation: "Automatic by service-ca"
+        if_corrupted: "User workload metrics collector RBAC proxy fails. User workload metrics not collected."
 
   # Hive namespace certificates
   hive:
@@ -109,6 +304,7 @@ certificate_check_commands:
   list_tls_secrets: "oc get secrets -n {namespace} -o json | jq -r '.items[] | select(.type==\"kubernetes.io/tls\") | .metadata.name'"
   check_expiry: "oc get secret {secret} -n {namespace} -o jsonpath='{.data.tls\\.crt}' | base64 -d | openssl x509 -noout -enddate"
   check_issuer: "oc get secret {secret} -n {namespace} -o jsonpath='{.data.tls\\.crt}' | base64 -d | openssl x509 -noout -issuer"
+  check_service_ca_annotation: "oc get secret {secret} -n {namespace} -o jsonpath='{.metadata.annotations.service\\.beta\\.openshift\\.io/originating-service-name}'"
 
 common_cert_issues:
   - issue: "service-ca-operator not rotating"
@@ -123,3 +319,8 @@ common_cert_issues:
   - issue: "Webhook CA bundle stale after rotation"
     symptom: "Webhook rejects requests with x509 errors after cert rotation"
     resolution: "service-ca-operator should update the caBundle annotation. Check if the inject-cabundle annotation is present on the webhook config."
+
+  - issue: "Operator-managed certs not rotating"
+    symptom: "Certs without service-ca annotations expire without renewal"
+    check: "oc get secret {secret} -n {namespace} -o jsonpath='{.metadata.annotations}' | grep service"
+    resolution: "Certs managed by operators (cluster-proxy, cluster-manager) rely on that operator for rotation. Check the managing operator is running and healthy."

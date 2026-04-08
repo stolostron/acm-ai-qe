@@ -7,6 +7,8 @@ an issue, trace UPSTREAM through the relevant chain to find the root cause.
 
 ## Chain 1: Console -> Search -> Managed Clusters
 
+**Layers spanned:** 12 (UI) → 11 (data flow) → 9 (operators) → 4 (storage) → 3 (network) → 10 (cross-cluster)
+
 ```
 Console UI (VM page, search page, RBAC resource views)
   <- depends on ->
@@ -40,6 +42,8 @@ blank, and search page is broken.
 
 ## Chain 2: Governance -> Framework Addon -> Config Policy -> Managed Clusters
 
+**Layers spanned:** 9 (operators) → 10 (cross-cluster) → 7 (RBAC) → 11 (data flow)
+
 ```
 Hub: Policy + PlacementBinding + Placement
   <- propagated by ->
@@ -71,6 +75,8 @@ If Status Sync can't reach hub, compliance appears stale.
 ---
 
 ## Chain 3: MCH Operator -> Backplane Operator -> Component Operators
+
+**Layers spanned:** 9 (operators) → 5 (configuration/OLM) → 8 (CRDs)
 
 ```
 OLM (Subscription + CSV)
@@ -113,6 +119,8 @@ root cause chain -- a failure here affects everything.
 
 ## Chain 4: HyperShift Addon -> Import Controller -> Klusterlet
 
+**Layers spanned:** 9 (operators) → 10 (cross-cluster) → 6 (auth/registration)
+
 ```
 HostedCluster CR (user creates)
   <- managed by ->
@@ -143,6 +151,8 @@ the hosted cluster namespace, killing the HostedCluster CR (ACM-15018).
 ---
 
 ## Chain 5: MCRA Operator -> ClusterPermission -> ManifestWork -> Spoke RBAC
+
+**Layers spanned:** 9 (operators) → 7 (RBAC) → 10 (cross-cluster) → 12 (UI)
 
 ```
 MultiClusterRoleAssignment (user creates via RBAC wizard)
@@ -176,6 +186,8 @@ User doesn't get expected permissions, VM pages empty, RBAC-filtered views blank
 ---
 
 ## Chain 6: Observability Operator -> Addon -> Prometheus -> Thanos
+
+**Layers spanned:** 9 (operators) → 10 (cross-cluster) → 4 (storage/S3) → 11 (data flow) → 12 (UI/Grafana)
 
 ```
 MultiClusterObservability CR (configuration)
@@ -211,6 +223,8 @@ If thanos-query is down, Grafana dashboards show no data.
 
 ## Chain 7: Addon Manager -> Addon Framework -> Spoke Addon Pods
 
+**Layers spanned:** 9 (operators) → 10 (cross-cluster) → 3 (network/connectivity)
+
 ```
 addon-manager (hub MCE namespace)
   <- deploys ->
@@ -238,6 +252,8 @@ If it's down, no addons deploy to any spoke. New clusters import successfully
 ---
 
 ## Chain 8: StorageClass -> CSI Driver -> PV -> PVC -> Pod
+
+**Layers spanned:** 4 (storage) → 1 (compute) → 9 (operators/StatefulSets)
 
 ```
 StorageClass (cluster-scoped config)

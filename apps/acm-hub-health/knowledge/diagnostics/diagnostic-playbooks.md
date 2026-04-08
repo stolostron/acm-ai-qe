@@ -442,3 +442,226 @@ webhook failures.
    oc get clustermanagementaddons
    ```
    This is the hub-side definition of available addons.
+
+---
+
+## Networking / Submariner
+
+**When to use**: Cross-cluster communication failing, Submariner gateway
+not establishing tunnels, service discovery broken, or
+`.clusterset.local` DNS not resolving.
+
+**Investigation steps**:
+
+1. Check if Submariner addon is deployed on target clusters
+   ```
+   oc get managedclusteraddon -A | grep submariner
+   oc get clustermanagementaddon submariner
+   ```
+
+2. Check submariner-addon controller on hub (use the MCH namespace
+   discovered in Phase 1)
+   ```
+   oc get pods -n <mch-namespace> -l app=submariner-addon
+   oc logs -n <mch-namespace> -l app=submariner-addon --tail=50
+   ```
+
+3. Check Submariner Broker on hub
+   ```
+   oc get broker -A
+   ```
+   The Broker must exist in the ManagedClusterSet namespace.
+
+4. Check SubmarinerConfig for the cluster
+   ```
+   oc get submarinerconfigs -A
+   ```
+   If SubmarinerConfig is missing, Submariner may not be configured
+   for the cluster even if the addon is deployed.
+
+5. Check gateway node labeling
+   ```
+   oc get nodes -l submariner.io/gateway=true
+   ```
+   At least one node per cluster must be labeled as gateway.
+
+6. Check Submariner CRDs for tunnel status (if spoke access available)
+   ```
+   oc get gateways.submariner.io -A
+   oc get endpoints.submariner.io -A
+   oc get clusters.submariner.io -A
+   ```
+   Gateways should show `Connected`. Endpoints should exist for
+   each participating cluster.
+
+7. Check OCP version compatibility
+   ```
+   oc get clusterversion version -o jsonpath='{.status.desired.version}'
+   ```
+   OCP 4.18+ OVN-Kubernetes changes can break Submariner gateway.
+   OCP 4.20+ has additional transit switch mode issues.
+   Cross-reference with `version-constraints.yaml`.
+
+8. Check service discovery components (if cross-cluster DNS failing)
+   ```
+   oc get servicediscoveries.submariner.io -A
+   ```
+   If Lighthouse is not deployed, `.clusterset.local` DNS won't resolve.
+   Check ServiceExport/ServiceImport CRs for specific services.
+
+---
+
+## RBAC / Fine-Grained User Management
+
+**When to use**: Users cannot see resources they should have access to,
+User Management tab missing or empty, ClusterPermission not propagating
+to spokes.
+
+**Investigation steps**:
+
+1. Check if fine-grained RBAC is enabled
+   ```
+   oc get mch -A -o yaml | grep -A2 'cluster-permission'
+   ```
+   Fine-grained RBAC must be enabled in MCH spec.overrides.components.
+
+2. Check MCRA (Multicluster Role Assignment) controller
+   ```
+   oc get pods -n <mch-namespace> -l app=multicluster-role-assignment-controller
+   oc logs -n <mch-namespace> -l app=multicluster-role-assignment-controller --tail=50
+   ```
+   Look for conflict errors (concurrent update conflicts are common,
+   ACM-19577) or reconciliation failures.
+
+3. Check ClusterPermission CRs
+   ```
+   oc get clusterpermissions -A --no-headers | wc -l
+   oc get clusterpermissions -A | head -20
+   ```
+   ClusterPermissions should exist for managed clusters with RBAC rules.
+
+4. Check acm-roles addon on spokes
+   ```
+   oc get managedclusteraddons -A | grep acm-roles
+   ```
+   If acm-roles addon is not Available, spoke-side RBAC won't be
+   enforced.
+
+5. Check cluster-permission controller
+   ```
+   oc get pods -n <mch-namespace> -l app=cluster-permission
+   oc logs -n <mch-namespace> -l app=cluster-permission --tail=50
+   ```
+   Look for OOM, hot-loop, or permission propagation errors.
+
+6. Check console RBAC endpoints (if UI displaying incorrectly)
+   ```
+   oc logs -n <mch-namespace> -l app=console-chart-console-v2 --tail=50 | grep -i rbac
+   ```
+   Console uses search-api for resource views -- check search-api
+   health if RBAC pages show no data (see Trap 8).
+
+---
+
+## Addon Framework -- Deep Investigation
+
+**When to use**: Mass addon failures across clusters, addon-manager
+suspected as root cause, or ManifestWork delivery issues affecting
+multiple addons simultaneously.
+
+**Investigation steps**:
+
+1. Check addon-manager pod health and logs
+   ```
+   oc get pods -n open-cluster-management-hub -l app=clustermanager-addon-manager-controller
+   oc logs -n open-cluster-management-hub -l app=clustermanager-addon-manager-controller --tail=100
+   ```
+   Look for: OOMKilled (exit code 137), reconciliation errors,
+   ManifestWork generation failures. High restart count = instability.
+
+2. Check ClusterManagementAddon registrations
+   ```
+   oc get clustermanagementaddons --no-headers | wc -l
+   ```
+   Expected: 17 on ACM 2.16. If fewer, some addons weren't registered
+   (possible upgrade race condition, known-issues #6).
+
+3. Check ManifestWork status for affected clusters
+   ```
+   oc get manifestwork -n <cluster> | grep addon
+   ```
+   Each addon should have a ManifestWork named `addon-<name>-deploy-0`.
+   Check ManifestWork status conditions for Apply errors.
+
+4. Check work-agent on affected spokes (if spoke access available)
+   ```
+   oc get pods -n open-cluster-management-agent -l app=work-agent
+   ```
+   If work-agent is down on a spoke, no ManifestWork is applied there.
+
+5. Check for stuck finalizers
+   ```
+   oc get managedclusteraddons -A -o json | jq '.items[] | select(.metadata.deletionTimestamp != null) | {name: .metadata.name, namespace: .metadata.namespace, finalizers: .metadata.finalizers}'
+   ```
+   Stuck finalizers indicate pre-delete task failures (known-issues #3).
+
+6. Verify addon-framework dependency chain
+   - addon-manager depends on: klusterlet connectivity, work-agent,
+     MCE operator
+   - Check these upstream dependencies before concluding addon-manager
+     is the problem
+   - Cross-reference: `dependency-chains.md` chain 7 (addon delivery)
+
+---
+
+## Hive / Cluster Provisioning
+
+**When to use**: Cluster creation stuck, provision jobs failing,
+ClusterDeployment not progressing, or cluster deletion hanging.
+
+**Investigation steps**:
+
+1. Check Hive operator and controllers
+   ```
+   oc get pods -n hive --no-headers
+   oc get deploy -n multicluster-engine hive-operator
+   ```
+   Hive operator deploys controllers into the `hive` namespace.
+
+2. Check ClusterDeployment status
+   ```
+   oc get clusterdeployments -A
+   oc get clusterdeployment <name> -n <ns> -o yaml
+   ```
+   Look at `.status.conditions` for `ProvisionFailed`,
+   `InstallLaunchError`, or `DNSNotReady`.
+
+3. Check provision jobs
+   ```
+   oc get pods -n <cluster-ns> | grep provision
+   oc logs -n <cluster-ns> <provision-pod> --tail=100
+   ```
+   Provision pods run the OpenShift installer. Check for cloud
+   credential errors, quota exhaustion, or DNS failures.
+
+4. Check cloud credential secrets
+   ```
+   oc get secret -n <cluster-ns> | grep cred
+   ```
+   Invalid or expired cloud credentials are a common cause of
+   provision failures.
+
+5. Check Hive webhook (critical for all cluster operations)
+   ```
+   oc get validatingwebhookconfiguration | grep hive
+   ```
+   If the Hive webhook service is unreachable, ALL ClusterDeployment
+   create/update/delete operations fail (see Trap 10).
+
+6. For deletion issues, check finalizers
+   ```
+   oc get clusterdeployment <name> -n <ns> -o jsonpath='{.metadata.finalizers}'
+   ```
+   ClusterDeployment with `hive.openshift.io/deprovision` finalizer
+   runs a deprovision job. If the job fails (cloud creds expired),
+   the deletion hangs.

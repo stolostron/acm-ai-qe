@@ -10,24 +10,34 @@ provide clear, actionable findings.
 The agent operates in two modes. Diagnosis is always read-only. Remediation
 happens only after presenting all findings and getting explicit user approval.
 
-### Diagnostic Mode (Read-Only, Always Active)
+### Diagnostic Mode (Read-Only, Always Auto-Approved)
 
 During Phases 1-6, the agent MUST NOT modify the cluster. All diagnostic
-commands are read-only and auto-approved:
+commands are read-only and auto-approved via `.claude/settings.json` --
+the user should NEVER be prompted for permission during diagnosis:
 
-`oc get`, `oc describe`, `oc logs`, `oc api-resources`, `oc version`,
-`oc whoami`, `oc cluster-info`, `oc adm top`, `oc exec` (read-only: psql
-queries, connectivity checks), `oc auth` (can-i checks), `kubectl get`,
-`kubectl describe`, `jq`, `grep`, `wc`, `sort`, `head`, `tail`, `awk`,
-`cut`, `cat`, `ls`, `find`, `git clone` (documentation repos only)
+**Auto-approved Bash commands**: `oc get`, `oc describe`, `oc logs`,
+`oc api-resources`, `oc version`, `oc whoami`, `oc cluster-info`,
+`oc adm top`, `oc exec` (read-only: psql queries, connectivity checks),
+`oc auth` (can-i checks), `kubectl get`, `kubectl describe`, `jq`,
+`grep`, `wc`, `sort`, `head`, `tail`, `awk`, `cut`, `cat`, `ls`, `find`,
+`git clone` (documentation repos only), `python3`/`python` (data processing)
 
-### Remediation Mode (Requires Explicit Approval)
+**Auto-approved tools**: `Read`, `Glob`, `Grep`, `Agent`,
+`Write(knowledge/learned/*)`, `Edit(knowledge/learned/*)`,
+`mcp__acm-ui__*`, `mcp__neo4j-rhacm__*`
+
+### Remediation Mode (Always Requires Permission)
 
 After diagnosis is complete and all findings are presented, the agent MAY
 offer to fix cluster-fixable issues. The agent MUST follow the Remediation
 Protocol below -- no exceptions.
 
-**Remediation commands** (only after user approval):
+Remediation commands are NOT auto-approved. Claude Code will prompt the
+user for permission on each mutation command, providing an additional
+safety layer on top of the Remediation Protocol's plan-approval flow.
+
+**Remediation commands** (each prompts for permission):
 `oc patch`, `oc scale`, `oc rollout restart`, `oc delete pod` (restart),
 `oc annotate`, `oc label`, `oc apply`
 
@@ -123,11 +133,13 @@ Deep engineering-level knowledge about each ACM subsystem:
 - `kubernetes-fundamentals.md` -- K8s primitives ACM is built on
 - `acm-platform.md` -- MCH/MCE hierarchy, operator lifecycle, addon framework
 - Per-component directories with `architecture.md`, `data-flow.md`, and
-  `known-issues.md` for: search, governance, observability, cluster-lifecycle,
-  console, application-lifecycle, virtualization, rbac
-- Additional component directories: addon-framework (architecture only),
-  networking and infrastructure (architecture + known-issues +
-  post-upgrade-patterns)
+  `known-issues.md` for: search, governance, observability, console,
+  application-lifecycle, virtualization, rbac, automation, addon-framework,
+  networking
+- cluster-lifecycle: architecture + data-flow + known-issues +
+  `health-patterns.md` (hub-side managed cluster diagnostic patterns)
+- infrastructure: architecture + data-flow + known-issues +
+  `post-upgrade-patterns.md` (upgrade settling behavior)
 
 ### Structured Operational Data (`knowledge/*.yaml`)
 
@@ -143,6 +155,8 @@ Quantitative reference data for comparing cluster state against known-good value
   who manages rotation, and impact when corrupted.
 - `addon-catalog.yaml` -- All managed cluster addons, deployment expectations,
   health checks, and dependencies between addons.
+- `version-constraints.yaml` -- Known product version incompatibilities that
+  affect hub health. Cross-reference during Phase 4 for version-aware matching.
 
 ### Cross-Cutting Knowledge (`knowledge/`)
 
@@ -153,10 +167,12 @@ Top-level references spanning all components:
 ### Diagnostic Knowledge (`knowledge/diagnostics/`)
 
 Health-check-specific methodology:
+- `diagnostic-layers.md` -- 12-layer investigation framework for systematic
+  root cause tracing (vertical layer tracing complements horizontal chains)
 - `dependency-chains.md` -- 8 critical cascade paths with tracing procedures
 - `evidence-tiers.md` -- How to weight evidence (Tier 1/2/3, combination rules)
 - `diagnostic-playbooks.md` -- Per-subsystem investigation procedures
-- `common-diagnostic-traps.md` -- 8 patterns where the obvious diagnosis is wrong
+- `common-diagnostic-traps.md` -- 13 patterns where the obvious diagnosis is wrong
 
 ### Learned Knowledge (`knowledge/learned/`)
 
@@ -348,50 +364,112 @@ Build understanding of what's deployed and what healthy looks like:
    c. Compare the cluster's actual state with the knowledge
 4. Read `knowledge/healthy-baseline.yaml` -- load expected pod counts,
    deployment states, and conditions to use as the reference in Phase 3.
-5. Read `knowledge/diagnostics/common-diagnostic-traps.md` -- load the 8
+5. Read `knowledge/diagnostics/common-diagnostic-traps.md` -- load the 13
    diagnostic traps so you can avoid common misdiagnoses in later phases.
 6. If managed clusters are present, read
    `knowledge/architecture/cluster-lifecycle/health-patterns.md` -- hub-side
    managed cluster diagnostic patterns.
+7. Read `knowledge/diagnostics/diagnostic-layers.md` -- understand the
+   12-layer investigation framework. Use it in Phase 3 for systematic
+   health checking (foundational layers first) and in Phase 5 for
+   vertical root cause tracing.
 
 If there's a mismatch between knowledge and cluster topology, trigger
 self-healing (see above).
 
 ### Phase 3: Check (Standard+)
 
-Systematically verify health against the knowledge baseline. Two levels:
+Systematically verify health layer by layer. Lower layers affect
+everything above them -- check bottom-up to find root causes before
+checking symptoms. See `knowledge/diagnostics/diagnostic-layers.md`
+for the full per-layer reference.
 
-**Pod-level checks** (batch by namespace):
-```
-oc get pods -n <mch-ns> --field-selector=status.phase!=Running,status.phase!=Succeeded
-oc get pods -n multicluster-engine --field-selector=status.phase!=Running,status.phase!=Succeeded
-oc get pods -n open-cluster-management-hub --field-selector=status.phase!=Running,status.phase!=Succeeded
-oc get pods -n open-cluster-management-observability 2>/dev/null
-oc get pods -n hive --no-headers
-oc get managedclusteraddons -A
-```
+**FOUNDATIONAL LAYERS (check first -- affect everything):**
 
-**Infrastructure guard checks** (run alongside pod checks):
+Layers 1-2 (Compute + Control Plane) are already checked in Phase 1.
+Review findings: all nodes Ready? Control plane operators Available?
+Any resource pressure? If any foundational issue exists, it likely
+explains MOST other findings.
+
+Layer 3 (Network + Infrastructure Guards):
 ```
 oc get networkpolicy -n <mch-ns> --no-headers 2>/dev/null
 oc get networkpolicy -n multicluster-engine --no-headers 2>/dev/null
 oc get resourcequota -n <mch-ns> --no-headers 2>/dev/null
 oc get resourcequota -n multicluster-engine --no-headers 2>/dev/null
 ```
-ACM does not create NetworkPolicies or ResourceQuotas by default. Any found
-in ACM namespaces is suspicious: NetworkPolicies can silently block pod-to-pod
-communication; ResourceQuotas can block pod scheduling. Flag for investigation.
+ACM does NOT create NetworkPolicies or ResourceQuotas by default. Any
+found in ACM namespaces is suspicious and must be investigated BEFORE
+pod health checks -- a NetworkPolicy can make pods appear healthy
+(Running, 0 restarts) while being completely non-functional (Trap 11).
+A ResourceQuota can silently prevent pod recreation (Trap 9).
 
-**Image integrity check** (console is the highest-value target):
+Layer 4 (Storage):
+```
+oc get pvc -n <mch-ns>
+oc get pvc -n open-cluster-management-observability 2>/dev/null
+```
+All PVCs must be Bound. Check search-postgres data integrity:
+```
+oc exec deploy/search-postgres -n <mch-ns> -- \
+  psql -U searchuser -d search -c "SELECT count(*) FROM search.resources" 2>&1
+```
+
+**COMPONENT LAYERS (check after foundational):**
+
+Layer 5 (Configuration):
+Review MCH component toggles from Phase 1. If a feature is completely
+absent (no pods, no CRDs), verify it's intentionally disabled via
+`.spec.overrides.components` before reporting as broken.
+
+Layers 6-8 (Auth, RBAC, API/Webhook) -- check if relevant:
+- Layer 6: If TLS or certificate errors surfaced, check against
+  `knowledge/certificate-inventory.yaml`. Check for pending CSRs.
+- Layer 7: If user permission issues detected, check RBAC bindings.
+- Layer 8: If resource creation/update rejected, check webhooks against
+  `knowledge/webhook-registry.yaml` and failure policies.
+
+Layer 9 (Operators + Pod Health):
+```
+oc get pods -n <mch-ns> --field-selector=status.phase!=Running,status.phase!=Succeeded
+oc get pods -n multicluster-engine --field-selector=status.phase!=Running,status.phase!=Succeeded
+oc get pods -n open-cluster-management-hub --field-selector=status.phase!=Running,status.phase!=Succeeded
+oc get pods -n open-cluster-management-observability 2>/dev/null
+oc get pods -n hive --no-headers
+```
+Compare against `knowledge/healthy-baseline.yaml` expected pod counts.
+Verify operator deployment replicas (MCH operator, MCE operator).
+Interpret pod health in context of Layer 3 findings -- if a
+NetworkPolicy or ResourceQuota was found, pods may LOOK healthy but
+be non-functional or unable to restart.
+
+Layer 10 (Cross-Cluster):
+```
+oc get managedclusteraddons -A
+```
+Compare addon health against `knowledge/addon-catalog.yaml`. If ALL
+addons are Unavailable on ALL clusters, check addon-manager pod at
+Layer 9 first (Trap 7) -- not individual addons.
+
+**APPLICATION LAYERS (check last):**
+
+Layer 11 (Data Flow):
+Only if Layer 9 shows pods healthy but features are not working.
+Verify data is flowing correctly through the component's data-flow.md.
+
+Layer 12 (UI / Plugin):
+```
+oc get consoleplugins
+```
+Console image integrity:
 ```
 oc get deploy console-chart-console-v2 -n <mch-ns> -o jsonpath='{.spec.template.spec.containers[0].image}'
 ```
-Compare against expected image patterns in `healthy-baseline.yaml`. Flag if:
-- Image is from a personal registry (e.g., `quay.io/<username>/`)
-- Image is not digest-pinned (uses `:tag` instead of `@sha256:`)
-- Image prefix doesn't match expected patterns
+Compare against expected image patterns in `healthy-baseline.yaml`.
+Flag if image is from a personal registry, not digest-pinned, or
+doesn't match expected patterns.
 
-**Compare against knowledge baselines:**
+**Compare against knowledge baselines** (cross-cutting, all layers):
 - `knowledge/healthy-baseline.yaml` -- Compare observed pod counts,
   deployment states, and conditions against expected values. Any gap
   between expected and actual is a finding.
@@ -431,26 +509,42 @@ oc get mch -A -o jsonpath='{.items[0].status.currentVersion}'
 oc get csv -n multicluster-engine -o jsonpath='{.items[0].spec.version}'
 ```
 Many bugs are version-specific. A bug in 2.15.0 may be fixed in 2.15.1.
+Cross-reference against `knowledge/version-constraints.yaml` for known
+version incompatibilities (e.g., AAP 2.5+ with ACM ≤2.13, Submariner
+with OCP 4.18+, ClusterCurator with OCP 4.21+).
 
 ### Phase 5: Correlate (Deep)
 
 When multiple issues are found:
-1. Read `knowledge/diagnostics/dependency-chains.md` -- trace upstream
-   through the 8 chains to find the root cause
-2. Use `knowledge/dependency-chains.yaml` for structured chain lookups
+1. Read `knowledge/diagnostics/dependency-chains.md` -- trace HORIZONTAL
+   chains upstream to find root causes within a subsystem
+2. **Trace VERTICALLY through diagnostic layers** -- If multiple
+   components show symptoms, identify the LOWEST affected layer across
+   all findings. A Layer 3 issue (NetworkPolicy) manifests as Layer 11
+   symptoms (empty data) which appear as Layer 12 symptoms (empty UI).
+   Fixing Layer 3 resolves all layers above.
+   Cross-reference findings from Phase 3:
+   - Which layer did each finding come from?
+   - Is there a pattern? (multiple findings at the same layer → likely
+     a single root cause at that layer)
+   - Is there a cascade? (findings at Layers 3, 11, and 12 → root
+     cause at Layer 3, others are symptoms)
+   See `knowledge/diagnostics/diagnostic-layers.md` for the vertical
+   tracing procedure and layer-to-trap mapping.
+3. Use `knowledge/dependency-chains.yaml` for structured chain lookups
    (machine-readable complement with impact descriptions and cross-chain patterns)
-3. **Cluster introspection fallback** -- If the affected component is not
+4. **Cluster introspection fallback** -- If the affected component is not
    in the curated chains, reverse-engineer its dependencies from live
    cluster metadata (owner refs, env vars, webhooks, CSVs -- see
    "Cluster Introspection Sources" in the Self-Healing section).
-4. **Knowledge graph fallback** -- Cross-reference with `neo4j-rhacm` MCP
+5. **Knowledge graph fallback** -- Cross-reference with `neo4j-rhacm` MCP
    to supplement the cluster-derived map with broader ACM relationships.
    For discovered dependencies not in the knowledge database, use
    `acm-ui` MCP to understand how they work (source code, data flow).
-5. Read `knowledge/diagnostics/evidence-tiers.md` -- weight your evidence
-6. Apply cross-chain patterns: is a shared dependency (klusterlet, storage,
+6. Read `knowledge/diagnostics/evidence-tiers.md` -- weight your evidence
+7. Apply cross-chain patterns: is a shared dependency (klusterlet, storage,
    addon-manager) the common cause?
-7. Before finalizing any diagnosis, verify your conclusion does not match
+8. Before finalizing any diagnosis, verify your conclusion does not match
    a known diagnostic trap in `knowledge/diagnostics/common-diagnostic-traps.md`
 
 **Evidence requirements** (from evidence-tiers.md):
@@ -469,6 +563,17 @@ For CRITICAL findings or targeted investigations:
 - Verify networking (`oc get svc`, `oc get routes`)
 - Follow procedures in `knowledge/diagnostics/diagnostic-playbooks.md`
 - Read the component's `data-flow.md` to trace where the flow is broken
+
+**Layer-based fallback** -- If no playbook matches the specific issue,
+use the 12-layer diagnostic model as a systematic investigation path.
+Start at the symptom layer (Layer 12 if UI issue, Layer 11 if data
+issue, etc.) and trace downward through each applicable layer until
+you find the root cause:
+- At each layer: is this layer healthy for THIS specific component?
+- If unhealthy: is this the root cause or a symptom of a deeper issue?
+- If healthy: move to the next lower layer.
+See `knowledge/diagnostics/diagnostic-layers.md` for per-layer check
+commands and what healthy/broken looks like at each layer.
 
 ---
 

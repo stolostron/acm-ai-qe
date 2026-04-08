@@ -183,21 +183,89 @@ See [03-KNOWLEDGE-SYSTEM.md](03-KNOWLEDGE-SYSTEM.md) for the full self-healing p
 
 ## Phase 3: Check (Standard+)
 
-**Purpose:** Systematically verify the health of each discovered component.
+**Purpose:** Systematically verify health layer by layer. Lower layers
+affect everything above them -- check bottom-up to find root causes
+before checking symptoms.
 
-### Pod-Level Checks (batch by namespace)
+The 12-layer diagnostic model (`knowledge/diagnostics/diagnostic-layers.md`)
+provides the investigation order. The key insight: foundational layers
+(network, storage) are checked BEFORE component layers (operators, pods)
+because a NetworkPolicy can make pods appear healthy while being completely
+non-functional (Trap 11).
 
+### Layer-Organized Health Checks
+
+**FOUNDATIONAL LAYERS (check first):**
+
+Layers 1-2 (Compute + Control Plane) are already checked in Phase 1.
+Review findings: all nodes Ready? Operators Available? Resource pressure?
+
+Layer 3 (Network + Infrastructure Guards):
 ```bash
-# Check all non-running pods across key namespaces (use MCH namespace from Phase 1)
+oc get networkpolicy -n <mch-namespace> --no-headers 2>/dev/null
+oc get networkpolicy -n multicluster-engine --no-headers 2>/dev/null
+oc get resourcequota -n <mch-namespace> --no-headers 2>/dev/null
+oc get resourcequota -n multicluster-engine --no-headers 2>/dev/null
+```
+ACM does NOT create NetworkPolicies or ResourceQuotas by default. Any found
+is suspicious and must be investigated BEFORE pod health checks (Trap 9, 11).
+
+Layer 4 (Storage):
+```bash
+oc get pvc -n <mch-namespace>
+oc get pvc -n open-cluster-management-observability 2>/dev/null
+oc exec deploy/search-postgres -n <mch-namespace> -- \
+  psql -U searchuser -d search -c "SELECT count(*) FROM search.resources" 2>&1
+```
+
+**COMPONENT LAYERS (check after foundational):**
+
+Layer 5 (Configuration): Review MCH component toggles from Phase 1.
+
+Layers 6-8 (Auth, RBAC, API/Webhook) -- check if relevant:
+- Layer 6: If TLS/cert errors surfaced, check against `certificate-inventory.yaml`
+- Layer 7: If user permission issues detected, check RBAC bindings
+- Layer 8: If resource creation rejected, check webhooks against `webhook-registry.yaml`
+
+Layer 9 (Operators + Pod Health):
+```bash
 oc get pods -n <mch-namespace> --field-selector=status.phase!=Running,status.phase!=Succeeded
 oc get pods -n multicluster-engine --field-selector=status.phase!=Running,status.phase!=Succeeded
 oc get pods -n open-cluster-management-hub --field-selector=status.phase!=Running,status.phase!=Succeeded
 oc get pods -n open-cluster-management-observability 2>/dev/null
 oc get pods -n hive --no-headers
+```
+Interpret pod health in context of Layer 3 findings -- if a NetworkPolicy
+or ResourceQuota was found, pods may LOOK healthy but be non-functional.
 
-# Check all add-on status across all managed clusters in one command
+Layer 10 (Cross-Cluster):
+```bash
 oc get managedclusteraddons -A
 ```
+
+**APPLICATION LAYERS (check last):**
+
+Layer 11 (Data Flow): Only if pods are healthy but features aren't working.
+
+Layer 12 (UI / Plugin):
+```bash
+oc get consoleplugins
+oc get deploy console-chart-console-v2 -n <mch-namespace> \
+  -o jsonpath='{.spec.template.spec.containers[0].image}'
+```
+
+### Namespace Discovery
+
+The agent uses the MCH namespace discovered in Phase 1 rather than hardcoding
+namespace names. Common namespace mappings:
+
+| Namespace | What Lives There |
+|-----------|-----------------|
+| MCH namespace (varies: `ocm`, `open-cluster-management`, or custom) | Most ACM hub components, operators, MCH operator |
+| `open-cluster-management-hub` | Hub-specific controllers (placement, work-manager, registration) |
+| `multicluster-engine` | MCE operator and components |
+| `open-cluster-management-observability` | Observability stack (Thanos, Grafana, ~30+ pods) |
+| `hive` | Hive cluster provisioning |
 
 ### Operator Log Scanning
 
@@ -213,55 +281,11 @@ Check for these patterns in controller logs:
 | `"OOMKilled"` or exit code 137 | Memory pressure |
 | Rapid log entries for same resource | Reconciliation hot-loop |
 
-### Namespace Discovery
-
-The agent uses the MCH namespace discovered in Phase 1 rather than hardcoding
-namespace names. Common namespace mappings:
-
-| Namespace | What Lives There |
-|-----------|-----------------|
-| MCH namespace (varies: `ocm`, `open-cluster-management`, or custom) | Most ACM hub components, operators, MCH operator |
-| `open-cluster-management-hub` | Hub-specific controllers (placement, work-manager, registration) |
-| `multicluster-engine` | MCE operator and components |
-| `open-cluster-management-observability` | Observability stack (Thanos, Grafana, ~30+ pods) |
-| `hive` | Hive cluster provisioning |
-
-### Infrastructure Guard Checks
-
-Run alongside pod-level checks:
-
-```bash
-# NetworkPolicies in ACM namespaces (should be empty -- ACM doesn't create these)
-oc get networkpolicy -n <mch-namespace> --no-headers 2>/dev/null
-oc get networkpolicy -n multicluster-engine --no-headers 2>/dev/null
-
-# ResourceQuotas in ACM namespaces (should be empty -- can block pod scheduling)
-oc get resourcequota -n <mch-namespace> --no-headers 2>/dev/null
-oc get resourcequota -n multicluster-engine --no-headers 2>/dev/null
-```
-
-Any NetworkPolicy or ResourceQuota in an ACM namespace is suspicious and
-should be flagged for investigation:
-- NetworkPolicies can silently block pod-to-pod communication
-- ResourceQuotas can prevent operators from scheduling new pods
-
-### Image Integrity Check
-
-```bash
-oc get deploy console-chart-console-v2 -n <mch-namespace> -o jsonpath='{.spec.template.spec.containers[0].image}'
-```
-
-Compare the image against expected patterns in `healthy-baseline.yaml`. Flag if
-the image is from a personal registry, uses an unexpected prefix, or is not
-digest-pinned.
-
 ### Compare Against Knowledge Baselines
-
-During checks, compare observed state against structured knowledge:
 
 | Knowledge File | When to Use | What to Compare |
 |---------------|-------------|-----------------|
-| `knowledge/healthy-baseline.yaml` | Always in Phase 3 | Pod counts, deployment states, conditions, operators, image patterns, network resources vs expected |
+| `knowledge/healthy-baseline.yaml` | Always in Phase 3 | Pod counts, deployment states, conditions, image patterns vs expected |
 | `knowledge/addon-catalog.yaml` | When checking addons | Addon status vs expected health checks and dependencies |
 | `knowledge/webhook-registry.yaml` | When webhook errors surface | Webhook configs vs expected owners and failure policies |
 | `knowledge/certificate-inventory.yaml` | When TLS/cert errors surface | Secrets vs expected rotation owners and impact |
@@ -360,14 +384,41 @@ the root cause rather than treating each symptom independently.
           ▼
   ┌───────────────────┐
   │ Read dependency   │     knowledge/diagnostics/dependency-chains.md
-  │ chains -- trace   │     8 critical cascade paths (narrative)
+  │ chains -- trace   │     8 critical cascade paths (HORIZONTAL tracing)
+  │ HORIZONTAL chains │
   │ upstream           │
+  └────────┬──────────┘
+           │
+           ▼
+  ┌───────────────────┐
+  │ Trace VERTICALLY  │     knowledge/diagnostics/diagnostic-layers.md
+  │ through diagnostic│     If multiple components show symptoms,
+  │ layers -- find    │     identify the LOWEST affected layer.
+  │ lowest affected   │     A single Layer 3 issue can cause
+  │ layer              │     symptoms at Layers 9, 11, and 12.
   └────────┬──────────┘
            │
            ▼
   ┌───────────────────┐
   │ Structured chain  │     knowledge/dependency-chains.yaml
   │ lookup (YAML)     │     (machine-readable: impact, cross-chain patterns)
+  └────────┬──────────┘
+           │
+           ▼
+  ┌───────────────────┐
+  │ Cluster intro-    │     Reverse-engineer deps from live
+  │ spection fallback │     metadata: owner refs, OLM labels,
+  │ -- if component   │     CSVs, env vars, webhooks,
+  │ not in curated    │     ConsolePlugins, APIServices
+  │ chains            │     (always available)
+  └────────┬──────────┘
+           │
+           ▼
+  ┌───────────────────┐
+  │ Knowledge graph   │     neo4j-rhacm MCP: cross-reference
+  │ fallback -- suppl-│     and supplement cluster-derived map
+  │ ement with broader│     with broader ACM relationships
+  │ ACM relationships │
   └────────┬──────────┘
            │
            ▼
@@ -386,6 +437,16 @@ the root cause rather than treating each symptom independently.
   Root cause hypothesis
   with confidence level
 ```
+
+### Horizontal + Vertical Tracing
+
+The 8 dependency chains trace HORIZONTALLY within subsystems (console →
+search → postgres). The 12-layer model traces VERTICALLY through
+infrastructure layers (Layer 12 UI → Layer 3 NetworkPolicy).
+
+When a dependency chain shows a broken link, use the layer model to
+determine WHY that link is broken. Each chain has a "Layers spanned"
+annotation showing which layers it crosses.
 
 ### Evidence Requirements
 
@@ -471,6 +532,17 @@ documented procedure:
 
 For each affected component, read `knowledge/architecture/<component>/data-flow.md`
 to understand the data path and identify where the flow is broken.
+
+### Layer-Based Fallback
+
+When no playbook matches the specific issue, the 12-layer diagnostic model
+(`knowledge/diagnostics/diagnostic-layers.md`) provides a systematic
+fallback. Start at the symptom layer (Layer 12 if UI issue, Layer 11 if
+data issue) and trace downward through each applicable layer until the
+root cause is found. At each layer: is it healthy for THIS component?
+If unhealthy, is it the root cause or a symptom of deeper? If healthy,
+move to the next lower layer. This works for ANY component, not just
+those with dedicated playbooks.
 
 ### Investigation Output
 

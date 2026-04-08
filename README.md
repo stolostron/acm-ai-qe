@@ -6,8 +6,8 @@ Claude Code-powered tools for ACM (Advanced Cluster Management) quality engineer
 
 | App | What It Does | Status |
 |-----|-------------|--------|
-| [ACM Hub Health](apps/acm-hub-health/) | Diagnose and remediate ACM hub clusters through natural language. Checks operator health, image integrity, NetworkPolicies, ResourceQuotas, service connectivity, and data integrity. Knowledge database with per-subsystem architecture docs, baselines, webhooks, certs, addons. Session tracing via Claude Code hooks (JSONL traces with oc command parsing, MCP tracking, phase inference, mutation detection). | Active |
-| [Z-Stream Analysis](apps/z-stream-analysis/) | Classify Jenkins pipeline failures (product bug, automation bug, infra) with comprehensive cluster diagnostic (Stage 1.5), Environment Oracle, and per-subsystem knowledge database (58 files: architecture, data-flow, failure-signatures across 12 ACM subsystems + diagnostics methodology + healthy baselines + addon catalog + webhook registry + diagnostic traps). | Active |
+| [ACM Hub Health](apps/acm-hub-health/) | Diagnose and remediate ACM hub clusters through natural language. 6-phase pipeline with 12-layer diagnostic model: layer-organized health checks (foundational layers first), horizontal dependency chain tracing + vertical layer tracing, layer-based fallback for unknown issues. 54 knowledge files (architecture, diagnostics, baselines, webhooks, certs, addons, 13 diagnostic traps). Session tracing via Claude Code hooks (JSONL traces with oc command parsing, MCP tracking, phase inference, mutation detection). | Active |
+| [Z-Stream Analysis](apps/z-stream-analysis/) | Classify Jenkins pipeline failures (product bug, automation bug, infra) using 12-layer diagnostic investigation (v3.8) with root-cause-first analysis. Comprehensive cluster diagnostic (Stage 1.5), Environment Oracle, per-group investigation agents, and knowledge database (60 files: architecture, data-flow, failure-signatures across 12 ACM subsystems + diagnostics methodology including 12-layer model + healthy baselines + addon catalog + webhook registry + diagnostic traps). | Active |
 | [Claude Test Generator](apps/claude-test-generator/) | Generate test plans from JIRA tickets | In progress -- not functional |
 
 ## Prerequisites
@@ -77,7 +77,7 @@ Analyze this run: https://jenkins.example.com/job/pipeline/123/
 Or run the pipeline manually:
 ```bash
 python -m src.scripts.gather "https://jenkins.example.com/job/pipeline/123/"
-# Claude Code performs AI analysis (Stage 2)
+# Claude Code performs 12-layer diagnostic analysis (Stage 2)
 python -m src.scripts.report runs/<run_dir>
 ```
 
@@ -151,9 +151,9 @@ ai_systems_v2/
 ```bash
 cd apps/z-stream-analysis/
 
-# Fast -- unit + regression (667+ tests, no external deps)
+# Fast -- unit + regression (715+ tests, no external deps)
 python -m pytest tests/unit/ tests/regression/ -q
 
-# Full suite (717+ tests, requires Jenkins VPN for integration)
+# Full suite (765+ tests, requires Jenkins VPN for integration)
 python -m pytest tests/ -q --timeout=300
 ```

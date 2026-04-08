@@ -40,7 +40,7 @@ else
 fi
 echo ""
 
-# 3. Generate .mcp.json (acm-hub-health only needs acm-ui)
+# 3. Generate .mcp.json (acm-hub-health needs acm-ui + neo4j-rhacm)
 # Use relative paths from the app directory for portability
 echo "Generating .mcp.json..."
 cat > "$SCRIPT_DIR/.mcp.json" <<'MCPEOF'
@@ -51,6 +51,18 @@ cat > "$SCRIPT_DIR/.mcp.json" <<'MCPEOF'
       "args": ["-m", "acm_ui_mcp_server.main"],
       "cwd": "../../mcp/acm-ui-mcp-server",
       "timeout": 30
+    },
+    "neo4j-rhacm": {
+      "command": "uvx",
+      "args": [
+        "--with", "fastmcp<3",
+        "mcp-neo4j-cypher",
+        "--db-url", "bolt://localhost:7687",
+        "--username", "neo4j",
+        "--password", "rhacmgraph",
+        "--read-only"
+      ],
+      "timeout": 60
     }
   }
 }
@@ -71,6 +83,27 @@ if command -v claude &> /dev/null; then
   echo "  claude CLI: found"
 else
   echo "  claude CLI: NOT FOUND - install from https://docs.anthropic.com/en/docs/claude-code/getting-started"
+fi
+
+if command -v uvx &> /dev/null; then
+  echo "  uvx: found"
+else
+  echo "  uvx: NOT FOUND - install: pip install uv (needed for neo4j-rhacm MCP)"
+fi
+
+# Check if Neo4j knowledge graph container is available
+if command -v podman &> /dev/null; then
+  if podman ps --format '{{.Names}}' 2>/dev/null | grep -q neo4j-rhacm; then
+    echo "  neo4j-rhacm: container running"
+  elif podman ps -a --format '{{.Names}}' 2>/dev/null | grep -q neo4j-rhacm; then
+    echo "  neo4j-rhacm: container stopped - run: podman start neo4j-rhacm"
+  else
+    echo "  neo4j-rhacm: NOT SET UP - run 'bash mcp/setup.sh' from repo root to create the container"
+    echo "               (optional: hub health works without it, using curated dependency chains)"
+  fi
+else
+  echo "  neo4j-rhacm: podman not found - install podman, then run 'bash mcp/setup.sh' from repo root"
+  echo "               (optional: hub health works without it, using curated dependency chains)"
 fi
 
 echo ""

@@ -6,8 +6,8 @@
 # Populated by: refresh.py (Neo4j KG transitive queries + manual curation)
 # Refresh frequency: weekly or after ACM version change
 
-acm_version: "2.17"
-last_refreshed: "2026-03-27"
+acm_version: "2.16.0"
+last_refreshed: "2026-04-03"
 
 chains:
 
@@ -227,6 +227,138 @@ chains:
       csi_driver_unhealthy: "Dynamic provisioning fails"
       disk_full: "PVCs in use but component can't write, data corruption possible"
 
+  - id: app-lifecycle-subscription
+    name: "Channel -> Subscription -> ManifestWork -> Spoke Application"
+    description: "Application deployment via subscription model from Git/Helm/ObjectStorage sources"
+    components:
+      - name: channel
+        role: content_source
+        depends_on: [multicluster-operators-channel]
+        note: "Git, Helm, or ObjectStorage channel defining where app resources live"
+      - name: multicluster-operators-channel
+        role: channel_controller
+        depends_on: []
+        note: "Validates and manages channel CRs. Registers channel webhook."
+      - name: subscription
+        role: content_selector
+        depends_on: [multicluster-operators-hub-subscription]
+        note: "Selects resources from channel and defines placement"
+      - name: multicluster-operators-hub-subscription
+        role: reconciler
+        depends_on: [channel, placement-controller]
+        note: "Core subscription reconciler -- generates ManifestWorks from subscription content"
+      - name: multicluster-operators-application
+        role: app_controller
+        depends_on: [multicluster-operators-hub-subscription]
+        note: "Reconciles Application CRs. Registers application webhook."
+      - name: placement-controller
+        role: target_selector
+        depends_on: []
+        note: "Determines which clusters the subscription targets"
+      - name: manifestwork
+        role: delivery
+        depends_on: [klusterlet]
+      - name: application-manager
+        role: spoke_addon
+        depends_on: [work-manager]
+        note: "Spoke-side addon that applies application resources"
+    impact:
+      multicluster-operators-channel_down: "New channels not validated. Channel create/update silently accepted without validation."
+      multicluster-operators-hub-subscription_down: "Subscriptions not reconciled. No ManifestWorks generated. App deployment halts."
+      multicluster-operators-application_down: "Application CRs not reconciled. Application status not updated."
+      channel_auth_failure: "Git/Helm credentials invalid. Subscription stuck in Propagated -- no explicit error in status."
+      placement_no_match: "PlacementRule/Placement matches zero clusters. App not deployed anywhere -- no error."
+      application-manager_missing: "App resources not applied on spoke. Application status Unknown on hub."
+
+  - id: virtualization-vm-discovery
+    name: "CNV -> Search Collector -> Search API -> kubevirt-plugin -> Console"
+    description: "Cross-cluster VM discovery, display, and management via hub UI"
+    components:
+      - name: cnv-operator
+        role: vm_runtime
+        depends_on: []
+        note: "HyperConverged Cluster Operator on spoke -- manages KubeVirt, CDI, SSP. Prerequisite for VMs to exist."
+      - name: search-collector
+        role: spoke_indexer
+        depends_on: [klusterlet]
+        note: "Indexes VM resources (VirtualMachine, VirtualMachineInstance, DataVolume) on spoke"
+      - name: search-indexer
+        role: data_processor
+        depends_on: [search-postgres]
+      - name: search-postgres
+        role: storage
+        depends_on: []
+      - name: search-api
+        role: query_server
+        depends_on: [search-indexer, search-postgres]
+      - name: kubevirt-plugin
+        role: ui_extension
+        depends_on: [search-api, console-chart-console-v2]
+        note: "ConsolePlugin that renders Fleet Virt VM list, details, actions in hub console"
+      - name: console-chart-console-v2
+        role: console_host
+        depends_on: []
+        note: "ACM console plugin -- hosts the plugin framework"
+      - name: mtv-integrations-controller
+        role: migration_manager
+        depends_on: [managed-serviceaccount]
+        note: "Only when cnv-mtv-integrations is enabled. Manages MTV/CNV addon lifecycle and migration plans."
+    impact:
+      cnv_not_installed: "No VMs on that spoke. Nothing to index -- not an error, just no data."
+      search-collector_missing: "VMs exist on spoke but don't appear in hub UI. Silent absence -- no error shown."
+      search-api_down: "VM list empty in console. All search-dependent features fail simultaneously."
+      kubevirt-plugin_unregistered: "Fleet Virt VM tab absent from console. No error -- just missing navigation."
+      mtv-integrations-controller_down: "MTV addon lifecycle stops. New migration plans cannot be created."
+      mcra_controller_panic: "VM RBAC broken. Users with fine-grained role assignments cannot manage VMs (ACM-24737)."
+
+  - id: submariner-networking
+    name: "SubmarinerConfig -> Addon -> Gateway -> Tunnel -> Service Discovery"
+    description: "Cross-cluster network connectivity via IPsec tunnels and DNS-based service discovery"
+    components:
+      - name: submariner-addon
+        role: lifecycle_manager
+        depends_on: [addon-manager]
+        note: "Hub-side controller. Manages Submariner addon deployment to managed clusters."
+      - name: submarinerconfig
+        role: configuration
+        depends_on: [submariner-addon]
+        note: "Per-cluster configuration CR. Defines gateway count, cable driver, global CIDR."
+      - name: submariner-operator
+        role: spoke_deployer
+        depends_on: [klusterlet]
+        note: "Spoke-side operator deployed via ManifestWork. Manages all Submariner components on spoke."
+      - name: gateway
+        role: tunnel_endpoint
+        depends_on: [submariner-operator]
+        note: "Establishes IPsec tunnels between clusters. Ports: UDP 4500 (NAT-T), UDP 4800 (VXLAN)."
+      - name: routeagent
+        role: traffic_router
+        depends_on: [gateway]
+        note: "Programs routes on spoke nodes to direct cross-cluster traffic through gateway."
+      - name: lighthouse-agent
+        role: service_exporter
+        depends_on: [gateway]
+        note: "Exports ServiceExport CRs to broker for cross-cluster service discovery."
+      - name: lighthouse-coredns
+        role: dns_resolver
+        depends_on: [lighthouse-agent]
+        note: "Resolves clusterset.local DNS queries for cross-cluster service discovery."
+      - name: globalnet-controller
+        role: ip_manager
+        depends_on: [gateway]
+        note: "Only when overlapping CIDRs. Manages GlobalEgressIP/GlobalIngressIP for NAT."
+      - name: broker
+        role: endpoint_exchange
+        depends_on: []
+        note: "Hub-side CRD namespace where clusters exchange endpoint info. Not a pod -- just API resources."
+    impact:
+      submariner-addon_down: "Submariner not deployed to new clusters. Existing deployments continue working."
+      gateway_unhealthy: "Cross-cluster tunnels down. All cross-cluster connectivity fails for that cluster."
+      routeagent_race: "Intermittent connectivity flaps between clusters (ACM-25262 -- endpoint timestamp race)."
+      lighthouse_down: "Cross-cluster service discovery fails. Services not resolvable via clusterset.local DNS."
+      globalnet_missing: "Overlapping CIDRs not translated. Cross-cluster traffic fails with IP conflicts."
+      ocp_418_incompatible: "Submariner breaks on OCP 4.18+ due to OVN-Kubernetes changes (ACM-22805)."
+
 cross_chain_patterns:
   - symptom: "Search + Observability both broken"
     likely_cause: "Shared storage or node pressure"
@@ -259,3 +391,19 @@ cross_chain_patterns:
   - symptom: "New clusters import but get no addons"
     likely_cause: "addon-manager down (import works independently)"
     chains_affected: [addon-deployment, hypershift-import]
+
+  - symptom: "Application subscriptions stuck in Propagated"
+    likely_cause: "subscription-controller down or channel auth failure"
+    chains_affected: [app-lifecycle-subscription]
+
+  - symptom: "VM list empty in console but VMs exist on spoke"
+    likely_cause: "search-collector missing on spoke or search-api down"
+    chains_affected: [virtualization-vm-discovery, console-search-clusters]
+
+  - symptom: "Cross-cluster services unreachable"
+    likely_cause: "Submariner gateway down or OCP version incompatibility"
+    chains_affected: [submariner-networking]
+
+  - symptom: "App + VM + Policy status all Unknown on one spoke"
+    likely_cause: "klusterlet disconnected (all spoke-dependent features fail)"
+    chains_affected: [app-lifecycle-subscription, virtualization-vm-discovery, governance-policy-spoke, observability-metrics]

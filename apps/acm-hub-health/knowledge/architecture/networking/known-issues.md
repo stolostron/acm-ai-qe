@@ -136,6 +136,105 @@ Submariner version compatibility matrix before OCP upgrades.
 4. **Circular dependencies:** Operator cleanup and ManifestWork deletion can deadlock
 5. **Config persistence:** Addon reconciliation doesn't preserve non-default configuration values
 
+---
+
+## 7. GlobalNet IP Allocation Exhaustion
+
+**Versions:** All (when GlobalNet enabled) | **Severity:** High | **Fix:** Cluster-fixable
+
+When GlobalNet is enabled with overlapping CIDRs, the GlobalNet controller
+allocates GlobalIPs from a configured CIDR range. If the range is too small
+for the number of services/pods requiring cross-cluster access, new services
+fail to get GlobalIPs.
+
+**Signals:** New ServiceExport CRs don't get a GlobalIngressIP assigned.
+Cross-cluster connectivity works for existing services but fails for new ones.
+`oc get clusterglobalegressips -A` shows CIDR utilization near capacity.
+
+---
+
+## 8. Service Discovery DNS Not Resolving (.clusterset.local)
+
+**Versions:** All | **Severity:** High | **Fix:** Investigation needed
+
+`.clusterset.local` DNS queries return NXDOMAIN despite Lighthouse and
+ServiceExport/ServiceImport being configured. Root causes include:
+Lighthouse CoreDNS plugin not loaded, ServiceImport not created on the
+querying cluster, or CoreDNS forwarding rules missing.
+
+**Signals:** `nslookup <svc>.<ns>.svc.clusterset.local` fails. Regular
+`.svc.cluster.local` DNS works fine. ServiceExport exists on source
+cluster. Check if ServiceImport was created on the destination cluster.
+
+---
+
+## 9. Gateway Node Label Removed After Node Replacement
+
+**Versions:** All | **Severity:** Medium | **Fix:** Cluster-fixable
+
+When a gateway node is drained, replaced, or scaled down by the cloud
+provider's auto-scaler, the replacement node does not automatically get
+the `submariner.io/gateway=true` label. The Gateway DaemonSet has 0
+ready pods, and all tunnels are down.
+
+**Signals:** `oc get nodes -l submariner.io/gateway=true` returns no nodes.
+Gateway DaemonSet shows 0/0 pods. All cross-cluster connectivity lost.
+
+**Fix:** Label a new node: `oc label node <node-name> submariner.io/gateway=true`
+
+---
+
+## 10. SubmarinerConfig Custom Settings Reverted After Addon Reconciliation
+
+**Versions:** 2.14-2.17 | **Severity:** Medium | **Fix:** Code change needed
+
+Broader instance of issue #5 (airGapped setting). The addon reconciliation
+loop overwrites custom SubmarinerConfig settings beyond just the
+`airGappedDeployment` field. Custom cable driver selection, gateway count,
+and other tuning parameters can be reverted to defaults.
+
+**Signals:** After reconciliation (triggered by MCH changes, addon restarts,
+or periodic sync), previously configured Submariner settings revert.
+Cross-cluster connectivity may break if the reverted settings are
+incompatible with the environment (e.g., wrong cable driver).
+
+---
+
+## 11. OVN-Kubernetes Transit Switch Mode Incompatibility (OCP 4.19+)
+
+**Versions:** 2.16+ with OCP 4.19+ | **Severity:** High | **Fix:** Ongoing
+
+OCP 4.19+ introduces OVN-Kubernetes transit switch mode which changes
+the internal routing topology. Submariner's RouteAgent assumes the
+previous routing model and installs incorrect routes, causing
+cross-cluster packet drops.
+
+**Signals:** Tunnels establish successfully (Gateway shows Connected)
+but actual data traffic fails. One-way connectivity or intermittent
+packet loss. RouteAgent logs show route installation but traffic
+doesn't flow.
+
+---
+
+## 12. Broker Connectivity Loss After Hub Certificate Rotation
+
+**Versions:** All | **Severity:** High | **Fix:** Cluster-fixable
+
+When the hub cluster's serving certificates rotate (via service-ca-operator
+or manual rotation), the Broker API endpoint certificates change. Spoke
+Submariner instances that have cached the old Broker CA fail to connect.
+The Broker sync stops, preventing endpoint updates and service discovery
+propagation.
+
+**Signals:** Submariner tunnel health degrades gradually as spoke
+clusters can't sync with Broker. New clusters can't join the
+ManagedClusterSet. Broker sync logs show TLS handshake failures.
+
+**Fix:** Re-trigger BrokerJoin on affected clusters to refresh the
+Broker CA bundle.
+
+---
+
 ## Summary
 
 | # | Issue | Cluster-Fixable? | Severity |
@@ -146,3 +245,9 @@ Submariner version compatibility matrix before OCP upgrades.
 | 4 | Orphaned iptables rules | Manual workaround | Important |
 | 5 | airGapped setting reverted | Reapply after reconcile | Normal |
 | 6 | Connectivity on 4.20+ | No (ongoing) | High |
+| 7 | GlobalNet IP exhaustion | Yes (expand CIDR) | High |
+| 8 | DNS not resolving | Investigation needed | High |
+| 9 | Gateway node label removed | Yes (re-label) | Medium |
+| 10 | Custom settings reverted | No (code fix) | Medium |
+| 11 | OVN-K transit switch mode | No (ongoing) | High |
+| 12 | Broker CA rotation | Yes (re-trigger BrokerJoin) | High |

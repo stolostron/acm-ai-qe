@@ -265,3 +265,141 @@ class TestV32FieldsInSyntheticFixture:
         )
         assert summary["cascading_hook_failures"] >= 1
         assert summary["blank_page_failures"] >= 1
+
+
+class TestV38FieldsInSchema:
+    """v3.8 layer-based investigation fields exist in schema
+    per_test_analysis items."""
+
+    def test_root_cause_layer_in_per_test(self, schema_data):
+        item_props = schema_data["properties"]["per_test_analysis"][
+            "items"
+        ]["properties"]
+        assert "root_cause_layer" in item_props, (
+            "Missing root_cause_layer in per_test_analysis items"
+        )
+        assert item_props["root_cause_layer"]["type"] == "integer"
+        assert item_props["root_cause_layer"]["minimum"] == 1
+        assert item_props["root_cause_layer"]["maximum"] == 12
+
+    def test_root_cause_layer_name_in_per_test(self, schema_data):
+        item_props = schema_data["properties"]["per_test_analysis"][
+            "items"
+        ]["properties"]
+        assert "root_cause_layer_name" in item_props, (
+            "Missing root_cause_layer_name in per_test_analysis items"
+        )
+        layer_enum = item_props["root_cause_layer_name"]["enum"]
+        assert len(layer_enum) == 12, (
+            f"root_cause_layer_name should have 12 values, got {len(layer_enum)}"
+        )
+        assert "Compute / Scheduling" in layer_enum
+        assert "UI / Plugin / Rendering" in layer_enum
+        assert "Network / Connectivity" in layer_enum
+
+    def test_investigation_steps_taken_in_per_test(self, schema_data):
+        item_props = schema_data["properties"]["per_test_analysis"][
+            "items"
+        ]["properties"]
+        assert "investigation_steps_taken" in item_props, (
+            "Missing investigation_steps_taken in per_test_analysis items"
+        )
+        assert item_props["investigation_steps_taken"]["type"] == "array"
+
+    def test_cause_owner_in_per_test(self, schema_data):
+        item_props = schema_data["properties"]["per_test_analysis"][
+            "items"
+        ]["properties"]
+        assert "cause_owner" in item_props, (
+            "Missing cause_owner in per_test_analysis items"
+        )
+        assert item_props["cause_owner"]["type"] == "string"
+
+
+class TestV38FieldsInSyntheticFixture:
+    """v3.8 fields are exercised in the synthetic fixture."""
+
+    def test_fixture_has_root_cause_layer_entry(self, synthetic_analysis):
+        tests = synthetic_analysis["per_test_analysis"]
+        with_layer = [t for t in tests if "root_cause_layer" in t]
+        assert len(with_layer) >= 2, (
+            "Synthetic fixture must have at least 2 entries with root_cause_layer"
+        )
+        for t in with_layer:
+            assert 1 <= t["root_cause_layer"] <= 12, (
+                f"root_cause_layer must be 1-12, got {t['root_cause_layer']}"
+            )
+
+    def test_fixture_has_root_cause_layer_name_entry(self, synthetic_analysis):
+        tests = synthetic_analysis["per_test_analysis"]
+        with_name = [t for t in tests if "root_cause_layer_name" in t]
+        assert len(with_name) >= 2, (
+            "Synthetic fixture must have at least 2 entries with root_cause_layer_name"
+        )
+
+    def test_fixture_has_investigation_steps(self, synthetic_analysis):
+        tests = synthetic_analysis["per_test_analysis"]
+        with_steps = [
+            t for t in tests
+            if t.get("investigation_steps_taken")
+        ]
+        assert len(with_steps) >= 1, (
+            "Synthetic fixture must have at least 1 entry with investigation_steps_taken"
+        )
+        for t in with_steps:
+            assert len(t["investigation_steps_taken"]) >= 1, (
+                f"investigation_steps_taken must have items for {t['test_name']}"
+            )
+
+    def test_fixture_has_cause_owner(self, synthetic_analysis):
+        tests = synthetic_analysis["per_test_analysis"]
+        with_owner = [t for t in tests if "cause_owner" in t]
+        assert len(with_owner) >= 2, (
+            "Synthetic fixture must have at least 2 entries with cause_owner"
+        )
+
+
+class TestV39FieldsInSchema:
+    """v3.9 verification_status field exists in schema per_test_analysis items."""
+
+    def test_verification_status_in_per_test(self, schema_data):
+        item_props = schema_data["properties"]["per_test_analysis"][
+            "items"
+        ]["properties"]
+        assert "verification_status" in item_props, (
+            "Missing verification_status in per_test_analysis items"
+        )
+        vs_enum = item_props["verification_status"]["enum"]
+        assert "verified_in_group" in vs_enum
+        assert "split_from_group" in vs_enum
+        assert "individually_investigated" in vs_enum
+
+    def test_verification_status_is_optional(self, schema_data):
+        required = schema_data["properties"]["per_test_analysis"][
+            "items"
+        ].get("required", [])
+        assert "verification_status" not in required, (
+            "verification_status should be optional, not required"
+        )
+
+
+class TestV39FieldsInSyntheticFixture:
+    """v3.9 verification_status is exercised in the synthetic fixture."""
+
+    def test_fixture_has_verification_status(self, synthetic_analysis):
+        tests = synthetic_analysis["per_test_analysis"]
+        with_vs = [t for t in tests if "verification_status" in t]
+        assert len(with_vs) >= 2, (
+            "Synthetic fixture must have at least 2 entries with verification_status"
+        )
+
+    def test_fixture_exercises_enum_values(self, synthetic_analysis):
+        tests = synthetic_analysis["per_test_analysis"]
+        statuses = {
+            t["verification_status"]
+            for t in tests
+            if "verification_status" in t
+        }
+        assert len(statuses) >= 2, (
+            "Synthetic fixture should exercise at least 2 verification_status values"
+        )

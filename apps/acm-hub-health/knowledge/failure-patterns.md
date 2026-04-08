@@ -296,3 +296,123 @@ Pods restart during upgrades, node maintenance, and normal operations. A
 restart count of 1-3 with the pod currently Running and recent restart time
 (during a known maintenance window) is not a health issue. High restart count
 with recent restarts and short uptime IS a problem (CrashLoop).
+
+---
+
+## NetworkPolicy Blocking Inter-Pod Communication
+
+**Symptoms**: All pods Running and Ready but specific inter-service
+communication fails. Search-api can't reach search-postgres. Console backend
+can't reach search-api. Features that depend on the blocked path return
+errors or empty results.
+
+**Heuristic**: ACM does NOT create NetworkPolicies. Any NetworkPolicy in an
+ACM namespace (`<mch-ns>`, `multicluster-engine`, `open-cluster-management-hub`)
+was added externally -- by an admin, a policy, or a cluster operator. It may
+silently block traffic that ACM expects to flow freely.
+
+**Investigate**:
+```bash
+oc get networkpolicy -n <mch-ns> --no-headers
+oc get networkpolicy -n multicluster-engine --no-headers
+oc get networkpolicy -n open-cluster-management-hub --no-headers
+# If any found, describe to see what traffic is blocked
+```
+
+**Cross-ref**: Trap 11 in `common-diagnostic-traps.md`
+
+---
+
+## Webhook Service Unreachable
+
+**Symptoms**: Resource creation, update, or deletion fails with errors like
+`failed calling webhook` or `connection refused`. Operations on a specific
+CRD type ALL fail. The operator managing the resource may be healthy.
+
+**Heuristic**: Most ACM webhooks have `failurePolicy: Fail`. If the webhook
+service pod is down, crashed, or has expired TLS certs, the API server rejects
+ALL operations on resources validated by that webhook. The operator may be
+perfectly healthy -- it's the webhook admission that's blocking.
+
+**Investigate**:
+```bash
+# Check which webhooks exist and their failure policies
+oc get validatingwebhookconfigurations -o json | jq '.items[] | {name: .metadata.name, rules: [.webhooks[].rules[].resources], failurePolicy: .webhooks[0].failurePolicy}'
+# Check the webhook service endpoints
+oc get validatingwebhookconfiguration <name> -o jsonpath='{.webhooks[0].clientConfig.service}'
+```
+
+**Cross-ref**: `webhook-registry.yaml` for expected webhook configurations,
+Trap 10 for Hive webhook specifically
+
+---
+
+## Addon-Framework Cascade (Mass Addon Failure)
+
+**Symptoms**: Multiple addons fail across multiple clusters simultaneously.
+Search-collector, governance-policy-framework, application-manager all
+showing Unavailable on the same set of clusters (or all clusters).
+
+**Heuristic**: When the SAME set of addons fail on MULTIPLE clusters at the
+same time, the root cause is almost always a single hub-side failure:
+1. **addon-manager pod down** -- No addon deployments or health monitoring
+2. **work-agent connectivity lost** -- ManifestWorks not applied on spokes
+3. **Spoke connectivity lost** -- All addons on that spoke affected
+
+**Investigate**: Check hub-side components FIRST:
+```bash
+# addon-manager
+oc get pods -n open-cluster-management-hub -l app=clustermanager-addon-manager-controller
+# If healthy, check per-cluster connectivity
+oc get managedclusters | grep -v True
+```
+
+**Cross-ref**: Trap 7 in `common-diagnostic-traps.md`
+
+---
+
+## Console Plugin Rendering Failure
+
+**Symptoms**: Feature tabs present in console navigation but render with
+loading spinners, blank content, or JavaScript errors. Not missing entirely
+-- present but broken.
+
+**Heuristic**: The ConsolePlugin CR is registered (so the tab appears in
+navigation), but the plugin's backend pod is unhealthy. The OCP console
+loads the plugin shell successfully but fails to fetch content at runtime.
+
+Different from "tabs missing" (Trap 2): tabs present means the plugin is
+registered; broken rendering means the plugin backend is down.
+
+**Investigate**:
+```bash
+# Check ConsolePlugin CRs and their backend services
+oc get consoleplugins -o json | jq '.items[] | {name: .metadata.name, service: .spec.backend.service}'
+# Check the backend pods
+oc get pods -n <mch-ns> -l app=console-chart-console-v2
+oc get pods -n multicluster-engine -l app=console-mce-console
+```
+
+**Cross-ref**: Trap 13 in `common-diagnostic-traps.md`
+
+---
+
+## ResourceQuota Blocking Pod Restart
+
+**Symptoms**: Pods gradually disappear from ACM namespaces. Services degrade
+over time. Deployment shows desired replicas but 0 available. No pod restart
+events because the pod isn't being created.
+
+**Heuristic**: ACM does NOT create ResourceQuotas. Any ResourceQuota in an
+ACM namespace limits what Kubernetes can schedule. When a pod crashes, the
+replacement can't be created if it would exceed the quota.
+
+**Investigate**:
+```bash
+oc get resourcequota -n <mch-ns> --no-headers
+oc get resourcequota -n multicluster-engine --no-headers
+# If found, check limits
+oc describe resourcequota -n <mch-ns>
+```
+
+**Cross-ref**: Trap 9 in `common-diagnostic-traps.md`

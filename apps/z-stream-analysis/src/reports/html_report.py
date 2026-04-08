@@ -135,6 +135,10 @@ def build_test_card(t, idx):
     fmc = esc(t.get("failure_mode_category", ""))
     path = esc(t.get("classification_path", ""))
     root = esc(t.get("root_cause", ""))
+    rc_layer = t.get("root_cause_layer")
+    rc_layer_name = esc(t.get("root_cause_layer_name", ""))
+    cause_owner = esc(t.get("cause_owner", ""))
+    inv_steps = t.get("investigation_steps_taken", [])
     cascade = t.get("is_cascading_hook_failure", False)
     blank = t.get("blank_page_detected", False)
 
@@ -156,6 +160,8 @@ def build_test_card(t, idx):
         badges += '<span class="badge badge-cascade">Hook Cascade</span>'
     if blank:
         badges += '<span class="badge badge-blank">Blank Page</span>'
+    if rc_layer:
+        badges += f'<span class="badge badge-layer">L{rc_layer}: {rc_layer_name}</span>'
 
     evidence_html = ""
     for e in evidence_sources:
@@ -216,6 +222,8 @@ def build_test_card(t, idx):
         </div>
         <div class="section-label">Root Cause</div>
         <div class="root-cause">{root}</div>
+        {f'<div class="cause-owner-line">Caused by: {cause_owner}</div>' if cause_owner else ''}
+        {f'<div class="section-label">Investigation Steps</div><ul class="inv-steps">{"".join(f"<li>{esc(s)}</li>" for s in inv_steps)}</ul>' if inv_steps else ''}
         <div class="section-label">Analysis</div>
         <div class="reasoning-text">{r_summary}</div>
         <div class="section-label">Evidence ({len(evidence_sources)} sources)</div>
@@ -739,7 +747,7 @@ def generate_html_report(run_dir: Path, trace_file: Optional[Path] = None) -> Pa
     build_label = esc(_extract_build_label(jenkins_url_raw))
     build_result = esc(meta.get("build_result", "UNKNOWN"))
     analyzed_at = esc(meta.get("analyzed_at", "")[:10])
-    analyzer_ver = esc(meta.get("analyzer_version", "3.5"))
+    analyzer_ver = esc(meta.get("analyzer_version", "3.9"))
     total_tests = summary.get("total_tests", 0)
     passed = summary.get("passed_count", 0)
     failed = summary.get("total_failures", 0)
@@ -839,6 +847,10 @@ body {{ background: var(--bg); color: var(--text); font-family: -apple-system, B
 .badge {{ font-size: 10px; padding: 2px 6px; border-radius: 3px; font-weight: 600; }}
 .badge-cascade {{ background: rgba(34,197,94,0.15); color: #22c55e; }}
 .badge-blank {{ background: rgba(239,68,68,0.15); color: #ef4444; }}
+.badge-layer {{ background: rgba(139,92,246,0.15); color: #8b5cf6; }}
+.cause-owner-line {{ font-size: 12px; color: var(--text-muted); margin: 4px 0 8px; font-style: italic; }}
+.inv-steps {{ font-size: 12px; color: var(--text-dim); padding-left: 20px; margin: 4px 0 12px; }}
+.inv-steps li {{ margin: 3px 0; }}
 
 .test-body {{ display: none; padding: 0 16px 16px; border-top: 1px solid var(--border); }}
 .test-body.open {{ display: block; }}

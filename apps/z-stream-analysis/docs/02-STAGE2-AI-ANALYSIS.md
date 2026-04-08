@@ -1,16 +1,32 @@
-# Stage 2: AI Analysis (5-Phase Investigation)
+# Stage 2: AI Analysis (12-Layer Diagnostic Investigation)
 
-The AI agent reads `core-data.json` and produces `analysis-results.json` using a systematic 5-phase investigation framework.
+The AI agent reads `core-data.json`, `cluster-health.json`, and `cluster-diagnosis.json`, then classifies each test failure using the 12-layer diagnostic model with provably linked grouping and per-test verification (v3.9).
+
+---
+
+## v3.9 Architecture: Provably Linked Grouping + Per-Test Verification
+
+v3.9 builds on v3.8's layer-based root cause analysis with three key additions that prevent blanket override misclassification:
+
+**Key changes from v3.8.1:**
+- **Phase A4 (v3.9):** Provably linked grouping replaces symptom-based grouping. Groups require identical code paths (same selector+function, same before-all hook, same spec+error+line). "Button disabled", "same feature area", and "similar error" are NOT valid grouping criteria.
+- **Phase B (v3.9):** Per-test verification within groups. After investigating the first test, a mandatory 4-point check (code path, backend component, user role, error element) verifies each subsequent test. Failures split from the group and receive individual investigation inline.
+- **Phase D-V5 (v3.9):** Expanded counterfactual verification with 9 templates (selector, button-disabled, timeout, data-assertion, blank-page, CSS, NetworkPolicy, operator, ResourceQuota). Plus evidence duplication detection and per-test evidence requirement.
+- **Output:** Every test includes `root_cause_layer` (1-12), `root_cause_layer_name`, `investigation_steps_taken`, `cause_owner`, and optional `verification_status` (v3.9)
+
+The 12 layers (bottom to top): Compute (1), Control Plane (2), Network (3), Storage (4), Configuration (5), Authentication (6), Authorization (7), API/CRD/Webhook (8), Operator (9), Cross-Cluster (10), Data Flow (11), UI/Plugin (12).
+
+The 5-phase structure (A-E) is preserved. The layer-based investigation is the methodology used within Phase B. The PR-based routing (PR-1 through PR-7) becomes validation checks in Phase D rather than primary routing.
 
 ---
 
 ## Overview
 
-**Invocation:** The z-stream-analysis agent reads the run directory and applies the 5-phase framework.
+**Invocation:** The z-stream-analysis agent reads the run directory and applies the 12-layer investigation methodology within a 5-phase framework.
 
-**Input:** `core-data.json` (from Stage 1), `repos/` (fallback), MCP servers (ACM-UI, Jenkins, JIRA, Polarion, Knowledge Graph)
+**Input:** `core-data.json` + `cluster-health.json` + `cluster-diagnosis.json` (from Stages 1/1.5), `repos/` (fallback), MCP servers (ACM-UI, Jenkins, JIRA, Polarion, Knowledge Graph)
 
-**Output:** `analysis-results.json` (classification per test with evidence)
+**Output:** `analysis-results.json` (classification per test with root cause layer, evidence, and investigation steps)
 
 ```
 core-data.json ──► AI Agent ──► analysis-results.json
@@ -29,18 +45,23 @@ core-data.json ──► AI Agent ──► analysis-results.json
 │                                                                     │
 │  A0: Feature area grounding (read feature_grounding)                │
 │  A1: Environment health check                                      │
-│      └── env_score < 0.3? ──YES──► ALL TESTS = INFRASTRUCTURE      │
-│                │                   (skip Phases B-D)                │
-│               NO                                                    │
+│      └── cluster_connectivity == false? ──YES──► ALL = INFRA       │
+│                │                                (skip Phases B-D)   │
+│               NO (even if score < 0.3, investigate per-test)        │
 │                ▼                                                    │
 │  A1b: Cluster landscape check (degraded operators?)                 │
 │  A2: Failure pattern detection (mass timeout? same selector?)       │
 │  A3: Cross-test correlation scan                                    │
 │  A3b: Batch KG subsystem context (if KG available)                  │
+│  A4: Provably linked grouping (v3.9)                                │
+│       ├── Instant: dead selector (3+ tests) → AUTOMATION_BUG        │
+│       ├── Instant: after-all hook cascade → NO_BUG                  │
+│       ├── Group: same selector+function, same hook, same spec+error │
+│       └── Individual: everything else (symptom grouping PROHIBITED) │
 └─────────────────────────┬───────────────────────────────────────────┘
                           │
 ┌─────────────────────────▼───────────────────────────────────────────┐
-│  PHASE B: Deep Investigation (per test)                             │
+│  PHASE B: Deep Investigation (per test/group)                       │
 │                                                                     │
 │  B1: Check extracted_context (test code, page objects, selectors)   │
 │  B2: Check timeline_evidence (element_removed? stale_test_signal?) │
@@ -55,6 +76,9 @@ core-data.json ──► AI Agent ──► analysis-results.json
 │            └── YES → set backend_caused_ui_failure = true           │
 │  B7c: Backend probe analysis (v3.3) [if backend_probes present]     │
 │        └── response_valid=false → Tier 1 PRODUCT_BUG evidence       │
+│  B-V: Per-test verification within groups (v3.9, MANDATORY)         │
+│        └── 4-point check: code path, backend, role, element         │
+│            └── ANY fails → SPLIT, investigate individually inline   │
 └─────────────────────────┬───────────────────────────────────────────┘
                           │
 ┌─────────────────────────▼───────────────────────────────────────────┐
@@ -87,6 +111,12 @@ core-data.json ──► AI Agent ──► analysis-results.json
 │  │                  │                  │     UNKNOWN      │         │
 │  └──────────────────┴──────────────────┴──────────────────┘         │
 │                                                                     │
+│  D-V5: Expanded counterfactual verification (v3.9, MANDATORY)       │
+│       └── 9 templates: selector, button-disabled, timeout,          │
+│           data-assertion, blank-page, CSS, NetworkPolicy,           │
+│           operator, ResourceQuota                                   │
+│       └── Evidence duplication: 5+ identical → flag & verify 2      │
+│       └── Per-test evidence: cluster-wide-only → confidence ≤ 0.60 │
 │  D4: Final validation (confirm classification, calc confidence)     │
 │  D4b: Causal link verification (v3.3)                               │
 │       └── Every test in dominant pattern must have causal mechanism  │
@@ -552,7 +582,7 @@ E6: Create/link issues (optional)
   "analysis_metadata": {
     "jenkins_url": "https://jenkins.example.com/job/acm-e2e/123/",
     "analyzed_at": "2026-02-05T12:30:00Z",
-    "analyzer_version": "3.5.0"
+    "analyzer_version": "3.9.0"
   },
   "investigation_phases_completed": ["A", "B", "C", "D", "E"],
   "per_test_analysis": [
@@ -590,6 +620,13 @@ E6: Create/link issues (optional)
           "reason": "Environment score 0.95, cluster fully healthy"
         }
       ],
+      "root_cause_layer": 12,
+      "root_cause_layer_name": "UI / Plugin / Rendering",
+      "investigation_steps_taken": [
+        "Layer 12: Selector '#create-btn' not in product source (console_search.found=false) -> ROOT CAUSE (stale test selector)"
+      ],
+      "cause_owner": "test code",
+      "verification_status": "individually_investigated",
       "recommended_fix": {
         "action": "Update selector to '#cluster-create-btn'",
         "steps": [

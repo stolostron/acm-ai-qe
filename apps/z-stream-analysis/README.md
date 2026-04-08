@@ -1,4 +1,4 @@
-# Z-Stream Pipeline Analysis (v3.5)
+# Z-Stream Pipeline Analysis (v3.9)
 
 Jenkins pipeline failure analysis with definitive PRODUCT_BUG | AUTOMATION_BUG | INFRASTRUCTURE classification.
 
@@ -6,10 +6,11 @@ Jenkins pipeline failure analysis with definitive PRODUCT_BUG | AUTOMATION_BUG |
 
 When Jenkins tests fail, you need to know: **Is it a PRODUCT BUG, AUTOMATION BUG, or INFRASTRUCTURE issue?**
 
-This 4-Stage Pipeline provides:
+This 5-Stage Pipeline provides:
 0. **Environment Oracle** (inside gather.py): Feature-aware dependency health & knowledge database
 1. **Data Gathering** (`gather.py`): Factual data collection from Jenkins, environment, repositories, and Knowledge Graph
-2. **AI Analysis** (Claude Code agent): 5-phase investigation with full repo access and MCP integration
+1.5. **Cluster Diagnostic** (`cluster-diagnostic` agent): Comprehensive 6-phase hub-health-style cluster investigation producing `cluster-diagnosis.json`
+2. **AI Analysis** (`z-stream-analysis` agent): 5-phase investigation with diagnostic data, full repo access, and MCP integration
 3. **Report Generation** (`report.py`): Human-readable reports from AI analysis
 
 ## Quick Start
@@ -35,10 +36,11 @@ Analyze this run: <JENKINS_URL>
 ## Architecture
 
 ```
-STAGE 0: gather.py    -> cluster_oracle (environment oracle + knowledge database)
-STAGE 1: gather.py    -> core-data.json + cluster.kubeconfig + repos/
-STAGE 2: AI Analysis  -> analysis-results.json (5-phase investigation)
-STAGE 3: report.py    -> Detailed-Analysis.md + per-test-breakdown.json + SUMMARY.txt
+STAGE 0:   gather.py              -> cluster_oracle (environment oracle + knowledge database)
+STAGE 1:   gather.py              -> core-data.json + cluster.kubeconfig + repos/
+STAGE 1.5: cluster-diagnostic     -> cluster-diagnosis.json (6-phase hub-health-style investigation)
+STAGE 2:   AI Analysis            -> analysis-results.json (12-layer diagnostic investigation)
+STAGE 3:   report.py              -> Detailed-Analysis.md + per-test-breakdown.json + SUMMARY.txt
 ```
 
 ### Stage 1: Data Gathering
@@ -55,14 +57,28 @@ STAGE 3: report.py    -> Detailed-Analysis.md + per-test-breakdown.json + SUMMAR
 - Temporal evidence (git timeline comparison between product and test changes)
 - Cluster kubeconfig (persisted `cluster.kubeconfig` for Stage 2 re-authentication)
 
-### Stage 2: AI Analysis
+### Stage 1.5: Cluster Diagnostic (v3.6)
 
-Claude Code agent performs 5-phase investigation:
-- **Phase A**: Initial assessment (re-auth, feature grounding, environment, patterns, KG context)
-- **Phase B**: Deep investigation per test (extracted context, timeline, console, MCP, backend cross-check, tiered playbook investigation)
+Dedicated `cluster-diagnostic` agent performs a comprehensive 6-phase investigation:
+- **Phase 1: Discover** — Full cluster inventory (MCH/MCE, ALL CSVs, webhooks, ConsolePlugins, nodes, managed clusters)
+- **Phase 2: Learn** — Compare against healthy-baseline.yaml, addon-catalog.yaml, webhook-registry.yaml, diagnostic traps
+- **Phase 3: Check** — Per-namespace pod health with baseline comparison, log pattern scanning, restart counts, OCP operator health, infrastructure guards, addon/webhook verification, trap detection
+- **Phase 4: Pattern Match** — Cross-reference against failure-patterns.yaml and failure-signatures.md
+- **Phase 5: Correlate** — Dependency chain tracing, cross-subsystem impact, env var dependency discovery
+- **Phase 6: Output** — Write `cluster-diagnosis.json` + self-healing discoveries to `knowledge/learned/`
+
+Output includes: subsystem health, operator inventory, addon health, webhook status, component log excerpts, restart counts, managed cluster detail, OCP operators, console plugin status, infrastructure issues, dependency chains, baseline comparison, and classification guidance.
+
+### Stage 2: AI Analysis (v3.9 — Provably Linked Grouping + 12-Layer Investigation)
+
+Claude Code agent uses the 12-layer diagnostic model to find root causes:
+- **Phase A**: Initial assessment (re-auth, feature grounding, environment, patterns, KG context) + **A4: provably linked grouping** — groups by strict code-path criteria only (same selector+function, same before-all hook, same spec+error+line). Dead selectors classified directly, hook cascades as NO_BUG.
+- **Phase B**: 12-layer root cause investigation — traces from symptom through infrastructure layers (Compute, Control Plane, Network, Storage, Config, Auth, RBAC, API, Operator, Cross-Cluster, Data Flow, UI) to find broken layer, investigates WHO caused it, then classifies. **Per-test verification** (v3.9): 4-point check (code path, backend, role, element) on each subsequent test in a group; failures split to individual investigation.
 - **Phase C**: Cross-reference validation (multi-evidence, cascading failures, pattern correlation)
-- **Phase D**: Classification routing with pre-checks (blank page, hook dedup, temporal evidence, data assertion) then 3-path routing (selector -> Path A, timeout -> Path B1 with graduated health scoring, else -> Path B2 JIRA investigation) then causal link verification and counter-bias validation
+- **Phase D**: Validation of investigation results against PR signals (PR-6 backend probes, PR-7 oracle), **expanded counterfactual verification** (D-V5, v3.9: 9 templates + evidence duplication detection + per-test evidence requirement), causal link verification (D4b), counter-bias validation (D5). Fallback: 3-path routing when investigation agents unavailable.
 - **Phase E**: Feature context and JIRA correlation (Knowledge Graph, feature stories, bug search)
+
+Every test in the output includes `root_cause_layer` (1-12), `root_cause_layer_name`, `investigation_steps_taken`, and `cause_owner`.
 
 ### Stage 3: Report Generation
 
@@ -109,15 +125,15 @@ Claude Code agent performs 5-phase investigation:
 
 ## Knowledge Database
 
-Standalone knowledge database at `knowledge/` with 53 files providing domain
-reference data for the AI agent during Stage 2 analysis.
+Standalone knowledge database at `knowledge/` with 60 files providing domain
+reference data for the diagnostic agent (Stage 1.5) and the AI analysis agent (Stage 2).
 
 | Directory | Content | Files |
 |-----------|---------|-------|
 | `architecture/` | Per-subsystem architecture, data flow, failure signatures | 37 files across 12 subsystems + 2 platform docs |
-| `diagnostics/` | Classification decision tree, evidence tiers, known misclassifications | 3 files |
-| Root YAML | Components, dependencies, selectors, API endpoints, feature areas, failure patterns, test mapping | 8 files |
-| `learned/` | Agent-contributed corrections, patterns, selector changes | 3 template files |
+| `diagnostics/` | Classification decision tree, evidence tiers, known misclassifications, diagnostic traps, 12-layer diagnostic model | 5 files |
+| Root YAML | Components, dependencies, selectors, API endpoints, feature areas, failure patterns, test mapping, healthy baseline, addon catalog, webhook registry, version constraints, prerequisites | 12 files |
+| `learned/` | Agent-contributed corrections, patterns, selector changes, operator discoveries | 3+ files (grows via self-healing) |
 | `refresh.py` | Updates knowledge from cluster, MCP, KG | 1 script |
 
 Subsystems covered: Search, Console, Governance, Cluster Lifecycle, Virtualization,
@@ -130,8 +146,9 @@ and `failure-signatures.md` (known failure patterns with classification guidance
 
 ```
 runs/<job>_<timestamp>/
-├── core-data.json              <- Primary data for AI (read first)
-├── cluster.kubeconfig          <- Persisted cluster auth for Stage 2
+├── core-data.json              <- Primary data from gather.py (Stage 1)
+├── cluster-diagnosis.json      <- Cluster diagnostic output (Stage 1.5)
+├── cluster.kubeconfig          <- Persisted cluster auth for Stages 1.5 + 2
 ├── pipeline.log.jsonl          <- Structured logs from all Python services (Stage 1+3)
 ├── run-metadata.json           <- Run metadata (timing, version)
 ├── manifest.json               <- File index
@@ -153,11 +170,11 @@ runs/<job>_<timestamp>/
 Agent trace logs: .claude/traces/<session_id>.jsonl (MCP calls, prompts, tool use)
 ```
 
-## Services (17 Python Modules)
+## Services (18 Python Modules)
 
 | Service | Purpose |
 |---------|---------|
-| `EnvironmentOracleService` | 6-phase feature-aware dependency health & knowledge database (v3.5) |
+| `EnvironmentOracleService` | 6-phase feature-aware dependency health & knowledge database (v3.6) |
 | `JenkinsIntelligenceService` | Build info extraction, console log parsing, test report analysis |
 | `JenkinsAPIClient` | Direct Jenkins REST API client with authentication |
 | `EnvironmentValidationService` | Real oc/kubectl cluster validation (READ-ONLY) |
@@ -190,7 +207,7 @@ Run `bash mcp/setup.sh` from the repo root to configure all servers.
 ## Tests
 
 ```bash
-# Unit + regression (602+ tests, no external deps):
+# Unit + regression (719 tests, no external deps):
 python -m pytest tests/unit/ tests/regression/ -q
 
 # Integration (requires Jenkins VPN):
@@ -238,4 +255,7 @@ python -m src.scripts.feedback --stats
 | Stage 3: Report generation | [docs/03-STAGE3-REPORT-GENERATION.md](docs/03-STAGE3-REPORT-GENERATION.md) |
 | Services reference | [docs/04-SERVICES-REFERENCE.md](docs/04-SERVICES-REFERENCE.md) |
 | MCP integration guide | [docs/05-MCP-INTEGRATION.md](docs/05-MCP-INTEGRATION.md) |
-| Agent instructions | [.claude/agents/z-stream-analysis.md](.claude/agents/z-stream-analysis.md) |
+| Knowledge database reference | [docs/06-KNOWLEDGE-DATABASE.md](docs/06-KNOWLEDGE-DATABASE.md) |
+| Stage 2 agent instructions | [.claude/agents/z-stream-analysis.md](.claude/agents/z-stream-analysis.md) |
+| Stage 2 investigation agent | [.claude/agents/investigation-agent.md](.claude/agents/investigation-agent.md) |
+| Stage 1.5 diagnostic agent | [.claude/agents/cluster-diagnostic.md](.claude/agents/cluster-diagnostic.md) |

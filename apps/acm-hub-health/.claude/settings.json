@@ -11,13 +11,6 @@
       "Bash(oc adm top:*)",
       "Bash(oc exec:*)",
       "Bash(oc auth:*)",
-      "Bash(oc patch:*)",
-      "Bash(oc scale:*)",
-      "Bash(oc rollout restart:*)",
-      "Bash(oc delete pod:*)",
-      "Bash(oc annotate:*)",
-      "Bash(oc label:*)",
-      "Bash(oc apply:*)",
       "Bash(kubectl get:*)",
       "Bash(kubectl describe:*)",
       "Bash(grep:*)",
@@ -32,9 +25,146 @@
       "Bash(ls:*)",
       "Bash(find:*)",
       "Bash(git clone:*)",
+      "Bash(podman ps:*)",
+      "Bash(podman start neo4j-rhacm:*)",
+      "Bash(python3:*)",
+      "Bash(python:*)",
       "Read",
+      "Glob",
+      "Grep",
+      "Agent",
       "Write(knowledge/learned/*)",
-      "mcp__acm-ui__*"
+      "Edit(knowledge/learned/*)",
+      "mcp__acm-ui__*",
+      "mcp__neo4j-rhacm__*"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 $CLAUDE_PROJECT_DIR/.claude/hooks/agent_trace.py"
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 $CLAUDE_PROJECT_DIR/.claude/hooks/agent_trace.py"
+          }
+        ]
+      },
+      {
+        "matcher": "Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 $CLAUDE_PROJECT_DIR/.claude/hooks/agent_trace.py"
+          }
+        ]
+      },
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 $CLAUDE_PROJECT_DIR/.claude/hooks/agent_trace.py"
+          }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 $CLAUDE_PROJECT_DIR/.claude/hooks/agent_trace.py"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 $CLAUDE_PROJECT_DIR/.claude/hooks/agent_trace.py"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 $CLAUDE_PROJECT_DIR/.claude/hooks/agent_trace.py"
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 $CLAUDE_PROJECT_DIR/.claude/hooks/agent_trace.py"
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 $CLAUDE_PROJECT_DIR/.claude/hooks/agent_trace.py"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 $CLAUDE_PROJECT_DIR/.claude/hooks/agent_trace.py"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 $CLAUDE_PROJECT_DIR/.claude/hooks/agent_trace.py"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 $CLAUDE_PROJECT_DIR/.claude/hooks/agent_trace.py"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 $CLAUDE_PROJECT_DIR/.claude/hooks/agent_trace.py"
+          }
+        ]
+      }
     ]
   }
 }

@@ -999,7 +999,7 @@ All collected data is written to the run directory.
   "metadata": {
     "jenkins_url": "https://jenkins.../job/acm-e2e/123/",
     "gathered_at": "2026-02-04T15:30:00Z",
-    "gatherer_version": "3.5.0"
+    "gatherer_version": "3.9.0"
   },
   "jenkins": {
     "job_name": "acm-qe-e2e-nightly",

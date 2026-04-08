@@ -1,7 +1,28 @@
 # Classification Decision Tree
 
-The complete decision tree for classifying test failures. Each pre-routing
-check runs in order; the first match short-circuits to a classification.
+The complete decision tree for classifying test failures.
+
+## Role in the v3.8 Architecture (Layer-Based Investigation)
+
+In v3.8, the primary investigation methodology is the 12-layer diagnostic
+model (see `diagnostic-layers.md`). Investigation agents trace from the
+symptom downward through infrastructure layers to find the root cause,
+then classify based on WHO caused the breakage.
+
+The pre-routing checks below (PR-1 through PR-7) now serve as:
+
+- **PR-2 (cascading hook):** Instant classification. After-all hook + prior
+  test failed = NO_BUG. Always correct, runs before any investigation agent
+  is spawned.
+- **All other PRs:** VALIDATION checks applied by the parent agent AFTER
+  receiving investigation results. If an investigation agent's finding
+  conflicts with a PR signal, the parent investigates the discrepancy
+  rather than blindly following either one.
+
+The 3-path routing (Path A/B1/B2) remains as the fallback classification
+path when investigation agents are not available or when tests are
+classified directly by the parent agent (e.g., obvious shared dead
+selector patterns).
 
 ---
 

@@ -6,19 +6,20 @@ Multi-app repository for ACM quality engineering tools, built on Claude Code.
 
 ### Z-Stream Analysis (`apps/z-stream-analysis/`) — Active
 
-Jenkins pipeline failure analysis (v3.5.1) with classification: PRODUCT_BUG | AUTOMATION_BUG | INFRASTRUCTURE | FLAKY | NO_BUG | MIXED | UNKNOWN. Includes assertion value extraction, per-feature-area graduated infrastructure scoring, per-test causal link verification, failure mode categorization, blank page pre-routing, hook failure deduplication, temporal evidence routing, feature investigation playbooks, tiered cluster investigation, classification feedback, and standalone knowledge database (`knowledge/`).
+Jenkins pipeline failure analysis (v3.9) with classification: PRODUCT_BUG | AUTOMATION_BUG | INFRASTRUCTURE | FLAKY | NO_BUG | MIXED | UNKNOWN. v3.9 adds provably linked grouping (Phase A4), per-test verification within groups (4-point check), and expanded counterfactual verification (D-V5) with 9 templates. v3.8 features 12-layer diagnostic investigation with per-group investigation agents for root-cause-first classification. Includes comprehensive cluster diagnostic (Stage 1.5) with hub-health-style investigation, diagnostic trap detection, self-healing knowledge, assertion value extraction, per-feature-area graduated infrastructure scoring, per-test causal link verification, failure mode categorization, blank page pre-routing, hook failure deduplication, temporal evidence routing, feature investigation playbooks, tiered cluster investigation, classification feedback, and standalone knowledge database (`knowledge/`).
 
-Four-stage pipeline:
+Five-stage pipeline:
 0. **Environment Oracle** (inside gather.py) — Feature-aware dependency health & knowledge database (`cluster_oracle`)
 1. **gather.py** — Extracts test data from Jenkins (builds `core-data.json` with cluster landscape, backend API probes, and feature grounding; persists `cluster.kubeconfig` for Stage 2)
-2. **AI Analysis** — 5-phase investigation with backend cross-check producing `analysis-results.json`
+1.5. **Cluster Diagnostic** (AI agent) — Comprehensive 6-phase cluster investigation producing `cluster-diagnosis.json` with subsystem health, classification guidance, and dependency chain verification
+2. **AI Analysis** — 12-layer diagnostic investigation: groups tests by shared signals, traces root cause through infrastructure layers (Compute→UI), classifies based on WHO caused breakage. Per-group investigation agents for deeper analysis. Produces `analysis-results.json` with `root_cause_layer` per test.
 3. **report.py** — Generates `Detailed-Analysis.md` + `analysis-report.html` from analysis results
 
 See `apps/z-stream-analysis/CLAUDE.md` for schema requirements, classification guide, and MCP tool reference.
 
 ### ACM Hub Health Agent (`apps/acm-hub-health/`) — Active
 
-AI-powered diagnostic and remediation agent for ACM hub clusters. Uses Claude Code with embedded ACM domain knowledge to perform health checks at any depth -- from quick sanity checks to deep component-level investigations. Natural language driven, no dependencies beyond `oc` + `claude`. Diagnosis is read-only; cluster fixes are executed only after presenting a structured remediation plan and getting explicit user approval. Includes structured knowledge database (`knowledge/`) with baseline, dependency chains (8 cascade paths), webhooks, certificates, addon catalog, and diagnostic traps. Optional CLI wrapper (`acm-hub`) enables running diagnostics from any terminal without launching an interactive session.
+AI-powered diagnostic and remediation agent for ACM hub clusters. Uses Claude Code with embedded ACM domain knowledge to perform health checks at any depth -- from quick sanity checks to deep component-level investigations. Natural language driven, no dependencies beyond `oc` + `claude`. Diagnosis is read-only; cluster fixes are executed only after presenting a structured remediation plan and getting explicit user approval. Includes structured knowledge database (`knowledge/`) with baseline, dependency chains (8 cascade paths with layer annotations), 12-layer diagnostic model (vertical root cause tracing), webhooks, certificates, addon catalog, and 13 diagnostic traps. Phase 3 uses layer-organized health checks (foundational layers first, then component layers). Phase 5 traces both horizontally (dependency chains) and vertically (12 infrastructure layers). Falls back to cluster metadata introspection (8 live metadata sources) and the Neo4j knowledge graph MCP (`neo4j-rhacm`) for dependency analysis when the curated knowledge doesn't cover a component or path. Optional CLI wrapper (`acm-hub`) enables running diagnostics from any terminal without launching an interactive session. Session tracing via Claude Code hooks captures all tool calls, MCP interactions, prompts, and errors to structured JSONL files (`.claude/traces/`) with diagnostic-specific enrichment (oc command parsing, phase inference, mutation detection, session-level aggregate stats).
 
 Usage: `cd apps/acm-hub-health && bash setup.sh && oc login <hub> && claude`
 
@@ -46,8 +47,9 @@ python -m src.scripts.gather "<JENKINS_URL>"
 python -m src.scripts.gather "<JENKINS_URL>" --skip-env    # Skip cluster validation
 python -m src.scripts.gather "<JENKINS_URL>" --skip-repo   # Skip repo cloning
 
-# Stage 2: AI Analysis
-# Read core-data.json, classify each failure using MCP tools
+# Stage 2: AI Analysis (12-layer diagnostic investigation)
+# Read core-data.json + cluster-health.json + cluster-diagnosis.json
+# Classify each failure using 12-layer model + MCP tools
 # MUST read src/schemas/analysis_results_schema.json before writing analysis-results.json
 
 # Stage 3: Generate reports
@@ -97,9 +99,9 @@ ai_systems_v2/
 # Z-stream analysis tests (from app directory)
 cd apps/z-stream-analysis/
 
-# Fast — unit + regression (667+ tests, no external deps):
+# Fast — unit + regression (719 tests, no external deps):
 python -m pytest tests/unit/ tests/regression/ -q
 
-# Full suite (717+ tests, requires Jenkins VPN for integration):
+# Full suite (765+ tests, requires Jenkins VPN for integration):
 python -m pytest tests/ -q --timeout=300
 ```

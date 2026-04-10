@@ -1,6 +1,6 @@
 # Stage 2: AI Analysis (12-Layer Diagnostic Investigation)
 
-The AI agent reads `core-data.json`, `cluster-health.json`, and `cluster-diagnosis.json`, then classifies each test failure using the 12-layer diagnostic model with provably linked grouping and per-test verification (v3.9).
+The AI agent reads `core-data.json` and `cluster-diagnosis.json`, then classifies each test failure using the 12-layer diagnostic model with provably linked grouping, per-test verification, and symmetric counterfactual validation (v4.0).
 
 ---
 
@@ -11,7 +11,7 @@ v3.9 builds on v3.8's layer-based root cause analysis with three key additions t
 **Key changes from v3.8.1:**
 - **Phase A4 (v3.9):** Provably linked grouping replaces symptom-based grouping. Groups require identical code paths (same selector+function, same before-all hook, same spec+error+line). "Button disabled", "same feature area", and "similar error" are NOT valid grouping criteria.
 - **Phase B (v3.9):** Per-test verification within groups. After investigating the first test, a mandatory 4-point check (code path, backend component, user role, error element) verifies each subsequent test. Failures split from the group and receive individual investigation inline.
-- **Phase D-V5 (v3.9):** Expanded counterfactual verification with 9 templates (selector, button-disabled, timeout, data-assertion, blank-page, CSS, NetworkPolicy, operator, ResourceQuota). Plus evidence duplication detection and per-test evidence requirement.
+- **Phase D-V5 (v3.9, updated v4.0):** Expanded counterfactual verification with 9 templates (selector, button-disabled, timeout, data-assertion, blank-page, CSS, NetworkPolicy, operator, ResourceQuota). Symmetric validation: D-V5c validates AUTOMATION_BUG ("does backend confirm test expectation?"), D-V5e validates PRODUCT_BUG ("is product behavior actually correct?"). Plus evidence duplication detection and per-test evidence requirement.
 - **Output:** Every test includes `root_cause_layer` (1-12), `root_cause_layer_name`, `investigation_steps_taken`, `cause_owner`, and optional `verification_status` (v3.9)
 
 The 12 layers (bottom to top): Compute (1), Control Plane (2), Network (3), Storage (4), Configuration (5), Authentication (6), Authorization (7), API/CRD/Webhook (8), Operator (9), Cross-Cluster (10), Data Flow (11), UI/Plugin (12).
@@ -24,7 +24,7 @@ The 5-phase structure (A-E) is preserved. The layer-based investigation is the m
 
 **Invocation:** The z-stream-analysis agent reads the run directory and applies the 12-layer investigation methodology within a 5-phase framework.
 
-**Input:** `core-data.json` + `cluster-health.json` + `cluster-diagnosis.json` (from Stages 1/1.5), `repos/` (fallback), MCP servers (ACM-UI, Jenkins, JIRA, Polarion, Knowledge Graph)
+**Input:** `core-data.json` + `cluster-diagnosis.json` (from Stages 1/1.5), `repos/` (fallback), MCP servers (ACM-UI, Jenkins, JIRA, Polarion, Knowledge Graph)
 
 **Output:** `analysis-results.json` (classification per test with root cause layer, evidence, and investigation steps)
 
@@ -364,16 +364,18 @@ If `extracted_context.assertion_analysis.has_data_assertion == true` AND `extrac
 
 If `backend_probes` data includes a probe with `classification_hint` and `anomaly_source`, uses deterministic K8s-vs-console comparison. Compares actual cluster state (`cluster_ground_truth`) against console backend response to distinguish PRODUCT_BUG (console returns wrong data despite healthy K8s) from INFRASTRUCTURE (underlying K8s resource is unhealthy). Routes based on `classification_hint` with 0.85-0.90 confidence. Tier 1 evidence.
 
-### PR-7: Environment Oracle Dependency Check (v3.5)
+### PR-6b: Polarion Expected Behavior Check (v4.0)
 
-If `cluster_oracle` data shows a broken dependency for the test's feature area (operator missing, addon degraded, CRD absent, component not running), adds INFRASTRUCTURE evidence with Tier 1 weight. Key behaviors:
+If Polarion test case setup describes expected behavior AND the subsystem is healthy AND the behavior is not delivered, signals PRODUCT_BUG (0.80). Also detects layer discrepancies (lower layer healthy, higher layer defect) as Tier 1 PRODUCT_BUG evidence. See `knowledge/diagnostics/diagnostic-layers.md` "Layer Discrepancy Detection".
 
-- **Additive, not override:** Oracle signals are Tier 1 evidence but per-test evidence takes precedence. If `console_search.found=false` for a test's selector, classify as AUTOMATION_BUG regardless of oracle signal.
-- **DEFINITIVE threshold:** Requires 2+ confirmed-missing dependencies. A single missing dependency produces at most a `strong` signal.
-- **Managed cluster age filter:** Clusters < 4 hours old are excluded from health scoring (likely test artifacts, not pre-existing failures). `local-cluster` is always counted.
-- **Pod fallback for operators:** Operators deployed without OLM (no CSV) are checked via pod health. Running pods = healthy.
-- **Mandatory reads:** Agent MUST read `knowledge/architecture/<area>/failure-signatures.md` before applying oracle signals; pattern matches take precedence.
-- **Full per-test analysis required:** Even with DEFINITIVE signal, every test entry must include error message, specific element/selector, evidence sources, and recommended fix.
+### PR-7: Environment/Diagnostic Context Signals (v4.0)
+
+**v4.0 change:** PR-7 produces CONTEXT SIGNALS, not binding classifications. Infrastructure findings from `cluster-diagnosis.json` are inputs to the per-test layer investigation, not pre-determined classifications. The layer investigation determines whether each test's specific error is caused by the infrastructure signal. Key behaviors:
+
+- **Context, not classification:** Degraded dependencies are STRONG signals but do NOT produce binding INFRASTRUCTURE classifications. The classification comes from the layer investigation.
+- **Additive, not override:** Per-test evidence takes precedence. If `console_search.found=false`, classify as AUTOMATION_BUG regardless of infrastructure signals.
+- **Mandatory reads:** Agent MUST read `knowledge/architecture/<area>/failure-signatures.md` before applying signals; pattern matches take precedence.
+- **Full per-test analysis required:** Every test entry must include error message, specific element/selector, evidence sources, and recommended fix.
 
 ### PR-4: Feature Knowledge Override (v3.1)
 

@@ -16,7 +16,7 @@ import logging
 import re
 import subprocess
 from dataclasses import dataclass, asdict
-from typing import Callable, Dict, Any, List, Optional, Tuple
+from typing import Callable, Dict, Any, List, Optional
 from urllib.parse import urlparse
 
 # Import stack trace parser

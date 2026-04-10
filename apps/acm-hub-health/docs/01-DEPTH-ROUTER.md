@@ -138,7 +138,8 @@ analysis, event review, and storage checks.
 
 | Addition | Details |
 |----------|---------|
-| Dependency chain tracing | Uses `knowledge/diagnostics/dependency-chains.md` to trace root causes |
+| Horizontal dependency chain tracing | Uses `knowledge/diagnostics/dependency-chains.md` to trace root causes within subsystems |
+| Vertical layer tracing | Uses `knowledge/diagnostics/diagnostic-layers.md` to trace across 12 infrastructure layers — finds the LOWEST affected layer when multiple components show symptoms |
 | Evidence-tier weighting | Applies `knowledge/diagnostics/evidence-tiers.md` rules |
 | Cross-component correlation | Identifies shared dependencies causing multiple symptoms |
 | Log analysis | `oc logs` for any degraded components |
@@ -147,6 +148,7 @@ analysis, event review, and storage checks.
 | Resource usage | `oc adm top pods` / `oc adm top nodes` |
 | Previous crash logs | `oc logs --previous` for pods with high restart counts |
 | Data flow tracing | Reads component `data-flow.md` to identify where flow is broken |
+| Layer-based fallback | When no playbook matches, traces downward from symptom layer to find root cause |
 
 **Output:** Full health report with evidence-based findings, confidence levels,
 and cross-component correlation.
@@ -252,14 +254,15 @@ investigation of search even though it doesn't say "investigate."
 | Component discovery | No | Yes | Yes | Target area |
 | Architecture knowledge | No | Yes | Yes | Yes |
 | Self-healing | No | Yes | Yes | Yes |
-| Pod-level checks | No | Yes | Yes | Yes (focused) |
+| Layer-organized health checks | No | Yes | Yes | Yes (focused) |
 | Operator log scanning | No | Yes | Yes | Yes (focused) |
 | Add-on status | No | Yes | Yes | If relevant |
 | Known issue matching | No | Yes | Yes | Yes |
 | Version-aware diagnosis | No | Yes | Yes | Yes |
 | Diagnostic trap verification | No | Yes | Yes | Yes |
 | Post-upgrade pattern check | No | Yes | Yes | Yes |
-| Dependency chain tracing | No | No | Yes | With dependencies |
+| Horizontal dependency chain tracing | No | No | Yes | With dependencies |
+| Vertical layer tracing | No | No | Yes | Yes |
 | Evidence-tier weighting | No | No | Yes | Yes |
 | Log analysis | No | No | Yes | Yes |
 | Event review | No | No | Yes | Yes |
@@ -267,6 +270,7 @@ investigation of search even though it doesn't say "investigate."
 | Resource usage | No | No | Yes | If relevant |
 | Previous crash logs | No | No | Yes | Yes |
 | Diagnostic playbooks | No | No | Yes | Yes |
+| Layer-based fallback | No | No | Yes | Yes |
 | Data flow tracing | No | No | Yes | Yes |
 
 ---

@@ -1,1 +1,0 @@
-# Anti-simulation compliance tests

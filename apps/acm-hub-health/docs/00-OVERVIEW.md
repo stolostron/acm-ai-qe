@@ -84,11 +84,11 @@ that selects which phases to run based on the user's intent:
 ┌──────────────┐        ┌──────────┐        ┌──────────┐        ┌──────────┐
 │  Interpret   │  ───►  │ DISCOVER │  ───►  │  LEARN   │  ───►  │  CHECK   │
 │  user intent │        │          │        │          │        │          │
-│              │        │ Inventory│        │ Consult  │        │ Verify   │
-│  sanity      │        │ the hub  │        │ knowledge│        │ health   │
-│  standard    │        │          │        │ + self-  │        │ of each  │
-│  deep        │        │          │        │ heal gaps│        │ component│
-│  targeted    │        │          │        │          │        │          │
+│              │        │ Inventory│        │ Consult  │        │ Layer-   │
+│  sanity      │        │ the hub  │        │ knowledge│        │ organized│
+│  standard    │        │          │        │ + self-  │        │ health   │
+│  deep        │        │          │        │ heal gaps│        │ checks   │
+│  targeted    │        │          │        │          │        │ (L1→L12) │
 └──────────────┘        └──────────┘        └──────────┘        └──────────┘
                                                                       │
                             ┌──────────────────────────────────────────┘
@@ -97,11 +97,11 @@ that selects which phases to run based on the user's intent:
                     ┌──────────┐        ┌──────────┐        ┌──────────┐
                     │ PATTERN  │  ───►  │CORRELATE │  ───►  │  DEEP    │
                     │ MATCH    │        │          │        │INVESTIGATE│
-                    │          │        │ Cross-   │        │          │
-                    │ Known    │        │ component│        │ Logs,    │
-                    │ bug?     │        │ root     │        │ events,  │
-                    │          │        │ cause    │        │ storage, │
-                    │          │        │          │        │ network  │
+                    │          │        │ Horiz +  │        │          │
+                    │ Known    │        │ vertical │        │ Logs,    │
+                    │ bug?     │        │ root     │        │ events + │
+                    │          │        │ cause    │        │ layer    │
+                    │          │        │ tracing  │        │ fallback │
                     └──────────┘        └──────────┘        └──────────┘
 ```
 
@@ -201,6 +201,7 @@ acm-hub-health/
 │   ├── webhook-registry.yaml           ← Validating/mutating webhooks and their impact
 │   ├── certificate-inventory.yaml      ← TLS secrets, rotation, and corruption impact
 │   ├── addon-catalog.yaml              ← Addon health checks, dependencies, expectations
+│   ├── version-constraints.yaml        ← Known product version incompatibilities
 │   ├── refresh.py                      ← Updates YAML files from live cluster
 │   ├── architecture/                   ← Per-component architecture, data-flow, known-issues
 │   │   ├── kubernetes-fundamentals.md
@@ -248,7 +249,7 @@ acm-hub-health/
 
 | Decision | Rationale |
 |----------|-----------|
-| Minimal custom code | Core agent is pure Claude Code with no runtime dependencies beyond `oc` and `claude`. Uses cluster introspection (8 live metadata sources via `oc` commands) and two MCP servers (acm-ui for source code search, neo4j-rhacm for dependency graph queries). The only custom code is `knowledge/refresh.py` (optional, for updating YAML baselines from a live cluster; requires Python 3 + PyYAML). |
+| Minimal custom code | Core agent is pure Claude Code with no runtime dependencies beyond `oc` and `claude`. Uses cluster introspection (8 live metadata sources via `oc` commands) and two MCP servers (acm-ui for source code search, neo4j-rhacm for dependency graph queries). Custom code: `.claude/hooks/agent_trace.py` (session tracing hook, stdlib only, runs automatically) and `knowledge/refresh.py` (optional, for updating YAML baselines from a live cluster; requires Python 3 + PyYAML). |
 | Diagnose-first, fix-with-approval | Diagnosis is always read-only. Fixes are only attempted after all findings are presented and the user explicitly approves the remediation plan. No per-command prompts -- one structured approval for the full plan. |
 | Layered knowledge (architecture + diagnostics + structured YAML + learned) | Architecture knowledge explains how things work. Structured YAML provides quantitative baselines. Diagnostics knowledge guides methodology. Learned knowledge fills version-specific gaps. |
 | File-based knowledge database (not SQL) | No database server dependency. YAML/markdown files are human-readable, git-tracked, and diffable. Claude reads them directly into context. |

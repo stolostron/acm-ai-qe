@@ -30,8 +30,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-import structlog
-
 
 # ---------------------------------------------------------------------------
 # Context variables — propagated to every log entry automatically

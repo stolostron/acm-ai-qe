@@ -348,11 +348,12 @@ The `.claude/settings.json` file auto-approves two categories of commands:
   text processing utilities, file inspection, `git clone`, all acm-ui
   MCP tools, and all neo4j-rhacm MCP tools (read-only Cypher queries).
   File writes limited to `knowledge/learned/` only.
-- **Remediation** (methodology-gated): `oc patch`, `oc scale`,
+- **Remediation** (double-gated): `oc patch`, `oc scale`,
   `oc rollout restart`, `oc delete pod`, `oc annotate`, `oc label`,
-  `oc apply`. These are auto-approved in settings.json but the agent's
-  CLAUDE.md Remediation Protocol requires completing all diagnosis and
-  getting explicit user approval before using them.
+  `oc apply`. These are NOT auto-approved in settings.json -- Claude Code
+  prompts the user for permission on each mutation command. Additionally,
+  the CLAUDE.md Remediation Protocol requires completing all diagnosis and
+  presenting a structured plan before offering any fixes.
 
 Destructive commands (`oc delete` on non-pod resources, `oc adm drain`)
 are never allowed.

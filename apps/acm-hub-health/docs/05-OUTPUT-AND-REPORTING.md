@@ -78,7 +78,7 @@ Used for standard checks and deep audits:
 - **Root Cause**: Best assessment with confidence level
 - **Known Issue**: JIRA reference if pattern matches (ACM-XXXXX)
 - **Fix Version**: Which ACM version contains the fix (if known)
-- **Cluster-Fixable**: Yes/No -- can this be resolved on-cluster?
+- **Cluster-Fixable**: Yes / Workaround / No
 - **Recommended Action**: What to do (fix, upgrade, workaround)
 
 ### [WARNING] <issue title>
@@ -212,7 +212,7 @@ Each issue includes up to seven fields:
 | **Root Cause** | Best assessment with confidence level | Always |
 | **Known Issue** | JIRA reference (ACM-XXXXX) | When pattern matches known bug |
 | **Fix Version** | ACM version containing the fix | When known |
-| **Cluster-Fixable** | Whether it can be resolved on-cluster | When known issue matched |
+| **Cluster-Fixable** | Yes / Workaround / No -- resolved on-cluster, workaround exists, or needs upgrade | When known issue matched |
 | **Recommended Action** | Specific remediation steps the user can take | Always |
 
 When cluster-fixable issues are found, the agent presents a structured

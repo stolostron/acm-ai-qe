@@ -17,6 +17,7 @@ These are binary, verifiable signals with high reliability:
 | `oracle.dependency_health` | Step 5 (environment oracle) | Are feature dependencies healthy? |
 | `is_cascading_hook_failure` | Step 3 (JUnit parser) | Is this an after-all hook from a prior failure? |
 | `blank_page_detected` | Step 2 (console log) | Did the page fail to load entirely? |
+| `layer_discrepancy` | Layer investigation (Phase B) | Two layers disagree about resource state. Lower layer verified healthy, higher layer shows defect. Proves product code at higher layer is wrong. |
 
 ## Tier 2: Contextual Evidence (weight: 0.5 each)
 
@@ -46,7 +47,12 @@ A classification needs **minimum 1.8 combined weight** for high confidence:
 - managed_clusters NotReady (Tier 2: 0.5)
 - Total: 2.0 >= 1.8 -> high confidence (0.90)
 
-**Example 3: PRODUCT_BUG via Path B2 (weaker)**
+**Example 3: PRODUCT_BUG via layer discrepancy (strong)**
+- layer_discrepancy: L7 says permission granted, L12 shows button disabled (Tier 1: 1.0)
+- console_search.found = true, selector exists (Tier 1: 1.0)
+- Total: 2.0 >= 1.8 -> high confidence (0.85-0.90)
+
+**Example 4: PRODUCT_BUG via Path B2 without layer discrepancy (weaker)**
 - console_search.found = true (Tier 1: 1.0)
 - JIRA bug found for component (Tier 2: 0.5)
 - Total: 1.5 < 1.8 -> moderate confidence (0.65-0.75)

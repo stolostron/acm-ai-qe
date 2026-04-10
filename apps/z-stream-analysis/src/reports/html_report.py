@@ -33,6 +33,67 @@ CLS_COLORS = {
 }
 
 
+def _map_diagnosis_to_health(diag: dict) -> dict:
+    """Map cluster-diagnosis.json fields to the dict shape html_report rendering expects.
+
+    The rendering code (Environment tab) was written for cluster-health.json format.
+    This function translates cluster-diagnosis.json fields so the same rendering
+    code works without modification. Falls back gracefully for missing fields.
+    """
+    result = {}
+
+    # Direct passthrough fields (same name in both schemas)
+    for key in ('infrastructure_issues', 'baseline_comparison', 'classification_guidance',
+                'operator_health', 'cluster_identity', 'console_plugins',
+                'environment_health_score', 'overall_verdict',
+                'critical_issue_count', 'warning_issue_count'):
+        if key in diag:
+            result[key] = diag[key]
+
+    # subsystem_health: map root_cause→root_issue, lowercase→uppercase status,
+    # compute components_checked/components_healthy from component lists
+    if 'subsystem_health' in diag:
+        mapped_subsystems = {}
+        for name, data in diag['subsystem_health'].items():
+            status_raw = data.get('status', 'unknown')
+            mapped_subsystems[name] = {
+                'status': status_raw.upper() if isinstance(status_raw, str) else status_raw,
+                'root_issue': data.get('root_cause', ''),
+                'components_checked': len(data.get('affected_components', [])) + len(data.get('healthy_components', [])),
+                'components_healthy': len(data.get('healthy_components', [])),
+                'details': data.get('evidence_detail', ''),
+                'evidence_tier': data.get('evidence_tier'),
+                'log_patterns_detected': data.get('log_patterns_detected', []),
+                'traps_triggered': data.get('traps_triggered', []),
+            }
+        result['subsystem_health'] = mapped_subsystems
+
+    # managed_cluster_detail → managed_cluster_health format
+    if 'managed_cluster_detail' in diag:
+        mapped_mc = {}
+        for name, data in diag['managed_cluster_detail'].items():
+            unavail_addons = data.get('addons_unavailable', [])
+            mapped_mc[name] = {
+                'available': data.get('available', False),
+                'joined': data.get('available', False),
+                'hub_accepted': True,
+                'addon_count': len(unavail_addons) if not data.get('available') else 0,
+                'addons_healthy': 0 if unavail_addons else 1,
+                'conditions': data.get('condition_message', ''),
+                'lease_stale': data.get('lease_stale', False),
+            }
+        result['managed_cluster_health'] = mapped_mc
+
+    # console_plugin_status → enrich console_plugins if not already provided
+    if 'console_plugins' not in result and 'console_plugin_status' in diag:
+        result['console_plugins'] = [
+            {'name': p.get('name', ''), 'service': p.get('backend_service', ''), 'namespace': p.get('namespace', '')}
+            for p in diag['console_plugin_status']
+        ]
+
+    return result
+
+
 def esc(s):
     return html_mod.escape(str(s)) if s else ""
 
@@ -99,10 +160,28 @@ def load_data(run_dir: Path, trace_file: Optional[Path] = None):
     if core_path.exists():
         with open(core_path) as f:
             core_data = json.load(f)
-    # v3.7: Load cluster-health.json for rich environment data
+    # v4.0: Load cluster-diagnosis.json for rich environment data
+    # Falls back to cluster-health.json for older runs (v3.7-v3.9)
     cluster_health_full = {}
+    cd_path = run_dir / "cluster-diagnosis.json"
     ch_path = run_dir / "cluster-health.json"
-    if ch_path.exists():
+    if cd_path.exists():
+        with open(cd_path) as f:
+            cd_raw = json.load(f)
+            diag = cd_raw.get("cluster_diagnosis", cd_raw)
+            # Warn if structured health fields are missing from diagnosis
+            _expected = ['environment_health_score', 'cluster_identity', 'operator_health',
+                         'cluster_connectivity', 'critical_issue_count', 'console_plugins']
+            _missing = [f for f in _expected if f not in diag]
+            if _missing:
+                import logging
+                logging.getLogger(__name__).warning(
+                    f"cluster-diagnosis.json missing structured fields: {_missing}. "
+                    f"Environment tab may show incomplete data. "
+                    f"Ensure cluster-diagnostic agent Step 6.2a is producing all required fields."
+                )
+            cluster_health_full = _map_diagnosis_to_health(diag)
+    elif ch_path.exists():
         with open(ch_path) as f:
             ch_raw = json.load(f)
             cluster_health_full = ch_raw.get("cluster_health", ch_raw)
@@ -530,15 +609,21 @@ def generate_html_report(run_dir: Path, trace_file: Optional[Path] = None) -> Pa
             return "degraded"
         return "down"
 
-    # v3.7: Read health data from cluster_health (ClusterHealthService)
-    # Fall back to environment-status.json for older runs
+    # v4.0: Read health data from cluster-diagnosis.json (via _cluster_health_full),
+    # then cluster_health in core-data.json, then environment-status.json
     cluster_health_data = core_data.get("cluster_health", {})
+    ch_full = core_data.get("_cluster_health_full", {})
     environment_data = core_data.get("environment", {})
 
-    # Base scores: prefer v3.7 cluster_health, then environment key, then env_status file
-    if cluster_health_data.get("environment_health_score") is not None:
+    # Base scores: prefer cluster-diagnosis.json (ch_full), then core-data cluster_health,
+    # then environment key, then env_status file
+    if ch_full.get("environment_health_score") is not None:
+        env_score_base = ch_full["environment_health_score"]
+        cluster_conn = ch_full.get("cluster_connectivity", True)
+        api_acc = True
+    elif cluster_health_data.get("environment_health_score") is not None:
         env_score_base = cluster_health_data["environment_health_score"]
-        cluster_conn = True  # health audit ran = cluster is reachable
+        cluster_conn = True
         api_acc = True
     elif environment_data.get("environment_score") is not None:
         env_score_base = environment_data.get("environment_score", 0) or 0
@@ -548,7 +633,7 @@ def generate_html_report(run_dir: Path, trace_file: Optional[Path] = None) -> Pa
         env_score_base = env_status.get("environment_score", 0) or 0
         cluster_conn = env_status.get("cluster_connectivity", False)
         api_acc = env_status.get("api_accessibility", False)
-    target_used = env_status.get("target_cluster_used", False) or bool(cluster_health_data)
+    target_used = env_status.get("target_cluster_used", False) or bool(ch_full) or bool(cluster_health_data)
 
     # Oracle data from core-data.json (feature context)
     cluster_oracle = core_data.get("cluster_oracle", {})
@@ -559,8 +644,10 @@ def generate_html_report(run_dir: Path, trace_file: Optional[Path] = None) -> Pa
     oracle_signal = oracle_feature_health.get("signal", "")
     blocking_issues = oracle_feature_health.get("blocking_issues", [])
 
-    # Use cluster health score (v3.7) > oracle score > base env score
-    if cluster_health_data.get("environment_health_score") is not None:
+    # Use diagnosis score (v4.0) > cluster health score (v3.7) > oracle score > base
+    if ch_full.get("environment_health_score") is not None:
+        effective_score = ch_full["environment_health_score"]
+    elif cluster_health_data.get("environment_health_score") is not None:
         effective_score = cluster_health_data["environment_health_score"]
     elif oracle_score is not None:
         effective_score = oracle_score
@@ -1030,7 +1117,7 @@ body {{ background: var(--bg); color: var(--text); font-family: -apple-system, B
       <div class="env-item">
         <div class="env-label">Feature Health Score</div>
         <div class="env-value {env_class(effective_score)}">{effective_score:.2f}</div>
-        <div style="font-size:11px;color:var(--text-muted);margin-top:2px">{"Health Audit" if cluster_health_data.get("overall_verdict") else ("Oracle: " + oracle_signal if oracle_signal else "Base connectivity only")}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px">{"Cluster Diagnostic" if ch_full.get("overall_verdict") else ("Health Audit" if cluster_health_data.get("overall_verdict") else ("Oracle: " + oracle_signal if oracle_signal else "Base connectivity only"))}</div>
       </div>
       <div class="env-item">
         <div class="env-label">Base Env Score</div>

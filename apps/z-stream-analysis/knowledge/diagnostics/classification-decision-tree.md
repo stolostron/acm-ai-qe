@@ -65,18 +65,23 @@ selector patterns).
 - **If underlying K8s resource is unhealthy:** INFRASTRUCTURE (0.85-0.90 confidence)
 - **If no probe mismatch:** Proceed to PR-7
 
-### PR-7: Environment Oracle Dependency Check (v3.5)
-- **Data source:** cluster_oracle.dependency_health, cluster_oracle.knowledge_context
-- **Operator check:** CSV match → healthy/degraded. No CSV match → pod fallback (handles OLM-less deployments like Hive). No pods → missing.
-- **Managed clusters:** Clusters < 4h old excluded from NotReady count (test artifacts). local-cluster always counted.
-- **DEFINITIVE threshold:** Requires 2+ confirmed-missing dependencies AND score < 0.3. Single missing/degraded → strong signal at most.
-- **MANDATORY:** Read `knowledge/architecture/<area>/failure-signatures.md` before applying oracle signals. Pattern matches take precedence.
-- **Oracle signals are ADDITIVE, not blanket overrides:**
-  - `console_search.found=false` → AUTOMATION_BUG regardless of oracle
+### PR-6b: Polarion Expected Behavior Check (v4.0)
+- **Data source:** cluster_oracle.polarion_discovery + cluster-diagnosis.json
+- **Trigger:** Polarion describes expected behavior AND subsystem is healthy AND behavior not delivered
+- **If expected behavior not met AND subsystem healthy:** PRODUCT_BUG signal (0.80)
+- **Also:** Layer discrepancy (lower layer healthy, higher layer defect) = Tier 1 PRODUCT_BUG evidence
+- **If no Polarion data:** Proceed to PR-7
+
+### PR-7: Environment/Diagnostic Context Signals (v4.0)
+- **Data source:** cluster-diagnosis.json, cluster_oracle.knowledge_context
+- **CRITICAL CHANGE (v4.0):** PR-7 produces CONTEXT SIGNALS, not binding classifications
+- **Dependency signals (missing/degraded):** STRONG or MODERATE signals that are INPUTS to the layer investigation, not classifications
+- **The layer investigation determines classification**, not PR-7
+- **Signals are ADDITIVE, not blanket overrides:**
+  - `console_search.found=false` → AUTOMATION_BUG regardless of signals
   - Known failure-signatures pattern → use pattern classification
-  - Backend probes show data corruption → PRODUCT_BUG
-- **If dependency broken AND no per-test override:** INFRASTRUCTURE (0.85-0.95 confidence)
-- **If dependency broken BUT per-test evidence points elsewhere:** Use per-test classification
+  - Layer discrepancy → PRODUCT_BUG
+- **MANDATORY:** Read `knowledge/architecture/<area>/failure-signatures.md` before applying signals. Pattern matches take precedence.
 - **If NO dependency broken:** Proceed to PR-4
 
 ### PR-4: Feature Knowledge Override (v3.1)

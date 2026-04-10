@@ -39,10 +39,12 @@ fail()  { echo -e "${RED}[FAIL]${NC} $1"; }
 # Which MCPs each app requires (space-separated)
 APP_HUB_HEALTH_MCPS="acm-ui neo4j-rhacm"
 APP_ZSTREAM_MCPS="acm-ui jira jenkins polarion neo4j-rhacm"
+APP_TESTCASE_GEN_MCPS="acm-ui jira polarion neo4j-rhacm"
 
 # App directory names (relative to $REPO_ROOT/apps/)
 APP_HUB_HEALTH_DIR="acm-hub-health"
 APP_ZSTREAM_DIR="z-stream-analysis"
+APP_TESTCASE_GEN_DIR="test-case-generator"
 
 # Track which MCPs and apps to set up
 SELECTED_MCPS=""
@@ -72,12 +74,15 @@ echo ""
 echo -e "    ${CYAN}2)${NC} Z-Stream Pipeline Analysis"
 echo -e "       Needs: acm-ui, jira, jenkins, polarion, neo4j-rhacm"
 echo ""
-echo -e "    ${CYAN}3)${NC} Both"
-echo -e "       Sets up all MCP servers for both apps"
+echo -e "    ${CYAN}3)${NC} Test Case Generator"
+echo -e "       Needs: acm-ui, jira, polarion, neo4j-rhacm"
+echo ""
+echo -e "    ${CYAN}4)${NC} All apps"
+echo -e "       Sets up all MCP servers for all apps"
 echo ""
 
 while true; do
-    read -p "  Select [1/2/3]: " APP_CHOICE
+    read -p "  Select [1/2/3/4]: " APP_CHOICE
     case "$APP_CHOICE" in
         1)
             SELECTED_APPS="$APP_HUB_HEALTH_DIR"
@@ -94,15 +99,22 @@ while true; do
             break
             ;;
         3)
-            SELECTED_APPS="$APP_HUB_HEALTH_DIR $APP_ZSTREAM_DIR"
-            # Union of both -- deduplicated
+            SELECTED_APPS="$APP_TESTCASE_GEN_DIR"
+            SELECTED_MCPS="$APP_TESTCASE_GEN_MCPS"
+            echo ""
+            ok "Selected: Test Case Generator"
+            break
+            ;;
+        4)
+            SELECTED_APPS="$APP_HUB_HEALTH_DIR $APP_ZSTREAM_DIR $APP_TESTCASE_GEN_DIR"
+            # Union of all -- deduplicated (z-stream has the superset)
             SELECTED_MCPS="$APP_ZSTREAM_MCPS"
             echo ""
-            ok "Selected: Both apps"
+            ok "Selected: All apps"
             break
             ;;
         *)
-            echo -e "  ${RED}Invalid choice. Enter 1, 2, or 3.${NC}"
+            echo -e "  ${RED}Invalid choice. Enter 1, 2, 3, or 4.${NC}"
             ;;
     esac
 done
@@ -728,6 +740,10 @@ for app in $SELECTED_APPS; do
             # shellcheck disable=SC2086
             generate_mcp_json "$app" $APP_ZSTREAM_MCPS
             ;;
+        "$APP_TESTCASE_GEN_DIR")
+            # shellcheck disable=SC2086
+            generate_mcp_json "$app" $APP_TESTCASE_GEN_MCPS
+            ;;
     esac
 done
 
@@ -844,6 +860,9 @@ for app in $SELECTED_APPS; do
             ;;
         "$APP_ZSTREAM_DIR")
             echo "    $STEP. Z-Stream: cd apps/z-stream-analysis && claude"
+            ;;
+        "$APP_TESTCASE_GEN_DIR")
+            echo "    $STEP. Test Case Generator: cd apps/test-case-generator && claude"
             ;;
     esac
 done

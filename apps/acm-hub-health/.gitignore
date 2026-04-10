@@ -1,2 +1,4 @@
 docs/rhacm-docs/
 .claude/traces/
+knowledge/learned/
+!knowledge/learned/.gitkeep

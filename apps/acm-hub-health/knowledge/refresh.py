@@ -13,7 +13,7 @@ Usage:
     python -m knowledge.refresh --webhooks      # Update webhook-registry.yaml
     python -m knowledge.refresh --certs         # Update certificate-inventory.yaml
     python -m knowledge.refresh --addons        # Update addon-catalog.yaml
-    python -m knowledge.refresh --promote       # Promote learned/ entries to main files
+    python -m knowledge.refresh --promote       # List learned/ entries for manual promotion
     python -m knowledge.refresh --dry-run       # Show what would change without writing
 
 Prerequisites:
@@ -606,7 +606,7 @@ def refresh_addons(mch_ns: str, dry_run: bool = False) -> dict:
                 "required": False,
                 "default_enabled": False,
                 "subsystem": "unknown -- review and categorize",
-                "spoke_namespace": "open-cluster-management-agent-addon",
+                "spoke_namespace": "unknown -- verify with: oc get managedclusteraddon {name} -n <cluster> -o jsonpath='{{.status.namespace}}'",
                 "description": "Auto-discovered addon -- review and document purpose",
                 "health_check": f"oc get managedclusteraddon {name} -n {{cluster}}",
                 "if_unhealthy": "Impact not yet documented -- review addon purpose and update",

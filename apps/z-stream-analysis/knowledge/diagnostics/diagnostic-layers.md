@@ -55,17 +55,18 @@ in every investigation. If a layer doesn't apply, skip it.
 | `cy.exec()` failed / shell error | Layer 1 (Compute/CI) |
 | pod OOMKilled / CrashLoopBackOff | Layer 1 or 9 |
 
-### Step B1: Check cluster-health.json First
+### Step B1: Check cluster-diagnosis.json First
 
 Before running oc commands, cross-reference the test's feature area
 against pre-computed health data:
 
-- Read `cluster-health.json` for this test's feature area
-- Read `cluster-diagnosis.json` classification_guidance if available
+- Read `cluster-diagnosis.json` for this test's feature area
+- Check subsystem_health, operator_health, and classification_guidance
 - Is the relevant subsystem OK, DEGRADED, or CRITICAL?
 - Are there `infrastructure_issues` affecting this feature?
+- Check `health_depth` — does it cover only pod-level or deeper?
 
-If cluster-health shows CRITICAL issues in this feature area:
+If cluster-diagnosis shows CRITICAL issues in this feature area:
   Strong INFRASTRUCTURE signal, but STILL verify the connection
   between the infrastructure issue and THIS test's specific error.
 
@@ -299,6 +300,40 @@ Layer  Check                         Key Command
  11    Data correct? Counts right?   psql SELECT count(*)
  12    Plugins registered? UI ok?    oc get consoleplugins
 ```
+
+## Layer Discrepancy Detection
+
+During the layer-by-layer investigation, when you verify a lower layer
+is healthy but the higher layer shows a problem, record this as a
+`layer_discrepancy` evidence source. This is Tier 1 evidence for
+PRODUCT_BUG because the lower layer is verified by oc commands (factual),
+the higher layer is observed in the test failure (factual), and the
+discrepancy proves the product code at the higher layer is wrong.
+
+| Lower Layer says | Higher Layer shows | Classification |
+|---|---|---|
+| L7: User HAS permission (`oc auth can-i` = yes) | L12: Button disabled | PRODUCT_BUG (UI permission logic) |
+| L11: Backend returns correct data | L12: UI shows wrong data | PRODUCT_BUG (rendering bug) |
+| L9: Operator healthy, reconciling | L11: Data not flowing | PRODUCT_BUG (data pipeline bug) |
+| L3: Network OK, endpoints reachable | L11: Service returns empty | PRODUCT_BUG (service logic bug) |
+| L6: Auth working, token valid | L12: Login redirect fails | PRODUCT_BUG (auth flow bug) |
+
+Record in evidence_sources as:
+```json
+{
+  "source": "layer_discrepancy",
+  "finding": "Layer 7 (oc auth can-i) confirms permission, Layer 12 shows button disabled",
+  "tier": 1,
+  "lower_layer": 7,
+  "higher_layer": 12
+}
+```
+
+A layer discrepancy OVERRIDES subsystem health status. Even if
+cluster-diagnosis.json says the subsystem is healthy, a discrepancy
+between verified layers proves a product code defect exists.
+
+---
 
 ## Counterfactual Verification Templates (v3.9)
 

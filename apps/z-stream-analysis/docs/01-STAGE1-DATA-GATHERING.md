@@ -246,15 +246,13 @@ OUTPUT:
 
 ---
 
-## Step 4: Cluster Health Audit + Environment Validation
+## Step 4: Cluster Login + Landscape + Backend Probes
 
-**Services:** `ClusterHealthService.run_health_audit()` (v3.7, primary), `ClusterInvestigationService` (landscape), backend probes
+**Services:** `EnvironmentValidationService` (login + kubeconfig persist), `ClusterInvestigationService` (landscape), backend probes
 
-**v3.7 change:** Step 4 now runs a comprehensive 6-phase cluster health audit via `ClusterHealthService` before the cluster landscape and backend probes. The old `EnvironmentValidationService` is deprecated — credential extraction and login moved to `_login_to_cluster()`. See CLAUDE.md "New in v3.7" for details.
+Step 4 establishes cluster access and collects landscape data. It does three things: (4a) login and kubeconfig persistence, (4b) cluster landscape snapshot, (4c) backend API probes. The comprehensive health audit is handled by Stage 1.5 (cluster-diagnostic agent), which produces `cluster-diagnosis.json`.
 
-**Output:** `cluster-health.json` (comprehensive health report) + `cluster_health` key in core-data.json (compact summary)
-
-**Previous (v3.6):** `EnvironmentValidationService.validate_environment()`
+**Output:** `cluster.kubeconfig` + `cluster_landscape` and `backend_probes` keys in core-data.json
 
 **Commands:** `oc` / `kubectl` (READ-ONLY operations only)
 

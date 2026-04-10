@@ -6,13 +6,11 @@ One-stop reference for all Python services and the `ReportFormatter` class.
 
 ## Overview
 
-Z-Stream Analysis uses 18 service modules in `src/services/`, plus `ReportFormatter` in `src/scripts/report.py` and `DataGatherer` in `src/scripts/gather.py`. Services provide **factual data only** — all classification is performed by the AI agent in Stage 2.
+Z-Stream Analysis uses 17 active service modules in `src/services/`, plus `ReportFormatter` in `src/scripts/report.py` and `DataGatherer` in `src/scripts/gather.py`. Services provide **factual data only** — all classification is performed by the AI agent in Stage 2. ClusterHealthService and EnvironmentValidationService exist but are deprecated and not called from the pipeline (health audit moved to Stage 1.5 cluster-diagnostic agent in v4.0).
 
 ```
 gather.py ──┬── JenkinsAPIClient ──────────── Jenkins REST API
             ├── JenkinsIntelligenceService ── Build info, console log, test report
-            ├── ClusterHealthService ───────── 6-phase cluster health audit (v3.7)
-            ├── EnvironmentValidationService  OCP platform check (deprecated v3.7)
             ├── RepositoryAnalysisService ──── Git clone, file indexing
             ├── StackTraceParser ───────────── JS/TS stack trace → file:line
             ├── TimelineComparisonService ──── Git date comparison

@@ -6,12 +6,12 @@ Multi-app repository for ACM quality engineering tools, built on Claude Code.
 
 ### Z-Stream Analysis (`apps/z-stream-analysis/`) — Active
 
-Jenkins pipeline failure analysis (v3.9) with classification: PRODUCT_BUG | AUTOMATION_BUG | INFRASTRUCTURE | FLAKY | NO_BUG | MIXED | UNKNOWN. v3.9 adds provably linked grouping (Phase A4), per-test verification within groups (4-point check), and expanded counterfactual verification (D-V5) with 9 templates. v3.8 features 12-layer diagnostic investigation with per-group investigation agents for root-cause-first classification. Includes comprehensive cluster diagnostic (Stage 1.5) with hub-health-style investigation, diagnostic trap detection, self-healing knowledge, assertion value extraction, per-feature-area graduated infrastructure scoring, per-test causal link verification, failure mode categorization, blank page pre-routing, hook failure deduplication, temporal evidence routing, feature investigation playbooks, tiered cluster investigation, classification feedback, and standalone knowledge database (`knowledge/`).
+Jenkins pipeline failure analysis (v4.0) with classification: PRODUCT_BUG | AUTOMATION_BUG | INFRASTRUCTURE | FLAKY | NO_BUG | MIXED | UNKNOWN. v4.0 moves cluster health to Stage 1.5 cluster-diagnostic agent with structured health fields, changes PR-7 to context signals (not binding), adds PR-6b Polarion check, symmetric counterfactual (D-V5c/D-V5e), and layer discrepancy detection. v3.9 added provably linked grouping (Phase A4), per-test verification within groups (4-point check), and expanded counterfactual verification (D-V5) with 9 templates. v3.8 features 12-layer diagnostic investigation with per-group investigation agents for root-cause-first classification. Includes comprehensive cluster diagnostic (Stage 1.5) with hub-health-style investigation, diagnostic trap detection, self-healing knowledge, assertion value extraction, per-feature-area graduated infrastructure scoring, per-test causal link verification, failure mode categorization, blank page pre-routing, hook failure deduplication, temporal evidence routing, feature investigation playbooks, tiered cluster investigation, classification feedback, and standalone knowledge database (`knowledge/`).
 
 Five-stage pipeline:
 0. **Environment Oracle** (inside gather.py) — Feature-aware dependency health & knowledge database (`cluster_oracle`)
-1. **gather.py** — Extracts test data from Jenkins (builds `core-data.json` with cluster landscape, backend API probes, and feature grounding; persists `cluster.kubeconfig` for Stage 2)
-1.5. **Cluster Diagnostic** (AI agent) — Comprehensive 6-phase cluster investigation producing `cluster-diagnosis.json` with subsystem health, classification guidance, and dependency chain verification
+1. **gather.py** — Extracts test data from Jenkins (builds `core-data.json` with cluster landscape, backend API probes, and feature grounding; persists `cluster.kubeconfig` for Stage 1.5 and Stage 2)
+1.5. **Cluster Diagnostic** (AI agent) — Comprehensive 6-phase cluster investigation producing `cluster-diagnosis.json` with environment health score, subsystem health, operator health, classification guidance, dependency chain verification, and structured data for Stage 2 routing
 2. **AI Analysis** — 12-layer diagnostic investigation: groups tests by shared signals, traces root cause through infrastructure layers (Compute→UI), classifies based on WHO caused breakage. Per-group investigation agents for deeper analysis. Produces `analysis-results.json` with `root_cause_layer` per test.
 3. **report.py** — Generates `Detailed-Analysis.md` + `analysis-report.html` from analysis results
 
@@ -23,9 +23,9 @@ AI-powered diagnostic and remediation agent for ACM hub clusters. Uses Claude Co
 
 Usage: `cd apps/acm-hub-health && bash setup.sh && oc login <hub> && claude`
 
-### Claude Test Generator (`apps/claude-test-generator/`) — In Progress
+### Test Case Generator (`apps/test-case-generator/`) — Active
 
-Test plan generation from JIRA tickets. Not currently functional — do not use.
+Generates Polarion-ready test cases for ACM Console features from JIRA tickets. 3-stage pipeline: deterministic data gathering (gh CLI), MCP-powered AI investigation and generation (JIRA, Polarion, ACM UI, Neo4j), deterministic report/validation with Polarion HTML output. Uses conventions from 85+ existing test cases.
 
 ## Running Z-Stream Analysis
 
@@ -48,7 +48,7 @@ python -m src.scripts.gather "<JENKINS_URL>" --skip-env    # Skip cluster valida
 python -m src.scripts.gather "<JENKINS_URL>" --skip-repo   # Skip repo cloning
 
 # Stage 2: AI Analysis (12-layer diagnostic investigation)
-# Read core-data.json + cluster-health.json + cluster-diagnosis.json
+# Read core-data.json + cluster-diagnosis.json
 # Classify each failure using 12-layer model + MCP tools
 # MUST read src/schemas/analysis_results_schema.json before writing analysis-results.json
 
@@ -82,7 +82,7 @@ ai_systems_v2/
 ├── apps/
 │   ├── acm-hub-health/        # Active — hub health diagnostic agent
 │   ├── z-stream-analysis/     # Active — pipeline failure analysis
-│   └── claude-test-generator/ # In progress — not functional
+│   └── test-case-generator/   # Active — Polarion-ready test case generation from JIRA tickets
 ├── mcp/
 │   ├── setup.sh               # Interactive setup (clones external MCPs, creates venvs)
 │   ├── acm-ui-mcp-server/     # Our code: ACM Console source search

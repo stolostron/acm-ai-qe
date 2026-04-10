@@ -4,7 +4,7 @@ description: Comprehensive cluster health diagnostic for z-stream failure analys
 tools: ["Bash", "Read", "Write", "Glob", "Grep"]
 ---
 
-# Cluster Diagnostic Agent (v3.6)
+# Cluster Diagnostic Agent (v4.0)
 
 Comprehensive AI-driven cluster health diagnostic adapted from the ACM Hub
 Health agent. Runs as Stage 1.5 after gather.py completes, producing
@@ -519,10 +519,15 @@ is caused by this infrastructure issue. Tests with dead selectors
 (`console_search.found=false`) may be AUTOMATION_BUG even in affected
 feature areas.
 
-**Confirmed Healthy:**
+**Confirmed Healthy (with health_depth caveat):**
 - All components for this subsystem are Running with expected replica counts
 - No traps triggered, no infrastructure guards flagged
-- Tests in these feature areas should NOT be infrastructure failures
+- **IMPORTANT:** "Confirmed healthy" means pod-level health is verified.
+  It does NOT guarantee data integrity (Layer 11) or rendering correctness
+  (Layer 12). If tests in a "healthy" subsystem fail with data-related
+  errors, Stage 2 should investigate Layers 3, 4, and 11 despite the
+  healthy status. Include `health_depth` and `unchecked_layers` in the
+  subsystem_health output so Stage 2 knows what was NOT verified.
 
 **Partial Impact:**
 - Subsystem itself is healthy but depends on a broken upstream subsystem
@@ -530,7 +535,106 @@ feature areas.
 
 ### Step 6.2: Write cluster-diagnosis.json
 
-Write the file to `<run_dir>/cluster-diagnosis.json` using this exact schema:
+**MANDATORY: Before writing the file, compute ALL structured fields below.**
+The Stage 2 agent depends on these fields for routing decisions and confidence
+scoring. If any are missing, Stage 2 loses its fast-path routing and the HTML
+report loses its Environment tab data. **Do NOT skip these fields.**
+
+#### 6.2a: Compute structured health fields (REQUIRED)
+
+**`cluster_connectivity`** (boolean):
+- `true` if Phase 1.1 `oc whoami` succeeded, `false` otherwise
+
+**`environment_health_score`** (float 0.0-1.0):
+Compute using this weighted penalty formula. Start at 1.0, subtract penalties:
+
+| Category | Weight | Penalty |
+|----------|--------|---------|
+| Operator health | 30% | -0.30 if ANY critical operator has 0 replicas; -0.15 if under-replicated |
+| Infrastructure guards | 20% | -0.10 per NetworkPolicy/ResourceQuota in ACM namespaces (cap 0.20) |
+| Subsystem health | 30% | -0.06 per critical subsystem; -0.03 per degraded |
+| Managed clusters | 10% | -0.10 if <50% ready; -0.05 if 50-99% ready |
+| Image integrity | 10% | -0.10 if console image from non-standard registry |
+
+Floor at 0.0. Round to 2 decimal places. Show your math in the completion summary.
+
+**`critical_issue_count`** (integer):
+Count of entries in `infrastructure_issues` with severity "critical"
+
+**`warning_issue_count`** (integer):
+Count of entries in `infrastructure_issues` with severity "warning"
+
+**`cluster_identity`** (object):
+Consolidate Phase 1 discovery data:
+```json
+{
+  "api_url": "<oc whoami --show-server>",
+  "ocp_version": "<from clusterversion>",
+  "acm_version": "<from MCH .status.currentVersion>",
+  "mce_version": "<from MCE .status.currentVersion>",
+  "mch_namespace": "<discovered>",
+  "mch_phase": "<from MCH .status.phase>",
+  "node_count": "<int>",
+  "node_ready_count": "<int>",
+  "managed_cluster_count": "<int>",
+  "managed_cluster_ready_count": "<int>"
+}
+```
+
+**`operator_health`** (object):
+For each critical operator checked in Step 3.0 and from healthy-baseline.yaml:
+```json
+{
+  "<operator-deployment-name>": {
+    "namespace": "<ns>",
+    "desired_replicas": "<int from spec.replicas>",
+    "available_replicas": "<int from status.readyReplicas or 0>",
+    "status": "<OK | DEGRADED | CRITICAL>",
+    "detail": "<string, empty if OK>",
+    "critical": true
+  }
+}
+```
+
+**`console_plugins`** (array):
+Simplified list from console_plugin_status: `[{"name": "...", "service": "...", "namespace": "..."}]`
+
+#### 6.2b: Build counter-signals (REQUIRED)
+
+Cross-reference `core-data.json` failed tests against infrastructure findings:
+
+1. **Potential false INFRASTRUCTURE:** If core-data.json shows tests with
+   `console_search.found=false` in feature areas that have infrastructure issues,
+   flag them: "N tests share dead selector X — these are AUTOMATION_BUG regardless
+   of infrastructure state."
+
+2. **Infrastructure context notes:** For each NetworkPolicy/ResourceQuota found,
+   check if it has ownerReferences (ACM-managed) or not (test artifact/external).
+   Note in the output whether the finding is a real production issue or likely
+   a test artifact.
+
+3. **Feature area scoping:** For broad infrastructure findings (e.g., "MCH operator
+   at 0 replicas"), list what the finding DOES affect (component crash recovery,
+   status reporting) and what it does NOT affect (existing running pods, selector
+   presence, test code logic).
+
+#### 6.2c: Build health_depth per subsystem (REQUIRED)
+
+For each subsystem in subsystem_health, set `health_depth` based on what was verified:
+- `"pod_level"` — checked pod status, replica count, restart count, operator CSV only
+- `"connectivity_verified"` — also verified pods can reach each other (oc exec curl)
+- `"data_verified"` — also verified data integrity (psql queries, API responses)
+- `"full"` — all layers verified including data flow and rendering
+
+Set `unchecked_layers` to the layer numbers NOT verified. Common:
+- Pod-level only → unchecked_layers: [3, 4, 11] (network, storage, data flow)
+- Connectivity verified → unchecked_layers: [4, 11] (storage, data flow)
+
+Set `health_depth_explanation` to a brief description of what was and wasn't checked.
+
+#### 6.2d: Write the file
+
+Write the file to `<run_dir>/cluster-diagnosis.json` using this exact schema.
 
 ```json
 {
@@ -542,10 +646,49 @@ Write the file to `<run_dir>/cluster-diagnosis.json` using this exact schema:
     "acm_version": "<from MCH>",
     "ocp_version": "<from clusterversion>",
     "mch_namespace": "<discovered namespace>",
+    "cluster_connectivity": "<true | false>",
+    "environment_health_score": "<float 0.0-1.0, see Step 6.1b>",
+    "critical_issue_count": "<integer, count of severity=critical in infrastructure_issues>",
+    "warning_issue_count": "<integer, count of severity=warning in infrastructure_issues>",
+
+    "cluster_identity": {
+      "api_url": "<from oc whoami --show-server>",
+      "ocp_version": "<from clusterversion>",
+      "acm_version": "<from MCH .status.currentVersion>",
+      "mce_version": "<from MCE .status.currentVersion>",
+      "mch_namespace": "<discovered namespace>",
+      "mch_phase": "<from MCH .status.phase>",
+      "node_count": "<integer, total nodes>",
+      "node_ready_count": "<integer, nodes with Ready=True>",
+      "managed_cluster_count": "<integer, total managed clusters>",
+      "managed_cluster_ready_count": "<integer, clusters with Available=True>"
+    },
+
+    "operator_health": {
+      "<operator-deployment-name>": {
+        "namespace": "<ns>",
+        "desired_replicas": "<integer, from spec.replicas>",
+        "available_replicas": "<integer, from status.readyReplicas or 0>",
+        "status": "<OK | DEGRADED | CRITICAL>",
+        "detail": "<string, empty if OK>",
+        "critical": "<true | false, from healthy-baseline.yaml>"
+      }
+    },
+
+    "console_plugins": [
+      {
+        "name": "<plugin-name>",
+        "service": "<backend-service-name>",
+        "namespace": "<ns>"
+      }
+    ],
 
     "subsystem_health": {
       "<SubsystemName>": {
         "status": "<healthy | degraded | critical>",
+        "health_depth": "<pod_level | connectivity_verified | data_verified | full>",
+        "health_depth_explanation": "<what was checked and what was NOT checked>",
+        "unchecked_layers": ["<layer numbers not verified, e.g. 3, 4, 11>"],
         "root_cause": "<string, only if not healthy>",
         "evidence_tier": "<1 or 2>",
         "evidence_detail": "<what was found>",
@@ -648,7 +791,9 @@ Write the file to `<run_dir>/cluster-diagnosis.json` using this exact schema:
         "detail": "<description>",
         "severity": "<critical | warning>",
         "affected_components": ["<list>"],
-        "affected_feature_areas": ["<list>"]
+        "affected_feature_areas": ["<list of DIRECTLY affected features>"],
+        "NOT_affected": ["<things NOT caused by this issue, e.g. selector presence, test code logic>"],
+        "attribution_rule": "<when to attribute a test failure to this issue vs not>"
       }
     ],
 
@@ -705,7 +850,24 @@ Write the file to `<run_dir>/cluster-diagnosis.json` using this exact schema:
         "discovery": "<what was learned>",
         "written_to": "<path to learned/ file>"
       }
-    ]
+    ],
+
+    "counter_signals": {
+      "potential_false_infrastructure": [
+        {
+          "signal": "<description of tests that may NOT be infrastructure>",
+          "reason": "<why infrastructure attribution may be wrong>",
+          "recommendation": "<what Stage 2 should verify before classifying>"
+        }
+      ],
+      "infrastructure_context_notes": [
+        {
+          "finding": "<infrastructure finding name>",
+          "note": "<context about whether this is a real issue or test artifact>",
+          "scoring_impact": "<how it affects environment_health_score>"
+        }
+      ]
+    }
   }
 }
 ```
@@ -744,7 +906,23 @@ Source: Cluster diagnostic Stage 1.5
 <How this operator's health affects ACM test failure classification>
 ```
 
-### Step 6.5: Completion Summary
+### Step 6.5: Validate and Completion Summary
+
+**MANDATORY pre-write check:** Before writing cluster-diagnosis.json, verify
+these 7 structured fields are present (not placeholder text, actual values):
+
+- [ ] `cluster_connectivity` (boolean)
+- [ ] `environment_health_score` (float, show computation)
+- [ ] `critical_issue_count` (integer)
+- [ ] `warning_issue_count` (integer)
+- [ ] `cluster_identity` (object with 10 fields)
+- [ ] `operator_health` (object with replica counts)
+- [ ] `console_plugins` (array)
+- [ ] `health_depth` per subsystem (not binary — pod_level/connectivity_verified/data_verified/full)
+- [ ] `counter_signals` (potential false-infrastructure flags, infrastructure context notes)
+- [ ] `NOT_affected` + `attribution_rule` per infrastructure issue
+
+If ANY field is missing, go back to Step 6.2a and compute it before writing.
 
 After writing all output, produce a brief text summary for the main
 conversation to display:
@@ -752,6 +930,7 @@ conversation to display:
 ```
 Cluster Diagnostic Complete:
   Verdict: <HEALTHY/DEGRADED/CRITICAL>
+  Score: <environment_health_score> (show penalty breakdown)
   ACM <version> on OCP <version>
   <N> subsystems checked, <M> issues found
   <K> operators inventoried (<J> third-party)

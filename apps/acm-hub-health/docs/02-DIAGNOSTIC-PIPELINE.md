@@ -154,6 +154,13 @@ knowledge and fill any gaps.
   └────────┬──────────┘
            │
            ▼
+  ┌───────────────────┐
+  │ Load diagnostic   │     knowledge/diagnostics/common-diagnostic-traps.md
+  │ traps + layers    │     knowledge/diagnostics/diagnostic-layers.md
+  │                   │     (12-layer framework for Phase 3 ordering
+  └────────┬──────────┘      and Phase 5 vertical tracing)
+           │
+           ▼
   ┌───────────────────┐     ┌──────────────────┐
   │ Mismatch?         │────►│ Self-Healing      │
   │                   │ yes │ Process            │
@@ -357,6 +364,9 @@ oc get csv -n multicluster-engine -o jsonpath='{.items[0].spec.version}'
 
 A bug in ACM 2.15.0 may be fixed in 2.15.1. The agent checks whether the
 cluster's version falls within the affected range before reporting a match.
+Cross-references `knowledge/version-constraints.yaml` for known product
+version incompatibilities (e.g., AAP 2.5+ with ACM <=2.13, Submariner
+with OCP 4.18+).
 
 ### Match Output
 
@@ -366,7 +376,7 @@ When a known issue matches, the finding includes:
 |-------|---------|
 | **Known Issue** | ACM-12345 |
 | **Fix Version** | 2.15.1 |
-| **Cluster-Fixable** | Yes -- apply workaround X / No -- requires upgrade |
+| **Cluster-Fixable** | Yes / Workaround / No |
 
 ---
 

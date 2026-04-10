@@ -40,7 +40,6 @@ Output:
 import argparse
 import json
 import logging
-import os
 import re
 import shutil
 import subprocess
@@ -79,7 +78,8 @@ from src.services.cluster_investigation_service import ClusterInvestigationServi
 from src.services.feature_area_service import FeatureAreaService
 from src.services.feature_knowledge_service import FeatureKnowledgeService
 from src.services.environment_oracle_service import EnvironmentOracleService
-from src.services.cluster_health_service import ClusterHealthService
+# ClusterHealthService (v3.7) — deprecated in v4.0, health data now from Stage 1.5
+# from src.services.cluster_health_service import ClusterHealthService
 from src.logging_config import configure_logging, bind_context
 
 
@@ -139,8 +139,9 @@ class DataGatherer:
         # Environment Oracle (v3.5) — feature-aware dependency health
         self.environment_oracle_service = EnvironmentOracleService()
 
-        # Cluster Health Service (v3.7) — comprehensive ACM health audit
-        self.cluster_health_service = ClusterHealthService()
+        # Cluster Health Service — deprecated in v4.0
+        # Health data now provided by Stage 1.5 cluster-diagnostic agent
+        # self.cluster_health_service = ClusterHealthService()
 
         # Knowledge Graph client (optional - for dependency queries in Phase 2)
         self.knowledge_graph_client: Optional[KnowledgeGraphClient] = None
@@ -210,7 +211,6 @@ class DataGatherer:
             )
             if kubeconfig_path:
                 # Share kubeconfig with all services that need cluster access
-                self.cluster_health_service.kubeconfig = kubeconfig_path
                 self.env_service.kubeconfig = kubeconfig_path
                 self.cluster_investigation_service.kubeconfig = kubeconfig_path
                 self.cluster_investigation_service.cli = self.env_service.cli
@@ -342,27 +342,33 @@ class DataGatherer:
         if total_tests > 0:
             print(f"  Tests: {total_tests} total, {failed_count} failed ({pass_rate:.0f}% pass rate)", flush=True)
 
-        # Step 4: Cluster login + health audit + landscape + backend probes
+        # Step 4: Cluster login + landscape + backend probes
+        # Health audit removed in v4.0 — now provided by Stage 1.5 cluster-diagnostic agent
         if not skip_environment:
-            self._print_step(4, total_steps, "Cluster health audit & landscape...")
+            self._print_step(4, total_steps, "Cluster login & landscape...")
             # 4a: Login to cluster and persist kubeconfig
             self._login_to_cluster(run_dir)
-            # 4b: Comprehensive cluster health audit (v3.7)
-            self._run_cluster_health_audit(run_dir)
-            # 4c: Cluster landscape (managed clusters, operators, resource pressure)
+            # 4b: Cluster landscape (managed clusters, operators, resource pressure)
             self._gather_cluster_landscape()
-            # 4d: Backend API probes (5 console endpoints)
+            # 4c: Backend API probes (5 console endpoints)
             self._probe_backend_apis()
-            # Show health score
-            health = self.gathered_data.get('cluster_health', {})
-            score = health.get('environment_health_score')
-            verdict = health.get('overall_verdict', '?')
-            if score is not None:
-                print(f"  Health: {score:.0%} ({verdict})", flush=True)
+            # Health data deferred to Stage 1.5 cluster-diagnostic agent
+            self.gathered_data['cluster_health'] = {
+                'deferred_to_stage_1_5': True,
+                'note': 'Cluster health data provided by cluster-diagnosis.json from Stage 1.5'
+            }
+            self.gathered_data['environment'] = {
+                'cluster_connectivity': self.gathered_data.get('cluster_access', {}).get('has_credentials', False),
+                'source': 'cluster-login',
+            }
+            print("  Health data: provided by Stage 1.5 cluster diagnostic", flush=True)
         else:
             self._print_step(4, total_steps, "Skipping environment check (--skip-env)")
             self.gathered_data['cluster_landscape'] = {'skipped': True}
             self.gathered_data['cluster_health'] = {'skipped': True}
+            self.gathered_data['environment'] = {'skipped': True}
+            self.gathered_data['cluster_access'] = {'skipped': True}
+            self.gathered_data['backend_probes'] = {'skipped': True}
 
         # ── STAGE 0: FEATURE CONTEXT ORACLE ──
         if not skip_environment:
@@ -675,60 +681,24 @@ class DataGatherer:
         return api_url, username, password
 
     def _run_cluster_health_audit(self, run_dir: Path):
+        """DEPRECATED (v4.0): No longer called from gather_all().
+
+        Cluster health data is now produced by the Stage 1.5 cluster-diagnostic
+        agent (cluster-diagnosis.json). This method is preserved for backward
+        compatibility with integration tests but will not function without
+        re-enabling the ClusterHealthService import and initialization.
         """
-        Step 4a: Run comprehensive cluster health audit (v3.7).
-
-        Uses ClusterHealthService to perform a 6-phase health audit modeled
-        on the acm-hub-health diagnostic pipeline. Produces cluster-health.json
-        and a compact summary in gathered_data['cluster_health'].
-        """
-        self.logger.info("Running cluster health audit...")
-        try:
-            report = self.cluster_health_service.run_health_audit()
-
-            # Save full report to separate file
-            self.cluster_health_service.save_report(report, run_dir)
-
-            # Store compact summary in gathered_data for core-data.json
-            self.gathered_data['cluster_health'] = (
-                self.cluster_health_service.get_core_data_summary(report)
-            )
-
-            # Also populate environment_score for backward compatibility
-            self.gathered_data['environment'] = {
-                'environment_score': report.environment_health_score,
-                'overall_verdict': report.overall_verdict,
-                'cluster_connectivity': report.environment_health_score > 0,
-                'source': 'ClusterHealthService',
-            }
-
-            # Log summary
-            self.logger.info(
-                f"Health audit: score={report.environment_health_score:.0%}, "
-                f"verdict={report.overall_verdict}, "
-                f"critical={report.critical_issue_count}, "
-                f"warnings={report.warning_issue_count}"
-            )
-
-            return report
-
-        except Exception as e:
-            error_msg = f"Cluster health audit failed: {str(e)}"
-            self.logger.warning(error_msg)
-            self.gathered_data['errors'].append(error_msg)
-            self.gathered_data['cluster_health'] = {'error': error_msg}
-            self.gathered_data['environment'] = {
-                'environment_score': None,
-                'error': error_msg,
-                'cluster_connectivity': False,
-            }
-            return None
+        raise NotImplementedError(
+            "ClusterHealthService health audit removed in v4.0. "
+            "Cluster health data now provided by Stage 1.5 cluster-diagnostic agent."
+        )
 
     def _gather_environment_status(self, run_dir: Path):
         """Gather environment/cluster status.
 
-        DEPRECATED (v3.7): Replaced by _login_to_cluster() + _run_cluster_health_audit().
-        Kept for backward compatibility with integration tests.
+        DEPRECATED (v3.7): Replaced by _login_to_cluster() + _gather_cluster_landscape() +
+        _probe_backend_apis(). Comprehensive health audit now handled by Stage 1.5
+        cluster-diagnostic agent. Kept for backward compatibility with integration tests.
         """
         self.logger.info("Gathering environment status...")
 

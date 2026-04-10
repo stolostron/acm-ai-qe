@@ -285,7 +285,8 @@ baseline:
           min_replicas: 2
 
   nodes:
-    minimum_ready: 3
+    minimum_ready: 1
+    note: "1 for SNO, 3 for HA (standard), 6+ for large. Discover actual topology first."
     expected_roles: [control-plane, worker]
     pressure_thresholds:
       cpu_warning_percent: 80

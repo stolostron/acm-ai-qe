@@ -10,11 +10,10 @@ Usage:
 
 import logging
 import os
-import re
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 # Import centralized configuration
 from .shared_utils import REPOS, TIMEOUTS

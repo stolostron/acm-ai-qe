@@ -10,7 +10,6 @@ about feature architecture, prerequisites, and known failure patterns.
 """
 
 import logging
-import os
 import re
 from dataclasses import dataclass, field
 
@@ -271,7 +270,13 @@ class FeatureKnowledgeService:
         check_spec: dict,
     ) -> Optional[tuple]:
         """
-        Look up a prerequisite's health from ClusterHealthService data (v3.7).
+        DEPRECATED (v4.0): cluster_health data no longer populated by gather.py.
+        Health data now provided by Stage 1.5 cluster-diagnostic agent.
+        This method returns None for new runs (cluster_health contains
+        {'deferred_to_stage_1_5': True}). Kept for backward compatibility
+        with older run directories that still have cluster_health in core-data.json.
+
+        Original purpose: Look up a prerequisite's health from ClusterHealthService data (v3.7).
 
         Uses the cluster_health summary from core-data.json to infer
         prerequisite status based on the overall health verdict and

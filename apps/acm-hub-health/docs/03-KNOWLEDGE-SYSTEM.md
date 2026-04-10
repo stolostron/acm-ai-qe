@@ -90,14 +90,21 @@ All components have full coverage (`architecture.md`, `data-flow.md`, `known-iss
 | `networking/` | Submariner, tunnels, service discovery, GlobalNet |
 | `infrastructure/` | Nodes, storage, certificates, etcd + `post-upgrade-patterns.md` |
 
-### How Architecture Knowledge Is Used
+### How Knowledge Is Used Across Phases
 
 1. **Phase 2 (Learn):** Read `architecture.md` to understand how a component
-   should work before checking if it's broken
-2. **Phase 4 (Pattern Match):** Read `known-issues.md` to match symptoms
+   should work. Read `diagnostic-layers.md` + `common-diagnostic-traps.md`
+   to prepare for layer-organized checking and avoid misdiagnoses.
+2. **Phase 3 (Check):** Use `diagnostic-layers.md` for layer-organized
+   health checks — foundational layers (network, storage) before component
+   layers (operators, pods).
+3. **Phase 4 (Pattern Match):** Read `known-issues.md` to match symptoms
    against documented bugs with JIRA references
-3. **Phase 6 (Deep Investigate):** Read `data-flow.md` to trace where the
-   data flow is broken
+4. **Phase 5 (Correlate):** Use `dependency-chains.md` for horizontal
+   tracing and `diagnostic-layers.md` for vertical layer tracing.
+5. **Phase 6 (Deep Investigate):** Read `data-flow.md` to trace where the
+   data flow is broken. Use `diagnostic-layers.md` as fallback when no
+   playbook matches.
 
 ---
 

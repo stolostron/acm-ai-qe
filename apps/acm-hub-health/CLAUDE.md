@@ -719,7 +719,7 @@ Setup: `git clone --depth 1 https://github.com/stolostron/rhacm-docs.git docs/rh
 - **Root Cause**: Best assessment with confidence level
 - **Known Issue**: JIRA reference if pattern matches (ACM-XXXXX)
 - **Fix Version**: Which ACM version contains the fix (if known)
-- **Cluster-Fixable**: Yes/No -- can this be resolved on-cluster?
+- **Cluster-Fixable**: Yes / Workaround / No -- can this be resolved on-cluster, does a workaround exist, or does it require an upgrade?
 - **Recommended Action**: What to do (fix, upgrade, workaround)
 
 ## Cluster Overview

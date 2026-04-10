@@ -1,4 +1,4 @@
-# Z-Stream Pipeline Analysis (v3.9)
+# Z-Stream Pipeline Analysis (v4.0)
 
 Jenkins pipeline failure analysis with definitive PRODUCT_BUG | AUTOMATION_BUG | INFRASTRUCTURE classification.
 
@@ -38,9 +38,9 @@ Analyze this run: <JENKINS_URL>
 ```
 STAGE 0:   gather.py              -> cluster_oracle (environment oracle + knowledge database)
 STAGE 1:   gather.py              -> core-data.json + cluster.kubeconfig + repos/
-STAGE 1.5: cluster-diagnostic     -> cluster-diagnosis.json (6-phase hub-health-style investigation)
+STAGE 1.5: cluster-diagnostic     -> cluster-diagnosis.json (6-phase investigation + structured health data)
 STAGE 2:   AI Analysis            -> analysis-results.json (12-layer diagnostic investigation)
-STAGE 3:   report.py              -> Detailed-Analysis.md + per-test-breakdown.json + SUMMARY.txt
+STAGE 3:   report.py              -> Detailed-Analysis.md + analysis-report.html + per-test-breakdown.json + SUMMARY.txt
 ```
 
 ### Stage 1: Data Gathering
@@ -55,7 +55,7 @@ STAGE 3:   report.py              -> Detailed-Analysis.md + per-test-breakdown.j
 - Backend API probing (5 console endpoints validated against cluster state)
 - Feature knowledge (playbook-driven prerequisites, failure paths, KG dependency context)
 - Temporal evidence (git timeline comparison between product and test changes)
-- Cluster kubeconfig (persisted `cluster.kubeconfig` for Stage 2 re-authentication)
+- Cluster kubeconfig (persisted `cluster.kubeconfig` for Stage 1.5 and Stage 2)
 
 ### Stage 1.5: Cluster Diagnostic (v3.6)
 
@@ -67,15 +67,15 @@ Dedicated `cluster-diagnostic` agent performs a comprehensive 6-phase investigat
 - **Phase 5: Correlate** — Dependency chain tracing, cross-subsystem impact, env var dependency discovery
 - **Phase 6: Output** — Write `cluster-diagnosis.json` + self-healing discoveries to `knowledge/learned/`
 
-Output includes: subsystem health, operator inventory, addon health, webhook status, component log excerpts, restart counts, managed cluster detail, OCP operators, console plugin status, infrastructure issues, dependency chains, baseline comparison, and classification guidance.
+Output includes: environment health score (weighted 0.0-1.0), cluster identity, operator health (with replica counts), subsystem health, operator inventory, addon health, webhook status, component log excerpts, restart counts, managed cluster detail, OCP operators, console plugin status, infrastructure issues, dependency chains, baseline comparison, classification guidance, and self-healing discoveries.
 
-### Stage 2: AI Analysis (v3.9 — Provably Linked Grouping + 12-Layer Investigation)
+### Stage 2: AI Analysis (v4.0 — Structured Diagnostics + Context Signals + 12-Layer Investigation)
 
 Claude Code agent uses the 12-layer diagnostic model to find root causes:
 - **Phase A**: Initial assessment (re-auth, feature grounding, environment, patterns, KG context) + **A4: provably linked grouping** — groups by strict code-path criteria only (same selector+function, same before-all hook, same spec+error+line). Dead selectors classified directly, hook cascades as NO_BUG.
 - **Phase B**: 12-layer root cause investigation — traces from symptom through infrastructure layers (Compute, Control Plane, Network, Storage, Config, Auth, RBAC, API, Operator, Cross-Cluster, Data Flow, UI) to find broken layer, investigates WHO caused it, then classifies. **Per-test verification** (v3.9): 4-point check (code path, backend, role, element) on each subsequent test in a group; failures split to individual investigation.
 - **Phase C**: Cross-reference validation (multi-evidence, cascading failures, pattern correlation)
-- **Phase D**: Validation of investigation results against PR signals (PR-6 backend probes, PR-7 oracle), **expanded counterfactual verification** (D-V5, v3.9: 9 templates + evidence duplication detection + per-test evidence requirement), causal link verification (D4b), counter-bias validation (D5). Fallback: 3-path routing when investigation agents unavailable.
+- **Phase D**: Validation of investigation results against PR signals (PR-6 backend probes, PR-6b Polarion expected behavior, PR-7 context signals), **symmetric counterfactual** (D-V5c for AUTOMATION_BUG, D-V5e for PRODUCT_BUG, v4.0), **layer discrepancy detection** (v4.0), expanded counterfactual (D-V5, v3.9: 9 templates), causal link verification (D4b), counter-bias validation (D5). Fallback: 3-path routing when investigation agents unavailable.
 - **Phase E**: Feature context and JIRA correlation (Knowledge Graph, feature stories, bug search)
 
 Every test in the output includes `root_cause_layer` (1-12), `root_cause_layer_name`, `investigation_steps_taken`, and `cause_owner`.
@@ -83,6 +83,7 @@ Every test in the output includes `root_cause_layer` (1-12), `root_cause_layer_n
 ### Stage 3: Report Generation
 
 `report.py` formats AI output into reports:
+- `analysis-report.html` — interactive HTML report with filters and per-test cards
 - `Detailed-Analysis.md` — comprehensive markdown report
 - `per-test-breakdown.json` — structured data for tooling
 - `SUMMARY.txt` — brief text summary
@@ -155,7 +156,7 @@ runs/<job>_<timestamp>/
 ├── console-log.txt             <- Full Jenkins console output
 ├── jenkins-build-info.json     <- Build metadata
 ├── test-report.json            <- Per-test failure details
-├── environment-status.json     <- Cluster health
+├── environment-status.json     <- Legacy cluster connectivity (deprecated, may not exist)
 ├── element-inventory.json      <- MCP element locations (if available)
 ├── repos/
 │   ├── automation/             <- Full cloned automation repo
@@ -170,7 +171,7 @@ runs/<job>_<timestamp>/
 Agent trace logs: .claude/traces/<session_id>.jsonl (MCP calls, prompts, tool use)
 ```
 
-## Services (18 Python Modules)
+## Services (17 Active Python Modules)
 
 | Service | Purpose |
 |---------|---------|

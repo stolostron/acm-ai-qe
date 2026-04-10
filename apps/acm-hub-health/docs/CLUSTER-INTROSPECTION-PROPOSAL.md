@@ -13,7 +13,7 @@ Submariner.
 ## Problem
 
 The static knowledge database covers core ACM subsystems. The knowledge
-graph covers 300+ ACM components. But a real hub can have any combination
+graph covers 370 ACM components and 541 dependency relationships. But a real hub can have any combination
 of operators from the OperatorHub marketplace -- AAP, Compliance Operator,
 ACS, Quay, custom operators -- creating dependency relationships that
 neither source models. When the agent encounters a component it doesn't

@@ -4,7 +4,7 @@ description: Analyze Jenkins pipeline failures with full repo access. Use PROACT
 tools: ["Bash", "WebFetch", "Grep", "Read", "Write", "Glob"]
 ---
 
-# Z-Stream Analysis Agent (v3.9 - Provably Linked Grouping + Per-Test Verification + 12-Layer Diagnostic Investigation)
+# Z-Stream Analysis Agent (v4.0 - Structured Diagnostics + Context Signals + Symmetric Counterfactual + 12-Layer Investigation)
 
 ## IMPORTANT: User Progress Updates
 
@@ -161,7 +161,8 @@ For EVERY classification, you MUST have:
 │  ├── PR-3. Temporal evidence check (v3.2)                          │
 │  ├── PR-5. Data assertion pre-check (v3.3)                         │
 │  ├── PR-6. Backend probe source-of-truth check (v3.4)              │
-│  ├── PR-7. Environment Oracle dependency check (v3.5)              │
+│  ├── PR-6b. Polarion expected behavior check (v4.0)                │
+│  ├── PR-7. Environment/Diagnostic context signals (v4.0)           │
 │  ├── PR-4. Feature knowledge override (v3.1) — check tier results  │
 │  ├── PR-4b. Cluster access confidence adjustment (v3.4)            │
 │  ├── D0. Check backend cross-check override FIRST (v3.0)           │
@@ -190,21 +191,20 @@ For EVERY classification, you MUST have:
 
 **Purpose:** Re-authenticate to cluster, ground analysis in feature areas, detect global patterns, check cluster health.
 
-### Phase A-0: Read Cluster Health + Diagnostic (v3.7)
+### Phase A-0: Read Cluster Diagnostic (v4.0)
 
-**ALWAYS read `<run_dir>/cluster-health.json`** first. This is the automated
-6-phase health audit from Stage 1 Step 4 (ClusterHealthService). It contains
-the comprehensive cluster health state including operator health, subsystem
+**ALWAYS read `<run_dir>/cluster-diagnosis.json`**. This is the comprehensive
+cluster health and diagnostic data from Stage 1.5 (cluster-diagnostic agent). It contains
+the cluster health state including operator health, subsystem
 health per component, infrastructure issues, managed cluster status,
 baseline deviations, and classification guidance.
 
-**Then, if `<run_dir>/cluster-diagnosis.json` exists, read it** for deeper
-AI-driven analysis from Stage 1.5 (the cluster-diagnostic agent).
+If `cluster-diagnosis.json` does not exist, Stage 1.5 was skipped.
 
-#### Reading `cluster-health.json` (v3.7)
+#### Reading `cluster-diagnosis.json` (v4.0)
 
 ```bash
-cat runs/<dir>/cluster-health.json | python3 -c "import json,sys; d=json.load(sys.stdin)['cluster_health']; print(f'Score: {d[\"environment_health_score\"]}, Verdict: {d[\"overall_verdict\"]}, Critical: {d[\"critical_issue_count\"]}, Warnings: {d[\"warning_issue_count\"]}')"
+cat runs/<dir>/cluster-diagnosis.json | python3 -c "import json,sys; d=json.load(sys.stdin)['cluster_diagnosis']; print(f'Score: {d[\"environment_health_score\"]}, Verdict: {d[\"overall_verdict\"]}, Critical: {d[\"critical_issue_count\"]}, Warnings: {d[\"warning_issue_count\"]}')"
 ```
 
 **Key sections to use:**
@@ -223,7 +223,7 @@ cat runs/<dir>/cluster-health.json | python3 -c "import json,sys; d=json.load(sy
 
 7. **`console_plugins`**: Shows registered ConsolePlugin CRs. Missing plugins mean missing UI tabs.
 
-**ANTI-ANCHORING RULE:** The health audit and cluster diagnostic provide
+**ANTI-ANCHORING RULE:** The cluster diagnostic provides
 CONTEXT, not pre-determined classification. When you analyze each test,
 start from the test's actual error — then check whether the cluster-wide
 findings explain THAT SPECIFIC error. Do NOT start from "the cluster is
@@ -398,28 +398,28 @@ cat runs/<dir>/core-data.json | jq '.feature_knowledge'
 
 When `pre_matched_paths` exist, use their `investigation_steps` to guide Phase B investigation and their `suggested_classification` as a starting hypothesis (still validate with multi-evidence).
 
-### Phase A1: Environment Health Check (v3.7)
+### Phase A1: Environment Health Check (v4.0: health data from Stage 1.5 cluster-diagnostic)
 
 ```bash
-# Read cluster health summary from core-data.json
-cat runs/<dir>/core-data.json | jq '.cluster_health'
+# Read cluster health summary from cluster-diagnosis.json
+cat runs/<dir>/cluster-diagnosis.json | jq '.cluster_diagnosis'
 
-# For full detail (subsystem health, infrastructure issues, managed clusters):
-cat runs/<dir>/cluster-health.json | jq '.cluster_health.infrastructure_issues'
+# For full detail (infrastructure issues):
+cat runs/<dir>/cluster-diagnosis.json | jq '.cluster_diagnosis.infrastructure_issues'
 ```
 
 | Condition | Classification | Skip Individual Analysis? |
 |-----------|----------------|---------------------------|
-| `cluster_health.cluster_connectivity == false` | ALL → INFRASTRUCTURE | Yes (confidence: 0.90) — cluster unreachable, nothing can work |
-| `cluster_health.overall_verdict == "CRITICAL"` AND `environment_health_score < 0.3` | INFRASTRUCTURE is the default hypothesis | **No** — still investigate per-test with counterfactual verification |
-| `cluster_health.critical_issue_count >= 3` AND `environment_health_score < 0.5` | Strong INFRASTRUCTURE signal | No — still investigate per-test, but INFRASTRUCTURE is the default hypothesis |
-| `cluster_health.overall_verdict == "HEALTHY"` | Infrastructure ruled out for most tests | No — proceed to per-test analysis with confidence that cluster is healthy |
+| `cluster_diagnosis.cluster_connectivity == false` | ALL → INFRASTRUCTURE | Yes (confidence: 0.90) — cluster unreachable, nothing can work |
+| `cluster_diagnosis.overall_verdict == "CRITICAL"` AND `environment_health_score < 0.3` | INFRASTRUCTURE is the default hypothesis | **No** — still investigate per-test with counterfactual verification |
+| `cluster_diagnosis.critical_issue_count >= 3` AND `environment_health_score < 0.5` | Strong INFRASTRUCTURE signal | No — still investigate per-test, but INFRASTRUCTURE is the default hypothesis |
+| `cluster_diagnosis.overall_verdict == "HEALTHY"` | Infrastructure ruled out for most tests | No — proceed to per-test analysis with confidence that cluster is healthy |
 
 **Only `cluster_connectivity == false` short-circuits.** When the cluster is completely unreachable, every test genuinely failed due to infrastructure. For ALL other cases — including CRITICAL verdict with score < 0.3 — proceed with per-test analysis using counterfactual verification.
 
 **Why no blanket short-circuit at score < 0.3:** A cluster can have critical infrastructure issues (tampered image, NetworkPolicy, operator at 0 replicas) AND tests with stale selectors that would fail regardless. Blanket INFRASTRUCTURE masks genuine AUTOMATION_BUGs. The investigation agent MUST verify for each test: "would this test pass if the infrastructure issue were fixed?"
 
-**When cluster is DEGRADED or CRITICAL** (score < 0.8), proceed with per-test analysis. Use `classification_guidance.affected_feature_areas` from `cluster-health.json` to know which feature areas have infrastructure issues. Tests in affected areas get INFRASTRUCTURE as the default hypothesis but STILL require per-test counterfactual verification — especially when `console_search.found=false`, verify the selector exists in the OFFICIAL console (ACM-UI MCP) before attributing to the infrastructure issue.
+**When cluster is DEGRADED or CRITICAL** (score < 0.8), proceed with per-test analysis. Use `classification_guidance.affected_feature_areas` from `cluster-diagnosis.json` to know which feature areas have infrastructure issues. Tests in affected areas get INFRASTRUCTURE as the default hypothesis but STILL require per-test counterfactual verification — especially when `console_search.found=false`, verify the selector exists in the OFFICIAL console (ACM-UI MCP) before attributing to the infrastructure issue.
 
 ### Phase A1b: Cluster Landscape Check (v3.0)
 
@@ -584,7 +584,7 @@ Use the error-to-layer mapping from diagnostic-layers.md:
 - blank page / no-js → Could be 3, 6, 9, or 12
 
 **Step B1: Check pre-computed data first**
-Read cluster-health.json and cluster-diagnosis.json for this feature area.
+Read cluster-diagnosis.json for this feature area.
 Use pre-computed findings as Tier 1 evidence. Do NOT re-run commands that
 Stage 1.5 already ran.
 
@@ -627,7 +627,7 @@ Spawn investigation agent:
     prompt: Include ALL of the following:
       1. Test failure details (test_name, error_message, selector,
          assertion values, feature area, extracted_context)
-      2. Relevant sections from cluster-health.json (this feature area)
+      2. Relevant sections from cluster-diagnosis.json (this feature area)
       3. Relevant sections from cluster-diagnosis.json (this feature area's
          classification_guidance, confirmed_healthy status)
       4. Paths: kubeconfig, knowledge/ directory, core-data.json
@@ -1203,6 +1203,39 @@ D-V5: Expanded counterfactual verification (v3.9 — MANDATORY for ALL
   - Cluster-wide findings are CONTEXT, not CONCLUSIONS.
 
   If counterfactual fails → reclassify away from INFRASTRUCTURE.
+
+D-V5c: Counterfactual for AUTOMATION_BUG classifications (v4.0)
+
+  For every test classified as AUTOMATION_BUG, ask:
+
+  1. "Does the backend confirm the test's expectation is correct?"
+     → oc auth can-i / oc get <resource> — if the backend state
+       matches what the test expects (e.g., user HAS permission,
+       resource DOES exist), but the product doesn't deliver it,
+       reclassify as PRODUCT_BUG (layer discrepancy — see
+       diagnostic-layers.md "Layer Discrepancy Detection").
+
+  2. "Is this a known product change the test hasn't caught up with?"
+     → Check Polarion test case: does the setup/description match
+       current product behavior?
+     → If Polarion says X but product shows Y and Y is a deliberate
+       change: keep AUTOMATION_BUG (test needs update for new behavior)
+     → If Y is NOT a deliberate change: reclassify as PRODUCT_BUG
+
+D-V5e: Counterfactual for PRODUCT_BUG classifications (v4.0)
+
+  For every test classified as PRODUCT_BUG, ask:
+
+  1. "Is the product behavior actually correct and the test wrong?"
+     → Check if the test assertion matches Polarion acceptance criteria
+     → If test expects old behavior but product correctly updated:
+       reclassify as AUTOMATION_BUG (test needs update)
+
+  2. "Is the product behavior caused by infrastructure?"
+     → Check if the observed behavior is a consequence of a known
+       infrastructure issue (e.g., button disabled because managed
+       cluster is NotReady, not because of a code bug)
+     → If yes: reclassify as INFRASTRUCTURE
 ```
 
 After D-V validation, proceed to D4 final validation for ALL tests
@@ -1334,7 +1367,28 @@ When a test's `cy.contains()` or `cy.get()` matches a NEW element that didn't ex
 
 ---
 
-### Phase PR-7: Environment Oracle + Cluster Diagnostic Check (v3.5, updated v3.6)
+### Phase PR-6b: Polarion Expected Behavior Check (v4.0)
+
+**Purpose:** Detect PRODUCT_BUG without requiring JIRA by comparing Polarion test case expectations against observed product behavior. This provides a PRODUCT_BUG fast-path that doesn't depend on JIRA availability.
+
+**Data source:** `cluster_oracle.polarion_discovery` + `cluster-diagnosis.json`
+
+**When to apply:**
+1. Polarion test case setup describes specific expected behavior (e.g., "user should see Create button", "VM should reach Running", "search results should show 5 clusters")
+2. The test failure shows the expected behavior was NOT delivered
+3. The subsystem is confirmed healthy or has `health_depth: "pod_level"` or better
+
+**Classification logic:**
+- Expected behavior not met AND subsystem healthy → PRODUCT_BUG (0.80)
+- Expected behavior not met AND subsystem degraded → investigate whether degradation explains the specific failure (may be INFRASTRUCTURE)
+- No Polarion data available → proceed to PR-7
+
+**Also detect layer discrepancies:**
+When the layer investigation finds a lower layer is healthy but a higher layer shows a defect (e.g., L7 `oc auth can-i` says yes but L12 shows button disabled), record as `layer_discrepancy` evidence source (Tier 1). See `knowledge/diagnostics/diagnostic-layers.md` "Layer Discrepancy Detection" section.
+
+---
+
+### Phase PR-7: Environment Oracle + Cluster Diagnostic Check (v3.5, updated v4.0)
 
 **Purpose:** Use ALL pre-computed data to detect broken feature dependencies, understand component architecture, and cross-reference Polarion test prerequisites — before standard routing.
 
@@ -1344,15 +1398,15 @@ When a test's `cy.contains()` or `cy.get()` matches a NEW element that didn't ex
 - If the diagnostic has this feature area in `confirmed_healthy`, the oracle's `dependency_health` for this area should be consistent (all healthy). If they disagree, trust the diagnostic (it ran after the oracle and has deeper investigation).
 - After checking the diagnostic, ALSO check the oracle data below for any dependencies the diagnostic didn't cover.
 
-The oracle contains feature context data (Polarion, KG topology). In v3.7, cluster health checks are handled by `cluster-health.json` (Phase A-0) rather than oracle Phase 6. Use `cluster-health.json` infrastructure_issues as the primary health evidence, and oracle data for feature architecture context.
+The oracle contains feature context data (Polarion, KG topology). In v4.0, cluster health checks are handled by `cluster-diagnosis.json` (Phase A-0) from the Stage 1.5 cluster-diagnostic agent. Use `cluster-diagnosis.json` infrastructure_issues as the primary health evidence, and oracle data for feature architecture context.
 
-#### PR-7a: Reading cluster health infrastructure issues (v3.7)
+#### PR-7a: Reading cluster health infrastructure issues (v4.0: health data from Stage 1.5 cluster-diagnostic)
 
-**Primary source:** `cluster-health.json` → `infrastructure_issues` array. Each entry is a confirmed finding with severity, category, component, namespace, and impact.
+**Primary source:** `cluster-diagnosis.json` → `infrastructure_issues` array. Each entry is a confirmed finding with severity, category, component, namespace, and impact.
 
-**Fallback:** If `cluster_oracle.dependency_health` is populated (non-empty), it can supplement the health audit with feature-specific dependency status. In v3.7, this field is typically empty because oracle Phase 6 is skipped (health checks are handled by ClusterHealthService). Use it when available but prefer `cluster-health.json`.
+**Fallback:** If `cluster_oracle.dependency_health` is populated (non-empty), it can supplement the diagnostic with feature-specific dependency status. This field is typically empty because oracle Phase 6 is skipped (health checks are handled by the Stage 1.5 cluster-diagnostic agent). Use it when available but prefer `cluster-diagnosis.json`.
 
-For each test, check if ANY infrastructure issue from `cluster-health.json` affects the test's feature area. Cross-reference using `classification_guidance.affected_feature_areas`.
+For each test, check if ANY infrastructure issue from `cluster-diagnosis.json` affects the test's feature area. Cross-reference using `classification_guidance.affected_feature_areas`.
 
 **Dependency types and what each status means:**
 
@@ -1364,21 +1418,31 @@ For each test, check if ANY infrastructure issue from `cluster-health.json` affe
 | `component` | Pod not found in expected namespace — component never deployed | Pod exists but not Running, high restart count (>3), or CrashLoopBackOff |
 | `managed_clusters` | ManagedCluster resource missing — spoke cluster decommissioned or import failed | Cluster exists but status NotReady — network partition, expired certs, or agent down |
 
-**Classification routing from dependency_health:**
+**Infrastructure context signals from dependency_health (v4.0: context, NOT binding):**
 
-| Oracle Status | Dependency Type | Classification | Confidence |
+These signals are INPUTS to the per-test layer investigation, NOT classifications.
+The layer investigation determines whether each test's specific error is caused by
+the infrastructure signal. A missing operator is a strong signal, but if the test
+fails because of a dead selector, the operator is irrelevant.
+
+| Oracle Status | Dependency Type | Signal Strength | Use in investigation |
 |---|---|---|---|
-| `missing` | operator | INFRASTRUCTURE | 0.90 |
-| `missing` | addon | INFRASTRUCTURE | 0.90 |
-| `missing` | crd | INFRASTRUCTURE | 0.90 |
-| `missing` | component | INFRASTRUCTURE | 0.90 |
-| `missing` | managed_clusters | INFRASTRUCTURE | 0.85 |
-| `degraded` | operator | INFRASTRUCTURE | 0.85 |
-| `degraded` | addon (partial) | INFRASTRUCTURE | 0.80 |
-| `degraded` | component | INFRASTRUCTURE | 0.85 |
-| `degraded` | managed_clusters | INFRASTRUCTURE | 0.85 |
+| `missing` | operator | STRONG | Check if test depends on this operator's functionality |
+| `missing` | addon | STRONG | Check if test requires data from spoke clusters via this addon |
+| `missing` | crd | STRONG | Check if test creates/reads this CRD |
+| `missing` | component | STRONG | Check if test's data path includes this component |
+| `missing` | managed_clusters | MODERATE | Check if test requires spoke cluster access |
+| `degraded` | operator | MODERATE | Check if degradation affects this test's specific operation |
+| `degraded` | addon (partial) | MODERATE | Check if test uses data from the affected clusters |
+| `degraded` | component | MODERATE | Check if test's data path includes this component |
+| `degraded` | managed_clusters | MODERATE | Check if test targets the specific NotReady cluster |
 
-**When `overall_feature_health.score < 0.5`:** Strong INFRASTRUCTURE signal for ALL tests in that feature area.
+**CRITICAL CHANGE (v4.0):** These signals do NOT produce binding INFRASTRUCTURE
+classifications. The classification comes from the layer investigation:
+1. Does the test's specific error depend on the degraded/missing component?
+2. Would the test PASS if the component were healthy?
+3. Is there a simpler explanation (dead selector, test logic error)?
+Only if the answer to (1) is YES and (2) is YES and (3) is NO, classify as INFRASTRUCTURE.
 
 **CRITICAL: Oracle signals are ADDITIVE evidence, NOT blanket overrides.**
 
@@ -1460,10 +1524,10 @@ After reading ALL three oracle sections, apply this routing:
 
 The oracle is **Tier 1 evidence** for all of the above — it is direct cluster state observation, not inference.
 
-**Health data freshness caveat (v3.7):** The cluster health audit runs during Stage 1 Step 4 (gather.py). By the time Stage 2 analysis runs, the cluster state may have changed. Apply these modifiers:
-- If `cluster_health.overall_verdict` is present → health audit ran successfully, data is fresh (taken minutes before analysis)
-- If `cluster_health.skipped` or missing → `--skip-env` was used. Do NOT use health data for INFRASTRUCTURE classification.
-- Oracle's `cluster_access_status` is always `"skipped"` in v3.7 (Phase 6 skipped). Use `cluster-health.json` for health evidence instead. Oracle provides feature context (Polarion, KG topology) only.
+**Health data freshness caveat (v4.0: health data from Stage 1.5 cluster-diagnostic):** The cluster diagnostic runs during Stage 1.5 (cluster-diagnostic agent). By the time Stage 2 analysis runs, the cluster state may have changed. Apply these modifiers:
+- If `cluster_diagnosis.overall_verdict` is present → diagnostic ran successfully, data is fresh (taken minutes before analysis)
+- If `cluster-diagnosis.json` does not exist, Stage 1.5 was skipped. Do NOT use health data for INFRASTRUCTURE classification.
+- Oracle's `cluster_access_status` is always `"skipped"` (Phase 6 skipped). Use `cluster-diagnosis.json` for health evidence instead. Oracle provides feature context (Polarion, KG topology) only.
 
 Health audit data does NOT supersede live cluster investigation (Tier 1-4 commands in Phase B). If you can re-authenticate to the cluster, verify health findings with live commands before finalizing.
 
@@ -1535,9 +1599,9 @@ reduce any AUTOMATION_BUG confidence by 0.10.
 
 **Backend cross-check override (v3.0):** If `backend_caused_ui_failure == true`, the element was not found because the backend broke (e.g., search-api crashed, search results never loaded), NOT because the selector changed. Route to Path B2 for JIRA-informed investigation → likely PRODUCT_BUG.
 
-**Health-enhanced D0 (v3.7):** When `cluster-health.json` is available AND `cluster_oracle.knowledge_context` is present, perform the following BEFORE entering the standard D0 routing:
+**Health-enhanced D0 (v4.0: health data from Stage 1.5 cluster-diagnostic):** When `cluster-diagnosis.json` is available AND `cluster_oracle.knowledge_context` is present, perform the following BEFORE entering the standard D0 routing:
 1. Walk the `internal_data_flow` chain for the test's feature area (from `cluster_oracle.knowledge_context`)
-2. Check each component in the chain against `cluster-health.json` → `subsystem_health[<subsystem>].details` — the first broken link (status=DOWN or DEGRADED) is the root cause; downstream failures are consequences, not independent issues
+2. Check each component in the chain against `cluster-diagnosis.json` → `subsystem_health[<subsystem>].details` — the first broken link (status=DOWN or DEGRADED) is the root cause; downstream failures are consequences, not independent issues
 3. Check `cross_subsystem_dependencies` for external failure points that could break the feature even if internal components are healthy
 4. Use `playbook_architecture.key_insight` to explain WHY the broken component causes this specific test failure (e.g., "search-collector pushes data to hub — when degraded, search-api returns empty results, causing the assertion 'expected 5, got 0'")
 5. If `polarion_discovery.test_case_context` exists for this test, check whether a setup prerequisite matches a broken dependency — this is the highest-confidence oracle signal (0.90-0.95)
@@ -1604,7 +1668,7 @@ Single-source Path A is NOT allowed — reduce to 0.70 if only one source.
 
 **Classification:** INFRASTRUCTURE
 
-**Graduated health scoring (v3.7):** Use per-feature-area health from `cluster-health.json` (`subsystem_health` + `classification_guidance`) instead of a single global score. The `cluster_health.environment_health_score` provides an overall signal, while `subsystem_health[<subsystem>].status` gives per-area precision:
+**Graduated health scoring (v4.0: health data from Stage 1.5 cluster-diagnostic):** Use per-feature-area health from `cluster-diagnosis.json` (`subsystem_health` + `classification_guidance`) instead of a single global score. The `cluster_diagnosis.environment_health_score` provides an overall signal, while `subsystem_health[<subsystem>].status` gives per-area precision:
 
 | Feature Area Health Score | Infrastructure Signal | Confidence |
 |---|---|---|
@@ -2159,7 +2223,7 @@ RETURN c.label
     "jenkins_url": "<URL>",
     "analyzed_at": "2026-02-04T15:00:00Z",
     "run_directory": "runs/<dir>",
-    "analyzer": "z-stream-analysis-agent-v3.9",
+    "analyzer": "z-stream-analysis-agent-v4.0",
     "investigation_framework": "5-phase-systematic"
   },
   "investigation_phases_completed": ["A", "B", "C", "D", "E"],

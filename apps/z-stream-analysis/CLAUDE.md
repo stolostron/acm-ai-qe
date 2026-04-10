@@ -1,6 +1,6 @@
-# Z-Stream Pipeline Analysis (v3.9)
+# Z-Stream Pipeline Analysis (v4.0)
 
-Jenkins pipeline failure analysis with PRODUCT_BUG | AUTOMATION_BUG | INFRASTRUCTURE | NO_BUG classification. v3.9 adds provably linked grouping (Phase A4), per-test verification within groups (4-point check), and expanded counterfactual verification (D-V5) with 9 templates covering selector, button-disabled, timeout, data-assertion, blank-page, CSS, NetworkPolicy, operator, and ResourceQuota failures. Builds on v3.8's 12-layer diagnostic investigation, v3.7's automated cluster health audit, comprehensive environment oracle, and knowledge-graph-driven dependency analysis. See `docs/CHANGELOG.md` for version history.
+Jenkins pipeline failure analysis with PRODUCT_BUG | AUTOMATION_BUG | INFRASTRUCTURE | NO_BUG classification. v4.0 moves cluster health entirely to Stage 1.5 cluster-diagnostic agent (deprecates ClusterHealthService), adds structured health fields (environment_health_score, operator_health, health_depth), changes PR-7 from binding classifications to context signals, adds PR-6b Polarion expected-behavior check, symmetric counterfactual (D-V5c for AUTOMATION_BUG, D-V5e for PRODUCT_BUG), and layer discrepancy detection as Tier 1 evidence. Builds on v3.9's provably linked grouping, v3.8's 12-layer diagnostic investigation, and v3.7's comprehensive environment oracle. See `docs/CHANGELOG.md` for version history.
 
 ## Pipeline Execution UX (MANDATORY)
 
@@ -12,7 +12,7 @@ When a user asks to analyze a Jenkins run, **do NOT delegate the entire pipeline
    ```
    Stage 1: Gathering pipeline data from Jenkins...
    ```
-   After it completes, summarize what was collected (e.g., "Extracted 64 failed tests across 8 feature areas, health audit: 24% CRITICAL (4 issues)").
+   After it completes, summarize what was collected (e.g., "Extracted 64 failed tests across 8 feature areas, 3 managed clusters").
 
 2. **Stage 1.5** — Spawn the `cluster-diagnostic` agent. Before launching, output:
    ```
@@ -41,7 +41,7 @@ When a user asks to analyze a Jenkins run, **do NOT delegate the entire pipeline
 python -m src.scripts.gather "<JENKINS_URL>"
 
 # Step 2: AI analyzes using 12-layer diagnostic model (creates analysis-results.json)
-# Read core-data.json + cluster-health.json + cluster-diagnosis.json, classify each test
+# Read core-data.json + cluster-diagnosis.json, classify each test
 
 # Step 3: Generate reports
 python -m src.scripts.report runs/<dir>
@@ -57,25 +57,25 @@ Before writing analysis-results.json, ALWAYS read `src/schemas/analysis_results_
 ## Architecture
 
 ```
-STAGE 1: gather.py      → core-data.json + cluster-health.json + cluster.kubeconfig + repos/
-  Step 1: Jenkins build info + cluster credential extraction
-  Step 2: Console log download + parsing
+STAGE 1: gather.py      → core-data.json + cluster.kubeconfig + repos/
+  Step 1: Jenkins build info (build result, params, branch, SHA)
+  Step 2: Console log download + error pattern extraction
   Step 3: Test report extraction
-  Step 4: Cluster health audit (ClusterHealthService, 6-phase) + landscape + backend probes
-  Step 5: Feature context oracle (Polarion, KG topology — Phase 6 health checks skipped)
+  Step 4: Cluster login + kubeconfig persist (4a), landscape (4b), backend probes (4c)
+  Step 5: Feature context oracle (Polarion, KG topology — Phase 6 skipped, handled by Stage 1.5)
   Step 6-11: Repo cloning, context extraction, feature grounding, knowledge, inventory, hints
-STAGE 1.5: cluster-diagnostic agent → cluster-diagnosis.json (optional deep investigation)
+STAGE 1.5: cluster-diagnostic agent → cluster-diagnosis.json (comprehensive health + structured data)
 STAGE 2: AI Analysis    → analysis-results.json (12-layer diagnostic investigation, per-group investigation agents)
 STAGE 3: report.py      → Detailed-Analysis.md + analysis-report.html + per-test-breakdown.json + SUMMARY.txt
 ```
 
-Stage 1 runs gather.py with 11 steps. Step 4 performs the comprehensive cluster health audit (6 phases: DISCOVER, LEARN, CHECK, COMPARE, CORRELATE, SCORE) producing `cluster-health.json`. Step 5 runs the oracle for feature context only (Polarion test cases, KG topology). Stage 1.5 is optional — runs the cluster-diagnostic agent for deeper AI-driven investigation. Stage 2 uses the 12-layer diagnostic model with provably linked grouping (v3.9): Phase A4 groups tests using strict code-path criteria only, investigation agents trace from symptom through infrastructure layers, per-test verification checks each test within a group, and expanded counterfactual verification (9 templates) validates INFRASTRUCTURE classifications. Falls back to inline tiered investigation (v3.7) when agents are unavailable.
+Stage 1 runs gather.py with 11 steps. Step 4 handles cluster login, landscape collection, and backend probes. Step 5 runs the oracle for feature context only (Polarion test cases, KG topology). Stage 1.5 runs the cluster-diagnostic agent for comprehensive health investigation, producing `cluster-diagnosis.json` with structured health data (environment_health_score, operator_health, subsystem_health, classification_guidance). Stage 2 uses the 12-layer diagnostic model with provably linked grouping (v3.9): Phase A4 groups tests using strict code-path criteria only, investigation agents trace from symptom through infrastructure layers, per-test verification checks each test within a group, and expanded counterfactual verification (9 templates) validates INFRASTRUCTURE classifications. Falls back to inline tiered investigation (v3.7) when agents are unavailable.
 
 See `docs/00-OVERVIEW.md` for detailed diagrams.
 
 ## Run Directory
 
-See `docs/00-OVERVIEW.md` for full run directory structure. Key files: `core-data.json` (primary AI input), `cluster-health.json` (comprehensive health audit, 19KB), `cluster.kubeconfig` (persisted cluster auth for Stage 2), `pipeline.log.jsonl` (structured service logs), `analysis-results.json` (AI output), `Detailed-Analysis.md` (final report), `analysis-report.html` (interactive HTML report).
+See `docs/00-OVERVIEW.md` for full run directory structure. Key files: `core-data.json` (primary AI input), `cluster.kubeconfig` (persisted cluster auth for Stage 1.5 and Stage 2), `cluster-diagnosis.json` (comprehensive cluster health diagnostic from Stage 1.5), `pipeline.log.jsonl` (structured service logs), `analysis-results.json` (AI output), `Detailed-Analysis.md` (final report), `analysis-report.html` (interactive HTML report).
 
 ## Classification Guide
 
@@ -83,7 +83,7 @@ See `docs/00-OVERVIEW.md` for full run directory structure. Key files: `core-dat
 
 See `docs/00-OVERVIEW.md` for full classification definitions with owners and triggers.
 
-## Decision Quick Reference (v3.9: Provably Linked Grouping + Layer-Based + Verification)
+## Decision Quick Reference (v4.0: Structured Diagnostics + Context Signals + Provably Linked Grouping)
 
 **v3.9 primary flow:** Phase A4 groups tests using provably linked criteria only → investigation agents use 12-layer diagnostic model → per-test verification within groups (4-point check) → Phase D-V validates with expanded counterfactual.
 
@@ -99,8 +99,10 @@ See `docs/00-OVERVIEW.md` for full classification definitions with owners and tr
 
 **Phase D-V validation checks (cross-check investigation results):**
 - **PR-6** Backend probe source-of-truth — deterministic K8s-vs-console comparison (v3.4)
-- **PR-7** Environment Oracle — broken dependency check (v3.5)
-- **D-V5** Expanded counterfactual — 9 verification templates (selector, button-disabled, timeout, data-assertion, blank-page, CSS, NetworkPolicy, operator, ResourceQuota) + evidence duplication detection + per-test evidence requirement (v3.9)
+- **PR-6b** Polarion expected behavior check — PRODUCT_BUG fast-path without JIRA (v4.0)
+- **PR-7** Environment/Diagnostic context signals — ADDITIVE, not binding classifications (v4.0)
+- **D-V5** Expanded counterfactual — 9 templates + symmetric validation: D-V5c for AUTOMATION_BUG ("does backend confirm expectation?"), D-V5e for PRODUCT_BUG ("is product behavior correct?") (v4.0)
+- **Layer discrepancy** — Tier 1 PRODUCT_BUG evidence when lower layer healthy but higher layer defective (v4.0)
 - **D4b** Per-test causal link verification (v3.3)
 - **D5** Counter-bias validation (v3.3)
 
@@ -197,7 +199,7 @@ python -m src.scripts.feedback --stats           # View accuracy stats
 
 Two-layer structured logging captures every operation across all pipeline stages.
 
-**Layer 1: Python Service Logs (`pipeline.log.jsonl`)** — Written to the run directory by `src/logging_config.py`. Captures all `logging.getLogger()` calls from 18 Python service modules with `run_id` and `stage` context. Console output shows colored human-readable format; the JSONL file captures DEBUG-level detail.
+**Layer 1: Python Service Logs (`pipeline.log.jsonl`)** — Written to the run directory by `src/logging_config.py`. Captures all `logging.getLogger()` calls from Python service modules with `run_id` and `stage` context. Console output shows colored human-readable format; the JSONL file captures DEBUG-level detail.
 
 **Layer 2: Agent Trace Logs (`.claude/traces/<session_id>.jsonl`)** — Written by Claude Code hooks (`.claude/hooks/agent_trace.py`). Captures ALL tool calls (Bash, Read, Edit, Write, Grep, Glob, MCP, Agent spawn/complete) and user prompts across the parent session and subagents. Hooks use catch-all matchers on PreToolUse, PostToolUse, and PostToolUseFailure events. Hooks are configured in `.claude/settings.json`.
 
@@ -215,7 +217,7 @@ Test structure: `tests/unit/` (660 tests across 19 service/script files), `tests
 
 ## Knowledge Database (`knowledge/`)
 
-Domain reference data for the AI agent during Stage 2 analysis. Includes per-subsystem architecture docs (14 areas), diagnostics methodology (5 files), structured YAML data (12 files), and self-healing learned patterns. See `docs/06-KNOWLEDGE-DATABASE.md` for the complete file reference, YAML schemas, and maintenance procedures.
+Domain reference data for the AI agent during Stage 2 analysis. Includes per-subsystem architecture docs (12 areas), diagnostics methodology (5 files), structured YAML data (12 files), and self-healing learned patterns. See `docs/06-KNOWLEDGE-DATABASE.md` for the complete file reference, YAML schemas, and maintenance procedures.
 
 **How the agent uses it:**
 1. **Phase A0:** Read `architecture/<area>/architecture.md` and `data-flow.md` for each detected feature area
@@ -243,12 +245,12 @@ Domain reference data for the AI agent during Stage 2 analysis. Includes per-sub
 ```
 z-stream-analysis/
 ├── src/scripts/           # gather.py, report.py, feedback.py
-├── src/services/          # 18 Python service modules + shared_utils
+├── src/services/          # 17 active Python service modules + shared_utils (+ ClusterHealthService deprecated)
 ├── src/reports/           # HTML report generator
 ├── src/schemas/           # JSON Schema validation
 ├── src/data/              # Feature playbooks (YAML)
 ├── knowledge/             # Knowledge database (see docs/06)
-│   ├── architecture/      # Per-subsystem docs (14 areas, 37 files)
+│   ├── architecture/      # Per-subsystem docs (12 areas, 37 files)
 │   ├── diagnostics/       # Classification methodology + 12-layer model (5 files)
 │   └── *.yaml             # Structured data files (12 files)
 ├── tests/                 # Unit (660), regression (59), integration (50)

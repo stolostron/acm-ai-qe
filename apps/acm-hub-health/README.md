@@ -12,13 +12,14 @@ networking) and traces dependency chains to find root causes, not just symptoms.
 
 - **`oc` CLI** -- logged into your ACM hub cluster
 - **Claude Code CLI** -- [install guide](https://docs.anthropic.com/en/docs/claude-code/getting-started)
+- **Node.js** + **`mcp-remote`** (`npm install -g mcp-remote`) -- for the search database MCP server
 - **Podman** -- for Neo4j knowledge graph container (optional but recommended)
 
 ## Quick Start
 
 ```bash
 cd acm-hub-health
-bash setup.sh         # one-time: clones rhacm-docs, sets up MCPs (acm-ui, neo4j-rhacm)
+bash setup.sh         # one-time: clones rhacm-docs, sets up MCPs (acm-ui, neo4j-rhacm, acm-search)
 oc login <hub-api>    # login to your hub
 claude                # start the agent
 ```
@@ -48,7 +49,7 @@ Why are managed clusters Unknown?     # symptom investigation
 2. **Learn** -- consult architecture knowledge + previous discoveries
 3. **Check** -- layer-organized health checks (foundational layers first, then components)
 4. **Pattern Match** -- match symptoms against documented known issues with JIRA references
-5. **Correlate** -- trace horizontal (8 dependency chains) + vertical (12 infrastructure layers)
+5. **Correlate** -- trace horizontal (11 dependency chains) + vertical (12 infrastructure layers)
 6. **Deep Investigate** -- logs, events, storage, networking + layer-based fallback
 
 ### Self-Healing Knowledge
@@ -108,7 +109,7 @@ knowledge/
   component-registry.md                 # Master inventory of ACM components
   failure-patterns.md                   # Failure signatures mapped to root causes
   healthy-baseline.yaml                 # Expected pod counts, deployment states
-  dependency-chains.yaml                # 8 cascade paths (structured YAML)
+  dependency-chains.yaml                # 11 cascade paths (structured YAML)
   webhook-registry.yaml                 # Validating/mutating webhooks
   certificate-inventory.yaml            # TLS secrets, rotation, impact
   addon-catalog.yaml                    # Addon health checks and dependencies
@@ -131,7 +132,7 @@ knowledge/
     infrastructure/                     # " + post-upgrade-patterns.md
   diagnostics/                          # Health check methodology
     diagnostic-layers.md                # 12-layer investigation framework
-    dependency-chains.md                # 8 cascade paths (narrative)
+    dependency-chains.md                # 11 cascade paths (narrative)
     common-diagnostic-traps.md          # 13 patterns where obvious diagnosis is wrong
     evidence-tiers.md                   # Evidence weighting rules
     diagnostic-playbooks.md             # 14 per-subsystem investigation procedures

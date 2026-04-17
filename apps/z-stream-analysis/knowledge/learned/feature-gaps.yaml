@@ -1,0 +1,292 @@
+# Feature Knowledge Gaps — Agent-Contributed
+# When the data-collector detects gaps in base.yaml feature playbooks,
+# it records discoveries here for review and promotion.
+#
+# Promoted by: refresh.py --playbooks (manual review before merge)
+# Format follows base.yaml schema: id, description, category, symptoms,
+# classification, confidence, explanation
+#
+# Created: 2026-04-12
+
+gaps:
+- date: '2026-04-13'
+  trigger: unmatched_error
+  feature_area: Console
+  gap_type: missing_failure_path
+  proposed_entry:
+    id: perspective-switcher-race-condition
+    description: header.js openMenu() uses synchronous $body.find() for perspective-switcher-toggle
+      which races with async rendering on OCP 4.20+
+    category: configuration
+    symptoms:
+    - (?i)Expected to find element.*cluster-dropdown-toggle
+    classification: AUTOMATION_BUG
+    confidence: 0.9
+    explanation: Synchronous jQuery check races with async perspective switcher rendering,
+      falls through to removed cluster-dropdown-toggle
+  source: knowledge/architecture/console/failure-signatures.md
+  evidence: 9 tests failed with cluster-dropdown-toggle not found
+- date: '2026-04-13'
+  trigger: unmatched_error
+  feature_area: CLC
+  gap_type: missing_failure_path
+  proposed_entry:
+    id: cluster-dropdown-toggle-dead
+    description: cluster-dropdown-toggle selector removed from OCP 4.20+, tests should
+      use perspective-switcher-toggle
+    category: configuration
+    symptoms:
+    - (?i)Expected to find element.*cluster-dropdown-toggle
+    classification: AUTOMATION_BUG
+    confidence: 0.95
+    explanation: OCP 4.20 replaced cluster-dropdown-toggle with perspective-switcher-toggle
+  source: knowledge/architecture/cluster-lifecycle/failure-signatures.md
+  evidence: 9 CLC tests failed on same dead selector in header.js
+- date: '2026-04-13'
+  trigger: unmatched_error
+  feature_area: Automation
+  gap_type: missing_failure_path
+  proposed_entry:
+    id: pre-upgrade-text-renamed
+    description: Product renamed 'Pre-upgrade' to 'Pre-update' in Ansible templates
+      UI
+    category: configuration
+    symptoms:
+    - (?i)Expected to find.*Pre-upgrade Ansible templates
+    classification: AUTOMATION_BUG
+    confidence: 0.95
+    explanation: Product UI text changed from Pre-upgrade to Pre-update, test expects
+      old text
+  source: knowledge/architecture/automation/failure-signatures.md
+  evidence: 4 Automation tests failed expecting 'Pre-upgrade Ansible templates' text
+- date: '2026-04-13'
+  trigger: unmatched_error
+  feature_area: RBAC
+  gap_type: missing_failure_path
+  proposed_entry:
+    id: ouia-component-id-not-found
+    description: Test uses OUIA ID that is test-data-dependent
+    category: configuration
+    symptoms:
+    - (?i)Expected to find element.*data-ouia-component-id
+    classification: AUTOMATION_BUG
+    confidence: 0.85
+    explanation: OUIA component ID value is derived from test data (user name), not
+      a static product selector
+  source: knowledge/architecture/rbac/failure-signatures.md
+  evidence: 1 RBAC test failed with data-ouia-component-id not found
+- date: '2026-04-13'
+  trigger: unmatched_error
+  feature_area: Virtualization
+  gap_type: missing_failure_path
+  proposed_entry:
+    id: tree-view-pf6-not-rendered
+    description: PatternFly TreeView component (.pf-v6-c-tree-view) not rendered on
+      Fleet Virt page
+    category: connectivity
+    symptoms:
+    - (?i)Expected to find element.*pf-v6-c-tree-view
+    classification: INFRASTRUCTURE
+    confidence: 0.7
+    explanation: TreeView component exists in kubevirt-plugin but may not render if
+      plugin not loaded or page not ready
+  source: knowledge/architecture/virtualization/failure-signatures.md
+  evidence: 1 Virtualization test failed waiting for .pf-v6-c-tree-view
+- date: '2026-04-13'
+  trigger: unmatched_error
+  feature_area: CLC
+  gap_type: missing_failure_path
+  proposed_entry:
+    id: yaml-parse-error-credentials
+    description: YAML parsing error in credential secret creation
+    category: data_flow
+    symptoms:
+    - (?i)end of the stream or a document separator is expected
+    classification: AUTOMATION_BUG
+    confidence: 0.75
+    explanation: Test fixture or form produces invalid YAML content in credential
+      creation
+  source: knowledge_database
+  evidence: 1 CLC test failed with YAML parse error in credentials
+- date: '2026-04-13'
+  trigger: unmatched_error
+  feature_area: GRC
+  gap_type: missing_failure_path
+  proposed_entry:
+    id: view-history-text-missing
+    description: Policy 'View history' button text not found
+    category: configuration
+    symptoms:
+    - (?i)Expected to find content.*View history
+    classification: AUTOMATION_BUG
+    confidence: 0.7
+    explanation: Policy history link text may have been renamed in PF6 migration
+  source: knowledge_database
+  evidence: 1 GRC test failed expecting 'View history' content
+- date: '2026-04-13'
+  trigger: unmatched_error
+  feature_area: Application
+  gap_type: missing_failure_path
+  proposed_entry:
+    id: gitops-addon-undefined-namespace
+    description: before-all hook runs oc apply gitops-addon.yaml with namespace 'undefined'
+      (JS undefined variable)
+    category: configuration
+    symptoms:
+    - (?i)oc apply.*gitops-addon\.yaml.*-n undefined
+    classification: AUTOMATION_BUG
+    confidence: 0.85
+    explanation: Test setup resolves managed cluster namespace to JS 'undefined' literal,
+      compounded by ResourceQuota blocking ALC controllers
+  source: knowledge/architecture/application-lifecycle/failure-signatures.md
+  evidence: 33 Application tests failed with gitops-addon.yaml -n undefined in before-all
+    hook
+- date: '2026-04-13'
+  trigger: unmatched_error
+  feature_area: Application
+  gap_type: missing_failure_path
+  proposed_entry:
+    id: resourcequota-blocks-alc-controllers
+    description: ResourceQuota restrict-ocm blocks pod creation for core ALC controllers
+    category: component_health
+    symptoms:
+    - (?i)Error from server.*NotFound.*error when creating
+    - (?i)exceeded quota.*pods
+    classification: INFRASTRUCTURE
+    confidence: 0.95
+    explanation: ResourceQuota restrict-ocm limits pods=5 but 20 pods exist, blocking
+      hub-subscription, channel, subscription-report controllers
+  source: cluster-diagnosis.json
+  evidence: All 48 tests are before-all hook failures, cluster-diagnosis confirms
+    0 replicas for core ALC controllers
+- date: '2026-04-13'
+  trigger: unmatched_error
+  feature_area: Search
+  gap_type: missing_failure_path
+  proposed_entry:
+    id: networkpolicy-blocking-search-postgres
+    description: NetworkPolicy block-search-db blocks ALL ingress to search-postgres
+    category: connectivity
+    symptoms:
+    - (?i)search.*empty.*results
+    - (?i)search.*connection.*timeout
+    classification: INFRASTRUCTURE
+    confidence: 0.9
+    explanation: NetworkPolicy with empty ingress rules blocks search-postgres, plus
+      search-v2-operator at 0/1 from ResourceQuota
+  source: knowledge/architecture/search/failure-signatures.md
+  evidence: 2 Search tests failed, cluster-diagnosis confirms NetworkPolicy blocking
+    search-postgres
+- date: '2026-04-13'
+  trigger: unmatched_error
+  feature_area: RBAC
+  gap_type: missing_failure_path
+  proposed_entry:
+    id: rbac-gitops-addon-hook-failure
+    description: RBAC test before-all hook fails applying gitops-addon.yaml to namespace
+      'undefined'
+    category: configuration
+    symptoms:
+    - (?i)oc apply.*gitops-addon\.yaml.*-n undefined
+    classification: AUTOMATION_BUG
+    confidence: 0.85
+    explanation: 'Same root cause as ALC: managed cluster namespace variable is undefined'
+  source: knowledge/architecture/rbac/failure-signatures.md
+  evidence: 4 RBAC tests failed with gitops-addon.yaml -n undefined in before-all
+    hook
+- date: '2026-04-14'
+  trigger: unmatched_error
+  feature_area: Application
+  gap_type: missing_failure_path
+  proposed_entry:
+    id: deployment-not-ready-timeout
+    description: Deployment readiness check times out waiting for subscription-based
+      deployment
+    category: component_health
+    symptoms:
+    - (?i)Deployment is not ready within time limit
+    classification: INFRASTRUCTURE
+    confidence: 0.8
+    explanation: Subscription Reconciliation Timeout — classification depends on controller
+      health
+  source: knowledge/architecture/application-lifecycle/failure-signatures.md
+  evidence: 2 Application tests failed with 'Deployment is not ready within time limit'
+- date: '2026-04-14'
+  trigger: unmatched_error
+  feature_area: Application
+  gap_type: missing_failure_path
+  proposed_entry:
+    id: before-all-hook-timeout
+    description: before-all hook times out during test setup, cascading to skip remaining
+      tests
+    category: prerequisite
+    symptoms:
+    - (?i)Timed out retrying.*before all.*hook
+    classification: INFRASTRUCTURE
+    confidence: 0.75
+    explanation: before-all hook timeouts indicate environment setup failure
+  source: knowledge/architecture/application-lifecycle/failure-signatures.md
+  evidence: 37 Application tests failed in before-all hooks with timeout
+- date: '2026-04-14'
+  trigger: unmatched_error
+  feature_area: Application
+  gap_type: missing_failure_path
+  proposed_entry:
+    id: argocd-agent-pod-not-ready
+    description: ArgoCD Agent pod fails to become ready within timeout
+    category: component_health
+    symptoms:
+    - (?i)ArgoCD Agent.*pod is not ready within time limit
+    classification: INFRASTRUCTURE
+    confidence: 0.8
+    explanation: ArgoCD agent pod not reaching Ready state blocks all ArgoCD-based
+      tests
+  source: knowledge/architecture/application-lifecycle/failure-signatures.md
+  evidence: 1 Application test failed with ArgoCD Agent pod not ready
+- date: '2026-04-14'
+  trigger: unmatched_error
+  feature_area: Application
+  gap_type: missing_failure_path
+  proposed_entry:
+    id: pf6-menu-portal-visibility
+    description: PF6 menu items have visibility:hidden because menu portal renders
+      outside .within() scope
+    category: configuration
+    symptoms:
+    - (?i)cy\.click\(\) failed because this element is not visible.*pf-v6-c-menu__item-text
+    classification: AUTOMATION_BUG
+    confidence: 0.9
+    explanation: PF6 menu portals render outside .within() scope
+  source: knowledge/architecture/application-lifecycle/failure-signatures.md
+  evidence: 3 Ansible integration tests failed with pf-v6-c-menu__item-text visibility:hidden
+- date: '2026-04-14'
+  trigger: unmatched_error
+  feature_area: Application
+  gap_type: missing_failure_path
+  proposed_entry:
+    id: cy-exec-cleanup-failure
+    description: after-all hook cy.exec() fails to delete resources that were never
+      created
+    category: configuration
+    symptoms:
+    - (?i)cy\.exec.*failed because the command exited with a non-zero code
+    classification: NO_BUG
+    confidence: 0.85
+    explanation: After-all cleanup fails because the resource was never created
+  source: knowledge/architecture/application-lifecycle/failure-signatures.md
+  evidence: 1 Application test after-all hook failed deleting non-existent resource
+- date: '2026-04-14'
+  trigger: unmatched_error
+  feature_area: Application
+  gap_type: missing_failure_path
+  proposed_entry:
+    id: pf6-button-visibility
+    description: PF6 button element has CSS preventing interaction
+    category: configuration
+    symptoms:
+    - (?i)cy\.click\(\) failed because this element.*pf-v6-c-button__text.*has CSS
+    classification: AUTOMATION_BUG
+    confidence: 0.85
+    explanation: PF6 button text elements may have visibility:hidden in portal context
+  source: knowledge/architecture/application-lifecycle/failure-signatures.md
+  evidence: 1 Ansible integration test failed with pf-v6-c-button__text CSS issue

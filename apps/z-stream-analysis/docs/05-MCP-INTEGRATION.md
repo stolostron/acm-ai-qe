@@ -59,7 +59,7 @@ MCP tools are accessed differently depending on the stage:
 │    src/services/acm_ui_mcp_client.py (293 lines)                     │
 │    src/services/knowledge_graph_client.py (456 lines)                │
 │                                                                      │
-│  Purpose: CNV version detection, element inventory pre-computation   │
+│  Purpose: CNV version detection                                     │
 └──────────────────────────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────────────────┐
@@ -79,7 +79,7 @@ MCP tools are accessed differently depending on the stage:
 
 | Stage | Access Method | MCP Servers Used | Purpose |
 |-------|---------------|------------------|---------|
-| Stage 1 | Python classes (`ACMUIMCPClient`, `KnowledgeGraphClient`) | ACM-UI | Pre-compute CNV version, element inventory |
+| Stage 1 | Python classes (`ACMUIMCPClient`, `KnowledgeGraphClient`) | ACM-UI | Pre-compute CNV version |
 | Stage 2 | Claude Code native (`mcp__<server>__<tool>`) | All five (ACM-UI, Jenkins, JIRA, Polarion, Knowledge Graph) | Active investigation during analysis |
 | Stage 3 | None | None | Report generation uses no MCP tools |
 
@@ -97,7 +97,7 @@ A GitHub-backed code search and source access server for the ACM Console (`stolo
 
 When a Cypress test fails because an element isn't found, the core question is: "Does this element still exist in the product code?" The ACM-UI MCP answers this by searching the actual product repository on the correct branch version.
 
-Without ACM-UI MCP, the agent relies only on the pre-computed `console_search` from Stage 1 (which uses local grep on cloned repos). ACM-UI MCP adds:
+The `console_search` field in core-data.json is pre-verified by the data-collector agent using ACM-UI MCP tools (search_code, search_component). Beyond that, the Stage 2 analysis agent can use ACM-UI MCP for additional investigation:
 - Cross-branch search (different ACM versions)
 - QE-proven selector catalogs from test repos
 - UI text and translation lookup
@@ -143,15 +143,10 @@ In `gather.py`, the Python `ACMUIMCPClient` class is used for two tasks:
 ```
 gather.py
     │
-    ├── Step 5: Repository Cloning
-    │   └── acm_ui_mcp_client.detect_cnv_version()
-    │       → Determines which kubevirt-plugin branch to clone
-    │       → Example: CNV 4.20.3 on cluster → clone release-4.20
-    │
-    └── Step 7: Element Inventory
-        └── _gather_element_inventory()
-            → Searches cloned repos for failing selectors
-            → Writes element-inventory.json
+    └── Step 5: Repository Cloning
+        └── acm_ui_mcp_client.detect_cnv_version()
+            → Determines which kubevirt-plugin branch to clone
+            → Example: CNV 4.20.3 on cluster → clone release-4.20
 ```
 
 **Example: CNV Version Detection**
@@ -175,7 +170,7 @@ The AI agent calls ACM-UI tools directly during investigation. Here are the key 
 Agent reads core-data.json:
   console_search.found = false for '#create-btn'
 
-Agent verifies via MCP (broader search than local grep):
+Agent investigates further via MCP if needed:
 
   mcp__acm-ui__search_code(query='create-btn', repo='acm')
   ─────────────────────────────────────────────────────────
@@ -873,11 +868,11 @@ Each MCP server can be unavailable. The system is designed to work without any M
 
 | Unavailable Server | Fallback | Impact |
 |--------------------|----------|--------|
-| **ACM-UI MCP** | Use `console_search` from core-data.json (pre-computed grep), cloned repos in `repos/` directory | Loses cross-branch search, QE selector catalogs, translations |
+| **ACM-UI MCP** | Use `console_search` from core-data.json (verified by data-collector agent), cloned repos in `repos/` directory | Loses cross-branch search, QE selector catalogs, translations |
 | **JIRA MCP** | Skip Phases D-B2 and E2-E6; classify on error evidence alone | Loses feature intent, known bug correlation, bug filing |
 | **Knowledge Graph** | Use `subsystem` field from `ComponentExtractor.detected_components`; skip cascading failure detection | Loses dependency chains, cascading failure grouping, subsystem peer lists |
 | **Polarion MCP** | Environment Oracle Phase B skipped; dependency discovery uses playbook-only sources | Loses Polarion-sourced dependencies not captured in playbooks |
-| **All four down** | Full classification still works using core-data.json (extracted_context, timeline_evidence, console_log, environment) | Selector mismatches and infrastructure failures still classified accurately; Path B2 cases may get UNKNOWN |
+| **All four down** | Full classification still works using core-data.json (extracted_context, console_log, environment, cluster-diagnosis.json) | Selector mismatches and infrastructure failures still classified accurately; Path B2 cases may get UNKNOWN |
 
 ---
 
@@ -992,16 +987,4 @@ detected_components: [{name: "search-api", subsystem: "Search"}]
 
 MCP servers are configured in Claude Code's MCP settings. No application-level configuration is needed.
 
-The `core-data.json` output from Stage 1 includes an `mcp_integration` section that documents which tools are available, their call format, and trigger conditions. This embedded reference ensures the AI agent knows how to use MCP tools regardless of whether it has access to documentation files.
-
-```json
-// In core-data.json → ai_instructions → mcp_integration
-{
-  "servers_available": {
-    "acm_ui": true,
-    "knowledge_graph": true,
-    "jira": true
-  },
-  "how_to_call": "Use native MCP tool calls. Example: mcp__jira__search_issues(jql='...')"
-}
-```
+The Stage 2 analysis agent reads MCP tool availability, call format, and trigger conditions from its agent definition file (`.claude/agents/analysis.md`). No embedded configuration in `core-data.json` is needed.

@@ -410,7 +410,7 @@ obvious diagnosis is wrong:
 
 ## Using Layers with Dependency Chains
 
-The 8 dependency chains in `dependency-chains.md` trace HORIZONTALLY
+The 11 dependency chains in `dependency-chains.md` trace HORIZONTALLY
 within and across subsystems. The layer model traces VERTICALLY through
 infrastructure layers. Use both:
 

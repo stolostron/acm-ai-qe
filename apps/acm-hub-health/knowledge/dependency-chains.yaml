@@ -2,7 +2,7 @@
 # YAML complement to diagnostics/dependency-chains.md (narrative version).
 # Use this for structured lookups; read the narrative version for investigation procedures.
 #
-# 8 chains: 6 original + addon-deployment + storage-chain
+# 11 chains: 8 core + app-lifecycle-subscription + virtualization-vm-discovery + submariner-networking
 # Populated by: refresh.py (Neo4j KG transitive queries + manual curation)
 # Refresh frequency: weekly or after ACM version change
 

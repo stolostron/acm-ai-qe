@@ -294,22 +294,94 @@ before investigating individual features.
 | 6 | ManagedCluster NotReady | Lease + conditions | Wrong root cause |
 | 7 | ALL addons Unavailable everywhere | addon-manager pod | Multiple issues → single root cause |
 | 8 | Multiple console pages broken | search-api pod | Multiple PRODUCT_BUG → single INFRASTRUCTURE |
-| 9 | Degraded cluster + selector error | Per-test console_search.found | INFRASTRUCTURE → AUTOMATION_BUG |
-| 10 | Backend data wrong despite healthy pods | Backend probe anomalies | INFRASTRUCTURE → PRODUCT_BUG |
+| 9 | ResourceQuota blocking pod recreation | ResourceQuota in ACM namespace | Hidden INFRASTRUCTURE |
+| 10 | Cert rotation silent failure | TLS secret ages + CSR status | Hidden INFRASTRUCTURE |
+| 11 | NetworkPolicy making pods non-functional | NetworkPolicy in ACM namespace | PRODUCT_BUG → INFRASTRUCTURE |
+| 12 | Degraded cluster + selector error | Per-test console_search.found | INFRASTRUCTURE → AUTOMATION_BUG |
+| 13 | Backend data wrong despite healthy pods | subsystem_health + data assertions | INFRASTRUCTURE → PRODUCT_BUG |
+| 14 | Missing prerequisite that should exist | Jenkins params + MCH components | NO_BUG → INFRASTRUCTURE |
+
+---
+
+## Trap 9: ResourceQuota Blocking Pod Recreation
+
+**What you see:** Pods are Running but some deployments have fewer replicas
+than expected. No error events visible. Pods that crash don't restart.
+
+**What you might conclude:** The operator is healthy but scaled down intentionally.
+
+**What's actually happening:** A ResourceQuota in the ACM namespace silently
+prevents pod creation. ACM does NOT create ResourceQuotas — any found is a
+test artifact or external constraint.
+
+**How to detect:**
+- `oc get resourcequota -n $MCH_NS` — if ANY exists, check its limits
+- Compare pod counts against `healthy-baseline.yaml`
+- Check if the quota's CPU/memory limits are below actual usage
+
+**Rule:** ResourceQuota in ACM namespaces is always suspicious. Check
+before accepting "healthy but under-replicated" as normal.
+
+---
+
+## Trap 10: Certificate Rotation Silent Failure
+
+**What you see:** All pods Running, no restarts, but connections between
+services fail intermittently. TLS handshake errors in logs.
+
+**What you might conclude:** Network issue or PRODUCT_BUG in service
+communication.
+
+**What's actually happening:** A TLS certificate expired or rotated
+incorrectly. Pods continue running but can't establish TLS connections.
+This is invisible to basic pod health checks.
+
+**How to detect:**
+- Check `oc get csr` for pending CSRs
+- Check TLS secret ages against `certificate-inventory.yaml`
+- Look for `x509: certificate has expired` in pod logs
+
+**Rule:** If services can't communicate but pods are healthy, check
+certificates before investigating code.
+
+---
+
+## Trap 11: NetworkPolicy Making Pods Non-Functional
+
+**What you see:** All pods Running with 0 restarts. But features don't
+work — search returns empty, governance policies don't propagate, etc.
+
+**What you might conclude:** PRODUCT_BUG — the code must be broken since
+all infrastructure looks healthy.
+
+**What's actually happening:** A NetworkPolicy in the ACM namespace blocks
+traffic between pods. ACM does NOT create NetworkPolicies — any found
+is a test artifact or external security constraint. Pods appear healthy
+because they're running, but they can't communicate.
+
+**How to detect:**
+- `oc get networkpolicy -n $MCH_NS` — if ANY exists, check its rules
+- Check if the policy blocks ingress to critical pods (search-postgres,
+  console-api, grc-policy-propagator)
+- This MUST be checked BEFORE pod health (Layer 3 before Layer 9)
+
+**Rule:** A NetworkPolicy can make pods appear healthy while being
+completely non-functional. Always check Layer 3 before concluding
+"all green" from pod health checks.
 
 ---
 
 ## Counter-Traps: Protecting Against FALSE INFRASTRUCTURE
 
-Traps 1-8 protect against wrongly classifying as PRODUCT_BUG or
-AUTOMATION_BUG when the real cause is INFRASTRUCTURE. Traps 9-10
+Traps 1-11 protect against wrongly classifying as PRODUCT_BUG or
+AUTOMATION_BUG when the real cause is INFRASTRUCTURE. Traps 12-13
 protect in the OPPOSITE direction — preventing the pipeline from
 over-classifying as INFRASTRUCTURE when per-test evidence points
 elsewhere.
 
 ---
 
-## Trap 9: Degraded Cluster but Selector Doesn't Exist (False INFRASTRUCTURE)
+## Trap 12: Degraded Cluster but Selector Doesn't Exist (False INFRASTRUCTURE)
 
 **What you see:** Oracle or diagnostic reports "search-collector degraded
 on 2/5 clusters" or "search-postgres recently restarted." Multiple tests
@@ -345,7 +417,7 @@ classification from the oracle or diagnostic.
 
 ---
 
-## Trap 10: Backend Returns Wrong Data Despite All Pods Healthy (False INFRASTRUCTURE)
+## Trap 13: Backend Returns Wrong Data Despite All Pods Healthy (False INFRASTRUCTURE)
 
 **What you see:** Tests fail with "expected 5 items, got 3" or "expected
 hub name 'my-hub', got 'other-hub'." Backend probes detect anomalies.
@@ -361,12 +433,14 @@ All pods are healthy — the code is running correctly, it just produces
 wrong output.
 
 **How to detect:**
-- Check `backend_probes` — if a probe has `anomaly_source: "console_backend"`
-  AND `cluster_ground_truth` shows correct data, the issue is in the
-  console code, not the cluster.
-- Check if the backend probe's `classification_hint` says PRODUCT_BUG.
-- If `cluster_ground_truth` matches expected values but the console API
-  returns different values, that's data corruption in the proxy layer.
+- Check `cluster-diagnosis.json` → `subsystem_health` for the feature area.
+  If subsystem is healthy but test shows wrong data values, the issue is
+  in the console code, not the cluster.
+- Check `assertion_analysis` — if `has_data_assertion=true` and values
+  don't match, investigate whether the backend API returns correct data
+  via targeted `oc exec + curl` during Stage 2.
+- If Kubernetes API returns correct values but the console UI shows
+  different values, that's data corruption in the proxy layer.
 
 **Classification impact:** Without this trap, data assertion failures
 in a degraded cluster get classified as INFRASTRUCTURE ("the cluster
@@ -375,3 +449,36 @@ data transformation has a bug.
 
 **Rule:** When the cluster returns correct data but the console shows
 wrong data, it's PRODUCT_BUG regardless of cluster health.
+
+---
+
+## Trap 14: Disabled Prerequisite That Should Be Enabled (False NO_BUG)
+
+**What you see:** Tests for a feature area fail with blank pages or
+"element not found." The feature's operator/addon is not installed.
+PR-4 classifies as NO_BUG ("prerequisite not met, feature disabled").
+
+**What you might conclude:** NO_BUG — the feature is intentionally
+disabled, tests should not have run.
+
+**What's actually happening:** The operator/addon SHOULD be installed
+for this pipeline run but is missing due to an environment setup failure.
+The Jenkins pipeline parameters or the test suite configuration indicate
+this feature should be tested, but the prerequisite wasn't provisioned.
+
+**How to detect:**
+- Check Jenkins parameters for feature flags (e.g., `INSTALL_AAP=true`,
+  `ENABLE_OBSERVABILITY=true`). If the parameter says "install" but the
+  operator is absent, the prerequisite failure is INFRASTRUCTURE.
+- Check `cluster_landscape.mch_enabled_components`. If the MCH spec
+  enables a component but it's not running, that's INFRASTRUCTURE.
+- Check if other tests in the same pipeline successfully used the feature
+  earlier (the operator was present but crashed mid-run).
+
+**Classification impact:** Without this trap, missing prerequisites get
+classified as NO_BUG ("not our problem") when the environment team should
+be notified that their setup failed. This is INFRASTRUCTURE — the test
+environment was not correctly provisioned.
+
+**Rule:** Before classifying NO_BUG for a missing prerequisite, verify
+the prerequisite was not supposed to be present for this pipeline run.

@@ -10,8 +10,8 @@ Jenkins pipeline failure analysis (v4.0) with classification: PRODUCT_BUG | AUTO
 
 Five-stage pipeline:
 0. **Environment Oracle** (inside gather.py) — Feature-aware dependency health & knowledge database (`cluster_oracle`)
-1. **gather.py** — Extracts test data from Jenkins (builds `core-data.json` with cluster landscape, backend API probes, and feature grounding; persists `cluster.kubeconfig` for Stage 1.5 and Stage 2)
-1.5. **Cluster Diagnostic** (AI agent) — Comprehensive 6-phase cluster investigation producing `cluster-diagnosis.json` with environment health score, subsystem health, operator health, classification guidance, dependency chain verification, and structured data for Stage 2 routing
+1. **gather.py** — Extracts test data from Jenkins (builds `core-data.json` with cluster landscape and feature grounding; persists `cluster.kubeconfig` for Stage 1.5 and Stage 2)
+1.5. **Cluster Diagnostic** (AI agent) — Comprehensive 6-phase cluster investigation producing `cluster-diagnosis.json` with environment health score, subsystem health, operator health, image integrity validation, classification guidance, dependency chain verification, 14 diagnostic trap checks, and structured data for Stage 2 routing
 2. **AI Analysis** — 12-layer diagnostic investigation: groups tests by shared signals, traces root cause through infrastructure layers (Compute→UI), classifies based on WHO caused breakage. Per-group investigation agents for deeper analysis. Produces `analysis-results.json` with `root_cause_layer` per test.
 3. **report.py** — Generates `Detailed-Analysis.md` + `analysis-report.html` from analysis results
 
@@ -19,13 +19,28 @@ See `apps/z-stream-analysis/CLAUDE.md` for schema requirements, classification g
 
 ### ACM Hub Health Agent (`apps/acm-hub-health/`) — Active
 
-AI-powered diagnostic and remediation agent for ACM hub clusters. Uses Claude Code with embedded ACM domain knowledge to perform health checks at any depth -- from quick sanity checks to deep component-level investigations. Natural language driven, no dependencies beyond `oc` + `claude`. Diagnosis is read-only; cluster fixes are executed only after presenting a structured remediation plan and getting explicit user approval. Includes structured knowledge database (`knowledge/`) with baseline, dependency chains (8 cascade paths with layer annotations), 12-layer diagnostic model (vertical root cause tracing), webhooks, certificates, addon catalog, and 13 diagnostic traps. Phase 3 uses layer-organized health checks (foundational layers first, then component layers). Phase 5 traces both horizontally (dependency chains) and vertically (12 infrastructure layers). Falls back to cluster metadata introspection (8 live metadata sources) and the Neo4j knowledge graph MCP (`neo4j-rhacm`) for dependency analysis when the curated knowledge doesn't cover a component or path. Optional CLI wrapper (`acm-hub`) enables running diagnostics from any terminal without launching an interactive session. Session tracing via Claude Code hooks captures all tool calls, MCP interactions, prompts, and errors to structured JSONL files (`.claude/traces/`) with diagnostic-specific enrichment (oc command parsing, phase inference, mutation detection, session-level aggregate stats).
+AI-powered diagnostic and remediation agent for ACM hub clusters. Uses Claude Code with embedded ACM domain knowledge to perform health checks at any depth -- from quick sanity checks to deep component-level investigations. Natural language driven, no dependencies beyond `oc` + `claude`. Diagnosis is read-only; cluster fixes are executed only after presenting a structured remediation plan and getting explicit user approval. Includes structured knowledge database (`knowledge/`) with baseline, dependency chains (11 cascade paths with layer annotations), 12-layer diagnostic model (vertical root cause tracing), webhooks, certificates, addon catalog, and 13 diagnostic traps. Phase 3 uses layer-organized health checks (foundational layers first, then component layers). Phase 5 traces both horizontally (dependency chains) and vertically (12 infrastructure layers). Uses the ACM search database MCP (`acm-search`) for fleet-wide spoke-side resource queries across all managed clusters. Falls back to cluster metadata introspection (8 live metadata sources) and the Neo4j knowledge graph MCP (`neo4j-rhacm`) for dependency analysis when the curated knowledge doesn't cover a component or path. Optional CLI wrapper (`acm-hub`) enables running diagnostics from any terminal without launching an interactive session. Session tracing via Claude Code hooks captures all tool calls, MCP interactions, prompts, and errors to structured JSONL files (`.claude/traces/`) with diagnostic-specific enrichment (oc command parsing, phase inference, mutation detection, session-level aggregate stats).
 
 Usage: `cd apps/acm-hub-health && bash setup.sh && oc login <hub> && claude`
 
 ### Test Case Generator (`apps/test-case-generator/`) — Active
 
-Generates Polarion-ready test cases for ACM Console features from JIRA tickets. 3-stage pipeline: deterministic data gathering (gh CLI), MCP-powered AI investigation and generation (JIRA, Polarion, ACM UI, Neo4j), deterministic report/validation with Polarion HTML output. Uses conventions from 85+ existing test cases.
+Generates Polarion-ready test cases for ACM Console features from JIRA tickets. 6-phase subagent pipeline: deterministic data gathering (gh CLI), parallel AI investigation (3 subagents: feature-investigator, code-change-analyzer, ui-discovery), synthesis, optional live validation (browser + oc + acm-search), AI-powered test case writing, mandatory quality review gate, and deterministic report/validation with Polarion HTML output. 6 specialized agents, 7 MCP integrations (JIRA, Polarion, ACM UI, Neo4j, ACM Search, ACM Kubectl, Playwright).
+
+## CodeRabbit Review Policy
+
+After modifying code in any app (`z-stream-analysis`, `acm-hub-health`, `test-case-generator`), run `/coderabbit:review uncommitted` when changes touch:
+- Python source or tests (`src/`, `tests/`)
+- Agent instructions (`.claude/agents/`)
+- Schema/model files (`src/schemas/`, `src/models/`)
+
+**Skip** reviews for `knowledge/` YAML/markdown, `docs/` files, and `runs/` output.
+
+On review results — **do NOT blindly implement suggestions**:
+1. For each finding, independently read the relevant code and verify the issue is real.
+2. Check whether the suggested fix would break downstream contracts, tests, or conventions.
+3. Only implement findings confirmed by your own investigation. Skip false positives.
+4. After implementing confirmed fixes, re-run `/coderabbit:review uncommitted` to confirm no regressions.
 
 ## Running Z-Stream Analysis
 
@@ -66,9 +81,10 @@ Run `bash mcp/setup.sh` from repo root. The script prompts you to select which a
 | Jenkins | 7+4 | [upstream](https://github.com/redhat-community-ai-tools/jenkins-mcp) + `mcp/jenkins-acm-tools.py` | Jenkins pipeline API + ACM analysis tools |
 | JIRA | 25 | [stolostron/jira-mcp-server](https://github.com/stolostron/jira-mcp-server) | Issue search, creation, management for bug correlation (Jira Cloud) |
 | Neo4j RHACM | 2 | [mcp-neo4j-cypher](https://pypi.org/project/mcp-neo4j-cypher/) (PyPI) | Component dependency analysis via Cypher queries (optional) |
+| ACM Search | 5 | [stolostron/acm-mcp-server](https://github.com/stolostron/acm-mcp-server) | Fleet-wide resource queries via search-postgres (spoke-side visibility) |
 | Polarion (`mcp/polarion/`) | 25 | This repo | Polarion test case access (optional) |
 
-External MCPs (JIRA, Jenkins) are cloned at setup time into `mcp/.external/` (gitignored).
+External MCPs (JIRA, Jenkins, Knowledge Graph, ACM Search) are cloned at setup time into `mcp/.external/` (gitignored).
 This repo only contains our original MCP code: ACM UI, Polarion wrapper, Jenkins ACM tools.
 
 **Jenkins Setup:** Run `bash mcp/setup.sh` and provide your Jenkins username and API token when prompted. Credentials are stored in `mcp/.external/jenkins-mcp/.env` and injected into `.mcp.json` automatically. Requires Red Hat VPN for internal Jenkins access.
@@ -99,9 +115,9 @@ ai_systems_v2/
 # Z-stream analysis tests (from app directory)
 cd apps/z-stream-analysis/
 
-# Fast — unit + regression (719 tests, no external deps):
+# Fast — unit + regression (664 tests, no external deps):
 python -m pytest tests/unit/ tests/regression/ -q
 
-# Full suite (765+ tests, requires Jenkins VPN for integration):
+# Full suite (714+ tests, requires Jenkins VPN for integration):
 python -m pytest tests/ -q --timeout=300
 ```

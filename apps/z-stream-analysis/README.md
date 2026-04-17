@@ -10,7 +10,7 @@ This 5-Stage Pipeline provides:
 0. **Environment Oracle** (inside gather.py): Feature-aware dependency health & knowledge database
 1. **Data Gathering** (`gather.py`): Factual data collection from Jenkins, environment, repositories, and Knowledge Graph
 1.5. **Cluster Diagnostic** (`cluster-diagnostic` agent): Comprehensive 6-phase hub-health-style cluster investigation producing `cluster-diagnosis.json`
-2. **AI Analysis** (`z-stream-analysis` agent): 5-phase investigation with diagnostic data, full repo access, and MCP integration
+2. **AI Analysis** (`analysis` agent): 5-phase investigation with diagnostic data, full repo access, and MCP integration
 3. **Report Generation** (`report.py`): Human-readable reports from AI analysis
 
 ## Quick Start
@@ -75,7 +75,7 @@ Claude Code agent uses the 12-layer diagnostic model to find root causes:
 - **Phase A**: Initial assessment (re-auth, feature grounding, environment, patterns, KG context) + **A4: provably linked grouping** — groups by strict code-path criteria only (same selector+function, same before-all hook, same spec+error+line). Dead selectors classified directly, hook cascades as NO_BUG.
 - **Phase B**: 12-layer root cause investigation — traces from symptom through infrastructure layers (Compute, Control Plane, Network, Storage, Config, Auth, RBAC, API, Operator, Cross-Cluster, Data Flow, UI) to find broken layer, investigates WHO caused it, then classifies. **Per-test verification** (v3.9): 4-point check (code path, backend, role, element) on each subsequent test in a group; failures split to individual investigation.
 - **Phase C**: Cross-reference validation (multi-evidence, cascading failures, pattern correlation)
-- **Phase D**: Validation of investigation results against PR signals (PR-6 backend probes, PR-6b Polarion expected behavior, PR-7 context signals), **symmetric counterfactual** (D-V5c for AUTOMATION_BUG, D-V5e for PRODUCT_BUG, v4.0), **layer discrepancy detection** (v4.0), expanded counterfactual (D-V5, v3.9: 9 templates), causal link verification (D4b), counter-bias validation (D5). Fallback: 3-path routing when investigation agents unavailable.
+- **Phase D**: Validation of investigation results against PR signals (PR-6 backend health via cluster-diagnosis.json, PR-6b Polarion expected behavior, PR-7 context signals), **symmetric counterfactual** (D-V5c for AUTOMATION_BUG, D-V5e for PRODUCT_BUG, v4.0), **layer discrepancy detection** (v4.0), expanded counterfactual (D-V5, v3.9: 9 templates), causal link verification (D4b), counter-bias validation (D5). Fallback: 3-path routing when investigation agents unavailable.
 - **Phase E**: Feature context and JIRA correlation (Knowledge Graph, feature stories, bug search)
 
 Every test in the output includes `root_cause_layer` (1-12), `root_cause_layer_name`, `investigation_steps_taken`, and `cause_owner`.
@@ -157,7 +157,6 @@ runs/<job>_<timestamp>/
 ├── jenkins-build-info.json     <- Build metadata
 ├── test-report.json            <- Per-test failure details
 ├── environment-status.json     <- Legacy cluster connectivity (deprecated, may not exist)
-├── element-inventory.json      <- MCP element locations (if available)
 ├── repos/
 │   ├── automation/             <- Full cloned automation repo
 │   ├── console/                <- Full cloned console repo
@@ -208,7 +207,7 @@ Run `bash mcp/setup.sh` from the repo root to configure all servers.
 ## Tests
 
 ```bash
-# Unit + regression (719 tests, no external deps):
+# Unit + regression (664 tests, no external deps):
 python -m pytest tests/unit/ tests/regression/ -q
 
 # Integration (requires Jenkins VPN):
@@ -257,6 +256,6 @@ python -m src.scripts.feedback --stats
 | Services reference | [docs/04-SERVICES-REFERENCE.md](docs/04-SERVICES-REFERENCE.md) |
 | MCP integration guide | [docs/05-MCP-INTEGRATION.md](docs/05-MCP-INTEGRATION.md) |
 | Knowledge database reference | [docs/06-KNOWLEDGE-DATABASE.md](docs/06-KNOWLEDGE-DATABASE.md) |
-| Stage 2 agent instructions | [.claude/agents/z-stream-analysis.md](.claude/agents/z-stream-analysis.md) |
+| Stage 2 agent instructions | [.claude/agents/analysis.md](.claude/agents/analysis.md) |
 | Stage 2 investigation agent | [.claude/agents/investigation-agent.md](.claude/agents/investigation-agent.md) |
 | Stage 1.5 diagnostic agent | [.claude/agents/cluster-diagnostic.md](.claude/agents/cluster-diagnostic.md) |

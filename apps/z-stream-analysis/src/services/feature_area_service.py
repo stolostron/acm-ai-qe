@@ -180,29 +180,35 @@ FEATURE_AREAS: Dict[str, FeatureGrounding] = {
 }
 
 # Test file path patterns for feature area identification
+# Path patterns — ordered specific-to-broad within each priority tier.
+# Use word-boundary-like separators (/, -, _) to avoid substring false matches.
 _PATH_PATTERNS: List[tuple] = [
     (r'governance|grc|policy', 'GRC'),
     (r'search', 'Search'),
-    (r'cluster|clc|create.*cluster|import.*cluster|upgrade', 'CLC'),
-    (r'observ|metrics|grafana|thanos', 'Observability'),
-    (r'virtual|vm|kubevirt|virt|fleet', 'Virtualization'),
-    (r'app|application|subscription|channel|argo', 'Application'),
     (r'rbac|role|user.*management|permission', 'RBAC'),
+    (r'virtual|vm[-_/]|kubevirt|virt[-_/.]|fleet', 'Virtualization'),
+    (r'credential|cluster[-_/]lifecycle|create.*cluster|import.*cluster|upgrade', 'CLC'),
+    (r'observ|metrics|grafana|thanos', 'Observability'),
+    (r'application|subscription|channel|argo', 'Application'),
     (r'automat|ansible|aap|template.*automat', 'Automation'),
     (r'console|overview|welcome|header', 'Console'),
     (r'install|csv|operator.*install', 'Install'),
     (r'server.?foundation|addon.?framework|registration|work.?agent', 'Foundation'),
-    (r'infra|klusterlet|addon|foundation|mce', 'Infrastructure'),
+    (r'klusterlet|mce[-_/]', 'Infrastructure'),
+    # Broad fallback patterns (match last — these are substrings that could be ambiguous)
+    (r'cluster|clc', 'CLC'),
+    (r'app[-_/]', 'Application'),
+    (r'addon|foundation|infra', 'Infrastructure'),
 ]
 
 # Test name patterns
 _NAME_PATTERNS: List[tuple] = [
     (r'policy|compliance|govern|grc', 'GRC'),
     (r'search|query|saved.search', 'Search'),
-    (r'cluster.*creat|cluster.*import|cluster.*upgrad|cluster.*destroy|'
+    (r'\bCLC\b|credential|cluster.*creat|cluster.*import|cluster.*upgrad|cluster.*destroy|'
      r'cluster.*pool|cluster.*set|hive|hypershift|placement', 'CLC'),
     (r'observ|metric|grafana|alert|dashboard', 'Observability'),
-    (r'virtual.machine|vm.*creat|vm.*migrat|vm.*snapshot|kubevirt|fleet.virt',
+    (r'virtual.?machine|vm.*creat|vm.*migrat|vm.*snapshot|kubevirt|fleet.virt|tree.view',
      'Virtualization'),
     (r'application|subscription|channel|argo|deploy.*app', 'Application'),
     (r'rbac|role.assign|permission|user.manage', 'RBAC'),
@@ -275,8 +281,38 @@ class FeatureAreaService:
         grounding = service.get_grounding('GRC')
     """
 
+    # Original key_namespaces from FEATURE_AREAS (stored on first call)
+    _original_namespaces: Dict[str, List[str]] = {}
+    _mch_namespace: str = 'open-cluster-management'
+
     def __init__(self):
         self.logger = logging.getLogger(__name__)
+
+    @classmethod
+    def set_mch_namespace(cls, mch_ns: str):
+        """
+        Update key_namespaces in all feature areas to use the discovered MCH namespace.
+
+        Stores original values on first call and always derives from those,
+        preventing state leakage across multiple calls.
+        """
+        if mch_ns == cls._mch_namespace:
+            return
+
+        # Store original values on first call
+        if not cls._original_namespaces:
+            cls._original_namespaces = {
+                k: list(v.key_namespaces) for k, v in FEATURE_AREAS.items()
+            }
+
+        cls._mch_namespace = mch_ns
+        default_ns = 'open-cluster-management'
+        for area_name, area in FEATURE_AREAS.items():
+            originals = cls._original_namespaces.get(area_name, area.key_namespaces)
+            area.key_namespaces = [
+                ns.replace(default_ns, mch_ns) if default_ns in ns else ns
+                for ns in originals
+            ]
 
     def identify_feature_area(
         self,
@@ -367,7 +403,11 @@ class FeatureAreaService:
 
         for test in failed_tests:
             test_name = test.get('test_name', '')
-            test_file = test.get('parsed_stack_trace', {}).get('root_cause_file') or \
+            root_cause_file = test.get('parsed_stack_trace', {}).get('root_cause_file', '')
+            # Skip node_modules paths — they're framework code, not feature-specific
+            if root_cause_file and 'node_modules/' in root_cause_file:
+                root_cause_file = ''
+            test_file = root_cause_file or \
                         test.get('parsed_stack_trace', {}).get('test_file') or \
                         test.get('class_name', '')
             error_message = test.get('error_message', '')

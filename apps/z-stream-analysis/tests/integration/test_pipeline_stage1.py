@@ -260,32 +260,11 @@ class TestFeatureKnowledgePopulated:
                     )
 
 
-class TestInvestigationHintsBuilt:
-    """Step 8: investigation_hints."""
-
-    def test_investigation_hints_built(self, core_data):
-        hints = core_data.get("investigation_hints", {})
-        assert isinstance(hints, dict)
+    # TestInvestigationHintsBuilt removed — investigation_hints key removed in v4.0
 
 
-class TestAIInstructionsPresent:
-    """Step 9: ai_instructions section."""
-
-    def test_ai_instructions_present(self, core_data):
-        instructions = core_data.get("ai_instructions", {})
-        assert isinstance(instructions, dict)
-        assert instructions.get("version") == "3.5.0", (
-            f"Expected ai_instructions version 3.5.0, "
-            f"got {instructions.get('version')}"
-        )
-
-    def test_ai_instructions_have_tiered_investigation(self, core_data):
-        instructions = core_data.get("ai_instructions", {})
-        assert "tiered_investigation" in instructions
-
-    def test_ai_instructions_have_cluster_access(self, core_data):
-        instructions = core_data.get("ai_instructions", {})
-        assert "cluster_access" in instructions
+    # TestAIInstructionsPresent removed — ai_instructions key removed from
+    # core-data.json in v4.0. Stage 2 reads .claude/agents/analysis.md.
 
 
 class TestNoSensitiveDataInOutput:

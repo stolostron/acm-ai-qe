@@ -49,6 +49,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--pr", type=int, help="PR number (auto-detected if omitted)")
     parser.add_argument("--area", help="Console area (auto-detected from PR paths)")
     parser.add_argument("--skip-live", action="store_true", help="Skip live cluster validation")
+    parser.add_argument("--cluster-url", help="Console URL for live validation (e.g., https://console-openshift-console.apps.hub.example.com)")
     parser.add_argument("--repo", default="stolostron/console", help="GitHub repo (default: stolostron/console)")
     return parser.parse_args()
 
@@ -108,7 +109,7 @@ def main():
 
     # --- Existing Test Cases ---
     version_for_search = acm_version or "2.17"
-    existing = find_existing_test_cases(version_for_search)
+    existing = find_existing_test_cases(version_for_search, area=area)
     if existing:
         print(f"  Found {len(existing)} peer test case(s) for reference")
     else:
@@ -145,6 +146,7 @@ def main():
         run_dir=str(run_dir),
         options=GatherOptions(
             skip_live=args.skip_live,
+            cluster_url=args.cluster_url,
             repo=args.repo,
         ),
     )

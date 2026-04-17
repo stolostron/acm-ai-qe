@@ -72,21 +72,16 @@ Used for standard checks and deep audits:
 | ...       | ...    | ... |
 
 ## Issues Found (if any)
-### [CRITICAL] <issue title>
+### [SEVERITY] <issue title>
 - **What**: Description of the problem
 - **Evidence**: Tier 1/2 evidence that supports this conclusion
 - **Root Cause**: Best assessment with confidence level
-- **Known Issue**: JIRA reference if pattern matches (ACM-XXXXX)
-- **Fix Version**: Which ACM version contains the fix (if known)
+- **Layer**: Diagnostic layer (e.g., Layer 7 → Layer 9)
+- **Known Issue**: JIRA reference, or "No match"
+- **Fix Version**: ACM version with fix, or "N/A"
 - **Cluster-Fixable**: Yes / Workaround / No
+- **Impact**: What is affected
 - **Recommended Action**: What to do (fix, upgrade, workaround)
-
-### [WARNING] <issue title>
-- **What**: ...
-- **Evidence**: ...
-- **Root Cause**: ...
-- **Known Issue**: ... (if applicable)
-- **Recommended Action**: ...
 
 ## Cluster Overview
 - **ACM Version**: X.Y.Z
@@ -203,16 +198,19 @@ Issues found during the health check are tagged with severity:
 
 ### Issue Detail Fields
 
-Each issue includes up to seven fields:
+Each issue includes nine fields. All fields are required -- use "N/A" or
+"No match" when a field does not apply rather than omitting it.
 
 | Field | Content | When Included |
 |-------|---------|--------------|
 | **What** | Factual description of what was observed | Always |
 | **Evidence** | Tier 1/2 evidence supporting the conclusion | Always |
 | **Root Cause** | Best assessment with confidence level | Always |
-| **Known Issue** | JIRA reference (ACM-XXXXX) | When pattern matches known bug |
-| **Fix Version** | ACM version containing the fix | When known |
-| **Cluster-Fixable** | Yes / Workaround / No -- resolved on-cluster, workaround exists, or needs upgrade | When known issue matched |
+| **Layer** | Diagnostic layer identification (e.g., "Layer 7 (RBAC) → Layer 9 (pod crash)") | Always |
+| **Known Issue** | JIRA reference (ACM-XXXXX), or "No match" | Always |
+| **Fix Version** | ACM version containing the fix, or "N/A" | Always |
+| **Cluster-Fixable** | Yes / Workaround / No -- resolved on-cluster, workaround exists, or needs upgrade | Always |
+| **Impact** | What is affected by this issue (scope, downstream effects) | Always |
 | **Recommended Action** | Specific remediation steps the user can take | Always |
 
 When cluster-fixable issues are found, the agent presents a structured

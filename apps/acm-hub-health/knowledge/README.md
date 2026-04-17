@@ -1,6 +1,6 @@
 # Knowledge System
 
-The agent's knowledge about ACM -- 54 files organized in 5 layers. The
+The agent's knowledge about ACM -- 57 files organized in 5 layers. The
 knowledge defines what correct, healthy behavior looks like (ground truth).
 The cluster shows current state. The gap between the two is what the agent
 diagnoses and reports.
@@ -39,21 +39,27 @@ Component directories:
 | `networking/` | architecture, data-flow, known-issues | Submariner, tunnels, service discovery |
 | `infrastructure/` | architecture, data-flow, known-issues, **post-upgrade-patterns** | Node/cert/etcd/storage flows |
 
-### `diagnostics/` -- Investigation Methodology (5 files)
+### `diagnostics/` -- Investigation Methodology (8 files)
 
 - `diagnostic-layers.md` -- 12-layer investigation framework for systematic
   root cause tracing (vertical layer tracing complements horizontal chains)
-- `dependency-chains.md` -- 8 critical cascade paths with tracing procedures
+- `dependency-chains.md` -- 11 critical cascade paths with tracing procedures
 - `common-diagnostic-traps.md` -- 13 patterns where the obvious diagnosis is wrong
 - `evidence-tiers.md` -- Tier 1/2/3 evidence weighting rules + confidence levels
 - `diagnostic-playbooks.md` -- 14 per-subsystem investigation procedures
+- `cluster-introspection.md` -- 8 metadata sources for reverse-engineering
+  component dependencies from live cluster state (self-healing fallback)
+- `neo4j-reference.md` -- Knowledge graph Cypher queries, availability, and
+  discovery chain (neo4j-rhacm MCP reference)
+- `acm-search-reference.md` -- Search MCP tool parameters, query patterns,
+  capabilities and limitations (acm-search MCP reference)
 
 ### Structured Operational Data (6 YAML files)
 
 Quantitative baselines for comparing cluster state against known-good values:
 
 - `healthy-baseline.yaml` -- Expected pod counts, deployment states, conditions
-- `dependency-chains.yaml` -- 8 cascade paths in machine-readable format
+- `dependency-chains.yaml` -- 11 cascade paths in machine-readable format
 - `webhook-registry.yaml` -- Validating/mutating webhooks, owners, failure policies
 - `certificate-inventory.yaml` -- TLS secrets, rotation owners, impact when corrupted
 - `addon-catalog.yaml` -- Managed cluster addons, health checks, dependencies

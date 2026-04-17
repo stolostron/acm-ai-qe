@@ -12,12 +12,12 @@ profiles:
       summary: |
         search-collector addon runs on each spoke cluster and indexes resources.
         Data flows to search-aggregator on hub, which feeds search-indexer.
-        search-api serves the UI. redisgraph provides persistent index storage.
+        search-api serves the UI. search-postgres provides persistent index storage.
       data_flow:
         - "search-collector (spoke) collects resources"
         - "Collection Agent feeds raw data to Data Transformer"
         - "Data Transformer processes into Resource Indexer"
-        - "Resource Indexer indexes via ElasticSearch Integration (redisgraph)"
+        - "Resource Indexer indexes via PostgreSQL database (search-postgres)"
         - "Query Processor serves via REST API Gateway and GraphQL API Server"
         - "search-api serves queries from the console UI"
       key_insight: >
@@ -36,23 +36,23 @@ profiles:
         - name: search-api
           role: Serves search queries to the console UI
           type: hub-deployment
-          namespace: open-cluster-management
+          namespace: "{mch_ns}"
           pod_label: app=search-api
         - name: search-collector
           role: Indexes resources on spoke clusters
           type: addon
-          namespace: open-cluster-management
+          namespace: "{mch_ns}"
           pod_label: app=search-collector
         - name: search-indexer
-          role: Processes and indexes data into redisgraph
+          role: Processes and indexes data into PostgreSQL
           type: hub-deployment
-          namespace: open-cluster-management
+          namespace: "{mch_ns}"
           pod_label: app=search-indexer
-        - name: search-redisgraph
-          role: Persistent graph store for search index
-          type: hub-statefulset
-          namespace: open-cluster-management
-          pod_label: app=search-redisgraph
+        - name: search-postgres
+          role: PostgreSQL database storing the search index
+          type: hub-deployment
+          namespace: "{mch_ns}"
+          pod_label: app=search-postgres
 
     prerequisites:
       - id: search-mch-component
@@ -101,7 +101,7 @@ profiles:
             expect: "condition Available=True"
             if_not: "search-collector addon is not healthy on this spoke — resources won't be indexed"
           - step: Check addon pod logs
-            command: "oc logs -n open-cluster-management -l app=search-collector --tail=50"
+            command: "oc logs -n {mch_ns} -l app=search-collector --tail=50"
             expect: "No connection errors"
             if_not: "search-collector has connection issues — check network to spoke"
         classification: INFRASTRUCTURE
@@ -118,36 +118,41 @@ profiles:
           - "(?i)ECONNREFUSED.*search"
         investigation:
           - step: Check search-api pod
-            command: "oc get pods -n open-cluster-management -l app=search-api"
+            command: "oc get pods -n {mch_ns} -l app=search-api"
             expect: "1/1 Running, 0 restarts"
             if_not: "search-api is not healthy"
           - step: Check logs for errors
-            command: "oc logs -n open-cluster-management -l app=search-api --tail=100"
+            command: "oc logs -n {mch_ns} -l app=search-api --tail=100"
             expect: "No panic or OOM messages"
             if_not: "search-api is crashing — infrastructure issue"
         classification: INFRASTRUCTURE
         confidence: 0.85
         explanation: search-api pod is not running. All search queries will fail.
 
-      - id: redisgraph-unavailable
-        description: redisgraph statefulset down
+      - id: search-postgres-unavailable
+        description: search-postgres database down or data lost
         category: component_health
         symptoms:
-          - "(?i)redis.*connection.*refused"
-          - "(?i)redisgraph.*unavailable"
+          - "(?i)postgres.*connection.*refused"
           - "(?i)search.*timeout.*query"
+          - "(?i)search.*empty.*results"
+          - "(?i)relation.*search.resources.*does not exist"
         investigation:
-          - step: Check redisgraph statefulset
-            command: "oc get statefulset -n open-cluster-management -l app=search-redisgraph"
-            expect: "READY 1/1"
-            if_not: "redisgraph is down — search index is unavailable"
-          - step: Check PVC health
-            command: "oc get pvc -n open-cluster-management -l app=search-redisgraph"
-            expect: "STATUS Bound"
-            if_not: "PVC not bound — storage issue preventing redisgraph from starting"
+          - step: Check search-postgres deployment
+            command: "oc get pods -n {mch_ns} -l app=search-postgres"
+            expect: "1/1 Running, 0 restarts"
+            if_not: "search-postgres is down — search index is unavailable"
+          - step: Check data integrity
+            command: "oc exec deploy/search-postgres -n {mch_ns} -- psql -U searchuser -d search -c 'SELECT count(*) FROM search.resources'"
+            expect: "Row count > 0"
+            if_not: "search-postgres has empty data — index was lost (emptyDir volume, pod restart)"
+          - step: Check NetworkPolicy blocking
+            command: "oc get networkpolicy -n {mch_ns} -o name"
+            expect: "No NetworkPolicies"
+            if_not: "NetworkPolicy may be blocking search-api from reaching search-postgres"
         classification: INFRASTRUCTURE
-        confidence: 0.85
-        explanation: redisgraph statefulset is down. Search index is unavailable.
+        confidence: 0.90
+        explanation: search-postgres is down or data was lost. Search uses emptyDir — pod restart loses all indexed data.
 
       - id: search-index-stale
         description: Indexer lag — newly created resources not appearing
@@ -158,11 +163,11 @@ profiles:
           - "(?i)stale.*results"
         investigation:
           - step: Check search-indexer pod
-            command: "oc get pods -n open-cluster-management -l app=search-indexer"
+            command: "oc get pods -n {mch_ns} -l app=search-indexer"
             expect: "Running, low restart count"
             if_not: "search-indexer is restarting — may be rebuilding index"
           - step: Check indexer logs
-            command: "oc logs -n open-cluster-management -l app=search-indexer --tail=50"
+            command: "oc logs -n {mch_ns} -l app=search-indexer --tail=50"
             expect: "No rebuild or connection lost messages"
             if_not: "Indexer is rebuilding — index is stale during rebuild"
         classification: PRODUCT_BUG
@@ -179,11 +184,11 @@ profiles:
           - "(?i)unexpected.*search.*response"
         investigation:
           - step: Check search-api health
-            command: "oc get pods -n open-cluster-management -l app=search-api"
+            command: "oc get pods -n {mch_ns} -l app=search-api"
             expect: "Running, 0 restarts"
             if_not: "search-api is not healthy — route to search-api-down"
           - step: Verify search-api responds to queries
-            command: "oc logs -n open-cluster-management -l app=search-api --tail=50"
+            command: "oc logs -n {mch_ns} -l app=search-api --tail=50"
             expect: "No error responses, query processing normal"
             if_not: "search-api is returning errors"
         classification: PRODUCT_BUG
@@ -199,7 +204,7 @@ profiles:
           - "(?i)Expected to find element.*search"
         investigation:
           - step: Check search-api is healthy
-            command: "oc get pods -n open-cluster-management -l app=search-api"
+            command: "oc get pods -n {mch_ns} -l app=search-api"
             expect: "Running, 0 restarts"
             if_not: "search-api is not healthy — route to search-api-down"
           - step: Verify search page loads content
@@ -250,27 +255,27 @@ profiles:
         - name: grc-policy-propagator
           role: Distributes policies from hub to managed clusters
           type: hub-deployment
-          namespace: open-cluster-management
+          namespace: "{mch_ns}"
           pod_label: app=grc-policy-propagator
         - name: config-policy-controller
           role: Enforces ConfigurationPolicy on spoke clusters
           type: addon
-          namespace: open-cluster-management
+          namespace: "{mch_ns}"
           pod_label: app=config-policy-controller
         - name: governance-policy-framework
           role: Core policy framework addon on spoke
           type: addon
-          namespace: open-cluster-management
+          namespace: "{mch_ns}"
           pod_label: app=governance-policy-framework
         - name: iam-policy-controller
           role: Enforces IAM policies on spoke
           type: addon
-          namespace: open-cluster-management
+          namespace: "{mch_ns}"
           pod_label: app=iam-policy-controller
         - name: cert-policy-controller
           role: Enforces certificate policies on spoke
           type: addon
-          namespace: open-cluster-management
+          namespace: "{mch_ns}"
           pod_label: app=cert-policy-controller
 
     prerequisites:
@@ -322,11 +327,11 @@ profiles:
           - "(?i)500.*governance"
         investigation:
           - step: Check propagator pod
-            command: "oc get pods -n open-cluster-management -l app=grc-policy-propagator"
+            command: "oc get pods -n {mch_ns} -l app=grc-policy-propagator"
             expect: "Running, 0 restarts"
             if_not: "policy-propagator is not healthy — policies won't distribute"
           - step: Check propagator logs
-            command: "oc logs -n open-cluster-management -l app=grc-policy-propagator --tail=50"
+            command: "oc logs -n {mch_ns} -l app=grc-policy-propagator --tail=50"
             expect: "No errors"
             if_not: "Propagator is failing — check for resource conflicts or RBAC issues"
         classification: INFRASTRUCTURE
@@ -358,11 +363,11 @@ profiles:
           - "(?i)policy.*pending"
         investigation:
           - step: Check work-manager pod
-            command: "oc get pods -n open-cluster-management-hub -l app=work-manager"
+            command: "oc get pods -n {mch_ns}-hub -l app=work-manager"
             expect: "Running, low restart count"
             if_not: "work-manager is overloaded or restarting"
           - step: Check work-manager logs
-            command: "oc logs -n open-cluster-management-hub -l app=work-manager --tail=50"
+            command: "oc logs -n {mch_ns}-hub -l app=work-manager --tail=50"
             expect: "No backlog or timeout messages"
             if_not: "work-manager has a backlog — compliance updates are delayed"
         classification: PRODUCT_BUG
@@ -396,7 +401,7 @@ profiles:
           - "(?i)expected.*compliant.*got"
         investigation:
           - step: Check propagator health
-            command: "oc get pods -n open-cluster-management -l app=grc-policy-propagator"
+            command: "oc get pods -n {mch_ns} -l app=grc-policy-propagator"
             expect: "Running, 0 restarts"
             if_not: "propagator is not healthy — route to propagator-down"
           - step: Verify policy status in backend
@@ -416,7 +421,7 @@ profiles:
           - "(?i)Expected to find element.*grc"
         investigation:
           - step: Check propagator is healthy
-            command: "oc get pods -n open-cluster-management -l app=grc-policy-propagator"
+            command: "oc get pods -n {mch_ns} -l app=grc-policy-propagator"
             expect: "Running, 0 restarts"
             if_not: "propagator is not healthy — route to propagator-down"
           - step: Verify governance page loads content
@@ -472,17 +477,17 @@ profiles:
         - name: cluster-curator
           role: Orchestrates cluster upgrades via curator pods
           type: hub-deployment
-          namespace: open-cluster-management
+          namespace: "{mch_ns}"
           pod_label: app=cluster-curator
         - name: managedcluster-import-controller
           role: Deploys klusterlet to spoke for import
           type: hub-deployment
-          namespace: open-cluster-management
+          namespace: "{mch_ns}"
           pod_label: app=managedcluster-import-controller
         - name: cluster-manager
           role: Core cluster management controller
           type: hub-deployment
-          namespace: open-cluster-management
+          namespace: "{mch_ns}"
           pod_label: app=cluster-manager
         - name: hive-controllers
           role: Provisions cloud infrastructure for new clusters
@@ -492,12 +497,12 @@ profiles:
         - name: registration-operator
           role: Manages hub-side registration of managed clusters
           type: hub-deployment
-          namespace: open-cluster-management
+          namespace: "{mch_ns}"
           pod_label: app=registration-operator
         - name: placement-controller
           role: Evaluates placement decisions for workloads
           type: hub-deployment
-          namespace: open-cluster-management-hub
+          namespace: "{mch_ns}-hub"
           pod_label: app=placement-controller
 
     prerequisites:
@@ -568,7 +573,7 @@ profiles:
           - "(?i)managedcluster.*pending"
         investigation:
           - step: Check import controller pod
-            command: "oc get pods -n open-cluster-management -l app=managedcluster-import-controller"
+            command: "oc get pods -n {mch_ns} -l app=managedcluster-import-controller"
             expect: "Running, 0 restarts"
             if_not: "import controller is not healthy — cluster import stuck"
         classification: INFRASTRUCTURE
@@ -585,7 +590,7 @@ profiles:
           - "(?i)clustercurator.*fail"
         investigation:
           - step: Check curator pods
-            command: "oc get pods -n open-cluster-management -l app=cluster-curator"
+            command: "oc get pods -n {mch_ns} -l app=cluster-curator"
             expect: "Running, low restart count"
             if_not: "Curator controller is not healthy"
           - step: Check curator job logs
@@ -654,7 +659,7 @@ profiles:
             expect: "Error is in test setup, not product interaction"
             if_not: "Error is in test body — classify as PRODUCT_BUG or INFRASTRUCTURE"
           - step: Check for missing test prerequisites
-            command: "oc get secrets -n open-cluster-management | grep -i credential"
+            command: "oc get secrets -n {mch_ns}| grep -i credential"
             expect: "Required cloud credential secrets exist"
             if_not: "Test prerequisites (secrets/fixtures) are missing"
         classification: AUTOMATION_BUG
@@ -670,7 +675,7 @@ profiles:
           - "(?i)element.*not found.*infrastructure"
         investigation:
           - step: Check cluster management backend is healthy
-            command: "oc get pods -n open-cluster-management -l app=cluster-manager"
+            command: "oc get pods -n {mch_ns} -l app=cluster-manager"
             expect: "Running, 0 restarts"
             if_not: "cluster-manager is not healthy — investigate backend"
           - step: Verify clusters page loads content
@@ -723,22 +728,22 @@ profiles:
         - name: application-manager
           role: Manages application resources on spoke clusters
           type: addon
-          namespace: open-cluster-management
+          namespace: "{mch_ns}"
           pod_label: app=application-manager
         - name: subscription-controller
           role: Reconciles subscriptions on hub
           type: hub-deployment
-          namespace: open-cluster-management
+          namespace: "{mch_ns}"
           pod_label: app=subscription-controller
         - name: channel-controller
           role: Manages channel resources
           type: hub-deployment
-          namespace: open-cluster-management
+          namespace: "{mch_ns}"
           pod_label: app=channel-controller
         - name: multicluster-operators-subscription
           role: Core subscription operator
           type: hub-deployment
-          namespace: open-cluster-management
+          namespace: "{mch_ns}"
           pod_label: app=multicluster-operators-subscription
 
     prerequisites:
@@ -783,7 +788,7 @@ profiles:
           - "(?i)subscription.*error"
         investigation:
           - step: Check subscription-controller pod
-            command: "oc get pods -n open-cluster-management -l app=subscription-controller"
+            command: "oc get pods -n {mch_ns} -l app=subscription-controller"
             expect: "Running, 0 restarts"
             if_not: "subscription-controller is not healthy"
         classification: INFRASTRUCTURE
@@ -833,7 +838,7 @@ profiles:
           - "(?i)subscription.*phase.*not.*propagated"
         investigation:
           - step: Check subscription-controller health
-            command: "oc get pods -n open-cluster-management -l app=subscription-controller"
+            command: "oc get pods -n {mch_ns} -l app=subscription-controller"
             expect: "Running, 0 restarts"
             if_not: "subscription-controller not healthy — route to subscription-controller-down"
           - step: Check subscription status
@@ -853,7 +858,7 @@ profiles:
           - "(?i)element.*not found.*subscription"
         investigation:
           - step: Check application backend is healthy
-            command: "oc get pods -n open-cluster-management -l app=subscription-controller"
+            command: "oc get pods -n {mch_ns} -l app=subscription-controller"
             expect: "Running, 0 restarts"
             if_not: "subscription-controller not healthy — investigate backend"
           - step: Verify applications page loads content
@@ -904,12 +909,12 @@ profiles:
         - name: console-api
           role: Serves backend data to the console UI
           type: hub-deployment
-          namespace: open-cluster-management
+          namespace: "{mch_ns}"
           pod_label: app=console-api
         - name: acm-console
           role: ACM console dynamic plugin
           type: hub-deployment
-          namespace: open-cluster-management
+          namespace: "{mch_ns}"
           pod_label: app=acm-console
         - name: mce-console
           role: MCE console dynamic plugin
@@ -960,11 +965,11 @@ profiles:
           - "(?i)ECONNREFUSED"
         investigation:
           - step: Check console-api pod
-            command: "oc get pods -n open-cluster-management -l app=console-api"
+            command: "oc get pods -n {mch_ns} -l app=console-api"
             expect: "Running, 0 restarts"
             if_not: "console-api is not healthy"
           - step: Check logs
-            command: "oc logs -n open-cluster-management -l app=console-api --tail=50"
+            command: "oc logs -n {mch_ns} -l app=console-api --tail=50"
             expect: "No errors"
             if_not: "console-api is crashing"
         classification: INFRASTRUCTURE
@@ -1015,11 +1020,11 @@ profiles:
           - "(?i)visual.*regression"
         investigation:
           - step: Check console-api health
-            command: "oc get pods -n open-cluster-management -l app=console-api"
+            command: "oc get pods -n {mch_ns} -l app=console-api"
             expect: "Running, 0 restarts"
             if_not: "console-api is not healthy — route to console-api-down"
           - step: Check console plugin pods
-            command: "oc get pods -n open-cluster-management -l app=acm-console"
+            command: "oc get pods -n {mch_ns} -l app=acm-console"
             expect: "Running, 0 restarts"
             if_not: "ACM console plugin pod is not healthy"
         classification: PRODUCT_BUG
@@ -1036,7 +1041,7 @@ profiles:
           - "(?i)Expected to find element.*credential"
         investigation:
           - step: Check console-api is healthy
-            command: "oc get pods -n open-cluster-management -l app=console-api"
+            command: "oc get pods -n {mch_ns} -l app=console-api"
             expect: "Running, 0 restarts"
             if_not: "console-api is not healthy — route to console-api-down"
           - step: Verify console page loads content
@@ -1075,17 +1080,17 @@ profiles:
         - name: klusterlet
           role: Agent on spoke clusters maintaining heartbeat with hub
           type: daemonset
-          namespace: open-cluster-management-agent
+          namespace: "{mch_ns}-agent"
           pod_label: app=klusterlet
         - name: addon-manager
           role: Deploys and manages addons on spoke clusters
           type: hub-deployment
-          namespace: open-cluster-management
+          namespace: "{mch_ns}"
           pod_label: app=addon-manager
         - name: foundation-controller
           role: Core cluster-level services
           type: hub-deployment
-          namespace: open-cluster-management
+          namespace: "{mch_ns}"
           pod_label: app=foundation-controller
         - name: multicluster-engine
           role: MCE base platform operator
@@ -1140,7 +1145,7 @@ profiles:
           - "(?i)managedclusteraddon.*fail"
         investigation:
           - step: Check addon-manager pod
-            command: "oc get pods -n open-cluster-management -l app=addon-manager"
+            command: "oc get pods -n {mch_ns} -l app=addon-manager"
             expect: "Running, 0 restarts"
             if_not: "addon-manager is not healthy"
         classification: INFRASTRUCTURE
@@ -1155,7 +1160,7 @@ profiles:
           - "(?i)foundation.*crash"
         investigation:
           - step: Check foundation-controller pod
-            command: "oc get pods -n open-cluster-management -l app=foundation-controller"
+            command: "oc get pods -n {mch_ns} -l app=foundation-controller"
             expect: "Running, 0 restarts"
             if_not: "foundation-controller is not healthy"
         classification: INFRASTRUCTURE
@@ -1219,7 +1224,7 @@ profiles:
         - name: console-api
           role: Serves RBAC endpoints for the console UI
           type: hub-deployment
-          namespace: open-cluster-management
+          namespace: "{mch_ns}"
           pod_label: app=console-api
 
     prerequisites:
@@ -1285,11 +1290,11 @@ profiles:
           - "(?i)rbac.*api.*error"
         investigation:
           - step: Check console-api pod
-            command: "oc get pods -n open-cluster-management -l app=console-api"
+            command: "oc get pods -n {mch_ns} -l app=console-api"
             expect: "Running, 0 restarts"
             if_not: "console-api is not healthy"
           - step: Check console-api logs for RBAC errors
-            command: "oc logs -n open-cluster-management -l app=console-api --tail=100 | grep -i rbac"
+            command: "oc logs -n {mch_ns} -l app=console-api --tail=100 | grep -i rbac"
             expect: "No error messages related to RBAC"
             if_not: "console-api is returning errors on RBAC endpoints"
         classification: PRODUCT_BUG
@@ -1594,27 +1599,27 @@ profiles:
         - name: multicluster-observability-operator
           role: Deploys and manages the observability stack
           type: operator
-          namespace: open-cluster-management
+          namespace: "{mch_ns}"
           pod_label: app=multicluster-observability-operator
         - name: thanos-query
           role: Serves queries for Grafana dashboards
           type: hub-statefulset
-          namespace: open-cluster-management-observability
+          namespace: "{mch_ns}-observability"
           pod_label: app=thanos-query
         - name: thanos-receive
           role: Receives metrics from spoke collectors
           type: hub-statefulset
-          namespace: open-cluster-management-observability
+          namespace: "{mch_ns}-observability"
           pod_label: app=thanos-receive
         - name: thanos-store
           role: Persists metrics to S3-compatible storage
           type: hub-statefulset
-          namespace: open-cluster-management-observability
+          namespace: "{mch_ns}-observability"
           pod_label: app=thanos-store
         - name: grafana
           role: Visualization dashboards for metrics
           type: hub-deployment
-          namespace: open-cluster-management-observability
+          namespace: "{mch_ns}-observability"
           pod_label: app=grafana
 
     prerequisites:
@@ -1682,11 +1687,11 @@ profiles:
           - "(?i)s3.*error"
         investigation:
           - step: Check thanos-store pods
-            command: "oc get pods -n open-cluster-management-observability -l app=thanos-store"
+            command: "oc get pods -n {mch_ns}-observability -l app=thanos-store"
             expect: "Running, 0 restarts"
             if_not: "thanos-store is crashing — likely S3 configuration issue"
           - step: Check thanos-store logs
-            command: "oc logs -n open-cluster-management-observability -l app=thanos-store --tail=50"
+            command: "oc logs -n {mch_ns}-observability -l app=thanos-store --tail=50"
             expect: "No S3 connection errors"
             if_not: "S3 storage configuration issue"
         classification: INFRASTRUCTURE
@@ -1702,11 +1707,11 @@ profiles:
           - "(?i)no.*data.*grafana"
         investigation:
           - step: Check Grafana pod
-            command: "oc get pods -n open-cluster-management-observability -l app=grafana"
+            command: "oc get pods -n {mch_ns}-observability -l app=grafana"
             expect: "Running"
             if_not: "Grafana is not healthy"
           - step: Check datasource configuration
-            command: "oc logs -n open-cluster-management-observability -l app=grafana --tail=50"
+            command: "oc logs -n {mch_ns}-observability -l app=grafana --tail=50"
             expect: "No datasource errors"
             if_not: "Grafana datasource is misconfigured"
         classification: PRODUCT_BUG

@@ -101,8 +101,18 @@ def main():
         print(f"Error: Run directory not found: {run_dir}")
         sys.exit(1)
 
-    # Extract JIRA ID from run directory name
-    jira_id = run_dir.parent.name if run_dir.parent.name.startswith("ACM-") else run_dir.name.split("-")[0] + "-" + run_dir.name.split("-")[1] if "-" in run_dir.name else "UNKNOWN"
+    # Extract JIRA ID and area from gather-output.json (authoritative source)
+    jira_id = "UNKNOWN"
+    area = None
+    gather_path = run_dir / "gather-output.json"
+    if gather_path.exists():
+        gather_data = json.loads(gather_path.read_text(encoding="utf-8"))
+        jira_id = gather_data.get("jira_id", "UNKNOWN")
+        area = gather_data.get("area")
+    else:
+        # Fallback: extract from directory name
+        if run_dir.parent.name.startswith("ACM-"):
+            jira_id = run_dir.parent.name
 
     print(f"Stage 3: Generating reports...")
 
@@ -122,7 +132,7 @@ def main():
 
     # --- Structural validation ---
     print("  Running structural validation...")
-    review_result = validate_test_case(str(test_case_path))
+    review_result = validate_test_case(str(test_case_path), area=area)
 
     review_path = run_dir / "review-results.json"
     review_path.write_text(

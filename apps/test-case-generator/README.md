@@ -1,6 +1,6 @@
 # ACM Console Test Case Generator
 
-Generates Polarion-ready test cases for ACM Console UI features from JIRA tickets. Built as a standalone Claude Code application using a 3-stage pipeline (gather / analyze / report) with MCP integration for JIRA, Polarion, ACM UI source discovery, and architecture knowledge graph.
+Generates Polarion-ready test cases for ACM Console UI features from JIRA tickets. Built as a standalone Claude Code application using a 6-phase subagent pipeline with 6 specialized agents, 7 MCP integrations, parallel investigation, live cluster validation, and mandatory quality review gating.
 
 ## Prerequisites
 
@@ -10,6 +10,7 @@ Generates Polarion-ready test cases for ACM Console UI features from JIRA ticket
 - Access to Red Hat JIRA (Atlassian Cloud)
 - Access to Polarion (VPN required)
 - Optional: Podman (for Neo4j architecture knowledge graph)
+- Optional: Live ACM cluster with console access (for Phase 3 live validation)
 
 ## Setup
 
@@ -43,6 +44,7 @@ Options:
 - `--pr 5790` -- Specify PR number (default: auto-detected from JIRA)
 - `--area governance` -- Override area detection
 - `--skip-live` -- Skip live cluster validation
+- `--cluster-url https://console...` -- Console URL for live validation
 - `--repo stolostron/console` -- Override repository (default: stolostron/console)
 
 ### Review an existing test case
@@ -73,17 +75,40 @@ python -m src.scripts.report runs/ACM-30459/<run-dir>
 
 Each run produces artifacts under `runs/<JIRA_ID>/<timestamp>/`:
 
-| File | Stage | Description |
+| File | Phase | Description |
 |------|-------|-------------|
-| `gather-output.json` | 1 | All gathered data (PR, conventions, knowledge) |
-| `pr-diff.txt` | 1 | Full PR diff |
-| `test-case.md` | 2 | Primary deliverable: Polarion test case |
-| `analysis-results.json` | 2 | Investigation metadata |
-| `test-case-setup.html` | 3 | Polarion setup section HTML |
-| `test-case-steps.html` | 3 | Polarion steps table HTML |
-| `review-results.json` | 3 | Structural validation results |
-| `SUMMARY.txt` | 3 | Human-readable summary |
+| `gather-output.json` | Stage 1 | All gathered data (PR, conventions, knowledge) |
+| `pr-diff.txt` | Stage 1 | Full PR diff |
+| `test-case.md` | Phase 4 | Primary deliverable: Polarion test case |
+| `analysis-results.json` | Phase 4 | Investigation metadata |
+| `test-case-setup.html` | Stage 3 | Polarion setup section HTML |
+| `test-case-steps.html` | Stage 3 | Polarion steps table HTML |
+| `review-results.json` | Stage 3 | Structural validation results |
+| `SUMMARY.txt` | Stage 3 | Human-readable summary |
 | `pipeline.log.jsonl` | All | Pipeline telemetry |
+
+## Pipeline Architecture
+
+```
+Stage 1: gather.py (deterministic)     -> gather-output.json + pr-diff.txt
+Phase 1: 3 parallel investigation agents -> feature + code + UI context
+Phase 2: Synthesize test plan            -> merged investigation
+Phase 3: Live validation (optional)      -> confirmed behavior
+Phase 4: Test case generator agent       -> test-case.md
+Phase 4.5: Quality reviewer agent        -> PASS / NEEDS_FIXES loop
+Stage 3: report.py (deterministic)       -> HTML + validation + summary
+```
+
+## Agents
+
+| Agent | Phase | Role |
+|-------|-------|------|
+| Feature Investigator | 1 (parallel) | JIRA deep dive, linked tickets, Polarion coverage |
+| Code Change Analyzer | 1 (parallel) | PR diff analysis, UI elements, Neo4j impact |
+| UI Discovery | 1 (parallel) | Source code selectors, translations, routes |
+| Live Validator | 3 | Browser + oc CLI + acm-search + acm-kubectl |
+| Test Case Generator | 4 | Write test case from synthesized context |
+| Quality Reviewer | 4.5 | Conventions, discovered vs assumed, PASS/NEEDS_FIXES |
 
 ## Knowledge Database
 
@@ -102,3 +127,6 @@ The `knowledge/` directory contains curated domain knowledge:
 | jira | JIRA ticket investigation (stories, bugs, comments, links) |
 | polarion | Existing test case coverage (Polarion work items) |
 | neo4j-rhacm | Architecture dependency graph (component relationships) |
+| acm-search | Live cluster resource queries across managed clusters |
+| acm-kubectl | Multicluster kubectl (list clusters, run commands on hub/spokes) |
+| playwright | Browser automation for live UI validation |

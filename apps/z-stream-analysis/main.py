@@ -55,7 +55,7 @@ Architecture (v3.5):
   Stage 3: Report Gen     - Formats AI output into reports
 
 This script runs Stage 1 (data gathering).
-AI analysis happens via the z-stream-analysis agent.
+AI analysis happens via the analysis agent.
 Report generation: python -m src.scripts.report <run_dir>
 
 Examples:
@@ -160,7 +160,7 @@ Examples:
         print("\n" + "=" * 60)
         print("NEXT STEPS:")
         print("=" * 60)
-        print(f"\n1. AI Analysis (via z-stream-analysis agent):")
+        print(f"\n1. AI Analysis (via analysis agent):")
         print(f"   - Agent reads: {run_dir}/core-data.json")
         print(f"   - Agent investigates: {run_dir}/repos/")
         print(f"   - Agent creates: {run_dir}/analysis-results.json")

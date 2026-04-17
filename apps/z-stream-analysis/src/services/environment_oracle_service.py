@@ -1,5 +1,5 @@
 """
-Environment Oracle Service (v3.7)
+Environment Oracle Service (v4.0)
 
 Feature-aware dependency health checking and comprehensive cluster state
 collection. Resolves the met=None gap in FeatureKnowledgeService for
@@ -100,7 +100,7 @@ class OracleResult:
 
 class EnvironmentOracleService:
     """
-    Environment Oracle (v3.5) — six-phase pipeline.
+    Environment Oracle (v4.0) — five-phase pipeline (Phase 6 removed, handled by Stage 1.5).
 
     Phase 1: Identify feature area and failed tests
     Phase 2: Fetch Polarion test case context for AI interpretation

@@ -2,22 +2,71 @@
 
 ## Overview
 
-ACM Search provides a unified search experience across all managed clusters, with RBAC-scoped results based on user permissions.
+ACM Search provides a unified search experience across all managed clusters, with RBAC-scoped results based on user permissions. Uses a PostgreSQL database to index resources collected from hub and spoke clusters.
 
-## Key Features
-- Global resource search across all managed clusters
-- RBAC-scoped results (users see only resources they have access to)
-- Saved searches
-- Resource detail views (YAML, related resources, logs)
+## Key Components
+
+| Component | Namespace | Role |
+|-----------|-----------|------|
+| `search-api` | ocm (app=search-api) | GraphQL query server |
+| `search-indexer` | ocm (app=search-indexer) | Processes collected data |
+| `search-postgres` | ocm (app=search-postgres) | PostgreSQL database (**uses emptyDir, not PVC**) |
+| `search-collector` | ocm (app=search-collector) | Collects hub resources |
+| `search-v2-operator` | ocm | Manages search lifecycle |
+| `search-collector` addon | open-cluster-management-agent-addon (spoke) | Collects spoke resources |
+
+## CRDs / Resources
+
+Search indexes ~22 Kubernetes resource types with ~90 fields. No custom CRDs — it queries existing resources via the Kubernetes API.
+
+## Console Integration
+
+| Element | Detail |
+|---------|--------|
+| Backend proxy | `/api/proxy/search` |
+| Backend code | `backend/src/lib/search.ts` |
+| Query format | GraphQL |
+| Test selectors | `data-test="search-query-input"`, `data-test="search-results"` |
+| PF6 selectors | `.pf-v6-c-menu__list-item` (result type accordion items) |
 
 ## Navigation Routes
-- `search`: `/multicloud/search`
-- `resources`: `/multicloud/search/resources`
-- `resourceYAML`: `/multicloud/search/resources/yaml`
-- `resourceRelated`: `/multicloud/search/resources/related`
-- `resourceLogs`: `/multicloud/search/resources/logs`
+
+| Route Key | Path | Page |
+|-----------|------|------|
+| `search` | `/multicloud/search` | Main search page |
+| `resources` | `/multicloud/search/resources` | Resource details |
+| `resourceYAML` | `/multicloud/search/resources/yaml` | Resource YAML view |
+| `resourceRelated` | `/multicloud/search/resources/related` | Related resources |
+| `resourceLogs` | `/multicloud/search/resources/logs` | Resource logs |
+
+## Storage Model
+
+- **search-postgres uses emptyDir** (not PVC) — data is lost on pod restart
+- Index is rebuilt from collectors after restart
+- No persistent storage dependency
+- Corruption persists until pod restart if data directory is corrupted while running
+
+## RBAC Filtering
+
+- Search results are filtered by user permissions
+- `search-api` evaluates access per resource based on the requesting user's roles
+- FG-RBAC (MCRA) permissions are respected — users only see resources on clusters they have access to
+- Fleet Virt VM list is entirely sourced from Search — if search is down, VM list is empty
+
+## Setup Prerequisites
+
+- `search` component enabled in MCH (enabled by default)
+- `search-collector` addon deployed to spokes
+- PostgreSQL database healthy with correct schema
+- Network policies must allow `search-api` → `search-postgres` communication
 
 ## Testing Considerations
-- Search results depend on user RBAC permissions
-- Search API uses GraphQL
+
+- Search results depend on user RBAC permissions — test with different roles
+- Search API uses GraphQL (not REST)
 - Resource details link to external Search resource views
+- search-collector missing on a spoke means empty results for that cluster's resources
+- Known issue: count off-by-one — frontend adds 1 to `items.length` in accordion header
+- Known issue: wrong detail links — namespace/name parameters swapped in `searchDefinitions.tsx`
+- Known issue: results artificially limited — backend injects `limit: 5`
+- Known issue: `!=` operator broken — `search-helper.tsx` strips `!`, turning `!=` into `=`

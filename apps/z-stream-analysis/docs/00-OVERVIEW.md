@@ -28,7 +28,7 @@ cluster_oracle  core-data.json  cluster-          analysis-         Detailed-Ana
 |-------|---------|--------------|
 | 1 | `python -m src.scripts.gather "<URL>"` | Collect data from Jenkins, cluster landscape, backend probes, feature context oracle, and repos; persist kubeconfig. Produces `core-data.json` + `cluster.kubeconfig` + `repos/`. |
 | 1.5 | `cluster-diagnostic` agent (optional) | Deep AI-driven cluster investigation; writes `cluster-diagnosis.json` |
-| 2 | `z-stream-analysis` agent reads core-data.json + cluster-diagnosis.json | 12-layer diagnostic investigation with provably linked grouping (v3.9): groups by strict code-path criteria, traces root cause through infrastructure layers, per-test verification within groups, expanded counterfactual (9 templates), classifies based on WHO caused the breakage |
+| 2 | `analysis` agent reads core-data.json + cluster-diagnosis.json | 12-layer diagnostic investigation with provably linked grouping (v3.9): groups by strict code-path criteria, traces root cause through infrastructure layers, per-test verification within groups, expanded counterfactual (9 templates), classifies based on WHO caused the breakage |
 | 3 | `python -m src.scripts.report runs/<dir>` | Generate human-readable reports |
 
 ---
@@ -42,7 +42,7 @@ USER                     STAGE 1                STAGE 2              STAGE 3
   │  Jenkins URL            │                    │                    │
   │─────────────────────────►                    │                    │
   │                         │                    │                    │
-  │                    Steps 1-11:                │                    │
+  │                    Steps 1-9:                │                    │
   │                    Fetch Jenkins data        │                    │
   │                    Cluster login + landscape │                    │
   │                    Feature context oracle    │                    │
@@ -85,7 +85,6 @@ runs/<job>_<timestamp>/
 ├── jenkins-build-info.json     ← Build metadata (credentials masked)
 ├── test-report.json            ← Per-test failure details
 ├── environment-status.json     ← Cluster health
-├── element-inventory.json      ← MCP element locations (if available)
 ├── repos/                      ← Cloned repositories
 │   ├── automation/             ← Test code
 │   ├── console/                ← Product code
@@ -238,7 +237,7 @@ python -m src.scripts.report <dir> --keep-repos    # Don't delete repos/
 
 | Topic | File |
 |-------|------|
-| Stage 1: Data gathering (Steps 1-11) | [01-STAGE1-DATA-GATHERING.md](01-STAGE1-DATA-GATHERING.md) |
+| Stage 1: Data gathering (Steps 1-9) | [01-STAGE1-DATA-GATHERING.md](01-STAGE1-DATA-GATHERING.md) |
 | Stage 2: AI analysis (Phases A-E) | [02-STAGE2-AI-ANALYSIS.md](02-STAGE2-AI-ANALYSIS.md) |
 | Stage 3: Report generation | [03-STAGE3-REPORT-GENERATION.md](03-STAGE3-REPORT-GENERATION.md) |
 | All services reference | [04-SERVICES-REFERENCE.md](04-SERVICES-REFERENCE.md) |
@@ -251,7 +250,7 @@ python -m src.scripts.report <dir> --keep-repos    # Don't delete repos/
 
 | Version | Changes |
 |---------|---------|
-| v4.0 | Cluster health data moved entirely to Stage 1.5 cluster-diagnostic agent (ClusterHealthService deprecated). Structured health fields: `environment_health_score`, `operator_health`, `cluster_identity`, `console_plugins`, `health_depth` per subsystem, `counter_signals`. PR-7 changed from binding classifications to ADDITIVE context signals. New PR-6b Polarion expected-behavior check (PRODUCT_BUG fast-path without JIRA). Symmetric counterfactual: D-V5c validates AUTOMATION_BUG ("does backend confirm expectation?"), D-V5e validates PRODUCT_BUG ("is product behavior correct?"). Layer discrepancy detection (lower layer healthy, higher layer defective) as Tier 1 PRODUCT_BUG evidence. HTML report reads `cluster-diagnosis.json` with fallback to `cluster-health.json` for older runs. gather.py Step 4 simplified to login + landscape + probes only. |
+| v4.0 | Cluster health data moved entirely to Stage 1.5 cluster-diagnostic agent (ClusterHealthService deprecated). Structured health fields: `environment_health_score`, `operator_health`, `cluster_identity`, `console_plugins`, `image_integrity`, `health_depth` per subsystem, `counter_signals`. 14 diagnostic traps (11 standard + 3 counter-traps) all explicitly reported. Console image integrity validated against `healthy-baseline.yaml` expected prefixes. Layer-aware Phase 3 checks foundational layers before component layers. Self-healing expanded to 5 triggers with 8-source introspection. Data-collector agent for AI-driven enrichment (page_objects, console_search MCP verification, selector timeline with intent assessment). Dynamic MCH namespace discovery. Backend probes removed (~780 lines). PR-7 changed to ADDITIVE context signals. PR-6b Polarion expected-behavior check. Symmetric counterfactual (D-V5c/D-V5e). Layer discrepancy detection as Tier 1 PRODUCT_BUG evidence. HTML report renders `image_integrity` warnings. |
 | v3.9 | Provably linked grouping replaces symptom-based grouping in Phase A4 — strict code-path criteria only (same selector+function, same before-all hook, same spec+error+line). Per-test verification within groups (4-point check: code path, backend, role, element). Expanded counterfactual verification (D-V5) with 9 templates (selector, button-disabled, timeout, data-assertion, blank-page, CSS, NetworkPolicy, operator, ResourceQuota) + evidence duplication detection + per-test evidence requirement. New optional schema field: `verification_status`. |
 | v3.8 | 12-layer diagnostic investigation model for root-cause-first classification. Parent agent groups tests (Phase A4), traces root cause through 12 infrastructure layers (Compute → Control Plane → Network → Storage → Config → Auth → RBAC → API → Operator → Cross-Cluster → Data Flow → UI), classifies based on WHO caused the breakage. Investigation agents can be spawned per group for deeper analysis. Phase D-V validates results against PR signals. New schema fields: `root_cause_layer`, `root_cause_layer_name`, `investigation_steps_taken`, `cause_owner`. New knowledge file: `diagnostics/diagnostic-layers.md`. New agent: `investigation-agent.md`. `dependencies.yaml` gains `layers_involved` per chain. Hook matchers changed to catch-all for complete trace coverage. |
 | v3.7 | Automated cluster health audit via `ClusterHealthService` (6-phase: DISCOVER, LEARN, CHECK, COMPARE, CORRELATE, SCORE). Produces `cluster-health.json` with operator health, subsystem health, infrastructure issues, managed cluster status, baseline comparison, and classification guidance. Replaces `EnvironmentValidationService` for Step 4. Oracle Phase 6 skipped (health checks handled by health audit). Knowledge database validated against live ACM 2.16 GA cluster (58 components, 18 addons, 10 dependency chains, 19 webhooks, 34 prerequisites). New `prerequisites.yaml`. Agent instructions updated to read `cluster-health.json` in Phase A-0. |

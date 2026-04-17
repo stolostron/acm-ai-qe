@@ -444,3 +444,209 @@ class FeatureKnowledgeService:
     def to_dict(self, obj) -> dict:
         """Convert dataclass to dict for serialization."""
         return dataclass_to_dict(obj)
+
+    # ── Gap Detection Methods (v4.0) ──
+
+    def detect_stale_components(
+        self,
+        components_path: Optional[Path] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Compare base.yaml key_components against knowledge/components.yaml.
+        Flag any component in a playbook that doesn't appear in the
+        knowledge database (likely renamed or removed).
+
+        Returns:
+            List of stale component dicts with profile, old_name, and
+            suggested_replacement (if a close match exists in components.yaml).
+        """
+        if components_path is None:
+            components_path = self.data_dir.parent.parent.parent / 'knowledge' / 'components.yaml'
+        if not components_path.exists():
+            return []
+
+        try:
+            with open(components_path) as f:
+                comp_data = yaml.safe_load(f) or {}
+        except Exception:
+            return []
+
+        # Build set of known component names from knowledge database.
+        # components.yaml uses dict-of-dicts: {component_name: {subsystem, type, ...}}
+        # nested under a top-level 'components' key.
+        known_names = set()
+        components = comp_data.get('components', comp_data)
+        for key, val in components.items():
+            if isinstance(val, dict) and 'subsystem' in val:
+                # This is a component entry (has subsystem field)
+                known_names.add(key)
+            elif isinstance(val, list):
+                # List of component dicts
+                for entry in val:
+                    if isinstance(entry, dict):
+                        name = entry.get('name', key)
+                        known_names.add(name)
+
+        stale = []
+        for profile_name, profile in self.profiles.items():
+            arch = profile.get('architecture', {})
+            for comp in arch.get('key_components', []):
+                comp_name = comp.get('name', '')
+                if comp_name and comp_name not in known_names:
+                    stale.append({
+                        'profile': profile_name,
+                        'component': comp_name,
+                        'namespace': comp.get('namespace', ''),
+                        'detail': f'{comp_name} not found in knowledge/components.yaml',
+                    })
+        return stale
+
+    def detect_hardcoded_namespaces(self) -> List[Dict[str, Any]]:
+        """
+        Scan playbook investigation commands for literal namespace
+        references that should be parameterized as {mch_ns}.
+
+        Returns:
+            List of dicts with profile, path_id, command, and the
+            hardcoded namespace found.
+        """
+        # Known fixed namespaces that should NOT be flagged
+        fixed_ns = {
+            'multicluster-engine', 'hive', 'openshift-cnv',
+            'openshift-gitops', 'openshift-monitoring',
+            'ansible-automation-platform', 'aap',
+            'open-cluster-management-agent',
+        }
+        # API group names that contain namespace-like strings but aren't namespaces
+        api_groups = {'open-cluster-management.io'}
+
+        hardcoded = []
+        for profile_name, profile in self.profiles.items():
+            for path in profile.get('failure_paths', []):
+                for step in path.get('investigation', []):
+                    cmd = step.get('command', '')
+                    # Look for -n <literal-namespace> patterns
+                    for match in re.finditer(r'-n\s+(\S+)', cmd):
+                        ns = match.group(1)
+                        if ns.startswith('{'):
+                            continue  # Already parameterized
+                        if ns in fixed_ns:
+                            continue  # Known fixed namespace
+                        if any(ag in ns for ag in api_groups):
+                            continue  # API group, not namespace
+                        hardcoded.append({
+                            'profile': profile_name,
+                            'path_id': path.get('id', ''),
+                            'command': cmd,
+                            'namespace': ns,
+                        })
+        return hardcoded
+
+    def detect_missing_overlay(self, acm_version: Optional[str] = None) -> Optional[str]:
+        """
+        Check if a version-specific overlay exists for the current
+        ACM version.
+
+        Returns:
+            The missing overlay filename, or None if overlay exists
+            or version is unknown.
+        """
+        if not acm_version:
+            return None
+        overlay_name = f'acm-{acm_version}.yaml'
+        overlay_path = self.data_dir / overlay_name
+        if not overlay_path.exists():
+            return overlay_name
+        return None
+
+    def count_unmatched_errors(
+        self,
+        feature_area: str,
+        error_messages: List[str],
+    ) -> Dict[str, Any]:
+        """
+        Count how many error messages in a feature area have zero
+        matching failure paths.
+
+        Returns:
+            Dict with total_errors, matched_count, unmatched_count,
+            match_rate, and unmatched_samples (first 3 unmatched errors).
+        """
+        profile = self.profiles.get(feature_area)
+        if not profile or not error_messages:
+            return {
+                'total_errors': len(error_messages),
+                'matched_count': 0,
+                'unmatched_count': len(error_messages),
+                'match_rate': 0.0,
+                'unmatched_samples': error_messages[:3],
+            }
+
+        matched_count = 0
+        unmatched = []
+        for msg in error_messages:
+            found = False
+            for path in profile.get('failure_paths', []):
+                for symptom in path.get('symptoms', []):
+                    try:
+                        if re.search(symptom, msg):
+                            found = True
+                            break
+                    except re.error:
+                        pass
+                if found:
+                    break
+            if found:
+                matched_count += 1
+            else:
+                unmatched.append(msg[:200])
+
+        total = len(error_messages)
+        return {
+            'total_errors': total,
+            'matched_count': matched_count,
+            'unmatched_count': total - matched_count,
+            'match_rate': matched_count / total if total > 0 else 0.0,
+            'unmatched_samples': unmatched[:3],
+        }
+
+    def run_gap_detection(
+        self,
+        acm_version: Optional[str] = None,
+        feature_areas_with_errors: Optional[Dict[str, List[str]]] = None,
+        components_path: Optional[Path] = None,
+    ) -> Dict[str, Any]:
+        """
+        Run all deterministic gap detection checks.
+
+        Args:
+            acm_version: Current ACM version string (e.g., '2.17')
+            feature_areas_with_errors: Dict of feature_area -> list of error messages
+            components_path: Path to knowledge/components.yaml
+
+        Returns:
+            Dict with gap detection results for core-data.json.
+        """
+        result = {
+            'stale_components': self.detect_stale_components(components_path),
+            'hardcoded_namespaces': self.detect_hardcoded_namespaces(),
+            'missing_overlay': self.detect_missing_overlay(acm_version),
+        }
+
+        # Per-area match rates
+        if feature_areas_with_errors:
+            area_match_rates = {}
+            for area, errors in feature_areas_with_errors.items():
+                area_match_rates[area] = self.count_unmatched_errors(area, errors)
+            result['match_rates'] = area_match_rates
+
+            # Summary
+            total_errors = sum(m['total_errors'] for m in area_match_rates.values())
+            total_matched = sum(m['matched_count'] for m in area_match_rates.values())
+            result['overall_match_rate'] = total_matched / total_errors if total_errors > 0 else 0.0
+            result['gap_areas'] = [
+                area for area, m in area_match_rates.items()
+                if m['match_rate'] < 0.5 and m['total_errors'] > 0
+            ]
+
+        return result

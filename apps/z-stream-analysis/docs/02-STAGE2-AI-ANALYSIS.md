@@ -22,7 +22,7 @@ The 5-phase structure (A-E) is preserved. The layer-based investigation is the m
 
 ## Overview
 
-**Invocation:** The z-stream-analysis agent reads the run directory and applies the 12-layer investigation methodology within a 5-phase framework.
+**Invocation:** The analysis agent reads the run directory and applies the 12-layer investigation methodology within a 5-phase framework.
 
 **Input:** `core-data.json` + `cluster-diagnosis.json` (from Stages 1/1.5), `repos/` (fallback), MCP servers (ACM-UI, Jenkins, JIRA, Polarion, Knowledge Graph)
 
@@ -64,7 +64,7 @@ core-data.json ──► AI Agent ──► analysis-results.json
 │  PHASE B: Deep Investigation (per test/group)                       │
 │                                                                     │
 │  B1: Check extracted_context (test code, page objects, selectors)   │
-│  B2: Check timeline_evidence (element_removed? stale_test_signal?) │
+│  B2: Check recent_selector_changes + temporal_summary (renamed?)   │
 │  B3: Check console_log (500s? network errors? auth errors?)        │
 │  B4: Query MCP tools (ACM-UI search, JIRA, Knowledge Graph)        │
 │  B5: Backend component analysis (detected_components → KG)          │
@@ -74,8 +74,8 @@ core-data.json ──► AI Agent ──► analysis-results.json
 │  B7: Backend cross-check [conditional]                              │
 │        └── UI failure + backend component crash?                    │
 │            └── YES → set backend_caused_ui_failure = true           │
-│  B7c: Backend probe analysis (v3.3) [if backend_probes present]     │
-│        └── response_valid=false → Tier 1 PRODUCT_BUG evidence       │
+│  B7c: Backend health check [via cluster-diagnosis.json]              │
+│        └── subsystem unhealthy → Tier 1 INFRASTRUCTURE evidence     │
 │  B-V: Per-test verification within groups (v3.9, MANDATORY)         │
 │        └── 4-point check: code path, backend, role, element         │
 │            └── ANY fails → SPLIT, investigate individually inline   │
@@ -153,15 +153,12 @@ The agent reads `core-data.json` which contains:
 | `jenkins` | Job name, build number, result, parameters | Phase A |
 | `test_report.summary` | Total/passed/failed counts, pass rate | Phase A |
 | `test_report.failed_tests[]` | Per-test: error, stack trace, extracted_context (incl. `assertion_analysis`, `failure_mode_category`), detected_components | Phase B, D |
-| `environment` | Cluster health, environment_score, API status | Phase A |
+| `environment` | Cluster connectivity status | Phase A |
 | `cluster_landscape` | Managed clusters, operators, MCH status, `mch_enabled_components`, resource pressure | Phase A, B |
 | `console_log` | Error patterns (has_500_errors, has_network_errors, etc.), key_errors | Phase A, B |
 | `feature_grounding` | Tests grouped by feature area with subsystem/component context | Phase A |
 | `feature_knowledge` | Playbook readiness, prerequisites, failure paths, KG dependency context, KG status | Phase A, B, D |
-| `cluster_access` | API URL, username, `kubeconfig_path` for re-authentication | Phase A (cluster login) |
-| `backend_probes` | Per-endpoint probe results: `response_valid`, `anomalies`, `error` | Phase B (B7c) |
-| `investigation_hints.timeline_evidence` | Element history, modification dates | Phase B |
-| `investigation_hints.failed_test_locations` | File paths for failed tests | Phase B |
+| `cluster_access` | API URL, username, `kubeconfig_path`, `mch_namespace` for re-authentication | Phase A (cluster login) |
 
 ---
 
@@ -190,8 +187,8 @@ core-data.json
       │   Compare live state against cluster_landscape snapshot from Stage 1
       │
       ├── A1: Environment health check
-      │   environment.cluster_connectivity == false?  → ALL TESTS = INFRASTRUCTURE
-      │   environment.environment_score < 0.3?      → ALL TESTS = INFRASTRUCTURE
+      │   cluster_diagnosis.cluster_connectivity == false?  → ALL TESTS = INFRASTRUCTURE
+      │   cluster_diagnosis.environment_health_score < 0.3? → INFRASTRUCTURE default hypothesis
       │
       ├── A1b: Cluster landscape check (v3.0)
       │   Read cluster_landscape → check degraded operators, resource pressure
@@ -224,7 +221,7 @@ Read `cluster_landscape` from core-data.json. Check for degraded operators overl
 
 If Knowledge Graph is available AND `feature_grounding` identifies components, batch-query subsystem context for all unique subsystems. This stores context for use throughout Phases B-E and makes Phase E0 incremental rather than building context from scratch.
 
-**Example:** If `environment.environment_score = 0.15` and `cluster_connectivity = false`, Phase A short-circuits: all tests classified as INFRASTRUCTURE with confidence 0.95.
+**Example:** If `cluster_diagnosis.cluster_connectivity = false`, Phase A short-circuits: all tests classified as INFRASTRUCTURE with confidence 0.95. If `environment_health_score < 0.3`, INFRASTRUCTURE is the default hypothesis but per-test analysis still runs.
 
 ---
 
@@ -240,11 +237,11 @@ For each test in test_report.failed_tests[]:
       ├── page_objects — selector definitions
       └── console_search.found — is selector in product?
 
-  B2: Check timeline_evidence
-      ├── element_never_existed → AUTOMATION_BUG signal
-      ├── element_removed → AUTOMATION_BUG signal
-      ├── console_changed_after_automation → stale test signal
-      └── recent_selector_changes → shows what replaced a removed selector
+  B2: Check recent_selector_changes + temporal_summary
+      ├── change_detected + intent_assessment → intentional rename or accidental removal
+      ├── stale_test_signal → product changed after automation
+      ├── classification_hint → AUTOMATION_BUG or PRODUCT_BUG
+      └── temporal_summary.days_difference → how long since product/automation changed
 
   B3: Check console_log evidence
       ├── 500/502/503 errors → PRODUCT_BUG signal
@@ -281,13 +278,10 @@ For each test in test_report.failed_tests[]:
       │   Set backend_caused_ui_failure = true
       ├── → Overrides Path A routing in Phase D (routes to Path B2)
       │
-      └── B7c: Backend probe analysis (v3.3)
-          ├── If core-data.json contains backend_probes:
-          │   Map feature area → probe endpoint (FEATURE_AREA_PROBE_MAP)
-          │   Automation→ansibletower, CLC→hub, RBAC→username,
-          │   Search→search, All→authenticated
-          ├── response_valid == false + anomalies → Tier 1 PRODUCT_BUG evidence
-          └── Probe timeout/error → potential INFRASTRUCTURE evidence
+      └── B7c: Backend health check (via cluster-diagnosis.json)
+          ├── Check subsystem_health for test's feature area
+          ├── Subsystem degraded/critical → Tier 1 INFRASTRUCTURE evidence
+          └── Subsystem healthy → backend ruled out, focus on selectors/JIRA
 
   B8: Tiered playbook investigation (v3.1)
       ├── Check prerequisites with live oc commands
@@ -305,7 +299,7 @@ For each test in test_report.failed_tests[]:
       └── Cross-namespace event scan, network checks, KG cascading analysis
 ```
 
-**Example:** Test `should create cluster` has `extracted_context.console_search.found = false` and `timeline_evidence.element_removed = true`. Two Tier 1 evidence sources pointing to AUTOMATION_BUG.
+**Example:** Test `should create cluster` has `extracted_context.console_search.found = false` and `recent_selector_changes.change_detected = true, direction = removed_from_product`. Two Tier 1 evidence sources pointing to AUTOMATION_BUG.
 
 ---
 
@@ -360,9 +354,9 @@ If `extracted_context.temporal_summary.stale_test_signal == true` AND `product_c
 
 If `extracted_context.assertion_analysis.has_data_assertion == true` AND `extracted_context.failure_mode_category == "data_incorrect"`, the test failed because returned data did not match expected values — not because of a missing element or infrastructure issue. Sets a PRODUCT_BUG hypothesis with 0.80-0.85 confidence. **Does NOT short-circuit** — adds evidence for standard routing, validated through Path B2 investigation.
 
-### PR-6: Backend Probe Source-of-Truth Check (v3.4)
+### PR-6: Backend Health Check (via cluster-diagnosis.json)
 
-If `backend_probes` data includes a probe with `classification_hint` and `anomaly_source`, uses deterministic K8s-vs-console comparison. Compares actual cluster state (`cluster_ground_truth`) against console backend response to distinguish PRODUCT_BUG (console returns wrong data despite healthy K8s) from INFRASTRUCTURE (underlying K8s resource is unhealthy). Routes based on `classification_hint` with 0.85-0.90 confidence. Tier 1 evidence.
+Checks `subsystem_health` from `cluster-diagnosis.json` for the test's feature area. If the subsystem is degraded/critical and the root cause explains the test's error, this is Tier 1 INFRASTRUCTURE evidence. If the subsystem is healthy, backend is ruled out. Backend health investigation is handled by Stage 1.5 (cluster-diagnostic agent) with comprehensive pod health, operator status, console image integrity validation, and dependency chain analysis. Also checks `image_integrity` — if the console image is non-standard, CSS/rendering failures should be investigated as potential PRODUCT_BUG rather than AUTOMATION_BUG.
 
 ### PR-6b: Polarion Expected Behavior Check (v4.0)
 
@@ -610,7 +604,7 @@ E6: Create/link issues (optional)
       },
       "evidence_sources": [
         {"source": "console_search", "finding": "found=false", "tier": 1},
-        {"source": "timeline_evidence", "finding": "element_removed=true", "tier": 1}
+        {"source": "recent_selector_changes", "finding": "change_detected, direction=removed_from_product", "tier": 1}
       ],
       "ruled_out_alternatives": [
         {

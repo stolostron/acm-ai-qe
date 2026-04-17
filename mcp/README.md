@@ -13,6 +13,8 @@ and query component dependency graphs -- without needing API keys embedded in pr
 - **`gh` CLI** (required for acm-ui) -- `brew install gh` (macOS)
 - **`uvx`** (optional, needed for polarion + neo4j) -- `pip install uv`
 - **Podman** (optional, needed for neo4j-rhacm) -- `brew install podman` (macOS)
+- **Node.js** (needed for acm-search) -- `brew install node` (macOS) or `sudo dnf install nodejs` (Fedora/RHEL)
+- **`mcp-remote`** (needed for acm-search) -- `npm install -g mcp-remote` (stdio-to-SSE bridge)
 
 ## Which servers do I need?
 
@@ -23,6 +25,7 @@ and query component dependency graphs -- without needing API keys embedded in pr
 | **jenkins** | Z-Stream | Jenkins pipeline analysis, build monitoring, failure investigation | 11 | [redhat-community-ai-tools/jenkins-mcp](https://github.com/redhat-community-ai-tools/jenkins-mcp) |
 | **polarion** | Z-Stream | Reads/writes Polarion test cases (RHACM4K project) | 25 | This repo (wrapper around [polarion-mcp](https://pypi.org/project/polarion-mcp/)) |
 | **neo4j-rhacm** | Z-Stream | Queries RHACM component dependency graph (370 components, 541 relationships across 7 subsystems incl. Hive, Klusterlet, Addon Framework, HyperShift, Virtualization, MTV, CCLM, Fine-Grained RBAC) | 2 | [mcp-neo4j-cypher](https://pypi.org/project/mcp-neo4j-cypher/) (PyPI) + [stolostron/knowledge-graph](https://github.com/stolostron/knowledge-graph) (data) |
+| **acm-search** | Hub Health | Fleet-wide resource queries across all managed clusters via search-postgres. Runs on-cluster as a pod, accessed via SSE. Provides spoke-side pod visibility that `oc` cannot. | 5 | [stolostron/acm-mcp-server](https://github.com/stolostron/acm-mcp-server) |
 
 The setup script handles this automatically -- select your app and it installs only the servers that app needs.
 
@@ -69,7 +72,8 @@ mcp/
 |
 \-- .external/                       <-- Cloned at setup time (gitignored)
     |-- jira-mcp-server/             <-- From stolostron/jira-mcp-server
-    \-- jenkins-mcp/                 <-- From redhat-community-ai-tools/jenkins-mcp
+    |-- jenkins-mcp/                 <-- From redhat-community-ai-tools/jenkins-mcp
+    \-- acm-mcp-server/              <-- From stolostron/acm-mcp-server
 ```
 
 ### External MCP Sources
@@ -91,6 +95,7 @@ External MCPs are cloned from forks with pending upstream PRs. Once merged,
 | jenkins | `~/.jenkins/config.json` | N/A (home dir) |
 | polarion | `mcp/polarion/.env` | Yes (`*.env`) |
 | neo4j-rhacm | None (local container) | N/A |
+| acm-search | None (reads from cluster secret) | N/A |
 
 ## Verifying Setup
 
@@ -105,6 +110,7 @@ Or ask the AI agent directly:
 - "Search JIRA for project=ACM" -- tests jira
 - "Get all Jenkins jobs" -- tests jenkins
 - "Query the knowledge graph: MATCH (n) RETURN count(n)" -- tests neo4j-rhacm
+- "Get search database stats" -- tests acm-search
 
 ## After a reboot
 

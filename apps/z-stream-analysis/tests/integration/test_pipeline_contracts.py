@@ -29,8 +29,6 @@ class TestCoreDataHasAllRequiredSections:
         "cluster_landscape",
         "feature_grounding",
         "feature_knowledge",
-        "investigation_hints",
-        "ai_instructions",
     }
 
     def test_core_data_has_all_required_sections(self, core_data):
@@ -210,35 +208,5 @@ class TestAIInstructionsReferenceExistingCoreDataFields:
     """S1->S2: Every field path in precomputed_context.fields exists in
     the actual core-data.json output."""
 
-    def test_ai_instructions_reference_existing_core_data_fields(
-        self, core_data
-    ):
-        instructions = core_data.get("ai_instructions", {})
-        precomputed = instructions.get("precomputed_context", {})
-        fields = precomputed.get("fields", {})
-
-        missing = []
-        for field_path in fields:
-            # field_path is like 'extracted_context.test_file' or
-            # 'feature_knowledge.feature_readiness'
-            parts = field_path.split(".")
-            top_level = parts[0]
-
-            # Check if the top-level key exists in core-data or in
-            # test_report.failed_tests items
-            if top_level in core_data:
-                continue
-            # Check if it's a per-test field (in failed_tests items)
-            report = core_data.get("test_report", {})
-            failed = report.get("failed_tests", [])
-            if failed and top_level in failed[0]:
-                continue
-            missing.append(field_path)
-
-        if missing:
-            import warnings
-            warnings.warn(
-                f"AI instructions reference fields not found in "
-                f"core-data.json top-level: {missing}. "
-                f"These may be per-test fields or nested fields."
-            )
+    # test_ai_instructions_reference_existing_core_data_fields removed —
+    # ai_instructions key removed from core-data.json in v4.0.

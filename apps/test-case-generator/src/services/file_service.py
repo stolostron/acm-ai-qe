@@ -1,5 +1,6 @@
 """File service for reading local test cases, conventions, and knowledge."""
 
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -38,26 +39,55 @@ def read_area_knowledge(area: str) -> Optional[str]:
     return None
 
 
-def find_existing_test_cases(version: str, max_count: int = 3) -> list[str]:
-    """Find existing test case files for a given ACM version.
+AREA_TO_COMPONENT_DIRS = {
+    "governance": ["virt", "rbac"],
+    "rbac": ["rbac", "auth"],
+    "fleet-virt": ["virt"],
+    "clusters": ["clc", "bm"],
+    "search": ["virt"],
+    "applications": ["alc"],
+    "credentials": ["auth"],
+    "cclm": ["rbac"],
+    "mtv": ["mtv", "virt"],
+}
 
-    Searches common locations where test cases may be stored.
+
+def find_existing_test_cases(version: str, area: Optional[str] = None, max_count: int = 3) -> list[str]:
+    """Find existing test case files for a given ACM version and area.
+
+    Search order:
+    1. External automation workspace (area-aware, if it exists)
+    2. runs/ directory (previous pipeline runs)
+    3. knowledge/examples/ (shipped sample — always available)
     """
-    search_paths = [
-        get_app_root() / "runs",
-    ]
+    search_paths: list[Path] = []
 
-    # Also check the automation workspace if accessible
-    automation_tc_path = Path.home() / "Documents" / "work" / "automation" / "documentation" / "acm-components" / "virt" / "test-cases" / version
-    if automation_tc_path.exists():
-        search_paths.insert(0, automation_tc_path)
+    # 1. Check external automation workspace for the relevant area(s)
+    automation_base = Path(os.environ.get(
+        "ACM_AUTOMATION_WORKSPACE",
+        str(Path.home() / "Documents" / "work" / "automation" / "documentation" / "acm-components"),
+    ))
+    if automation_base.exists():
+        component_dirs = AREA_TO_COMPONENT_DIRS.get(area, []) if area else []
+        for component_dir in component_dirs:
+            tc_path = automation_base / component_dir / "test-cases" / version
+            if tc_path.exists():
+                search_paths.append(tc_path)
+
+    # 2. Previous pipeline runs
+    search_paths.append(get_app_root() / "runs")
+
+    # 3. Shipped sample test case (always available as fallback)
+    search_paths.append(get_knowledge_dir() / "examples")
 
     results: list[str] = []
     for search_path in search_paths:
         if not search_path.exists():
             continue
-        for md_file in sorted(search_path.glob("*.md"), key=lambda p: p.stat().st_mtime, reverse=True):
-            if md_file.name.startswith("RHACM4K-"):
+        # For runs/ directory, search recursively
+        glob_pattern = "**/*.md" if search_path == get_app_root() / "runs" else "*.md"
+        for md_file in sorted(search_path.glob(glob_pattern), key=lambda p: p.stat().st_mtime, reverse=True):
+            if md_file.name.startswith("RHACM4K-") or md_file.name == "test-case.md" or md_file.name.startswith("sample-"):
                 results.append(str(md_file))
                 if len(results) >= max_count:
                     return results
@@ -65,9 +95,3 @@ def find_existing_test_cases(version: str, max_count: int = 3) -> list[str]:
     return results
 
 
-def read_naming_patterns() -> str:
-    """Read the area naming patterns."""
-    path = get_knowledge_dir() / "conventions" / "area-naming-patterns.md"
-    if path.exists():
-        return path.read_text(encoding="utf-8")
-    return ""

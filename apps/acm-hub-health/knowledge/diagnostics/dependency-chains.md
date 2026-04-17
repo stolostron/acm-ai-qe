@@ -1,6 +1,6 @@
 # Dependency Chains
 
-8 critical paths where failures cascade across ACM subsystems. When diagnosing
+11 critical paths where failures cascade across ACM subsystems. When diagnosing
 an issue, trace UPSTREAM through the relevant chain to find the root cause.
 
 ---
@@ -284,6 +284,115 @@ use a PVC.
 3. Check default StorageClass: `oc get sc` -- is one marked `(default)`?
 4. Check CSI driver pods: `oc get pods -n openshift-cluster-csi-drivers`
 5. If PVCs are Bound but pods crash: check disk usage (volume full)
+
+---
+
+## Chain 9: Channel -> Subscription -> ManifestWork -> Spoke Application
+
+**Layers spanned:** 9 (operators) → 5 (configuration) → 10 (cross-cluster) → 11 (data flow)
+
+```
+Channel CR (Git, Helm, or ObjectStorage source)
+  <- validated by ->
+    multicluster-operators-channel (channel controller)
+      <- referenced by ->
+        Subscription CR + Placement/PlacementRule
+          <- reconciled by ->
+            multicluster-operators-hub-subscription (generates ManifestWorks)
+              <- delivered by ->
+                ManifestWork (via klusterlet work-agent)
+                  <- applied by ->
+                    application-manager addon (on spoke)
+```
+
+**Impact:** If hub-subscription controller is down, subscriptions are not
+reconciled and no ManifestWorks are generated -- app deployment halts. If
+channel auth fails (Git/Helm credentials invalid), subscription is stuck in
+Propagated with no explicit error in status. If placement matches zero
+clusters, app deploys nowhere with no error.
+
+**Tracing procedure:**
+1. Is the Subscription status showing Propagated? `oc get sub -n <app-ns>`
+2. Check subscription controller: `oc get pods -n <mch-ns> | grep hub-subscription`
+3. Check channel controller: `oc get pods -n <mch-ns> | grep channel`
+4. Check placement: `oc get placement -n <app-ns>` -- does it match clusters?
+5. Check ManifestWork: `oc get manifestwork -n <cluster> | grep <app-name>`
+6. Check application-manager addon: `oc get managedclusteraddon application-manager -n <cluster>`
+
+---
+
+## Chain 10: CNV -> Search Collector -> Search API -> kubevirt-plugin -> Console
+
+**Layers spanned:** 10 (cross-cluster) → 11 (data flow) → 9 (operators) → 4 (storage) → 12 (UI/plugin)
+
+```
+CNV HyperConverged Operator (spoke -- prerequisite for VMs)
+  <- VMs indexed by ->
+    search-collector addon (indexes VM, VMI, DataVolume)
+      <- processed by ->
+        search-indexer (hub)
+          <- stored in ->
+            search-postgres
+              <- queried by ->
+                search-api (GraphQL)
+                  <- consumed by ->
+                    kubevirt-plugin (ConsolePlugin -- Fleet Virt UI)
+                      <- hosted by ->
+                        console-chart-console-v2 (ACM console)
+```
+
+**Impact:** If CNV is not installed on a spoke, no VMs to index -- not an
+error, just no data. If search-collector is missing, VMs exist but don't
+appear in hub UI (silent absence). If kubevirt-plugin is unregistered,
+Fleet Virt VM tab is absent from console navigation. If MCRA controller
+panics, users with fine-grained roles can't manage VMs (ACM-24737).
+
+**Tracing procedure:**
+1. Is Fleet Virt VM tab visible in console? If not -> check ConsolePlugins
+2. Is kubevirt-plugin registered? `oc get consoleplugins | grep kubevirt`
+3. Are VMs showing in search? Query search-api directly
+4. Check search-collector on spoke: `oc get managedclusteraddon search-collector -n <cluster>`
+5. Is CNV installed on spoke? `oc get csv -A | grep kubevirt-hyperconverged`
+6. For MTV: check mtv-integrations-controller if migration features are broken
+
+---
+
+## Chain 11: SubmarinerConfig -> Addon -> Gateway -> Tunnel -> Service Discovery
+
+**Layers spanned:** 9 (operators) → 10 (cross-cluster) → 3 (network) → 11 (data flow)
+
+```
+SubmarinerConfig CR (per-cluster config on hub)
+  <- managed by ->
+    submariner-addon (hub-side controller)
+      <- deploys via ManifestWork ->
+        submariner-operator (spoke)
+          <- deploys ->
+            gateway (IPsec tunnels: UDP 4500, UDP 4800)
+              <- routes via ->
+                routeagent (programs routes on spoke nodes)
+              <- exports via ->
+                lighthouse-agent (ServiceExport -> broker)
+                  <- resolves via ->
+                    lighthouse-coredns (clusterset.local DNS)
+              <- NAT via (if overlapping CIDRs) ->
+                globalnet-controller (GlobalEgressIP/GlobalIngressIP)
+```
+
+**Impact:** If gateway is unhealthy, all cross-cluster tunnels are down for
+that cluster. If lighthouse is down, cross-cluster service discovery fails
+(clusterset.local DNS unresolvable). If globalnet is missing with overlapping
+CIDRs, traffic fails with IP conflicts. Submariner breaks on OCP 4.18+ due
+to OVN-Kubernetes changes (ACM-22805).
+
+**Tracing procedure:**
+1. Check SubmarinerConfig: `oc get submarinerconfig -A`
+2. Check submariner-addon: `oc get pods -n <mch-ns> | grep submariner`
+3. Check addon status: `oc get managedclusteraddon submariner -n <cluster>`
+4. On spoke: check gateway pods: `oc get pods -n submariner-operator | grep gateway`
+5. Check tunnel connections: `oc get gateways.submariner.io -A`
+6. Check DNS: `oc get pods -n submariner-operator | grep lighthouse`
+7. OCP version compatibility: `oc get clusterversion` (4.18+ needs Submariner 0.18+)
 
 ---
 

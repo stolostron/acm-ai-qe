@@ -8,7 +8,7 @@
 # Run from the repository root:  bash mcp/setup.sh
 #
 # Apps and their MCP requirements:
-#   acm-hub-health    -> acm-ui, neo4j-rhacm
+#   acm-hub-health    -> acm-ui, neo4j-rhacm, acm-search
 #   z-stream-analysis -> acm-ui, jira, jenkins, polarion, neo4j-rhacm
 #
 # All paths are resolved dynamically -- no machine-specific references.
@@ -37,7 +37,7 @@ fail()  { echo -e "${RED}[FAIL]${NC} $1"; }
 # -----------------------------------------------
 
 # Which MCPs each app requires (space-separated)
-APP_HUB_HEALTH_MCPS="acm-ui neo4j-rhacm"
+APP_HUB_HEALTH_MCPS="acm-ui neo4j-rhacm acm-search"
 APP_ZSTREAM_MCPS="acm-ui jira jenkins polarion neo4j-rhacm"
 APP_TESTCASE_GEN_MCPS="acm-ui jira polarion neo4j-rhacm"
 
@@ -69,7 +69,7 @@ echo ""
 echo "  Which app(s) would you like to configure?"
 echo ""
 echo -e "    ${CYAN}1)${NC} ACM Hub Health Agent"
-echo -e "       Needs: acm-ui, neo4j-rhacm"
+echo -e "       Needs: acm-ui, neo4j-rhacm, acm-search"
 echo ""
 echo -e "    ${CYAN}2)${NC} Z-Stream Pipeline Analysis"
 echo -e "       Needs: acm-ui, jira, jenkins, polarion, neo4j-rhacm"
@@ -107,8 +107,8 @@ while true; do
             ;;
         4)
             SELECTED_APPS="$APP_HUB_HEALTH_DIR $APP_ZSTREAM_DIR $APP_TESTCASE_GEN_DIR"
-            # Union of all -- deduplicated (z-stream has the superset)
-            SELECTED_MCPS="$APP_ZSTREAM_MCPS"
+            # Union of all app MCPs (no single app is the superset anymore)
+            SELECTED_MCPS="acm-ui jira jenkins polarion neo4j-rhacm acm-search"
             echo ""
             ok "Selected: All apps"
             break
@@ -171,6 +171,22 @@ if needs_mcp "acm-ui"; then
     fi
 fi
 
+# Node.js + mcp-remote (needed for acm-search)
+if needs_mcp "acm-search"; then
+    if command -v node &>/dev/null; then
+        ok "Node.js $(node --version)"
+    else
+        warn "Node.js not found. Install: brew install node (macOS) or sudo dnf install nodejs (Fedora/RHEL)"
+        echo "  Node.js is needed for mcp-remote (acm-search MCP bridge)."
+    fi
+    if command -v mcp-remote &>/dev/null; then
+        ok "mcp-remote installed"
+    else
+        warn "mcp-remote not found. Will attempt to install during acm-search setup."
+        echo "  Or install manually: npm install -g mcp-remote"
+    fi
+fi
+
 # uvx (needed for polarion and neo4j-rhacm)
 if needs_mcp "polarion" || needs_mcp "neo4j-rhacm"; then
     if command -v uvx &>/dev/null; then
@@ -199,6 +215,10 @@ JENKINS_BRANCH="fix/auth-logs-paths"
 # Knowledge Graph: https://github.com/stolostron/knowledge-graph/pull/19
 KG_REPO="https://github.com/atifshafi/knowledge-graph.git"
 KG_BRANCH="atif-depth-improvements"
+
+# ACM Search: https://github.com/stolostron/acm-mcp-server (upstream, no fork needed)
+ACM_SEARCH_REPO="https://github.com/stolostron/acm-mcp-server.git"
+ACM_SEARCH_BRANCH="main"
 
 EXTERNAL_DIR="$MCP_DIR/.external"
 
@@ -604,6 +624,94 @@ setup_neo4j() {
     echo ""
 }
 
+setup_acm_search() {
+    CURRENT_MCP=$((CURRENT_MCP + 1))
+    echo "--------------------------------------------"
+    echo "  [$CURRENT_MCP/$TOTAL_MCPS] ACM Search MCP Server"
+    echo "--------------------------------------------"
+    echo ""
+    echo "  What: Fleet-wide resource queries across all managed clusters via search-postgres."
+    echo "  Used for: Spoke-side pod visibility, addon health verification, fleet health aggregation."
+    echo "  Requires: Node.js + mcp-remote (npm), oc logged into an ACM hub with search enabled."
+    echo "  Deployment: Runs as a pod on the ACM hub, accessed via SSE over an OpenShift route."
+    echo "  Source: https://github.com/stolostron/acm-mcp-server"
+    echo ""
+
+    clone_external "acm-mcp-server" "$ACM_SEARCH_REPO" "$ACM_SEARCH_BRANCH"
+
+    ACM_SEARCH_DIR="$EXTERNAL_DIR/acm-mcp-server/servers/postgresql"
+
+    if [ ! -d "$ACM_SEARCH_DIR" ]; then
+        fail "PostgreSQL server directory not found: $ACM_SEARCH_DIR"
+        echo ""
+        return
+    fi
+
+    # Ensure mcp-remote is installed globally (stdio-to-SSE bridge)
+    if command -v mcp-remote &>/dev/null; then
+        ACM_SEARCH_MCP_REMOTE="$(which mcp-remote)"
+        ok "mcp-remote found at $ACM_SEARCH_MCP_REMOTE"
+    else
+        if command -v node &>/dev/null; then
+            info "Installing mcp-remote globally..."
+            npm install -g mcp-remote 2>/dev/null
+            if command -v mcp-remote &>/dev/null; then
+                ACM_SEARCH_MCP_REMOTE="$(which mcp-remote)"
+                ok "mcp-remote installed at $ACM_SEARCH_MCP_REMOTE"
+            else
+                warn "mcp-remote install failed. Install manually: npm install -g mcp-remote"
+                ACM_SEARCH_MCP_REMOTE=""
+            fi
+        else
+            warn "Node.js not found. Install Node.js, then: npm install -g mcp-remote"
+            ACM_SEARCH_MCP_REMOTE=""
+        fi
+    fi
+
+    # Deploy on-cluster if oc is logged in
+    ACM_SEARCH_ROUTE=""
+    ACM_SEARCH_TOKEN=""
+    if command -v oc &>/dev/null && oc whoami &>/dev/null 2>&1; then
+        if oc get namespace acm-search &>/dev/null 2>&1; then
+            ok "acm-search namespace exists on cluster"
+        else
+            info "Deploying acm-search MCP server on-cluster..."
+            if [ -f "$ACM_SEARCH_DIR/scripts/create-secret.sh" ]; then
+                (cd "$ACM_SEARCH_DIR" && bash scripts/create-secret.sh 2>&1) || {
+                    warn "create-secret.sh failed. You may need to deploy manually."
+                }
+            fi
+            if [ -f "$ACM_SEARCH_DIR/Makefile" ]; then
+                (cd "$ACM_SEARCH_DIR" && make deploy-prebuilt 2>&1) || {
+                    warn "deploy-prebuilt failed. Check: oc get pods -n acm-search"
+                }
+            fi
+        fi
+
+        # Extract route URL
+        ACM_SEARCH_ROUTE=$(oc get route -n acm-search -o jsonpath='{.items[0].spec.host}' 2>/dev/null || true)
+        if [ -n "$ACM_SEARCH_ROUTE" ]; then
+            ok "Route: $ACM_SEARCH_ROUTE"
+        else
+            warn "No route found in acm-search namespace."
+            echo "  Deploy manually: cd $ACM_SEARCH_DIR && bash scripts/create-secret.sh && make deploy-prebuilt"
+        fi
+
+        # Extract service account token
+        ACM_SEARCH_TOKEN=$(oc get secret acm-search-client-token -n acm-search -o jsonpath='{.data.token}' 2>/dev/null | base64 -d || true)
+        if [ -n "$ACM_SEARCH_TOKEN" ]; then
+            ok "Service account token extracted"
+        else
+            warn "Could not extract acm-search-client-token. Check: oc get secret -n acm-search"
+        fi
+    else
+        warn "oc not logged in. Skipping on-cluster deployment."
+        echo "  Log in first, then re-run: oc login <hub-api-url> && bash mcp/setup.sh"
+    fi
+
+    echo ""
+}
+
 # -----------------------------------------------
 # Install Selected MCP Servers
 # -----------------------------------------------
@@ -613,6 +721,7 @@ needs_mcp "jira"        && setup_jira
 needs_mcp "jenkins"     && setup_jenkins
 needs_mcp "polarion"    && setup_polarion
 needs_mcp "neo4j-rhacm" && setup_neo4j
+needs_mcp "acm-search"  && setup_acm_search
 
 # -----------------------------------------------
 # Generate .mcp.json for Each Selected App
@@ -665,6 +774,34 @@ jira_env = read_env_file(f'{ext_dir}/jira-mcp-server/.env')
 jenkins_env = read_env_file(f'{ext_dir}/jenkins-mcp/.env')
 polarion_env = read_env_file(f'{mcp_dir}/polarion/.env')
 
+def _build_acm_search_config():
+    \"\"\"Build acm-search MCP config using mcp-remote + on-cluster SSE route.\"\"\"
+    import shutil, subprocess
+    mcp_remote = shutil.which('mcp-remote')
+    if not mcp_remote:
+        return {'command': 'echo', 'args': ['acm-search not configured -- install mcp-remote and deploy on-cluster'], 'timeout': 10}
+    try:
+        route = subprocess.check_output(
+            ['oc', 'get', 'route', '-n', 'acm-search', '-o', 'jsonpath={.items[0].spec.host}'],
+            stderr=subprocess.DEVNULL, timeout=10).decode().strip()
+        token = subprocess.check_output(
+            ['oc', 'get', 'secret', 'acm-search-client-token', '-n', 'acm-search',
+             '-o', 'jsonpath={.data.token}'],
+            stderr=subprocess.DEVNULL, timeout=10).decode().strip()
+        if token:
+            import base64
+            token = base64.b64decode(token).decode()
+    except Exception:
+        route, token = '', ''
+    if not route or not token:
+        return {'command': 'echo', 'args': ['acm-search not configured -- deploy on-cluster and re-run setup'], 'timeout': 10}
+    return {
+        'command': mcp_remote,
+        'args': [f'https://{route}/sse', '--header', f'Authorization: Bearer {token}', '--transport', 'sse-only'],
+        'env': {'NODE_TLS_REJECT_UNAUTHORIZED': '0'},
+        'timeout': 90
+    }
+
 # MCP server definitions
 # - acm-ui, polarion: local (our code, in this repo)
 # - jira, jenkins: cloned at setup time into .external/
@@ -710,7 +847,8 @@ all_servers = {
                  '--password', 'rhacmgraph',
                  '--read-only'],
         'timeout': 60
-    }
+    },
+    'acm-search': _build_acm_search_config()
 }
 
 # Build config with only the requested MCPs
@@ -802,6 +940,16 @@ if needs_mcp "neo4j-rhacm"; then
         echo -e "    ${YELLOW}STOP${NC} neo4j-rhacm  -- Container exists but stopped. Run: podman start neo4j-rhacm"
     else
         echo -e "    ${YELLOW}SETUP${NC} neo4j-rhacm  -- Needs Podman. Re-run setup after installing."
+    fi
+fi
+
+if needs_mcp "acm-search"; then
+    if [ -n "$ACM_SEARCH_ROUTE" ] && [ -n "$ACM_SEARCH_TOKEN" ] && [ -n "$ACM_SEARCH_MCP_REMOTE" ]; then
+        echo -e "    ${GREEN}OK${NC}   acm-search   -- Fleet-wide resource queries (5 tools, on-cluster SSE)"
+    elif [ -n "$ACM_SEARCH_ROUTE" ]; then
+        echo -e "    ${YELLOW}DEPS${NC} acm-search   -- Deployed, but missing mcp-remote or token. Re-run setup."
+    else
+        echo -e "    ${YELLOW}SETUP${NC} acm-search   -- Not deployed. Log into ACM hub and re-run setup."
     fi
 fi
 

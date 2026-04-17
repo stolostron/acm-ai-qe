@@ -36,7 +36,8 @@
       "Write(knowledge/learned/*)",
       "Edit(knowledge/learned/*)",
       "mcp__acm-ui__*",
-      "mcp__neo4j-rhacm__*"
+      "mcp__neo4j-rhacm__*",
+      "mcp__acm-search__*"
     ]
   },
   "hooks": {

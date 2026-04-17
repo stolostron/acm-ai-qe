@@ -1,11 +1,12 @@
 # MCP Integration and External Sources
 
-The agent augments its cluster observations with three external information
+The agent augments its cluster observations with four external information
 sources: the ACM UI MCP server (source code search), the Neo4j RHACM knowledge
-graph (component dependency analysis), and the official ACM documentation
-(AsciiDoc reference). These are used during self-healing (Phase 2), dependency
-correlation (Phase 5), and whenever the static knowledge doesn't cover a
-component or dependency path.
+graph (component dependency analysis), the ACM search database (fleet-wide
+resource queries), and the official ACM documentation (AsciiDoc reference).
+These are used during self-healing (Phase 2), health checking (Phase 3),
+dependency correlation (Phase 5), deep investigation (Phase 6), and whenever
+the static knowledge doesn't cover a component or dependency path.
 
 ---
 
@@ -16,14 +17,14 @@ component or dependency path.
 │                              Agent Investigation                                     │
 │                                                                                      │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  ┌─────────────────────┐  │
-│  │ Live Cluster │  │ ACM-UI MCP   │  │ neo4j-rhacm MCP  │  │ rhacm-docs/         │  │
-│  │ (oc CLI)     │  │ Server       │  │ (Knowledge Graph)│  │ (AsciiDoc)          │  │
+│  │ Live Cluster │  │ ACM-UI MCP   │  │ neo4j-rhacm MCP  │  │ acm-search MCP      │  │
+│  │ (oc CLI)     │  │ Server       │  │ (Knowledge Graph)│  │ (Search Database)   │  │
 │  │              │  │              │  │                  │  │                     │  │
-│  │ Primary      │  │ Source code  │  │ 370 component    │  │ Official docs       │  │
-│  │ source of    │  │ from GitHub. │  │ dependency graph.│  │ from GitHub.        │  │
-│  │ truth.       │  │ Used during  │  │ Fallback when    │  │ Used during         │  │
-│  │ Always used. │  │ self-healing.│  │ curated chains   │  │ self-healing.       │  │
-│  │              │  │              │  │ don't cover it.  │  │ Optional.           │  │
+│  │ Primary      │  │ Source code  │  │ 370 component    │  │ Fleet-wide resource │  │
+│  │ source of    │  │ from GitHub. │  │ dependency graph.│  │ queries across all  │  │
+│  │ truth.       │  │ Used during  │  │ Fallback when    │  │ managed clusters.   │  │
+│  │ Always used. │  │ self-healing.│  │ curated chains   │  │ Spoke-side pod      │  │
+│  │              │  │              │  │ don't cover it.  │  │ visibility.         │  │
 │  └──────────────┘  └──────────────┘  └──────────────────┘  └─────────────────────┘  │
 │         │                 │                   │                       │               │
 │         └─────────────────┼───────────────────┼───────────────────────┘               │
@@ -73,8 +74,8 @@ bash mcp/setup.sh
 ```
 
 Either script creates the virtual environment, generates the `.mcp.json`
-config (with acm-ui and neo4j-rhacm), and checks prerequisites. The
-app-level `setup.sh` also clones rhacm-docs.
+config (with acm-ui, neo4j-rhacm, and acm-search), and checks
+prerequisites. The app-level `setup.sh` also clones rhacm-docs.
 
 ### Available Tools
 
@@ -131,7 +132,7 @@ This ensures search results match the code that's actually running on the cluste
 The `neo4j-rhacm` MCP server provides read-only Cypher query access to a
 Neo4j graph database containing 370 ACM components and 541 dependency
 relationships (incl. Hive, Klusterlet, HyperShift, Virtualization, RBAC).
-It supplements the 8 curated dependency chains in
+It supplements the 11 curated dependency chains in
 `knowledge/dependency-chains.yaml` with a broader, dynamic component graph.
 
 ### Configuration
@@ -185,7 +186,7 @@ The MCP server exposes two Cypher query tools:
 
 | Scenario | Query Pattern |
 |----------|---------------|
-| Component not in the 8 curated chains | Query direct dependencies and dependents |
+| Component not in the 11 curated chains | Query direct dependencies and dependents |
 | Multiple failures with no obvious link | Find common upstream dependencies |
 | Unknown component during self-healing | Query subsystem membership and dependencies |
 | Tracing transitive failure impact | Query dependents up to 3 hops deep |
@@ -234,6 +235,136 @@ coverage but is not required.
 
 To check status: `podman ps | grep neo4j-rhacm`
 To start a stopped container: `podman start neo4j-rhacm`
+
+---
+
+## ACM Search Database (acm-search)
+
+The `acm-search` MCP server provides read-only access to ACM's search
+PostgreSQL database. This is the same database that powers the Console
+Search UI -- it indexes Kubernetes resources from ALL managed clusters
+via the search-collector addon on each spoke.
+
+### What It Provides
+
+The search database gives the agent **spoke-side visibility** that `oc`
+commands cannot provide. While `oc` only queries the hub cluster, the
+search database contains resources from every managed cluster:
+
+- Spoke-side pod status (the actual pods running on managed clusters)
+- Cross-cluster resource aggregation (fleet-wide health in one query)
+- Per-cluster grouping (which clusters share symptoms)
+
+### Configuration
+
+`.mcp.json` (generated by setup.sh):
+```json
+{
+  "mcpServers": {
+    "acm-search": {
+      "command": "/path/to/mcp-remote",
+      "args": [
+        "https://<route>/sse",
+        "--header", "Authorization: Bearer <token>",
+        "--transport", "sse-only"
+      ],
+      "env": { "NODE_TLS_REJECT_UNAUTHORIZED": "0" },
+      "timeout": 90
+    }
+  }
+}
+```
+
+The MCP server runs as a pod on the ACM hub cluster, accessed via SSE
+over an OpenShift route. `mcp-remote` bridges stdio (what Claude Code
+expects) to SSE (what the on-cluster server speaks). `--transport
+sse-only` skips the Streamable HTTP probe, and `NODE_TLS_REJECT_UNAUTHORIZED=0`
+handles self-signed TLS certificates on the route.
+
+### Setup
+
+```bash
+# From the acm-hub-health/ directory (deploys on-cluster, extracts route + token, generates config)
+bash setup.sh
+
+# Manual deployment (if needed)
+cd ../../mcp/.external/acm-mcp-server/servers/postgresql
+bash scripts/create-secret.sh    # auto-discovers ACM namespace + credentials
+make deploy-prebuilt             # deploys from quay.io/bjoydeep/ images
+
+# Extract connection details
+oc get route -n acm-search -o jsonpath='{.items[0].spec.host}'
+oc get secret acm-search-client-token -n acm-search -o jsonpath='{.data.token}' | base64 -d
+```
+
+Requires: `oc` logged into an ACM hub, `mcp-remote` (`npm install -g mcp-remote`).
+
+### Available Tools
+
+| Tool | Purpose | Phase |
+|------|---------|-------|
+| `find_resources` | Cross-cluster resource search with filtering, grouping, and health analysis | 3 (Layer 10), 5, 6 |
+| `get_database_stats` | Database health: table count, row count, DB size, active connections | 3 (prerequisite gate) |
+| `query_database` | Raw read-only SQL for complex queries | 5, 6 (when `find_resources` is insufficient) |
+| `list_tables` | List database tables and row counts | Debugging |
+| `search_tables` | Search tables by keyword | Debugging |
+
+### `find_resources` Parameters
+
+| Parameter | Description | Example |
+|-----------|-------------|---------|
+| `kind` | Resource kind | `"Pod"`, `"Deployment"`, `"ManagedCluster"` |
+| `name` | Name with wildcards | `"klusterlet-addon-search*"` |
+| `namespace` | Single or comma-separated | `"open-cluster-management-agent-addon"` |
+| `cluster` | Single or comma-separated | `"spoke-cluster-1"` |
+| `labelSelector` | Label filter | `"app=nginx,env!=test"` |
+| `status` | Status filter | `"CrashLoopBackOff,Error,Pending"` |
+| `ageNewerThan` | Duration filter | `"1h"`, `"2d"` |
+| `outputMode` | `list`, `count`, `summary`, `health` | Default: `list` |
+| `groupBy` | Group results | `"status"`, `"cluster"`, `"namespace"` |
+| `limit` | Max results (list mode) | `50` (default), max `1000` |
+
+### When to Use
+
+| Phase | Scenario | Query |
+|-------|----------|-------|
+| 3 (Layer 10) | Fleet-wide pod health | `find_resources(kind="Pod", outputMode="health")` |
+| 3 (Layer 10) | Addon pods per cluster | `find_resources(kind="Pod", namespace="open-cluster-management-agent-addon", outputMode="count", groupBy="cluster")` |
+| 5 | Spoke-side chain verification | `find_resources(kind="Pod", name="klusterlet-addon-search*", cluster="<name>", outputMode="list")` |
+| 5 | Cross-cluster pattern detection | `find_resources(kind="Pod", status="CrashLoopBackOff", groupBy="cluster")` |
+| 6 | Spoke-side triage | `find_resources(kind="Pod", cluster="<name>", status="CrashLoopBackOff,Error", outputMode="list")` |
+| 6 | Recent disruptions | `find_resources(kind="Pod", ageNewerThan="1h", outputMode="count", groupBy="cluster")` |
+
+### When NOT to Use
+
+- **Phase 1 (Discover)**: Use `oc get mch -A -o yaml` for MCH/MCE
+  discovery. Search does not store full nested status maps.
+- **Quick sanity checks**: `/sanity` runs Phase 1 only. Not needed.
+- **When search is broken**: If search-postgres is not Running, skip
+  all search MCP usage. The agent diagnoses search using `oc`.
+- **Real-time hub pod status**: Use `oc get pods` for current state.
+  Search has seconds-to-minutes indexing lag.
+- **Pod logs, exec, describe**: No equivalent in the search database.
+
+### Prerequisite: Search Health Gate
+
+Before using any `acm-search` tool, verify:
+1. Phase 3 Layer 9 confirmed search-postgres pod is Running
+2. Call `get_database_stats` as a connectivity check
+3. If either fails → skip ALL `acm-search` usage, rely on `oc`
+
+### Availability
+
+The search MCP requires the server to be deployed on-cluster (via
+`create-secret.sh` + `make deploy-prebuilt`), `mcp-remote` installed
+globally, and a valid service account token. When the cluster is torn
+down and reprovisioned, redeploy and re-run `setup.sh` to extract
+the new route URL and token.
+
+If the MCP server is not deployed, `mcp-remote` is not installed, or
+the SSE connection fails, the agent skips search MCP queries and
+operates with `oc` commands only. The agent works without it -- the
+search MCP provides spoke-side visibility as an enhancement.
 
 ---
 
@@ -327,8 +458,9 @@ Each source provides different context:
 
 | Source | What It Provides | Role |
 |--------|-----------------|------|
-| Cluster (oc CLI) | Current state: what's deployed, its status, its configuration | What IS |
+| Cluster (oc CLI) | Current state: what's deployed, its status, its configuration | What IS (hub only) |
 | Cluster introspection | Dependencies from owner refs, OLM labels, CSVs, env vars, webhooks | The map (always available) |
+| acm-search MCP | Spoke-side resources: pods, deployments, addons across all managed clusters | What IS (fleet-wide) |
 | neo4j-rhacm MCP | Broader ACM component relationships, subsystem membership | Supplements the map |
 | acm-ui MCP | Implementation: source code, data flow, integration points | How it works |
 | rhacm-docs | Intent: what the component is designed to do, how it should be configured | Why it exists |
@@ -346,7 +478,8 @@ The `.claude/settings.json` file auto-approves two categories of commands:
 
 - **Diagnostic** (always available): read-only `oc`/`kubectl` commands,
   text processing utilities, file inspection, `git clone`, all acm-ui
-  MCP tools, and all neo4j-rhacm MCP tools (read-only Cypher queries).
+  MCP tools, all neo4j-rhacm MCP tools (read-only Cypher queries), and
+  all acm-search MCP tools (read-only search database queries).
   File writes limited to `knowledge/learned/` only.
 - **Remediation** (double-gated): `oc patch`, `oc scale`,
   `oc rollout restart`, `oc delete pod`, `oc annotate`, `oc label`,

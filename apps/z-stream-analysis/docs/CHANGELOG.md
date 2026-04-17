@@ -4,6 +4,23 @@ Version history for Z-Stream Pipeline Analysis. For current architecture and usa
 
 ---
 
+## v4.0
+
+- **Cluster health moved to Stage 1.5** — `ClusterHealthService` deprecated. All cluster health investigation handled by the `cluster-diagnostic` AI agent (Stage 1.5), producing `cluster-diagnosis.json` with structured fields consumed by Stage 2 and Stage 3.
+- **Structured health fields** — `environment_health_score` (weighted penalty formula), `operator_health`, `subsystem_health` (with `health_depth` and `unchecked_layers`), `classification_guidance`, `counter_signals`, `image_integrity`.
+- **Console image integrity check** — Stage 1.5 compares the running console image against `healthy-baseline.yaml` expected prefixes (`quay.io:443/acm-d/console`, `quay.io/stolostron/console`). Non-standard images flagged in `image_integrity` field, Console subsystem marked degraded, image integrity penalty (-0.10) applied to health score. Stage 2 uses this to distinguish CSS/rendering failures from dead selectors.
+- **14 diagnostic traps** — expanded from 10. New Trap 9 (ResourceQuota blocking pod recreation), Trap 10 (certificate rotation silent failure), Trap 11 (NetworkPolicy making pods non-functional). Counter-traps: 12 (false INFRASTRUCTURE: selector doesn't exist), 13 (false INFRASTRUCTURE: backend returns wrong data), 14 (false NO_BUG: disabled prerequisite that should be enabled). All 14 traps explicitly reported in `diagnostic_traps_applied`.
+- **Layer-aware Phase 3** — bottom-up investigation checks foundational layers (Compute, Control Plane, Network, Storage) BEFORE component layers (Operators, Pods). Infrastructure guards (NetworkPolicy, ResourceQuota) checked at Layer 3 before pod health at Layer 9 — pods may LOOK healthy but be non-functional.
+- **Self-healing expanded** — 5 triggers (unknown operators, new failure patterns, new dependency chains, certificate issues, post-upgrade settling) with 8-source introspection framework (ownerReferences, OLM labels, CSV metadata, K8s labels, env vars, webhooks, ConsolePlugins, APIServices).
+- **Data-collector agent** — new agent enriches `core-data.json` after gather.py with AI-driven tasks: page_objects (import tracing), console_search (MCP verification), recent_selector_changes + temporal_summary (git history with intent assessment).
+- **Dynamic MCH namespace** — `_discover_mch_namespace()` replaces hardcoded `open-cluster-management`. Supports `ocm`, custom namespaces.
+- **PR-7 changed to context signals** — diagnostic findings are ADDITIVE, not binding classifications. Per-test counterfactual verification required.
+- **PR-6b Polarion check** — PRODUCT_BUG fast-path when Polarion test case describes expected behavior that contradicts actual behavior.
+- **Symmetric counterfactual** — D-V5c validates AUTOMATION_BUG ("does backend confirm expectation?"), D-V5e validates PRODUCT_BUG ("is product behavior correct?").
+- **Layer discrepancy detection** — Tier 1 PRODUCT_BUG evidence when lower layer is healthy but higher layer shows defect.
+- **Backend probes removed** — ~780 lines of deterministic backend probing (Step 4c) removed. Stage 1.5 performs comprehensive investigation instead.
+- **HTML report** — Environment tab renders `image_integrity` warnings, updated health score from `cluster-diagnosis.json`, graceful fallback for missing/partial diagnosis.
+
 ## v3.9
 
 - **Provably linked grouping** (Phase A4) — replaces symptom-based grouping with 3 strict criteria: (1) same exact selector AND same calling function, (2) same before-all hook in same describe block, (3) same spec file AND same exact error message AND same line number. "Button disabled", "timed out", "same feature area" are explicitly INVALID grouping criteria. Typical group count drops from 5-15 to 3-8.
@@ -49,7 +66,7 @@ Version history for Z-Stream Pipeline Analysis. For current architecture and usa
 
 - **Comprehensive cluster diagnostic** (Stage 1.5) — after gather.py completes, a dedicated `cluster-diagnostic` agent performs a full hub-health-style 6-phase investigation of the cluster: Discover (operator inventory, webhooks, ConsolePlugins), Learn (baseline comparison, knowledge database), Check (per-namespace pod health, log pattern scanning, infrastructure guards, addon verification, trap detection), Pattern Match (failure signatures, JIRA bugs), Correlate (dependency chain tracing, cross-subsystem impact), Output (structured `cluster-diagnosis.json`). Stage 2 reads this for dramatically improved INFRASTRUCTURE vs PRODUCT_BUG disambiguation.
 - **4 new knowledge files** adapted from the ACM Hub Health agent: `healthy-baseline.yaml` (expected pod counts and deployment states), `addon-catalog.yaml` (all managed cluster addons with health checks and impact statements), `webhook-registry.yaml` (expected webhooks with criticality and failure policies), `diagnostics/diagnostic-traps.md` (10 patterns where the obvious diagnosis is wrong).
-- **Diagnostic trap detection** — 10 traps verified during Stage 1.5: stale MCH status, console tabs missing despite healthy pod, search empty with all green pods, observability empty due to S3, GRC non-compliant after upgrade, managed cluster NotReady misdiagnosis, mass addon failure from single pod, console cascade from search-api.
+- **Diagnostic trap detection** — 8 traps verified during Stage 1.5: stale MCH status, console tabs missing despite healthy pod, search empty with all green pods, observability empty due to S3, GRC non-compliant after upgrade, managed cluster NotReady misdiagnosis, mass addon failure from single pod, console cascade from search-api. (Extended to 14 traps in v4.0.)
 - **Self-healing knowledge** — diagnostic agent writes discoveries about unknown operators and components to `knowledge/learned/` for future runs. Third-party operators (AAP, GitOps, CNV, MTV, OADP) are inventoried and their ACM integration assessed.
 - **Stage 2 optimization** — when diagnostic data is available, Stage 2 skips redundant Tier 2-4 cluster investigation for subsystems already covered. Pre-classified infrastructure issues and confirmed-healthy subsystems eliminate redundant root cause discovery.
 - **Classification guidance** — diagnostic produces `classification_guidance` with `pre_classified_infrastructure` (Tier 1 evidence with confidence), `confirmed_healthy` (subsystems where infrastructure is ruled out), and `partial_impact` (transitive dependency effects).

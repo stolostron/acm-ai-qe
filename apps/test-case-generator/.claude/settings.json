@@ -96,7 +96,42 @@
       "mcp__polarion__get_polarion_test_steps",
       "mcp__polarion__get_polarion_setup_html",
       "mcp__polarion__get_polarion_work_item_text",
-      "mcp__polarion__check_polarion_status"
+      "mcp__polarion__check_polarion_status",
+
+      "mcp__acm-search__find_resources",
+      "mcp__acm-search__query_database",
+      "mcp__acm-search__list_tables",
+      "mcp__acm-search__get_database_stats",
+      "mcp__acm-search__search_tables",
+
+      "mcp__acm-kubectl__clusters",
+      "mcp__acm-kubectl__kubectl",
+      "mcp__acm-kubectl__connect_cluster",
+
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_navigate_back",
+      "mcp__playwright__browser_snapshot",
+      "mcp__playwright__browser_click",
+      "mcp__playwright__browser_type",
+      "mcp__playwright__browser_fill_form",
+      "mcp__playwright__browser_take_screenshot",
+      "mcp__playwright__browser_console_messages",
+      "mcp__playwright__browser_network_requests",
+      "mcp__playwright__browser_tabs",
+      "mcp__playwright__browser_wait_for",
+      "mcp__playwright__browser_hover",
+      "mcp__playwright__browser_press_key",
+      "mcp__playwright__browser_select_option",
+      "mcp__playwright__browser_handle_dialog",
+      "mcp__playwright__browser_resize",
+      "mcp__playwright__browser_close",
+      "mcp__playwright__browser_evaluate",
+      "mcp__playwright__browser_generate_locator",
+      "mcp__playwright__browser_verify_text_visible",
+      "mcp__playwright__browser_verify_element_visible",
+      "mcp__playwright__browser_drag",
+      "mcp__playwright__browser_file_upload",
+      "mcp__playwright__browser_run_code"
     ],
     "deny": []
   }

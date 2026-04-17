@@ -1,9 +1,9 @@
 """
-Z-Stream Analysis Services Module (v3.5)
+Z-Stream Analysis Services Module (v4.0)
 
 Core services for Jenkins pipeline failure data gathering.
 
-Architecture Note (v3.5):
+Architecture Note (v4.0):
 - Cluster investigation service for targeted pod diagnostics
 - Feature area service for grounding analysis in feature context
 - Feedback service for classification accuracy tracking

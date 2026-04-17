@@ -65,7 +65,7 @@ h1 { font-size: 2.4rem; font-weight: 800; margin-bottom: 8px; background: linear
 <div class="example-banner">
   <h3>Diagnostic &amp; Remediation Agent for ACM Hub Clusters</h3>
   <p>AI-powered health diagnostician built on Claude Code. The agent understands ACM architecture at the engineering level &mdash; operators, addon framework, dependency chains, known bugs with JIRA references &mdash; and uses that knowledge to diagnose root causes, not just report symptoms. Diagnosis is strictly <strong>read-only</strong>. When cluster-fixable issues are found, the agent presents a structured remediation plan and asks for explicit approval before making any changes.</p>
-  <p style="margin-top:8px;font-size:0.82rem;color:var(--dim)"><strong>Key capabilities:</strong> 6-phase diagnostic pipeline, 4 depth levels (quick pulse to deep audit), 54 knowledge files covering 12 ACM subsystems, 12-layer diagnostic model (vertical root cause tracing), 8 dependency chain traces, 13 diagnostic trap guards, cluster introspection (8 live metadata sources for reverse-engineering dependencies from any operator), version-aware known-issue matching, self-healing knowledge discovery, evidence-based diagnosis with confidence levels. Phase 1 checks operator deployment health (catches MCH operator at 0 replicas). Phase 3 uses layer-organized health checks &mdash; foundational layers (network, storage) are checked BEFORE component layers (operators, pods) to catch root causes before symptoms mislead. Phase 5 traces both horizontally (dependency chains) and vertically (12 infrastructure layers). Phase 6 uses layer-based fallback when no playbook matches.</p>
+  <p style="margin-top:8px;font-size:0.82rem;color:var(--dim)"><strong>Key capabilities:</strong> 6-phase diagnostic pipeline, 4 depth levels (quick pulse to deep audit), 54 knowledge files covering 12 ACM subsystems, 12-layer diagnostic model (vertical root cause tracing), 11 dependency chain traces, 13 diagnostic trap guards, cluster introspection (8 live metadata sources for reverse-engineering dependencies from any operator), version-aware known-issue matching, self-healing knowledge discovery, evidence-based diagnosis with confidence levels. Phase 1 checks operator deployment health (catches MCH operator at 0 replicas). Phase 3 uses layer-organized health checks &mdash; foundational layers (network, storage) are checked BEFORE component layers (operators, pods) to catch root causes before symptoms mislead. Phase 5 traces both horizontally (dependency chains) and vertically (12 infrastructure layers). Phase 6 uses layer-based fallback when no playbook matches.</p>
 </div>
 
 <!-- DIAGRAM 1: HIGH-LEVEL ARCHITECTURE -->
@@ -78,7 +78,7 @@ graph LR
     ROUTER --> CLAUDE["CLAUDE CODE CLI\nCLAUDE.md methodology\n+ slash commands\n+ settings.json safety"]:::clickable
     CLAUDE --> OC["oc CLI\nDiagnosis: get, describe,\nlogs, exec, adm top\nRemediation: patch, scale,\nrollout restart (w/approval)"]:::clickable
     CLAUDE --> KB["KNOWLEDGE SYSTEM\n54 files\narchitecture, diagnostics,\nYAML baselines, learned"]:::clickable
-    CLAUDE --> EXT["EXTERNAL SOURCES\nacm-ui MCP (20 tools)\nneo4j-rhacm MCP (KG)\nrhacm-docs (AsciiDoc)"]:::clickable
+    CLAUDE --> EXT["EXTERNAL SOURCES\nacm-ui MCP (20 tools)\nneo4j-rhacm MCP (KG)\nacm-search MCP (fleet)\nrhacm-docs (AsciiDoc)"]:::clickable
     CLAUDE --> REPORT["HEALTH REPORT\nVerdict: HEALTHY |\nDEGRADED | CRITICAL\nEvidence-based findings"]:::clickable
     classDef clickable cursor:pointer
     click USER showDetail
@@ -126,7 +126,7 @@ graph TD
     P1["PHASE 1: DISCOVER\n(Always Run)\nInventory MCH, MCE, nodes,\nclusters, CSVs, components\nIdentify MCH namespace\n+ Operator deployment health"]:::clickable --> P2["PHASE 2: LEARN\n(Standard+)\nRead architecture knowledge\nCheck learned/ entries\nLoad healthy-baseline.yaml\nLoad diagnostic traps + layers\n+ health-patterns.md\nSelf-heal if mismatch"]:::clickable
     P2 --> P3["PHASE 3: CHECK\n(Standard+)\nLayer-organized health checks:\nL1-2 Compute (from Phase 1)\nL3 Network/Infra guards FIRST\nL4 Storage, L5-8 Config/Auth\nL9 Operators + pod health\nL10-12 Cross-cluster, Data, UI"]:::clickable
     P3 --> P4["PHASE 4: PATTERN MATCH\n(Standard+)\nMatch symptoms to known bugs\nVersion-aware JIRA matching\nFix version + cluster-fixable\n+ Post-upgrade pattern check"]:::clickable
-    P4 --> P5["PHASE 5: CORRELATE\n(Deep / Targeted)\nHorizontal: 8 dependency chains\nVertical: 12-layer tracing\n+ neo4j-rhacm KG fallback\nEvidence tier weighting\n+ Diagnostic trap verification"]:::clickable
+    P4 --> P5["PHASE 5: CORRELATE\n(Deep / Targeted)\nHorizontal: 11 dependency chains\nVertical: 12-layer tracing\n+ neo4j-rhacm KG fallback\nEvidence tier weighting\n+ Diagnostic trap verification"]:::clickable
     P5 --> P6["PHASE 6: DEEP INVESTIGATE\n(Deep / Targeted)\nPod logs + previous crashes\nNamespace events\nStorage, networking, data flow\n+ Layer-based fallback\nwhen no playbook matches"]:::clickable
 
     style P1 fill:#0f1320,stroke:#38bdf8,color:#d8dce8
@@ -153,7 +153,7 @@ graph TD
   <p class="desc">The agent consults multiple knowledge layers during diagnosis. Knowledge defines what correct behavior looks like (ground truth); the cluster shows current state. Click any layer to see what it contains.</p>
   <div class="mermaid">
 graph TD
-    ARCH["ARCHITECTURE KNOWLEDGE\nknowledge/architecture/\n12 component directories\narchitecture.md, data-flow.md,\nknown-issues.md per component"]:::clickable --> DIAGK["DIAGNOSTIC KNOWLEDGE\nknowledge/diagnostics/\ndiagnostic-layers.md (12 layers)\ndependency-chains.md (8 chains)\ncommon-diagnostic-traps.md (13)\nevidence-tiers.md\ndiagnostic-playbooks.md (14)"]:::clickable
+    ARCH["ARCHITECTURE KNOWLEDGE\nknowledge/architecture/\n12 component directories\narchitecture.md, data-flow.md,\nknown-issues.md per component"]:::clickable --> DIAGK["DIAGNOSTIC KNOWLEDGE\nknowledge/diagnostics/\ndiagnostic-layers.md (12 layers)\ndependency-chains.md (11 chains)\ncommon-diagnostic-traps.md (13)\nevidence-tiers.md\ndiagnostic-playbooks.md (14)"]:::clickable
     YAML["STRUCTURED YAML DATA\nknowledge/*.yaml\nhealthy-baseline.yaml\ndependency-chains.yaml\nwebhook-registry.yaml\ncertificate-inventory.yaml\naddon-catalog.yaml\nversion-constraints.yaml"]:::clickable --> CROSS["CROSS-CUTTING KNOWLEDGE\nknowledge/\ncomponent-registry.md\nfailure-patterns.md"]:::clickable
     ARCH --> LEARNED["LEARNED KNOWLEDGE\nknowledge/learned/\nAgent-discovered knowledge\nWritten during self-healing\nVersion + cluster specific"]:::clickable
     DIAGK --> LEARNED
@@ -206,10 +206,10 @@ graph TD
 <!-- DIAGRAM 6: DEPENDENCY CHAINS -->
 <div id="d6" class="card">
   <h2>Diagram 6: Dependency Chain Tracing</h2>
-  <p class="desc">Phase 5 (Correlate) traces dependencies using three layers. <strong>Layer 1:</strong> 8 curated chains (shown below) cover core ACM subsystems with hand-written impact analysis, tracing procedures, and JIRA references. <strong>Layer 2:</strong> Cluster introspection discovers chains dynamically from live metadata &mdash; works for any operator, not just ACM. <strong>Layer 3:</strong> The knowledge graph (neo4j-rhacm) provides 370 components and 541 dependency relationships. Real clusters have far more dependency paths than these 8 &mdash; the curated chains are the starting point, not the limit.</p>
+  <p class="desc">Phase 5 (Correlate) traces dependencies using three layers. <strong>Layer 1:</strong> 11 curated chains (8 core shown below + app-lifecycle, virtualization, submariner) cover ACM subsystems with hand-written impact analysis, tracing procedures, and JIRA references. <strong>Layer 2:</strong> Cluster introspection discovers chains dynamically from live metadata &mdash; works for any operator, not just ACM. <strong>Layer 3:</strong> The knowledge graph (neo4j-rhacm) provides 370 components and 541 dependency relationships. Real clusters have far more dependency paths than these 11 &mdash; the curated chains are the starting point, not the limit.</p>
   <div class="mermaid">
 graph LR
-    subgraph curated["Curated Chains (Layer 1 &mdash; hand-written, with impact analysis)"]
+    subgraph curated["Core Curated Chains (8 of 11 &mdash; hand-written, with impact analysis)"]
     C1["Chain 1\nConsole &rarr; Search\n&rarr; Managed Clusters"]:::clickable
     C2["Chain 2\nGovernance &rarr; Framework\nAddon &rarr; Config Policy"]:::clickable
     C3["Chain 3\nMCH Operator &rarr; Backplane\n&rarr; Component Operators"]:::clickable
@@ -219,7 +219,7 @@ graph LR
     C7["Chain 7\nAddon Manager &rarr;\nAddon Framework &rarr;\nSpoke Addon Pods"]:::clickable
     C8["Chain 8\nStorageClass &rarr; CSI\n&rarr; PV &rarr; PVC &rarr; Pod"]:::clickable
     end
-    DYNAMIC["Beyond these 8:\nCluster Introspection\n(owner refs, env vars,\nwebhooks, CSVs, OLM labels)\n+ Knowledge Graph\n(370 components, 541 relationships)\ndiscover chains dynamically"]:::clickable
+    DYNAMIC["Beyond these 8 core:\nCluster Introspection\n(owner refs, env vars,\nwebhooks, CSVs, OLM labels)\n+ Knowledge Graph\n(370 components, 541 relationships)\ndiscover chains dynamically"]:::clickable
 
     classDef clickable cursor:pointer
     style DYNAMIC fill:#141a2e,stroke:#2dd4bf,stroke-width:2px,color:#2dd4bf
@@ -368,7 +368,7 @@ Targeted  <span class="green">YES</span>  <span class="green">YES</span>  <span 
         <h4>How the Agent Operates</h4>
         <div class="value">The agent is a Claude Code session with three configuration layers:</div>
         <div class="separator"></div>
-        <div class="label">CLAUDE.md (838 lines):</div>
+        <div class="label">CLAUDE.md (998 lines):</div>
         <div class="value">The agent's methodology. Contains safety constraints, remediation protocol, 6-phase pipeline procedure, depth router rules, knowledge system usage instructions, self-healing process (8 cluster introspection sources), MCP integration guidance, output format specification, 8 key principles, and session tracing configuration.</div>
         <div class="label">Slash Commands (.claude/commands/):</div>
 <pre class="data-block"><span class="key">sanity.md</span>       &rarr; Phase 1 only, ~30s
@@ -377,7 +377,7 @@ Targeted  <span class="green">YES</span>  <span class="green">YES</span>  <span 
 <span class="key">investigate.md</span>  &rarr; All 6 phases, scoped to $ARGUMENTS
 <span class="key">learn.md</span>        &rarr; Knowledge discovery session</pre>
         <div class="label">settings.json:</div>
-        <div class="value">Auto-approves read-only <code>oc</code> commands for diagnosis (<code>oc get</code>, <code>oc describe</code>, <code>oc logs</code>, etc.), text processing tools, file reads, <code>knowledge/learned/*</code> writes, all acm-ui MCP tools, and all neo4j-rhacm MCP tools (read-only Cypher queries). Remediation commands (<code>oc patch</code>, <code>oc scale</code>, <code>oc rollout restart</code>, etc.) are NOT auto-approved &mdash; Claude Code prompts the user for permission on each one, providing a second safety layer on top of the CLAUDE.md Remediation Protocol.</div>
+        <div class="value">Auto-approves read-only <code>oc</code> commands for diagnosis (<code>oc get</code>, <code>oc describe</code>, <code>oc logs</code>, etc.), text processing tools, file reads, <code>knowledge/learned/*</code> writes, all acm-ui MCP tools, all neo4j-rhacm MCP tools (read-only Cypher queries), and all acm-search MCP tools (read-only search database queries). Remediation commands (<code>oc patch</code>, <code>oc scale</code>, <code>oc rollout restart</code>, etc.) are NOT auto-approved &mdash; Claude Code prompts the user for permission on each one, providing a second safety layer on top of the CLAUDE.md Remediation Protocol.</div>
         <div class="label">CLI Wrapper (<code>acm-hub</code>):</div>
         <div class="value">Optional shell script that invokes Claude Code with the correct project directory. Enables running diagnostics from any terminal without <code>cd</code>-ing into the app directory. Supports print mode (default) and interactive mode (<code>-i</code>).</div>
         <div class="label">No Custom Runtime:</div>
@@ -439,7 +439,7 @@ Targeted  <span class="green">YES</span>  <span class="green">YES</span>  <span 
         <div class="label">Layer 2: Structured YAML (6 files)</div>
         <div class="value">Quantitative baselines: <code>healthy-baseline.yaml</code>, <code>dependency-chains.yaml</code>, <code>webhook-registry.yaml</code>, <code>certificate-inventory.yaml</code>, <code>addon-catalog.yaml</code>, <code>version-constraints.yaml</code></div>
         <div class="label">Layer 3: Diagnostics (5 files)</div>
-        <div class="value">Methodology: <code>diagnostic-layers.md</code> (12-layer framework), <code>dependency-chains.md</code> (8 cascade paths), <code>common-diagnostic-traps.md</code> (13 diagnostic traps), <code>evidence-tiers.md</code> (Tier 1/2/3 rules), <code>diagnostic-playbooks.md</code> (14 per-subsystem procedures)</div>
+        <div class="value">Methodology: <code>diagnostic-layers.md</code> (12-layer framework), <code>dependency-chains.md</code> (11 cascade paths), <code>common-diagnostic-traps.md</code> (13 diagnostic traps), <code>evidence-tiers.md</code> (Tier 1/2/3 rules), <code>diagnostic-playbooks.md</code> (14 per-subsystem procedures)</div>
         <div class="label">Layer 4: Cross-Cutting (2 files)</div>
         <div class="value"><code>component-registry.md</code> (master inventory), <code>failure-patterns.md</code> (symptom-to-root-cause correlations)</div>
         <div class="label">Layer 5: Learned (grows over time)</div>
@@ -464,7 +464,7 @@ Targeted  <span class="green">YES</span>  <span class="green">YES</span>  <span 
         <div class="value">The MCP server supports version-scoped searches. The agent sets the version context from <code>oc get mch</code> before searching, ensuring results match the code running on the cluster.</div>
         <div class="separator"></div>
         <h4>Neo4j RHACM Knowledge Graph (2 Tools)</h4>
-        <div class="value">Read-only Cypher query access to a Neo4j graph database with 370 ACM components and 541 dependency relationships. Fallback for dependency analysis when the 8 curated chains don&rsquo;t cover the component.</div>
+        <div class="value">Read-only Cypher query access to a Neo4j graph database with 370 ACM components and 541 dependency relationships. Fallback for dependency analysis when the 11 curated chains don&rsquo;t cover the component.</div>
         <div class="label">Key Queries:</div>
 <pre class="data-block"><span class="cmd">Direct dependencies</span>     What does component X depend on?
 <span class="cmd">Transitive dependents</span>   What breaks if X fails? (up to 3 hops)
@@ -474,6 +474,19 @@ Targeted  <span class="green">YES</span>  <span class="green">YES</span>  <span 
         <div class="value">Phase 5 (Correlate) when curated chains don&rsquo;t cover the affected component. Self-healing when an unknown component is encountered. Skipped silently if the Neo4j container is not running.</div>
         <div class="label">Setup:</div>
 <pre class="data-block"><span class="cmd">bash mcp/setup.sh</span>  <span class="dim"># creates Neo4j container, loads graph</span></pre>
+        <div class="separator"></div>
+        <h4>ACM Search Database MCP (5 Tools)</h4>
+        <div class="value">Fleet-wide resource queries across all managed clusters via the search-postgres database. Runs as a pod on the ACM hub cluster, accessed via SSE over an OpenShift route. <code>mcp-remote</code> bridges stdio to SSE. Provides spoke-side visibility into pods, deployments, and addons running on managed clusters &mdash; resources that <code>oc</code> commands (hub-only) cannot see.</div>
+        <div class="label">Key Tools:</div>
+<pre class="data-block"><span class="cmd">find_resources</span>       Cross-cluster resource search
+<span class="cmd">get_database_stats</span>   Search database health check
+<span class="cmd">query_database</span>       Raw SQL for complex queries
+<span class="cmd">list_tables</span>          Search schema discovery
+<span class="cmd">search_tables</span>        Find tables by keyword</pre>
+        <div class="label">When Used:</div>
+        <div class="value">Phase 3 Layer 10 (spoke-side addon and pod verification), Phase 5 (spoke-side chain verification across managed clusters), Phase 6 (spoke-side triage on specific clusters). Requires search-postgres to be healthy (checked at Layer 9 first).</div>
+        <div class="label">Setup:</div>
+<pre class="data-block"><span class="cmd">bash setup.sh</span>  <span class="dim"># deploys on-cluster, extracts route + token, configures mcp-remote</span></pre>
         <div class="separator"></div>
         <h4>Official ACM Documentation (Optional)</h4>
         <div class="value">If <code>docs/rhacm-docs/</code> is cloned, the agent searches it during self-healing: <code>grep -r "keyword" docs/rhacm-docs/ --include="*.adoc" -l</code></div>
@@ -630,7 +643,7 @@ Targeted  <span class="green">YES</span>  <span class="green">YES</span>  <span 
         <div class="separator"></div>
         <div class="label">What it adds over Standard:</div>
 <pre class="data-block"><span class="key">Phase 5: Correlate</span>
-  Horizontal: trace 8 dependency chains
+  Horizontal: trace 11 dependency chains
   Vertical: trace 12 infrastructure layers
     &mdash; find LOWEST affected layer across findings
   Weight evidence (Tier 1/2/3)
@@ -798,7 +811,7 @@ Rapid entries for same resource       Reconciliation hot-loop</pre>
         <div class="label">Version-Aware Matching:</div>
         <div class="value">A bug in ACM 2.15.0 may be fixed in 2.15.1. The agent checks whether the cluster's exact version falls within the affected range before reporting a match.</div>
         <div class="label">Known Issue Coverage:</div>
-        <div class="value">400+ documented bugs across all subsystems. Governance: 100 bugs, Console: 100 bugs, Observability: 101 bugs, Cluster Lifecycle: 233 bugs.</div>
+        <div class="value">~150 documented known-issue patterns across 12 subsystems. Networking: 15, Console: 14, Cluster Lifecycle: 13, Observability: 13, RBAC: 12, Governance: 11, Infrastructure: 11, Virtualization: 11, and others.</div>
       </div>
     `
   },
@@ -811,7 +824,7 @@ Rapid entries for same resource       Reconciliation hot-loop</pre>
         <div class="separator"></div>
         <div class="label">Process:</div>
 <pre class="data-block"><span class="key">1.</span> <span class="str">HORIZONTAL</span>: Read dependency-chains.md
-   Trace upstream through 8 curated chains (see Diagram 6)
+   Trace upstream through 11 curated chains (see Diagram 6)
 
 <span class="key">2.</span> <span class="str">VERTICAL</span>: Trace through 12 diagnostic layers
    Identify the LOWEST affected layer across findings.
@@ -924,8 +937,8 @@ Rapid entries for same resource       Reconciliation hot-loop</pre>
         <div class="separator"></div>
         <div class="label">diagnostic-layers.md (12 layers):</div>
         <div class="value">12-layer investigation framework for systematic root cause tracing. Each layer is a failure domain (Compute &rarr; Control Plane &rarr; Network &rarr; Storage &rarr; Config &rarr; Auth &rarr; RBAC &rarr; API &rarr; Operator &rarr; Cross-Cluster &rarr; Data Flow &rarr; UI). Used in Phase 3 (layer-organized checking), Phase 5 (vertical tracing), Phase 6 (fallback). Includes layer-to-trap mapping table.</div>
-        <div class="label">dependency-chains.md (8 chains):</div>
-        <div class="value">Narrative tracing procedures for each dependency chain. For each chain: architecture diagram, impact statement, tracing procedure with specific <code>oc</code> commands. Each chain annotated with "Layers spanned" for vertical cross-reference.</div>
+        <div class="label">dependency-chains.md (11 chains):</div>
+        <div class="value">Narrative tracing procedures for each dependency chain. For each chain: architecture diagram, impact statement, tracing procedure with specific <code>oc</code> commands. Each chain annotated with "Layers spanned" for vertical cross-reference. Covers 8 core chains plus app-lifecycle-subscription, virtualization-vm-discovery, and submariner-networking.</div>
         <div class="label">common-diagnostic-traps.md (13 traps):</div>
         <div class="value">Patterns where the obvious diagnosis is wrong. Each trap: what you see, what you might conclude, what's actually happening, how to detect, and the rule. Loaded in Phase 2, verified in Phase 5.</div>
         <div class="label">evidence-tiers.md:</div>
@@ -958,15 +971,15 @@ Rapid entries for same resource       Reconciliation hot-loop</pre>
         <div class="value">Machine-readable reference data for comparing cluster state against known-good values.</div>
         <div class="separator"></div>
         <div class="label">healthy-baseline.yaml:</div>
-        <div class="value">Expected pod counts per namespace (30-40 MCH, 30-35 MCE), critical deployments with minimum replicas, node thresholds, managed cluster conditions, addon expectations.</div>
+        <div class="value">Expected pod counts per namespace (30-40 MCH, 30-40 MCE), critical deployments with minimum replicas, node thresholds, managed cluster conditions, addon expectations.</div>
         <div class="label">dependency-chains.yaml:</div>
-        <div class="value">Same 8 chains as the markdown file, in structured YAML for programmatic lookups. Includes impact descriptions and cross-chain symptom patterns.</div>
+        <div class="value">Same 11 chains as the markdown file, in structured YAML for programmatic lookups. Includes impact descriptions and cross-chain symptom patterns.</div>
         <div class="label">webhook-registry.yaml:</div>
-        <div class="value">21 webhook entries with owner, failure policy, critical operations, impact when broken, and check commands.</div>
+        <div class="value">25 webhook entries with owner, failure policy, critical operations, impact when broken, and check commands.</div>
         <div class="label">certificate-inventory.yaml:</div>
         <div class="value">TLS secrets per namespace, what component uses each, who manages rotation (service-ca vs manual), impact when corrupted, openssl check commands.</div>
         <div class="label">addon-catalog.yaml:</div>
-        <div class="value">13+ addons with default enabled state, subsystem classification, spoke namespaces, healthy conditions, dependencies, and known issues.</div>
+        <div class="value">16 addons with default enabled state, subsystem classification, spoke namespaces, healthy conditions, dependencies, and known issues.</div>
         <div class="label">version-constraints.yaml:</div>
         <div class="value">Known product version incompatibilities that affect hub health. Cross-referenced during Phase 4 for version-aware matching (e.g., AAP 2.5+ with ACM &le;2.13, Submariner with OCP 4.18+, ClusterCurator with OCP 4.21+).</div>
         <div class="separator"></div>
@@ -1452,11 +1465,11 @@ Description of observed cluster state
     title: 'Dynamic Dependency Discovery',
     html: `
       <div class="detail-section">
-        <h4>Beyond the 8 Curated Chains</h4>
-        <div class="value">The 8 curated chains cover core ACM subsystems and have the richest context: impact descriptions, tracing procedures, JIRA references. But real clusters have far more dependency paths &mdash; third-party operators (AAP, ACS, Compliance Operator, Quay), custom integrations, and cross-operator relationships not modeled in the static knowledge.</div>
+        <h4>Beyond the 11 Curated Chains</h4>
+        <div class="value">The 11 curated chains cover core ACM subsystems and have the richest context: impact descriptions, tracing procedures, JIRA references. But real clusters have far more dependency paths &mdash; third-party operators (AAP, ACS, Compliance Operator, Quay), custom integrations, and cross-operator relationships not modeled in the static knowledge.</div>
         <div class="separator"></div>
         <div class="label">Phase 5 uses three layers, in order:</div>
-<pre class="data-block"><span class="key">Layer 1: Curated chains</span> (these 8)
+<pre class="data-block"><span class="key">Layer 1: Curated chains</span> (11 total, 8 core shown)
   Highest quality: hand-written impact analysis,
   investigation procedures, JIRA references
   Coverage: core ACM subsystems only
@@ -1473,7 +1486,7 @@ Description of observed cluster state
   Coverage: ACM components (broader than curated)
   Requires Neo4j container</pre>
         <div class="label">Example: AAP failing on the cluster</div>
-        <div class="value">The 8 curated chains don't cover AAP. Cluster introspection discovers: AAP is managed by <code>aap-operator</code>, depends on <code>monitoring.coreos.com</code> (Prometheus) and <code>route.openshift.io</code> (routes), has no webhooks or console plugins, and is NOT in the MCH/MCE component maps. Conclusion: independent operator, no ACM impact.</div>
+        <div class="value">The 11 curated chains don't cover AAP. Cluster introspection discovers: AAP is managed by <code>aap-operator</code>, depends on <code>monitoring.coreos.com</code> (Prometheus) and <code>route.openshift.io</code> (routes), has no webhooks or console plugins, and is NOT in the MCH/MCE component maps. Conclusion: independent operator, no ACM impact.</div>
         <div class="label">Example: MTV (Forklift) with console tab broken</div>
         <div class="value">Cluster introspection discovers: MTV has a ConsolePlugin (<code>forklift-console-plugin</code>) with 3 proxy backends, and a hub-side integration controller delivered via ManifestWork. The dependency chain: Console &rarr; forklift-console-plugin &rarr; forklift-inventory + forklift-services. This chain doesn't exist in the curated 8 but is discoverable from live metadata.</div>
       </div>
@@ -1623,7 +1636,8 @@ Available. ACM 2.17.0 on OCP 4.21.5.</pre>
 <span class="cmd">awk</span>, <span class="cmd">cut</span>, <span class="cmd">cat</span>, <span class="cmd">ls</span>, <span class="cmd">find</span>
 <span class="cmd">git clone</span> (documentation repos only)
 <span class="cmd">acm-ui MCP</span>     All 20 tools (source code search)
-<span class="cmd">neo4j-rhacm MCP</span> Read-only Cypher queries (KG)</pre>
+<span class="cmd">neo4j-rhacm MCP</span> Read-only Cypher queries (KG)
+<span class="cmd">acm-search MCP</span>  All 5 tools (fleet resource queries)</pre>
         <div class="label">Key Rule:</div>
         <div class="value">No mutation commands during diagnosis. The full picture must be clear before any remediation is considered.</div>
         <div class="label">Note on <code>oc exec</code>:</div>

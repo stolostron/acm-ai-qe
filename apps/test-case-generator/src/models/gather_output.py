@@ -23,6 +23,7 @@ class PRData(BaseModel):
 class GatherOptions(BaseModel):
     """Pipeline options from CLI arguments."""
     skip_live: bool = False
+    cluster_url: Optional[str] = None
     repo: str = "stolostron/console"
 
 

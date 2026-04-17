@@ -62,17 +62,21 @@ class TestPlaybookNamespacesMatchMap:
 
     def test_playbook_namespaces_match_map(self, all_playbook_profiles):
         mismatches = []
+        # Resolve {mch_ns} template to default namespace for comparison
+        default_ns = 'open-cluster-management'
         for profile_name, profile in all_playbook_profiles.items():
             arch = profile.get("architecture", {})
             for comp in arch.get("key_components", []):
                 comp_name = comp.get("name", "")
                 playbook_ns = comp.get("namespace", "")
+                # Resolve template variables for comparison
+                resolved_ns = playbook_ns.replace("{mch_ns}", default_ns)
                 if comp_name in COMPONENT_NAMESPACE_MAP:
                     map_ns, _ = COMPONENT_NAMESPACE_MAP[comp_name]
-                    if playbook_ns and map_ns != playbook_ns:
+                    if resolved_ns and map_ns != resolved_ns:
                         mismatches.append(
                             f"{profile_name}/{comp_name}: "
-                            f"playbook={playbook_ns} vs map={map_ns}"
+                            f"playbook={resolved_ns} vs map={map_ns}"
                         )
 
         assert not mismatches, (

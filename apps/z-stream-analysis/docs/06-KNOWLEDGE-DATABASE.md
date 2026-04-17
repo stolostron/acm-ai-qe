@@ -297,7 +297,7 @@ When a test fails because an element is not found, the agent checks:
 
 ## api-endpoints.yaml
 
-Backend API endpoints probed during Stage 1 (gather.py Step 4c). Provides the AI agent with context about what each probe validates and what anomalies mean.
+Reference data for ACM console backend API endpoints. Used by the Stage 2 analysis agent as context when investigating backend-related failures. Backend health is investigated by Stage 1.5 (cluster-diagnostic agent) and Stage 2 (analysis agent with live cluster access).
 
 ### Structure
 
@@ -538,7 +538,7 @@ The AI agent reads `knowledge/` files at the start of analysis:
 3. `components.yaml` — component health context during investigation
 4. `dependencies.yaml` — cascade failure tracing during root cause analysis
 5. `selectors.yaml` — ground truth comparison for selector mismatches
-6. `api-endpoints.yaml` — understanding backend probe results
+6. `api-endpoints.yaml` — backend API endpoint reference for investigation
 7. `feature-areas.yaml` — cross-referencing feature area mappings
 8. `test-mapping.yaml` — scoping investigation to relevant areas
 

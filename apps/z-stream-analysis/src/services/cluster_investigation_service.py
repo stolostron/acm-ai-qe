@@ -74,80 +74,96 @@ class ClusterLandscape:
     mch_version: Optional[str] = None
 
 
-# Component-to-namespace mapping for targeted investigation
-COMPONENT_NAMESPACE_MAP = {
-    # Governance
-    'grc-policy-propagator': ('open-cluster-management', 'deployment'),
-    'config-policy-controller': ('open-cluster-management', 'deployment'),
-    'governance-policy-framework': ('open-cluster-management', 'deployment'),
-    'policy-propagator': ('open-cluster-management', 'deployment'),
-    'iam-policy-controller': ('open-cluster-management', 'deployment'),
-    'cert-policy-controller': ('open-cluster-management', 'deployment'),
-    # Search
-    'search-api': ('open-cluster-management', 'deployment'),
-    'search-collector': ('open-cluster-management', 'deployment'),
-    'search-indexer': ('open-cluster-management', 'deployment'),
-    'search-aggregator': ('open-cluster-management', 'deployment'),
-    'search-operator': ('open-cluster-management', 'deployment'),
-    'search-redisgraph': ('open-cluster-management', 'statefulset'),
-    # Cluster Management
-    'cluster-curator': ('open-cluster-management', 'deployment'),
-    'cluster-curator-controller': ('open-cluster-management', 'deployment'),
-    'managedcluster-import-controller': ('open-cluster-management', 'deployment'),
-    'cluster-manager': ('open-cluster-management', 'deployment'),
-    'registration-controller': ('open-cluster-management-hub', 'deployment'),
-    'registration-operator': ('open-cluster-management', 'deployment'),
-    'placement-controller': ('open-cluster-management-hub', 'deployment'),
-    'work-manager': ('open-cluster-management-hub', 'deployment'),
-    # Provisioning
-    'hive': ('hive', 'deployment'),
-    'hive-operator': ('hive', 'deployment'),
-    'hive-controllers': ('hive', 'deployment'),
-    'hypershift-operator': ('hypershift', 'deployment'),
-    'assisted-service': ('assisted-installer', 'deployment'),
-    'infrastructure-operator': ('open-cluster-management', 'deployment'),
-    # Observability
-    'observability-operator': ('open-cluster-management', 'deployment'),
-    'multicluster-observability-operator': ('open-cluster-management', 'deployment'),
-    'thanos-query': ('open-cluster-management-observability', 'statefulset'),
-    'thanos-receive': ('open-cluster-management-observability', 'statefulset'),
-    'thanos-store': ('open-cluster-management-observability', 'statefulset'),
-    'grafana': ('open-cluster-management-observability', 'deployment'),
-    'alertmanager': ('open-cluster-management-observability', 'statefulset'),
-    # Application
-    'application-manager': ('open-cluster-management', 'deployment'),
-    'subscription-controller': ('open-cluster-management', 'deployment'),
-    'multicluster-operators-subscription': ('open-cluster-management', 'deployment'),
-    'channel-controller': ('open-cluster-management', 'deployment'),
-    # Console
-    'console-api': ('open-cluster-management', 'deployment'),
-    'acm-console': ('open-cluster-management', 'deployment'),
-    'mce-console': ('multicluster-engine', 'deployment'),
-    # Virtualization
-    'kubevirt-operator': ('openshift-cnv', 'deployment'),
-    'virt-api': ('openshift-cnv', 'deployment'),
-    'virt-controller': ('openshift-cnv', 'deployment'),
-    'virt-handler': ('openshift-cnv', 'daemonset'),
-    'hyperconverged-cluster-operator': ('openshift-cnv', 'deployment'),
-    'cdi-operator': ('openshift-cnv', 'deployment'),
-    'cdi-apiserver': ('openshift-cnv', 'deployment'),
-    # Cross-Cluster Migration (MTV + Submariner)
-    'forklift-controller': ('openshift-mtv', 'deployment'),
-    'submariner-gateway': ('submariner-operator', 'daemonset'),
-    # Automation (AAP)
-    'aap-controller': ('aap', 'deployment'),
-    # Foundation
-    'work-agent': ('open-cluster-management-agent', 'deployment'),
-    'cluster-proxy': ('open-cluster-management', 'deployment'),
-    'managed-serviceaccount': ('open-cluster-management', 'deployment'),
-    # Infrastructure
-    'klusterlet': ('open-cluster-management-agent', 'deployment'),
-    'klusterlet-agent': ('open-cluster-management-agent', 'deployment'),
-    'multicluster-engine': ('multicluster-engine', 'deployment'),
-    'multicluster-hub': ('open-cluster-management', 'deployment'),
-    'foundation-controller': ('open-cluster-management', 'deployment'),
-    'addon-manager': ('open-cluster-management', 'deployment'),
-}
+def build_component_namespace_map(mch_ns: str = 'open-cluster-management') -> Dict[str, tuple]:
+    """
+    Build component-to-namespace mapping for targeted investigation.
+
+    The MCH namespace varies by installation (open-cluster-management, ocm, custom).
+    Derived namespaces follow the pattern: {mch_ns}-hub, {mch_ns}-observability, etc.
+
+    Args:
+        mch_ns: The discovered MCH namespace.
+
+    Returns:
+        Dict mapping component name to (namespace, resource_type) tuple.
+    """
+    return {
+        # Governance
+        'grc-policy-propagator': (mch_ns, 'deployment'),
+        'config-policy-controller': (mch_ns, 'deployment'),
+        'governance-policy-framework': (mch_ns, 'deployment'),
+        'policy-propagator': (mch_ns, 'deployment'),
+        'iam-policy-controller': (mch_ns, 'deployment'),
+        'cert-policy-controller': (mch_ns, 'deployment'),
+        # Search
+        'search-api': (mch_ns, 'deployment'),
+        'search-collector': (mch_ns, 'deployment'),
+        'search-indexer': (mch_ns, 'deployment'),
+        'search-aggregator': (mch_ns, 'deployment'),
+        'search-operator': (mch_ns, 'deployment'),
+        'search-postgres': (mch_ns, 'deployment'),
+        # Cluster Management
+        'cluster-curator': (mch_ns, 'deployment'),
+        'cluster-curator-controller': (mch_ns, 'deployment'),
+        'managedcluster-import-controller': (mch_ns, 'deployment'),
+        'cluster-manager': (mch_ns, 'deployment'),
+        'registration-controller': (f'{mch_ns}-hub', 'deployment'),
+        'registration-operator': (mch_ns, 'deployment'),
+        'placement-controller': (f'{mch_ns}-hub', 'deployment'),
+        'work-manager': (f'{mch_ns}-hub', 'deployment'),
+        # Provisioning (fixed namespaces — not derived from MCH)
+        'hive': ('hive', 'deployment'),
+        'hive-operator': ('hive', 'deployment'),
+        'hive-controllers': ('hive', 'deployment'),
+        'hypershift-operator': ('hypershift', 'deployment'),
+        'assisted-service': ('assisted-installer', 'deployment'),
+        'infrastructure-operator': (mch_ns, 'deployment'),
+        # Observability
+        'observability-operator': (mch_ns, 'deployment'),
+        'multicluster-observability-operator': (mch_ns, 'deployment'),
+        'thanos-query': (f'{mch_ns}-observability', 'statefulset'),
+        'thanos-receive': (f'{mch_ns}-observability', 'statefulset'),
+        'thanos-store': (f'{mch_ns}-observability', 'statefulset'),
+        'grafana': (f'{mch_ns}-observability', 'deployment'),
+        'alertmanager': (f'{mch_ns}-observability', 'statefulset'),
+        # Application
+        'application-manager': (mch_ns, 'deployment'),
+        'subscription-controller': (mch_ns, 'deployment'),
+        'multicluster-operators-subscription': (mch_ns, 'deployment'),
+        'channel-controller': (mch_ns, 'deployment'),
+        # Console
+        'console-api': (mch_ns, 'deployment'),
+        'acm-console': (mch_ns, 'deployment'),
+        'mce-console': ('multicluster-engine', 'deployment'),
+        # Virtualization (fixed namespaces)
+        'kubevirt-operator': ('openshift-cnv', 'deployment'),
+        'virt-api': ('openshift-cnv', 'deployment'),
+        'virt-controller': ('openshift-cnv', 'deployment'),
+        'virt-handler': ('openshift-cnv', 'daemonset'),
+        'hyperconverged-cluster-operator': ('openshift-cnv', 'deployment'),
+        'cdi-operator': ('openshift-cnv', 'deployment'),
+        'cdi-apiserver': ('openshift-cnv', 'deployment'),
+        # Cross-Cluster Migration (fixed namespaces)
+        'forklift-controller': ('openshift-mtv', 'deployment'),
+        'submariner-gateway': ('submariner-operator', 'daemonset'),
+        # Automation (fixed namespace)
+        'aap-controller': ('aap', 'deployment'),
+        # Foundation
+        'work-agent': (f'{mch_ns}-agent', 'deployment'),
+        'cluster-proxy': (mch_ns, 'deployment'),
+        'managed-serviceaccount': (mch_ns, 'deployment'),
+        # Infrastructure
+        'klusterlet': (f'{mch_ns}-agent', 'deployment'),
+        'klusterlet-agent': (f'{mch_ns}-agent', 'deployment'),
+        'multicluster-engine': ('multicluster-engine', 'deployment'),
+        'multicluster-hub': (mch_ns, 'deployment'),
+        'foundation-controller': (mch_ns, 'deployment'),
+        'addon-manager': (mch_ns, 'deployment'),
+    }
+
+
+# Default map for backward compatibility (used when no MCH namespace is provided)
+COMPONENT_NAMESPACE_MAP = build_component_namespace_map()
 
 # Subsystem-to-components mapping for batch diagnostics
 SUBSYSTEM_COMPONENTS = {
@@ -234,6 +250,19 @@ class ClusterInvestigationService:
         self.logger = logging.getLogger(__name__)
         self.kubeconfig = kubeconfig_path
         self.cli = cli
+        self._mch_namespace: str = 'open-cluster-management'
+        self._component_map = COMPONENT_NAMESPACE_MAP
+
+    @property
+    def mch_namespace(self) -> str:
+        return self._mch_namespace
+
+    @mch_namespace.setter
+    def mch_namespace(self, value: str):
+        """Set MCH namespace and rebuild component map with correct namespaces."""
+        self._mch_namespace = value
+        self._component_map = build_component_namespace_map(value)
+        self.logger.info(f"Component namespace map rebuilt for MCH namespace: {value}")
 
     def _build_command(self, args: List[str]) -> List[str]:
         cmd = [self.cli]
@@ -380,13 +409,13 @@ class ClusterInvestigationService:
         kind = 'deployment'
         component_lower = component_name.lower()
 
-        if component_lower in COMPONENT_NAMESPACE_MAP:
-            mapped_ns, mapped_kind = COMPONENT_NAMESPACE_MAP[component_lower]
+        if component_lower in self._component_map:
+            mapped_ns, mapped_kind = self._component_map[component_lower]
             if not ns:
                 ns = mapped_ns
             kind = mapped_kind
         elif not ns:
-            ns = 'open-cluster-management'
+            ns = self._mch_namespace
 
         # Determine subsystem
         subsystem = 'Unknown'

@@ -217,6 +217,8 @@ Based on root cause layer + WHO/WHY:
 
 - **ACM-UI:** search_code, search_component, get_component_source, get_routes
 - **Neo4j RHACM:** read_neo4j_cypher (component dependencies)
+- **ACM Search:** find_resources, query_database, list_tables (live cluster resource queries across all managed clusters -- use to verify pods, deployments, policies exist and are healthy)
+- **ACM Kubectl:** clusters, kubectl, connect_cluster (list managed clusters, run kubectl on hub or spoke, generate kubeconfig for managed clusters)
 - **JIRA:** search_issues, get_issue (known bugs)
 - **Polarion:** get_work_item (test case context)
 
@@ -272,7 +274,7 @@ single result with `affected_tests` listing all test names.
 
 - Minimum 2 evidence sources per classification
 - Tier 1 (definitive, weight 1.0): oc command output, MCP search result,
-  cluster-diagnosis.json finding, backend probe data
+  cluster-diagnosis.json finding, console_search verification
 - Tier 2 (strong, weight 0.5): KG dependency analysis, JIRA correlation,
   knowledge DB pattern match
 - Combined weight must be >= 1.8 for high confidence (0.85+)

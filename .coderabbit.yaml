@@ -1,0 +1,1071 @@
+language: "en-US"
+tone_instructions: "Be direct and technical. Focus on correctness, dead code, and consistency. Skip stylistic nitpicks."
+
+reviews:
+  profile: "assertive"
+  high_level_summary: true
+  poem: false
+  sequence_diagrams: false
+  estimate_code_review_effort: false
+
+  path_filters:
+    # Review these
+    - "apps/*/src/**"
+    - "apps/*/.claude/**"
+    - "apps/*/tests/**"
+    - "mcp/**/*.py"
+    # Skip these
+    - "!apps/*/runs/**"
+    - "!apps/*/knowledge/**/*.yaml"
+    - "!apps/*/knowledge/**/*.md"
+    - "!apps/*/docs/**"
+    - "!mcp/.external/**"
+
+  path_instructions:
+    - path: "apps/z-stream-analysis/**"
+      instructions: |
+        Z-Stream Analysis is a multi-stage pipeline for classifying Jenkins
+        pipeline test failures as PRODUCT_BUG, AUTOMATION_BUG, INFRASTRUCTURE,
+        or NO_BUG (plus edge cases: MIXED, UNKNOWN, FLAKY).
+
+        === PIPELINE STAGES AND DATA FLOW ===
+
+        Stage 1 (gather.py) → core-data.json + cluster.kubeconfig + repos/
+          Deterministic Python script. No AI. Runs 9 steps:
+          Step 1: Jenkins API (build metadata, params, branch, SHA)
+          Step 2: Console log download + error pattern extraction
+          Step 3: JUnit/XML test report parsing + stack trace parsing
+          Step 4a: Cluster login + kubeconfig persistence + MCH namespace discovery
+            (namespace can be open-cluster-management, ocm, or custom — discovered via oc get mch -A)
+          Step 4b: Cluster landscape (managed clusters, operators, resource pressure)
+          Backend health: handled by Stage 1.5 (cluster diagnostic) and Stage 2 (analysis agent)
+          Step 5: Feature context oracle (Polarion, KG topology)
+          Step 6: Repo cloning (automation, console, kubevirt-plugin — dynamic)
+          Step 7: Test context extraction (test file, selector changes, assertions)
+          Step 8: Feature area grounding (map tests to subsystems)
+          Step 9: Feature knowledge (playbooks, KG dependencies)
+
+        Data-collector agent (after gather.py, before Stage 2):
+          AI agent that enriches core-data.json with fields requiring intelligence:
+          - Task 1: Populates page_objects by tracing imports in repos/automation/
+          - Task 2: Populates console_search by verifying selectors via MCP tools
+          - Task 3: Populates recent_selector_changes with git history analysis,
+            intent assessment, and classification hints
+          gather.py initializes page_objects as [], console_search as null,
+          and recent_selector_changes as null.
+
+        Stage 1.5 (cluster-diagnostic agent) → cluster-diagnosis.json
+          AI agent, 6 phases: DISCOVER → LEARN → CHECK → PATTERN MATCH → CORRELATE → OUTPUT
+          Investigates cluster health via oc commands (read-only).
+          Produces structured output with 23 data sections:
+          - environment_health_score (float 0.0-1.0)
+          - overall_verdict (HEALTHY | DEGRADED | CRITICAL)
+          - subsystem_health (per-subsystem status, root cause, evidence, health_depth)
+          - operator_health (per-operator replicas, status, critical flag)
+          - image_integrity (console image vs expected registries)
+          - infrastructure_issues (node pressure, NetworkPolicy, ResourceQuota, certs, tampered image)
+          - classification_guidance (pre_classified_infrastructure, confirmed_healthy)
+          - counter_signals (potential false INFRASTRUCTURE, context notes)
+          - dependency_chains_verified (each chain healthy or broken)
+          - baseline_comparison (missing/under-replicated vs healthy-baseline.yaml)
+          - addon_health, webhook_status, managed_cluster_detail
+          - component_log_excerpts, component_restart_counts
+          Uses 14 diagnostic traps (11 standard + 3 counter-traps) from
+            knowledge/diagnostics/diagnostic-traps.md. Layer-aware Phase 3
+            checks foundational layers (network, storage, certs) BEFORE pod
+            health. Self-healing writes to knowledge/learned/ on 5 triggers.
+
+        Stage 2 (analysis agent) → analysis-results.json
+          AI agent, 5 phases: A (Assessment) → B (Investigation) → C (Validation) →
+          D (Classification) → E (JIRA Correlation)
+          Uses 12-layer diagnostic model: Compute → Control Plane → Network →
+          Storage → Config → Auth → RBAC → API → Operator → Cross-Cluster →
+          Data Flow → UI
+          Phase A4: Provably linked grouping (strict criteria only — same
+          selector+function, same before-all hook, same spec+error+line)
+          Phase B: Per-group investigation agents, per-test 4-point verification
+          Phase D: PR-1 through PR-7 pre-routing, D-V5 counterfactual (9 templates),
+          symmetric D-V5c (AUTOMATION_BUG) and D-V5e (PRODUCT_BUG)
+          Uses 5 MCP servers: ACM-UI (20 tools), Jenkins (11), JIRA (25),
+          Polarion (25), Neo4j RHACM (2)
+
+        Stage 3 (report.py) → Detailed-Analysis.md + analysis-report.html +
+          per-test-breakdown.json + SUMMARY.txt
+          Deterministic Python script. Validates analysis-results.json against
+          src/schemas/analysis_results_schema.json before generating reports.
+
+        === DATA CONTRACTS ===
+
+        core-data.json top-level keys (all 13 must always be present):
+          metadata, jenkins, test_report, console_log, environment,
+          cluster_health, repositories,
+          cluster_landscape, feature_grounding, feature_knowledge,
+          cluster_access, cluster_oracle, errors
+          (ai_instructions, investigation_hints, and backend_probes were removed)
+
+        Each failed test entry (test_report.failed_tests[]) must have these
+        10 top-level keys (ALL must be present for EVERY test):
+          test_name, class_name, status, duration_seconds, error_message,
+          stack_trace, failure_type, parsed_stack_trace, detected_components,
+          extracted_context
+
+        parsed_stack_trace keys (always present, values may be null):
+          root_cause_file, root_cause_line, test_file, test_line,
+          failing_selector, error_type, frames_count, user_code_frames
+
+        extracted_context keys (ALL 7 must be present for EVERY test,
+        even if null or empty):
+          test_file (dict or null)
+          page_objects (array, populated by data-collector agent)
+          console_search (dict or null, populated by data-collector agent)
+          recent_selector_changes (dict or null, populated by data-collector agent with intent assessment)
+          assertion_analysis (dict or null)
+          failure_mode_category (string, always has a value)
+          temporal_summary (dict or null, populated by data-collector agent at selector level)
+
+        console_search structure when populated by data-collector:
+          selector: string
+          found: boolean
+          verification:
+            verified_by: "data-collector"
+            method: "mcp_literal_search" | "mcp_component_search" | "skipped"
+            result: "found" | "not_found" | "component_exists" | "invalid_selector"
+            detail: string (human-readable context for Stage 2)
+
+        page_objects structure when populated by data-collector:
+          path: string (relative to automation repo)
+          content: string (5 lines of context)
+          contains_failing_selector: boolean
+
+        detected_components structure (always an array, may be empty):
+          name: string (component name)
+          subsystem: string (mapped subsystem)
+          source: string (where detected: "stack_trace" | "error_message")
+          context: string (surrounding text)
+
+        analysis-results.json required top-level keys:
+          investigation_phases_completed (array of "A","B","C","D","E")
+          per_test_analysis (NOT "failed_tests")
+          summary.by_classification (NOT "classification_breakdown")
+
+        per_test_analysis required fields per test:
+          test_name, classification, confidence, evidence_sources (min 2 items)
+        per_test_analysis recommended fields:
+          ruled_out_alternatives, jira_correlation, reasoning,
+          root_cause_layer, root_cause_layer_name, cause_owner,
+          investigation_steps_taken, verification_status
+
+        cluster-diagnosis.json required top-level:
+          cluster_diagnosis.overall_verdict (HEALTHY | DEGRADED | CRITICAL)
+          cluster_diagnosis.environment_health_score (float 0.0-1.0)
+          cluster_diagnosis.cluster_connectivity (boolean)
+          cluster_diagnosis.critical_issue_count (integer)
+          cluster_diagnosis.warning_issue_count (integer)
+          cluster_diagnosis.image_integrity (console image validation)
+
+        === KEY CONVENTIONS ===
+
+        - gather.py must NEVER use AI or spawn agents. It is deterministic.
+        - page_objects and console_search are NOT populated by gather.py.
+          They are initialized as [] and null, populated by data-collector agent.
+        - failure_mode_category is computed by gather.py's _classify_failure_mode()
+          with console_search=None. It may be stale after data-collector runs.
+        - After removing any method or code block, verify all variables it
+          defined are still available to downstream code.
+        - Services in src/services/ are stateless utility classes. Each handles
+          one concern. console_search is populated by the data-collector agent
+          (not by gather.py).
+        - ClusterHealthService is deprecated (not called by gather.py, kept for backward compat).
+        - MCH namespace is discovered dynamically via oc get mch -A in Step 4a.
+          NEVER hardcode 'open-cluster-management' in oc commands. Use
+          self.mch_namespace (gather.py), self._mch_namespace
+          (ClusterInvestigationService), or FeatureAreaService.set_mch_namespace().
+          Derived namespaces: {mch_ns}-hub, {mch_ns}-observability, {mch_ns}-agent.
+          No references should exist anywhere.
+        - The analysis agent was renamed from z-stream-analysis to analysis.
+          File: .claude/agents/analysis.md. No references to the old name
+          should exist except in the app directory name itself.
+
+    - path: "apps/test-case-generator/**"
+      instructions: |
+        Test Case Generator produces Polarion-ready test cases for ACM Console
+        features from JIRA tickets. 6-phase subagent pipeline with 6 agents
+        and 7 MCP integrations.
+
+        === PIPELINE STAGES AND DATA FLOW ===
+
+        Stage 1 (gather.py) → gather-output.json + pr-diff.txt
+          Deterministic Python script. No AI. Uses gh CLI for PR discovery,
+          reads local conventions and area knowledge. Accepts --cluster-url
+          for live validation support.
+
+        Phase 1 (3 parallel agents) → text outputs (no fixed JSON schema)
+          feature-investigator: JIRA deep dive, linked tickets, Polarion coverage
+          code-change-analyzer: PR diff analysis, UI elements, Neo4j impact
+          ui-discovery: Selectors, translations, routes, wizard steps
+
+        Phase 2 (orchestrator synthesis) → SYNTHESIZED CONTEXT block
+          Merges 3 agent outputs + orchestrator TEST PLAN. Conflict resolution:
+          UI elements → trust ui-discovery, requirements → trust feature-investigator,
+          code changes → trust code-change-analyzer.
+
+        Phase 3 (live-validator agent, conditional) → LIVE VALIDATION RESULTS
+          Skipped if --skip-live or no --cluster-url. Uses Playwright, oc CLI,
+          acm-search, acm-kubectl. READ-ONLY — never modifies cluster.
+
+        Phase 4 (test-case-generator agent) → test-case.md + analysis-results.json
+          Receives synthesized context, writes convention-compliant test case.
+          Does NOT perform primary investigation — only spot-checks via MCP.
+
+        Phase 4.5 (quality-reviewer agent, MANDATORY GATE) → PASS or NEEDS_FIXES
+          Loop: launch reviewer → if NEEDS_FIXES, fix and re-launch → max 3 iterations.
+          Must PASS before Stage 3 runs.
+
+        Stage 3 (report.py) → review-results.json + HTML + SUMMARY.txt
+          Deterministic Python script. Reads gather-output.json for JIRA ID
+          and area. Validates test case via convention_validator.py. Generates
+          Polarion HTML.
+
+        === DATA CONTRACTS ===
+
+        gather-output.json (Pydantic: src/models/gather_output.py):
+          Required keys (all 11): jira_id, acm_version (optional str),
+          area (optional str), pr_data (optional), existing_test_cases (list),
+          conventions (str), area_knowledge (optional str), html_templates (str),
+          run_dir (str), timestamp (str), options
+          options keys: skip_live (bool), cluster_url (optional str), repo (str)
+          pr_data keys when present: number, title, repo, state, body, files,
+          additions, deletions, merged_at, diff_file
+
+        analysis-results.json (Pydantic: src/models/analysis_result.py):
+          Required keys (all 17): jira_id, jira_summary, acm_version, area,
+          pr_number (optional int), pr_repo, test_case_file, steps_count,
+          complexity ("low"|"medium"|"high"), routes_discovered (list),
+          translations_discovered (dict), selectors_discovered (list),
+          existing_polarion_coverage (list), live_validation_performed (bool),
+          self_review_verdict ("PASS"|"FAIL"), self_review_issues (list),
+          timestamp
+          Audit/debugging file — not consumed by downstream stages.
+
+        review-results.json (Pydantic: src/models/review_result.py):
+          Required keys (all 11): test_case_file, verdict ("PASS"|"FAIL"),
+          issues (list of ValidationIssue), metadata_complete, section_order_valid,
+          title_pattern_valid, entry_point_present, jira_coverage_present,
+          step_format_valid, teardown_present, total_steps
+          ValidationIssue: severity ("blocking"|"warning"|"suggestion"),
+          category, message, line (optional)
+
+        === CONVENTION VALIDATOR ===
+
+        convention_validator.py validates test case markdown. Checks:
+          Title: must match # RHACM4K-\w+ - \[...\] pattern
+          Area tag: validated against AREA_TAG_PATTERNS when area is provided
+          Metadata: 4 required fields (Polarion ID, Status, Created, Updated)
+          Polarion fields: all 10 must be present (Type through Release)
+          Section order: Description → Setup → Test Steps → Teardown
+          Per-step expected result: each ### Step N: must have Expected Result
+          Step separators: --- between consecutive steps
+          Numbered actions: each step should have 1., 2., etc.
+          CLI-in-steps: flags oc/kubectl in step actions as warning
+          Setup: must have bash code blocks with # Expected: comments
+          Teardown: delete commands must use --ignore-not-found
+          report.py passes area from gather-output.json to enable tag validation.
+
+        === KNOWLEDGE SYSTEM ===
+
+        knowledge/conventions/ (read-only, 4 files):
+          test-case-format.md, polarion-html-templates.md,
+          area-naming-patterns.md, cli-in-steps-rules.md
+        knowledge/architecture/ (read-only, 7 files):
+          governance, rbac, fleet-virt, clusters, search, applications, credentials
+        knowledge/examples/ (read-only, 1 file):
+          sample-test-case.md — fallback format reference when no peer test cases
+        knowledge/patterns/ (agent-written):
+          Area-specific learned patterns from successful runs
+        knowledge/diagnostics/ (read-only):
+          common-mistakes.md — frequent test case errors
+
+        === AGENTS (6) ===
+
+        feature-investigator.md: Phase 1 — JIRA MCP + Polarion MCP + Neo4j + gh CLI
+        code-change-analyzer.md: Phase 1 — gh CLI + acm-ui MCP + Neo4j
+        ui-discovery.md: Phase 1 — acm-ui MCP (all tools) + Neo4j
+        live-validator.md: Phase 3 — Playwright (24 tools) + oc CLI + acm-search + acm-kubectl
+        test-case-generator.md: Phase 4 — acm-ui MCP (spot-check only: 3 tools)
+        quality-reviewer.md: Phase 4.5 — acm-ui MCP + Polarion MCP
+
+        === KEY CONVENTIONS ===
+
+        - gather.py is deterministic — no AI, no agents, no MCP calls
+        - Phase 4 test-case-generator does NOT do primary investigation — only
+          spot-checks 1-2 elements via acm-ui MCP
+        - Phase 4.5 is a HARD STOP — test case must pass quality review before
+          Stage 3 can run
+        - Convention files in knowledge/conventions/ are authoritative and must
+          not be modified programmatically
+        - All UI labels, routes, and selectors must come from MCP discovery or
+          PR diff — never from memory
+        - Peer test case discovery: external workspace → runs/ → knowledge/examples/
+        - AREA_TAG_PATTERNS in convention_validator.py maps areas to title tag
+          regex patterns — dead code if area is not passed
+        - report.py extracts jira_id and area from gather-output.json, not from
+          directory names
+
+    - path: "apps/test-case-generator/src/scripts/gather.py"
+      instructions: |
+        Stage 1 data gathering. Deterministic, no AI.
+        CLI args: jira_id (positional), --version, --pr, --area, --skip-live,
+        --cluster-url, --repo (default: stolostron/console).
+        Steps: PR discovery (gh CLI) → PR metadata → PR diff → area detection
+        → peer test case discovery → conventions loading → area knowledge.
+        Writes gather-output.json + pr-diff.txt to runs/<JIRA>/<timestamp>/.
+
+    - path: "apps/test-case-generator/src/scripts/report.py"
+      instructions: |
+        Stage 3 report generation. Deterministic, no AI.
+        Reads gather-output.json for jira_id and area (not directory name parsing).
+        Runs convention_validator.validate_test_case(path, area=area).
+        Generates Polarion HTML via html_generator.generate_html().
+        Writes review-results.json + HTML files + SUMMARY.txt.
+        Does NOT consume Phase 4.5 quality-reviewer output — they are
+        independent validation layers (Phase 4.5 = semantic, Stage 3 = structural).
+
+    - path: "apps/test-case-generator/src/services/convention_validator.py"
+      instructions: |
+        Structural validation of test case markdown. Called by report.py.
+        Accepts optional area parameter — when provided, validates title tag
+        against AREA_TAG_PATTERNS (without area, tag validation is skipped).
+        AREA_TAG_PATTERNS maps 9 areas to regex patterns.
+        _extract_step_sections() splits content between ### Step N: headers.
+        Per-step checks: Expected Result (blocking), numbered actions (warning),
+        CLI detection (warning), step separators (warning).
+        Changes here affect what Stage 3 catches — must stay in sync with
+        what quality-reviewer.md (Phase 4.5) checks.
+
+    - path: "apps/test-case-generator/src/services/file_service.py"
+      instructions: |
+        File service for reading conventions, knowledge, and peer test cases.
+        find_existing_test_cases() search order:
+        1. External automation workspace (area-aware via AREA_TO_COMPONENT_DIRS)
+        2. runs/ directory (previous pipeline runs, recursive glob)
+        3. knowledge/examples/ (shipped sample — always available as fallback)
+        AREA_TO_COMPONENT_DIRS maps areas to external workspace subdirectories.
+        Changes to the mapping or search order affect what peer test cases
+        the test-case-generator and quality-reviewer agents receive.
+
+    - path: "apps/test-case-generator/src/models/*.py"
+      instructions: |
+        Pydantic v2 models for pipeline data contracts:
+        - gather_output.py: GatherOutput, GatherOptions, PRData (Stage 1 output)
+        - review_result.py: ReviewResult, ValidationIssue, Verdict (Stage 3 output)
+        - analysis_result.py: AnalysisResult (Phase 4 output — audit/debugging)
+        Field additions/removals must be reflected in:
+        - .coderabbit.yaml data contract documentation
+        - Agent instructions that read the JSON
+        - CLAUDE.md run directory layout
+
+    - path: "apps/test-case-generator/.claude/commands/*.md"
+      instructions: |
+        Slash command definitions:
+        - generate.md: Full 6-phase pipeline orchestration. Documents parallel
+          agent launch, SYNTHESIZED CONTEXT format, review loop with max 3
+          iterations, STOP checkpoints.
+        - batch.md: Wraps /generate for multiple JIRA IDs (comma-separated).
+        - review.md: Post-hoc quality review of existing test case files.
+        Phase labels must match CLAUDE.md phase tracker format.
+        [Phase N] for agent phases, [Stage N] for Python script stages.
+
+    - path: "apps/*/.claude/agents/*.md"
+      instructions: |
+        Agent definition files for Claude Code. Format:
+        - YAML frontmatter: name, description, tools (array of tool names)
+        - Markdown body: instructions for the AI agent
+
+        Agents in z-stream-analysis:
+        - analysis.md: Stage 2 classification agent (was z-stream-analysis.md)
+        - cluster-diagnostic.md: Stage 1.5 cluster health investigation
+        - investigation-agent.md: Sub-agent spawned by analysis for deep dives
+        - data-collector.md: Enriches core-data.json (4 tasks: page_objects, console_search, selector timeline, gap filling)
+
+        Agents in test-case-generator:
+        - feature-investigator.md: Phase 1 JIRA deep dive (jira, polarion, neo4j, gh CLI)
+        - code-change-analyzer.md: Phase 1 PR diff analysis (gh CLI, acm-ui, neo4j)
+        - ui-discovery.md: Phase 1 source code discovery (acm-ui, neo4j)
+        - live-validator.md: Phase 3 live cluster verification (playwright, oc, acm-search, acm-kubectl)
+        - test-case-generator.md: Phase 4 test case writer (acm-ui spot-check only)
+        - quality-reviewer.md: Phase 4.5 quality gate (acm-ui, polarion)
+
+        MCP tool signatures (do NOT flag these as incorrect):
+        - mcp__acm-ui__search_code(query='...', repo='acm')
+          repo is a string ('acm' or 'kubevirt'), NOT a list
+        - mcp__acm-ui__set_acm_version(version='2.17')
+          version is a string
+        - mcp__acm-ui__set_cnv_version(version='4.21')
+        - mcp__acm-ui__search_component(query='...', repo='acm')
+        - mcp__acm-ui__detect_cnv_version()
+        - mcp__acm-ui__get_acm_selectors(source='catalog', component='clc')
+        - mcp__acm-ui__get_patternfly_selectors(component='button')
+        - mcp__acm-ui__get_route_component(url_path='/multicloud/...')
+        - mcp__acm-ui__find_test_ids(component_path='...', repo='acm')
+        - mcp__neo4j-rhacm__read_neo4j_cypher(query='...')
+        - mcp__jira__search_issues(jql='...')
+        - mcp__jira__get_issue(issue_key='ACM-12345')
+        - mcp__jira__create_issue(project_key='ACM', summary='...', ...)
+
+        Knowledge Graph conventions:
+        - KG uses descriptive labels ("API Gateway Controller"), not pod names
+        - Queries must use 2-step approach: query subsystem first, then use
+          returned KG labels in dependency queries
+        - pod_to_kg_label mapping translates pod names to KG labels
+        - KG subsystems: Overview, Cluster, Governance, Console, Application,
+          Observability, Search (7 broad names vs 12+ app feature areas)
+
+        Data-collector agent conventions:
+        - Task 1 (page_objects): Traces imports in repos/automation/, resolves
+          relative paths, searches for failing_selector in imported files
+        - Task 2 (console_search): Uses MCP tools to verify selector existence
+          in product source. Handles PatternFly classes (pf-v6-c-*) by deriving
+          component name and searching for that instead. Flags invalid selectors
+          (hex color codes like #DB242F). Adds verification sub-key.
+        - Task 3 (recent_selector_changes): Uses git log -S on product and
+          automation repos to find commits that changed the selector. Reads
+          commit messages to assess intent (intentional_rename vs
+          likely_unintentional vs automation_premature). Produces
+          classification_hint for Stage 2.
+        - Writes results back to core-data.json (single read, single write)
+
+    - path: "apps/z-stream-analysis/src/scripts/gather.py"
+      instructions: |
+        Main data gathering script. 9-step deterministic pipeline.
+        Key internal contracts:
+
+        gathered_data dict initialized at line ~296 with skeleton keys.
+        Steps populate keys incrementally:
+          Step 1 → jenkins
+          Step 2 → console_log
+          Step 3 → test_report (with failed_tests array)
+          Step 4a → cluster_access, environment
+          Step 4b → cluster_landscape
+          (backend probes removed — handled by Stage 1.5 and Stage 2)
+          Step 5 → cluster_oracle
+          Step 6 → repositories
+          Step 7 → extracted_context injected into each failed_test entry
+          Step 8 → feature_grounding
+          Step 9 → feature_knowledge
+
+        Methods that were REMOVED (any references to these are dead code):
+          _extract_page_objects, _extract_relevant_lines,
+          _search_console_for_selector, _extract_similar_selectors, _is_similar,
+          _run_cluster_health_audit, _gather_environment_status,
+          _inject_temporal_summaries,
+          _probe_backend_apis, _find_console_api_pod, _get_bearer_token,
+          _exec_curl_in_pod, _probe_authenticated, _probe_hub, _probe_username,
+          _probe_ansibletower, _probe_search, _validate_probes_against_cluster,
+          _validate_username_probe, _validate_hub_probe, _validate_ansibletower_probe,
+          _validate_authenticated_probe, _validate_search_probe, _run_oc_command,
+          _gather_element_inventory, _search_element_in_repos,
+          _classify_selector_type, _extract_test_ids_from_file,
+          _run_grep, _resolve_grep_path, _collect_timeline_evidence,
+          _build_investigation_hints, _build_ai_instructions
+
+        Methods that still exist and are actively used:
+          _classify_failure_mode (takes console_search param, handles None safely)
+          _read_test_file (reads up to max_lines=200 from top of file)
+
+        _classify_failure_mode receives console_search=None from gather.py because
+        console_search is populated later by data-collector agent. The method has
+        defensive null checks and still functions correctly.
+
+    - path: "apps/z-stream-analysis/src/reports/*.py"
+      instructions: |
+        Report generators. html_report.py produces the interactive HTML report.
+        Key contracts:
+        - Reads analysis-results.json (validated against schema first)
+        - Reads cluster-diagnosis.json for environment tab data
+        - Reads pipeline.log.jsonl for the logs tab
+        - Field names must match exactly: per_test_analysis, by_classification,
+          evidence_sources, ruled_out_alternatives
+        - Handles missing optional fields gracefully (e.g., oracle score = None)
+
+    - path: "apps/*/src/schemas/*.json"
+      instructions: |
+        JSON Schema files for validating pipeline output. Key schemas:
+        - analysis_results_schema.json: Validates Stage 2 output. Required fields:
+          per_test_analysis (NOT failed_tests), summary.by_classification,
+          investigation_phases_completed. Per-test: test_name, classification,
+          confidence, evidence_sources (min 2 items).
+        - manifest_schema.json: Validates the manifest.json file structure.
+        Changes here affect report.py validation and analysis agent output.
+        Any new required fields must also be produced by the analysis agent
+        and documented in the agent instructions (.claude/agents/analysis.md).
+
+    - path: "apps/z-stream-analysis/src/services/*.py"
+      instructions: |
+        Stateless service classes used by gather.py. Each handles one concern:
+        - jenkins_intelligence_service.py: Jenkins API, test report parsing
+        - stack_trace_parser.py: Stack trace parsing, assertion extraction
+        - environment_validation_service.py: Cluster login, kubeconfig
+        - cluster_investigation_service.py: Cluster landscape, oc commands
+        - environment_oracle_service.py: Feature context oracle (Polarion, KG)
+        - repository_analysis_service.py: Repo cloning, import detection
+        - timeline_comparison_service.py: Git diff selector change detection
+        - feature_area_service.py: Test-to-subsystem mapping
+        - feature_knowledge_service.py: Playbook loading, prerequisite checks
+        - knowledge_graph_client.py: Neo4j KG queries, subsystem mapping
+        - acm_ui_mcp_client.py: ACM-UI MCP wrapper for gather.py
+        - component_extractor.py: Backend component name extraction
+        - acm_console_knowledge.py: PatternFly version detection, feature routes
+        - shared_utils.py: KNOWN_REPOS mapping, utility functions
+
+        Check for: unused methods (especially after gather.py refactoring),
+        services that lost their only caller, stale references to removed
+        ClusterHealthService.
+
+    - path: "apps/*/tests/**/*.py"
+      instructions: |
+        Test files. Structure varies by app:
+
+        Z-stream-analysis tests:
+        - tests/unit/ (605 tests): No network access. Test individual services.
+        - tests/regression/ (57 tests): Cross-module consistency checks,
+          schema coverage, field name alignment across services.
+        - tests/integration/ (50 tests): Require Jenkins VPN. Test full pipeline.
+        - tests/fixtures/: Synthetic analysis-results.json for testing.
+
+        Test-case-generator tests:
+        - tests/unit/ (34 tests): Convention validator (valid/invalid cases,
+          area tag validation, per-step checks, teardown checks), file service
+          (knowledge loading, peer discovery, sample fallback), Pydantic models
+          (GatherOutput, ReviewResult, AnalysisResult schema enforcement).
+        - tests/unit/test_convention_validator.py: Tests structural validation
+          including the approved ACM-30459 test case and sample test case.
+        - tests/unit/test_models.py: Verifies all 3 data contract models
+          serialize correctly and have expected fields.
+
+        Check for: tests referencing removed methods, renamed files, or
+        changed field names. Unit tests must be self-contained. Regression
+        tests verify contracts between modules (e.g., field names in
+        feature_area_service match those in cluster_investigation_service).
+
+        Hub-health tests (tests/regression/, 22 tests):
+        - test_consistency_enforcement.py: Drift detection across 4 classes:
+          TestKnowledgeReferenceIntegrity (4): every knowledge/ and docs/ path
+            referenced in CLAUDE.md/docs must exist on disk
+          TestCountConsistency (9): layers=12, chains=11, traps=13, phases=6,
+            issue_fields=9, diagnostics_files=8 — verified across files
+          TestReportFormatConsistency (4): issue template fields and verdict
+            rules must match between CLAUDE.md and docs/05-OUTPUT-AND-REPORTING.md
+          TestSlashCommandIntegrity (5): command files must reference valid
+            phase counts and align with CLAUDE.md methodology
+        Run: python -m pytest tests/regression/ -q (< 0.1s)
+
+    - path: "apps/acm-hub-health/**"
+      instructions: |
+        ACM Hub Health is an AI-powered diagnostic agent for ACM hub clusters.
+        Uses Claude Code with embedded ACM domain knowledge. Diagnosis is
+        ALWAYS read-only; cluster mutations happen ONLY after presenting a
+        structured remediation plan and getting explicit user approval.
+
+        === DIAGNOSTIC PIPELINE (6 PHASES) ===
+
+        Phase 1: Discover (always run, ~30s)
+          oc get mch -A, multiclusterengines -A, nodes, clusterversion,
+          managedclusters, csv -n multicluster-engine, whoami --show-server
+          CRITICAL: MCH namespace varies (open-cluster-management, ocm, custom).
+          All subsequent pod checks use the DISCOVERED namespace.
+          Operator health: if multiclusterhub-operator at 0 replicas,
+          MCH .status.phase is STALE — this overrides all other findings.
+
+        Phase 2: Learn (standard+)
+          Load knowledge: component-registry.md, architecture docs per
+          discovered component, healthy-baseline.yaml, diagnostic-layers.md,
+          common-diagnostic-traps.md (13 anti-patterns).
+          Compare discovered topology against knowledge base.
+          If managed clusters present, load health-patterns.md.
+          Trigger self-healing if topology mismatches knowledge.
+
+        Phase 3: Check (standard+, layer-by-layer bottom-up)
+          Foundational first (affects everything above):
+            Layers 1-2: Compute + Control Plane (from Phase 1 findings)
+            Layer 3: Network guards (NetworkPolicy, ResourceQuota — ACM does
+              NOT create these by default; any found is suspicious, Trap 11)
+            Layer 4: Storage (PVCs Bound, search-postgres data integrity)
+            Layer 5: Configuration (MCH component toggles, OLM subscriptions)
+          Component layers:
+            Layers 6-8: Auth, RBAC, API/Webhook (if relevant symptoms found)
+            Layer 9: Operators + Pod Health (compare against
+              healthy-baseline.yaml expected pod counts per namespace)
+            Layer 10: Cross-Cluster (managed cluster addons vs addon-catalog.yaml)
+          Application layers:
+            Layer 11: Data Flow (only if pods healthy but features broken)
+            Layer 12: UI/Plugin (consoleplugins, console image integrity)
+          Operator log scanning: "failed to wait for caches to sync",
+            "context deadline exceeded", "conflict", "nil pointer",
+            "template-error", OOMKilled/exit 137, reconciliation hot-loops.
+
+        Phase 4: Pattern Match (standard+)
+          Match against failure-patterns.md (cross-component signatures),
+          per-component known-issues.md, version-constraints.yaml.
+          Version-aware: check exact ACM/MCE/OCP versions. A bug in
+          2.15.0 may be fixed in 2.15.1.
+          Check post-upgrade-patterns.md before reporting upgrade symptoms.
+
+        Phase 5: Correlate (deep only)
+          Horizontal: dependency-chains.md/yaml (11 cascade paths upstream)
+          Vertical: 12-layer model (find LOWEST affected layer — Layer 3
+            issue manifests as Layer 11 empty data → Layer 12 empty UI)
+          Evidence: evidence-tiers.md (2+ sources, at least 1 Tier 1)
+          Cross-chain: shared dependency (klusterlet, storage, addon-manager)?
+          Traps: verify conclusion against common-diagnostic-traps.md (13)
+          Fallback: cluster introspection (8 metadata sources), then
+            neo4j-rhacm MCP, then acm-ui MCP for source code understanding.
+
+        Phase 6: Deep Investigate (deep/targeted)
+          Pod logs (--tail=100, --previous), namespace events (sorted),
+          resource describe, PVCs, services, routes.
+          Follow diagnostic-playbooks.md (14 per-subsystem procedures).
+          Layer-based fallback: start at symptom layer, trace downward.
+
+        === SAFETY MODEL (Two Modes) ===
+
+        Diagnostic Mode (Phases 1-6, auto-approved, read-only only):
+          Bash: oc get, oc describe, oc logs, oc exec (read-only),
+            oc api-resources, oc version, oc whoami, oc cluster-info,
+            oc adm top, oc auth can-i, kubectl get, kubectl describe,
+            jq, grep, wc, sort, head, tail, awk, cut, cat, ls, find,
+            git clone (docs repos), python3/python (data processing)
+          Tools: Read, Glob, Grep, Agent, Write/Edit to knowledge/learned/*
+          MCP: acm-ui (20 tools), neo4j-rhacm (2 tools), acm-search (5 tools)
+
+        Remediation Mode (NEVER auto-approved):
+          Mutation: oc patch, oc scale, oc rollout restart, oc delete pod,
+            oc annotate, oc label, oc apply
+          NEVER even with approval: oc delete (non-pod resources: CRDs,
+            namespaces, deployments, PVCs), oc adm drain, oc adm cordon,
+            oc create namespace, any data-destructive operation
+
+        Remediation Protocol (mandatory 5-step):
+          1. Complete ALL diagnosis first (never fix during investigation)
+          2. Present structured plan: root cause, Tier 1/2 evidence, exact
+             oc command, risk level (Low/Medium/High), NOT-fixable issues
+          3. Wait for explicit user approval (no → stop, partial → only those)
+          4. Execute each fix, verify result with oc get/describe
+          5. Post-remediation health check (Phase 1 + Phase 3 on affected)
+
+        === KNOWLEDGE SYSTEM (57 files) ===
+
+        Architecture knowledge (knowledge/architecture/, 40 files):
+          12 subsystems, each with architecture.md + data-flow.md +
+          known-issues.md: search, governance, observability,
+          cluster-lifecycle, console, application-lifecycle, virtualization,
+          rbac, automation, addon-framework, networking, infrastructure.
+          Special: cluster-lifecycle/health-patterns.md (hub-side managed
+          cluster diagnostics), infrastructure/post-upgrade-patterns.md
+          (upgrade settling timelines).
+          Platform: acm-platform.md (MCH/MCE hierarchy), k8s-fundamentals.md.
+
+        Structured data (knowledge/*.yaml, 6 files):
+          healthy-baseline.yaml: Expected pod counts, conditions, images.
+            Has acm_version header. Phase 3 baseline comparison.
+          dependency-chains.yaml: 11 cascade paths (structured).
+            cross_chain_patterns section maps symptoms → root causes.
+            Must stay in sync with dependency-chains.md (narrative, 8 core).
+          webhook-registry.yaml: ~20 webhooks, failure_policy, impact.
+            Fail policy = critical (blocks resource creation).
+          certificate-inventory.yaml: ~30 TLS secrets, rotation owners.
+            Rotation types: service-ca-operator, operator-managed, self-signed.
+          addon-catalog.yaml: 17 addons, health checks, dependencies.
+            4-step methodology: list, management, addon-manager, per-cluster.
+          version-constraints.yaml: Known incompatibilities. Each needs
+            versions affected, detection command, JIRA reference.
+
+        Diagnostics (knowledge/diagnostics/, 8 files):
+          diagnostic-layers.md: 12-layer framework (per-layer checks)
+          dependency-chains.md: 8 chains (narrative investigation procedures)
+          common-diagnostic-traps.md: 13 anti-patterns. Each must have:
+            symptoms, wrong conclusion, correct diagnosis, detection command.
+          evidence-tiers.md: Tier 1 (definitive) / Tier 2 (strong) /
+            Tier 3 (supportive). Combination rules, confidence modifiers.
+          diagnostic-playbooks.md: 14 per-subsystem procedures.
+          cluster-introspection.md: 8 metadata sources for reverse-engineering
+            component dependencies from live cluster state.
+          neo4j-reference.md: Knowledge graph Cypher queries and availability.
+          acm-search-reference.md: Search MCP tool parameters and query patterns.
+
+        Cross-cutting (knowledge/ root):
+          component-registry.md: Master ACM component inventory
+          failure-patterns.md: Failure signatures → root causes
+
+        Learned (knowledge/learned/): Agent-discovered knowledge from
+          previous health checks. Written by the agent during self-healing.
+
+        Knowledge usage rules:
+          - Architecture docs = ground truth for how things SHOULD work
+          - Cluster state = observed truth for what IS deployed
+          - Gap between the two = what gets diagnosed and reported
+          - Structural observations (namespaces, pod names): trust cluster
+          - Health assessment (expected states, behavior): trust knowledge
+
+        === SELF-HEALING ===
+
+        When knowledge doesn't cover a component, reverse-engineer from
+        8 cluster metadata sources (all read-only oc commands):
+          1. Owner references (.metadata.ownerReferences up the chain)
+          2. OLM labels (olm.owner → CSV → RBAC → implicit dependencies)
+          3. CSV metadata (owned CRDs, managed deployments)
+          4. Kubernetes labels (app.kubernetes.io/managed-by, part-of)
+          5. Environment variables (*.svc, DB_HOST, OPERAND_IMAGE_*)
+          6. Webhooks (cross-operator validation dependencies)
+          7. ConsolePlugins (UI integration topology)
+          8. APIServices (API aggregation dependencies)
+        Then: neo4j-rhacm MCP → acm-ui MCP → write to knowledge/learned/.
+
+        === SESSION TRACING ===
+
+        agent_trace.py hook captures all activity to .claude/traces/:
+          Per-session: <session-id>.jsonl (one JSON per event)
+          Index: sessions.jsonl (aggregate stats per session)
+        Trace enrichments per event:
+          oc commands: verb, resource, namespace, is_mutation
+          MCP calls: server name, tool name
+          Knowledge reads: diagnostic phase inference
+          Knowledge writes: learned/ directory detection
+        Diagnostic phase inference from file paths:
+          architecture/, component-registry → learn
+          healthy-baseline, addon-catalog, webhook/cert registries → check
+          failure-patterns, known-issues → pattern-match
+          dependency-chains, evidence-tiers, diagnostics/ → correlate
+
+        === DEPTH ROUTER (Slash Commands) ===
+
+        /sanity (~30s): Phase 1 only (quick pulse check)
+        /health-check (~2-3 min): Phases 1-4 (standard diagnostic)
+        /deep (~5-10 min): All 6 phases (thorough audit)
+        /investigate <target> (variable): Full depth on specific area
+        /learn (variable): Knowledge refresh session
+
+        === OUTPUT FORMAT ===
+
+        Health Report:
+          Verdict derivation is MECHANICAL (never qualified):
+            All OK → HEALTHY | Any WARN, no CRIT → DEGRADED | Any CRIT → CRITICAL
+          Component Status table: per component OK/WARN/CRIT with details
+          Issues Found: 9 required fields per issue (all must be present,
+            use "N/A" or "No match" when not applicable):
+            What, Evidence, Root Cause, Layer, Known Issue, Fix Version,
+            Cluster-Fixable, Impact, Recommended Action
+          Cluster Overview: ACM/OCP versions, nodes, managed clusters
+          Remediation Plan: only if cluster-fixable issues exist (follows
+            Remediation Protocol format)
+
+        === KEY CONVENTIONS ===
+
+        - MCH namespace is NEVER hardcoded — always discover from cluster
+        - All diagnostic commands are read-only (enforced by settings.json)
+        - Knowledge files are references, NOT checklists — discover first
+        - Every conclusion needs 2+ evidence sources (evidence-tiers.md)
+        - State confidence level based on evidence tier combination
+        - Version matters: always check exact ACM/MCE/OCP versions
+        - Explain, don't just list (what, what's affected, what to do)
+        - Learn and record discoveries to knowledge/learned/
+        - Observe cluster for what IS, knowledge for what SHOULD BE
+
+    - path: "apps/acm-hub-health/CLAUDE.md"
+      instructions: |
+        The agent's operational manual (~475 lines). Defines the complete
+        diagnostic methodology, safety protocols, and knowledge usage rules.
+        This is the system prompt for the Claude Code diagnostic agent.
+        Includes verdict derivation rules, 9-field issue template, shell
+        compatibility notes, and a Change Impact Checklist for drift prevention.
+
+        Key sections and their cross-file dependencies:
+        - "Safety: Diagnose First, Fix Only With Approval" section:
+          Auto-approved commands MUST match .claude/settings.json allow list.
+          Mutation commands MUST NOT appear in settings.json auto-approve.
+        - "Diagnostic Methodology: 6-Phase Pipeline" section:
+          Phase commands must align with knowledge/diagnostics/*.md procedures.
+          Phase 3 layer checks must reference correct knowledge YAML files.
+        - "Self-Healing Knowledge" section:
+          Lists 8 cluster introspection sources. If a source is added or
+          removed, the count reference ("8 introspection sources") must update.
+        - "Knowledge System" section:
+          Must match actual knowledge/ directory structure. If files are
+          added, removed, or renamed, update this section.
+        - "Remediation Protocol" section:
+          5-step mandatory protocol. Changes here affect user trust/safety.
+          Remediation commands listed must match settings.json deny list.
+        - "Output Format" section:
+          Verdict values (HEALTHY/DEGRADED/CRITICAL) and report field names
+          must match what slash commands produce.
+        - "Session Tracing" section:
+          Hook event list must match .claude/settings.json hooks config.
+          Trace field names must match agent_trace.py output format.
+
+        Consistency checks on any change:
+        - Auto-approved commands and MCP tools ↔ .claude/settings.json permissions
+        - Diagnostic trap count ("13 traps") ↔ common-diagnostic-traps.md
+        - Introspection source count ("8 sources") ↔ listed sources
+        - Knowledge file references ↔ files actually in knowledge/
+        - MCP tool names ↔ .mcp.json server configuration (acm-ui, neo4j-rhacm, acm-search)
+        - Cascade chain count (8 narrative, 11 YAML) ↔ dependency-chains.md/yaml
+
+    - path: "apps/acm-hub-health/.claude/settings.json"
+      instructions: |
+        Permission rules and hook configuration. SAFETY-CRITICAL file.
+
+        Structure:
+        - permissions.allow: Read-only oc commands + MCP tools (auto-approved for diagnosis)
+          Includes mcp__acm-ui__*, mcp__neo4j-rhacm__*, mcp__acm-search__*
+        - hooks: 6 event types triggering agent_trace.py
+
+        Review rules:
+        - NEVER auto-approve mutation commands (patch, scale, delete,
+          rollout restart, apply, annotate, label, create)
+        - Allow list should ONLY contain read-only oc operations
+        - Changes to hook event list must match what agent_trace.py handles
+          (PreToolUse, PostToolUse, PostToolUseFailure, UserPromptSubmit,
+          SubagentStop, Stop)
+        - Hook command path uses $CLAUDE_PROJECT_DIR for portability —
+          do not hardcode absolute paths
+        - Permission changes must be reflected in CLAUDE.md Safety section
+        - If a new tool is added to auto-approve, verify it is read-only
+
+    - path: "apps/acm-hub-health/.claude/hooks/*.py"
+      instructions: |
+        Session tracing hook (agent_trace.py, ~460 lines). Captures all
+        diagnostic activity into structured JSONL for compliance auditing.
+
+        Key internals:
+        - MUTATION_VERBS set: defines which oc verbs are mutations (patch,
+          delete, scale, apply, create, edit, replace, rollout). Safety-
+          critical — verify completeness if oc command vocabulary changes.
+        - OC_PATTERN regex: parses oc/kubectl commands into verb, resource,
+          namespace. Must handle all whitespace and flag patterns.
+        - DIAGNOSTIC_PATTERNS dict: maps file path patterns to diagnostic
+          phases (learn, check, pattern-match, correlate). If new knowledge
+          files are added, add corresponding phase detection entries.
+        - Input/output truncation: 2000 chars input, 1000 chars output.
+          Prevents trace bloat from large oc outputs.
+        - Session stats: aggregated on Stop event to sessions.jsonl
+          (tool_calls, mcp_calls, oc_commands, mutations, knowledge_reads/
+          writes, errors, duration).
+
+        Review rules:
+        - Hook must NEVER block the agent on failure (all code wrapped in
+          try/except with pass or stderr-only fallback)
+        - Mutation detection is safety-critical — new oc verbs that modify
+          cluster state must be added to MUTATION_VERBS
+        - Diagnostic phase inference must match CLAUDE.md phase definitions
+        - New MCP servers added to .mcp.json need mcp_server extraction logic
+        - Regex changes need careful testing — false negatives hide mutations
+
+    - path: "apps/acm-hub-health/.claude/commands/*.md"
+      instructions: |
+        Slash command definitions for diagnostic depth routing:
+        - sanity.md: Quick pulse (Phase 1 only, ~30s)
+        - health-check.md: Standard diagnostic (Phases 1-4, ~2-3 min)
+        - deep.md: Thorough audit (all 6 phases, ~5-10 min)
+        - investigate.md: Targeted deep investigation on specific area
+        - learn.md: Knowledge refresh session (no diagnosis)
+
+        Each command file contains the prompt template that drives the agent.
+        Changes here affect which phases execute and what depth of
+        investigation the agent performs.
+
+        Review rules:
+        - Phase references must match CLAUDE.md phase definitions
+        - Depth routing must match the Depth Router section in CLAUDE.md
+        - Commands must not instruct mutation operations (diagnosis only)
+        - Time estimates should be realistic for the phase count
+
+    - path: "apps/acm-hub-health/knowledge/diagnostics/*.md"
+      instructions: |
+        Diagnostic methodology files. These define HOW the agent investigates
+        cluster health. Changes here directly affect diagnostic quality.
+
+        diagnostic-layers.md:
+          12-layer investigation framework. Each layer: check commands,
+          healthy/broken signals, impact, knowledge file references.
+          Bottom-up for full audits, top-down for targeted investigations.
+          Changes affect Phase 3 (Check) and Phase 5 (Correlate).
+
+        dependency-chains.md:
+          8 core cascade paths with narrative investigation procedures.
+          MUST stay in sync with dependency-chains.yaml (11 chains total,
+          structured version includes 3 additional: app-lifecycle,
+          virtualization, submariner).
+          Changes affect Phase 5 horizontal tracing.
+
+        common-diagnostic-traps.md:
+          13 anti-patterns where obvious diagnosis is wrong. Each trap:
+            - What you see (symptoms)
+            - What you might conclude (wrong diagnosis)
+            - What's actually happening (correct diagnosis)
+            - How to detect (detection command)
+            - Rule (prevention)
+          Count referenced in CLAUDE.md — update if traps added/removed.
+          Changes affect Phase 2 (Learn) and Phase 5 verification.
+
+        evidence-tiers.md:
+          Tier 1 (definitive), Tier 2 (strong), Tier 3 (supportive).
+          Combination rules: min 1 Tier 1 + 1 Tier 2, or 2 Tier 1, or
+          3 Tier 2. Confidence modifiers: known issue +10%, version match
+          +5%, conflicting evidence -15%.
+          Changes affect Phase 5 evidence weighting.
+
+        diagnostic-playbooks.md:
+          14 per-subsystem investigation procedures. Each references
+          specific oc commands and knowledge files.
+          Changes must maintain consistency with referenced files.
+
+    - path: "apps/acm-hub-health/knowledge/*.yaml"
+      instructions: |
+        Structured operational data — quantitative reference for comparing
+        cluster state against known-good values. Phase 3 baseline comparisons.
+
+        healthy-baseline.yaml:
+          Expected pod counts (30-40 per ACM namespace), conditions,
+          deployment replicas, image patterns, etcd member count.
+          Has acm_version header — must match supported version.
+          Referenced by Phase 3 and Trap 1 (stale MCH status).
+          Changes should be validated against real healthy clusters.
+
+        dependency-chains.yaml:
+          11 cascade paths in machine-readable format. Each chain has
+          components, dependencies, impact descriptions.
+          cross_chain_patterns section: 12 symptom → root cause mappings.
+          MUST stay in sync with dependency-chains.md (narrative version).
+          Changes affect Phase 5 horizontal tracing.
+
+        webhook-registry.yaml:
+          ~20 validating/mutating webhooks. Per webhook: owner, namespace,
+          failure_policy (Fail = critical), critical_for, if_broken impact.
+          New webhooks must document failure_policy and if_broken.
+          Referenced by Phase 3 Layer 8 checks.
+
+        certificate-inventory.yaml:
+          ~30 TLS secrets. Per secret: used_by (pod), managed_by (rotator),
+          rotation strategy, if_corrupted impact.
+          Referenced by Phase 3 Layer 6 checks.
+
+        addon-catalog.yaml:
+          17 managed cluster addons. Per addon: required/optional,
+          required_for (features), health_check commands, depends_on list.
+          Referenced by Phase 3 Layer 10 and dependency-chains.yaml.
+
+        version-constraints.yaml:
+          Known version incompatibilities (ACM, MCE, OCP, AAP, Submariner).
+          Each entry must have: versions affected, detection command, JIRA ref,
+          fix version. Changes affect Phase 4 version-aware matching.
+
+    - path: "apps/acm-hub-health/knowledge/architecture/**"
+      instructions: |
+        Deep engineering-level knowledge about 12+ ACM subsystems. These
+        define ground truth for how components SHOULD work.
+
+        Per-subsystem directory structure:
+          architecture.md: Components, CRDs, namespaces, operator hierarchy
+          data-flow.md: How data moves through the subsystem, failure points
+          known-issues.md: Bug patterns with symptoms, version ranges, JIRA
+            refs, fix versions, cluster-fixable flag
+
+        Subsystems covered: search, governance, observability,
+          cluster-lifecycle, console, application-lifecycle, virtualization,
+          rbac, automation, addon-framework, networking, infrastructure.
+
+        Special files:
+          cluster-lifecycle/health-patterns.md: Hub-side managed cluster
+            diagnostic patterns (spoke agent health, addon deployment)
+          infrastructure/post-upgrade-patterns.md: Normal settling behavior
+            with specific timelines (don't flag as broken too early)
+
+        Platform docs:
+          acm-platform.md: MCH/MCE operator hierarchy, addon framework
+          kubernetes-fundamentals.md: K8s concepts relevant to ACM
+
+        Review rules:
+        - Architecture docs define ground truth — changes must match actual
+          ACM source code behavior
+        - known-issues.md entries must include: symptoms, versions affected,
+          JIRA reference, fix version, cluster-fixable (yes/workaround/no)
+        - data-flow.md should document happy path AND failure modes
+        - If a component moves namespaces or changes names, also update:
+          component-registry.md, healthy-baseline.yaml, and any
+          dependency-chains that reference it
+
+    - path: "apps/acm-hub-health/knowledge/learned/**"
+      instructions: |
+        Agent-discovered knowledge from previous diagnostic sessions.
+        Written by the agent during self-healing when it encounters
+        something not covered by the static knowledge files.
+
+        These files are auto-generated — do not reject them for style.
+        Review for: factual accuracy, whether the discovery should be
+        promoted to the static knowledge files (architecture/ or
+        diagnostics/), and whether it conflicts with existing knowledge.
+
+    - path: "apps/acm-hub-health/setup.sh"
+      instructions: |
+        One-time initialization script. Clones rhacm-docs, sets up
+        acm-ui MCP venv, clones and builds acm-search MCP (Node.js),
+        generates .mcp.json (acm-ui, neo4j-rhacm, acm-search), verifies
+        prerequisites (oc, claude, uvx, node, podman), checks neo4j-rhacm
+        container status.
+
+        Review rules:
+        - Must be idempotent (safe to run multiple times)
+        - Uses relative paths (../../mcp/) for repo-root references
+        - Prerequisite checks: oc (hard req), neo4j container (optional)
+        - MCP config paths must match .mcp.json structure
+        - Should not modify cluster state or require cluster access
+
+    - path: "mcp/**/*.py"
+      instructions: |
+        MCP server code. This repo maintains:
+        - mcp/acm-ui-mcp-server/: ACM Console + kubevirt-plugin source search
+          via GitHub API. 20 tools. Supports version switching (ACM 2.11-2.17,
+          CNV 4.14-4.22).
+        - mcp/polarion/: Polarion test case access wrapper. 25 tools.
+        - mcp/jenkins-acm-tools.py: ACM-specific analysis tools added to
+          upstream Jenkins MCP. 4 tools.
+
+        External MCPs cloned at setup time into mcp/.external/ (gitignored):
+        - jenkins-mcp (upstream): 7 tools
+        - jira-mcp-server (stolostron): 25 tools
+
+        Do NOT modify files in mcp/.external/.
+
+  tools:
+    ruff:
+      enabled: true
+    shellcheck:
+      enabled: true
+    yamllint:
+      enabled: true
+    gitleaks:
+      enabled: true
+    markdownlint:
+      enabled: true
+    biome:
+      enabled: false
+    hadolint:
+      enabled: false
+    swiftlint:
+      enabled: false
+    phpstan:
+      enabled: false
+    eslint:
+      enabled: false
+    clippy:
+      enabled: false
+
+knowledge_base:
+  opt_out: false
+  web_search:
+    enabled: true
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - "**/CLAUDE.md"
+  learnings:
+    scope: "local"

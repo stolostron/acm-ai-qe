@@ -6,64 +6,30 @@ Collects all raw data needed for AI analysis from Jenkins, the target cluster, a
 
 ## Overview
 
-**Command:**
-```bash
-python -m src.scripts.gather "<JENKINS_URL>"
-```
+Stage 1 data collection combines a deterministic Python script (`gather.py`)
+with an AI-powered data-collector agent. The user initiates the pipeline from
+a Claude Code session by providing a Jenkins URL. The orchestrating agent runs
+gather.py, then spawns the data-collector agent to enrich the output.
+
+**How it runs:**
+
+1. **gather.py** (deterministic, ~80s) — Runs Steps 1-9: fetches Jenkins data,
+   logs into the cluster, clones repos, extracts test context, builds feature
+   knowledge. Produces `core-data.json` with all 13 top-level keys. Fields
+   `page_objects`, `console_search`, `recent_selector_changes`, and
+   `temporal_summary` are initialized as empty/null.
+
+2. **data-collector agent** (AI, ~3-5 min) — Enriches `core-data.json` with
+   fields that require intelligent code analysis:
+   - Task 1: Resolves `page_objects` by tracing imports in `repos/automation/`
+   - Task 2: Verifies `console_search` via MCP tools (ACM-UI)
+   - Task 3: Analyzes `recent_selector_changes` and `temporal_summary` using
+     git history with intent assessment
 
 **Input:** Jenkins build URL (e.g., `https://jenkins.example.com/job/acm-e2e/123/`)
 
-**Output:** A run directory with all collected data
-
-```
-                          Jenkins URL
-                               │
-    ┌──────────────────────────┼──────────────────────────┐
-    │                          ▼                          │
-    │   Step 1: Jenkins Info ──► Step 2: Console Log      │
-    │                              │                      │
-    │                              ▼                      │
-    │                          Step 3: Test Report         │
-    │                              │                      │
-    │                              ▼                      │
-    │   ┌───────────────────────────────────────────────┐   │
-    │   │ Step 4: Env Check + Cluster Landscape         │   │
-    │   │         + Backend API Probes (v3.3)           │   │
-    │   │ (skip: --skip-env)                            │   │
-    │   └───────────────────────┬───────────────────────┘   │
-    │                           ▼                         │
-    │   ┌───────────────────────────────────────────────┐   │
-    │   │ Step 5: Environment Oracle (v3.5)             │   │
-    │   │ (skip: --skip-env)                            │   │
-    │   └───────────────────────┬───────────────────────┘   │
-    │                       ▼                             │
-    │   ┌───────────────────┐                             │
-    │   │ Step 6: Clone     │                             │
-    │   │ Repos             │                             │
-    │   │ (skip: --skip-repo)                             │
-    │   └─────────┬─────────┘                             │
-    │             │                                       │
-    │   ┌─────────┼──────────────────────┐                │
-    │   ▼         ▼                      ▼                │
-    │ Step 7:   Step 8: (v3.0)  Step 9: (v3.1)           │
-    │ Extract   Feature         Feature                  │
-    │ Context   Grounding       Knowledge                │
-    │ (skip:    (always)        + KG Context              │
-    │  --skip-                  (always)                  │
-    │  repo)                                              │
-    │   └─────────┬──────────────────────┘                │
-    │             │                                       │
-    │   ┌─────────┼──────────────────────┐                │
-    │   ▼                                ▼                │
-    │ Step 10:                    Step 11: Hints          │
-    │ Element Inv.                + Temporal Summaries     │
-    │ (skip: --skip-repo)        (always runs)            │
-    │   └────────────────────────┘                        │
-    │             │                                       │
-    └─────────────┼───────────────────────────────────────┘
-                  ▼
-        runs/<job>_<timestamp>/core-data.json
-```
+**Output:** A run directory containing `core-data.json`, `cluster.kubeconfig`,
+`repos/`, and supporting files. All data needed for Stage 1.5 and Stage 2.
 
 ---
 
@@ -248,11 +214,13 @@ OUTPUT:
 
 ## Step 4: Cluster Login + Landscape + Backend Probes
 
-**Services:** `EnvironmentValidationService` (login + kubeconfig persist), `ClusterInvestigationService` (landscape), backend probes
+**Services:** `EnvironmentValidationService` (login + kubeconfig persist), `ClusterInvestigationService` (landscape)
 
-Step 4 establishes cluster access and collects landscape data. It does three things: (4a) login and kubeconfig persistence, (4b) cluster landscape snapshot, (4c) backend API probes. The comprehensive health audit is handled by Stage 1.5 (cluster-diagnostic agent), which produces `cluster-diagnosis.json`.
+Step 4 establishes cluster access and collects landscape data. It does three things: (4a) login, kubeconfig persistence, and MCH namespace discovery, (4b) cluster landscape snapshot, (4c) backend API probes. The comprehensive health audit is handled by Stage 1.5 (cluster-diagnostic agent), which produces `cluster-diagnosis.json`.
 
-**Output:** `cluster.kubeconfig` + `cluster_landscape` and `backend_probes` keys in core-data.json
+**MCH namespace discovery (Step 4a):** After login, gather.py runs `oc get mch -A` to discover the actual MCH namespace. This can be `open-cluster-management`, `ocm`, or a custom namespace depending on the ACM installation. The discovered namespace is used for all subsequent `oc` commands and propagated to all services (`ClusterInvestigationService`, `FeatureAreaService`). Derived namespaces (`-hub`, `-observability`, `-agent`) are computed from the discovered base namespace.
+
+**Output:** `cluster.kubeconfig` + `cluster_landscape` and `cluster_access.mch_namespace` keys in core-data.json
 
 **Commands:** `oc` / `kubectl` (READ-ONLY operations only)
 
@@ -272,28 +240,7 @@ Extract cluster URL from Jenkins parameters
   accessible?       (Ready/NotReady)   (Running?)
 ```
 
-### Environment Score Calculation
-
-Score is calculated additively from four weighted components (max 1.0):
-
-| Component | Weight | Calculation |
-|-----------|--------|-------------|
-| Cluster connected | 20% | +0.2 if `connected` |
-| API accessible | 20% | +0.2 if `api_accessible` |
-| Service health | 40% | +0.4 × (healthy services / total services) |
-| Namespace access | 20% | +0.2 × (accessible namespaces / total namespaces) |
-
-If no namespaces are available to check, partial credit of 0.1 is given.
-
-**Score interpretation:**
-
-| Range | Status |
-|-------|--------|
-| 0.90 - 1.00 | Healthy |
-| 0.70 - 0.89 | Minor issues |
-| 0.50 - 0.69 | Degraded |
-| 0.30 - 0.49 | Unhealthy |
-| 0.00 - 0.29 | Critical → ALL TESTS = INFRASTRUCTURE |
+**Note:** Environment health scoring (`environment_health_score`) is handled entirely by Stage 1.5 (cluster-diagnostic agent) in `cluster-diagnosis.json`. Step 4 does not compute any health score — it only establishes access and collects landscape data. Stage 1.5 also validates console image integrity against `healthy-baseline.yaml` expected prefixes and reports findings in the `image_integrity` field.
 
 ### READ-ONLY Safety
 
@@ -306,7 +253,7 @@ If no namespaces are available to check, partial credit of 0.1 is given.
 
 ### Cluster Access Persistence (v3.1, updated v3.5)
 
-Part of `_gather_environment_status()`. After environment validation, creates a persistent `cluster.kubeconfig` file in the run directory via a dedicated `oc login`. This kubeconfig is used by the AI agent in Stage 2 for live investigation (all `oc` commands use `--kubeconfig`). Passwords are masked in `core-data.json` — the kubeconfig provides authentication without needing the raw password.
+Part of `_login_to_cluster()` (Step 4a). After cluster login, creates a persistent `cluster.kubeconfig` file in the run directory. This kubeconfig is used by Stage 1.5 (cluster-diagnostic agent) and Stage 2 (analysis agent) for live `oc` commands. Passwords are masked in `core-data.json` — the kubeconfig provides authentication without needing the raw password.
 
 ```json
 {
@@ -321,7 +268,7 @@ Part of `_gather_environment_status()`. After environment validation, creates a 
 }
 ```
 
-The `kubeconfig_path` is also set on `env_service.kubeconfig` so subsequent gather steps (cluster landscape, backend probes, oracle) use the same authenticated kubeconfig.
+The `kubeconfig_path` is also set on `env_service.kubeconfig` so subsequent gather steps (cluster landscape, oracle) use the same authenticated kubeconfig.
 
 **Output files:** `environment-status.json`, `cluster.kubeconfig`, `cluster_access` key in `core-data.json`
 
@@ -363,91 +310,11 @@ Shares the kubeconfig and CLI from `EnvironmentValidationService` so both servic
 
 ---
 
-## Step 4c: Backend API Probing (v3.3)
-
-**Method:** `DataGatherer._probe_backend_apis()`
-
-Probes 5 ACM console backend API endpoints to detect backend anomalies before AI analysis. Runs after Step 4b (cluster landscape) and before Step 5 (environment oracle). Each probe runs via `oc exec` into the console pod with `curl`, using the bearer token from the cluster session.
-
-Adds ~10-15 seconds to Stage 1 execution.
-
-### Skip Conditions
-
-Probing is skipped entirely (with `backend_probes: {skipped: true}`) if any of:
-- No cluster credentials available (e.g., `--skip-env` was used)
-- Console pod not found in `open-cluster-management` namespace
-- Bearer token unavailable from the cluster session
-
-Each probe is independent — if one probe fails, the others still execute.
-
-### Probes
-
-| Endpoint | Validation | Anomaly Example |
-|----------|-----------|-----------------|
-| `/authenticated` | Baseline auth health; response time < 5s | Response time > 5s indicates auth latency |
-| `/hub` | Hub metadata; validates `localHubName` matches MCH cluster name from `cluster_landscape` | Hub name mismatch between API and MCH |
-| `/username` | User identity; checks for reversed username format | `admin:kube` instead of `kube:admin` |
-| `/ansibletower` | Ansible template list; cross-references against AAP operator status | Only runs if `TOWER_HOST` present in Jenkins params |
-| `/proxy/search` | Search pipeline health; sends basic Pod query, expects non-empty results | Empty result set indicates search indexing failure |
-
-### Output Structure
-
-Stored in `core-data.json` under `backend_probes`:
-
-```json
-{
-  "backend_probes": {
-    "probed_at": "2026-03-25T10:30:00Z",
-    "console_pod": "console-chart-abc123-xyz",
-    "probes": {
-      "authenticated": {
-        "response_valid": true,
-        "anomalies": []
-      },
-      "hub": {
-        "response_valid": true,
-        "anomalies": ["hub_name_mismatch: API returned 'local-cluster' but MCH reports 'hub-cluster'"]
-      },
-      "username": {
-        "response_valid": true,
-        "anomalies": []
-      },
-      "ansibletower": {
-        "response_valid": false,
-        "anomalies": ["aap_operator_missing: TOWER_HOST set but AAP operator not installed"]
-      },
-      "proxy_search": {
-        "response_valid": true,
-        "anomalies": []
-      }
-    },
-    "total_anomalies": 2
-  }
-}
-```
-
-### Feature Area to Probe Mapping
-
-`FEATURE_AREA_PROBE_MAP` maps each feature area to the probe endpoints most relevant to it. Stage 2 (Phase B7c) uses this mapping to check whether a feature area's backend is healthy.
-
-| Feature Area | Relevant Probes |
-|---|---|
-| Automation | `authenticated`, `ansibletower` |
-| Search | `authenticated`, `proxy_search` |
-| Console | `authenticated`, `hub` |
-| CLC | `authenticated`, `hub` |
-| GRC | `authenticated`, `proxy_search` |
-| Application | `authenticated`, `hub` |
-| Observability | `authenticated`, `proxy_search` |
-| Infrastructure | `authenticated`, `hub` |
-| RBAC | `authenticated`, `username` |
-| Virtualization | `authenticated`, `hub` |
-
-### How It's Used in Stage 2
-
-- **Phase B7c:** Backend API probe check — if a test's feature area maps to a probe with anomalies, the probe data is used as evidence for backend-caused failures
-
-**Output:** Stored in `core-data.json` under `backend_probes` key.
+**Note:** Backend API probing (Step 4c) was removed. Backend health investigation
+is now handled comprehensively by Stage 1.5 (cluster-diagnostic agent) which checks
+pod health, operator status, console plugins, addon verification, and dependency chains.
+Stage 2 (analysis agent) performs targeted investigation during per-test analysis with
+full context about what feature area and component to check.
 
 ---
 
@@ -559,7 +426,7 @@ Stored in `core-data.json` under `cluster_oracle`:
 - **Phase A0:** Oracle `feature_areas` and `overall_feature_health` provide early signal about missing dependencies before per-test analysis begins
 - **Phase PR-7:** If `dependency_health` shows a broken dependency, routes tests in that feature area to INFRASTRUCTURE
 - **Phase PR-4:** Failed oracle checks can confirm playbook prerequisite failures, strengthening INFRASTRUCTURE classification
-- **Phase B7:** Oracle dependency status cross-referenced with backend probe data for comprehensive health assessment
+- **Phase B7:** Oracle dependency status used for comprehensive health assessment
 
 **Output:** Stored in `core-data.json` under `cluster_oracle` key.
 
@@ -676,14 +543,9 @@ def _read_test_file(self, automation_path, test_file_path, max_lines=200):
     }
 ```
 
-### Sub-step 7b: Extract Page Objects
+### Sub-step 7b: Page Objects (data-collector agent)
 
-**Method:** `_extract_page_objects(test_content, failing_selector, automation_path)`
-
-1. Parse import statements using regex: `r"import\s+.*?from\s+['\"]([^'\"]+)['\"]"`
-2. Filter to view/selector imports (paths containing `views`, `selectors`, or `page`)
-3. Resolve import paths (try `.js`, `.ts` extensions)
-4. Read files, extract lines around failing selector (5 lines context) or first 50 lines
+Page object resolution is handled by the **data-collector agent** after gather.py completes. The agent uses AI code analysis to trace imports and resolve selector definitions across any test framework (Cypress, Playwright, etc.). gather.py initializes the field as `[]`.
 
 **Output:**
 ```json
@@ -696,22 +558,21 @@ def _read_test_file(self, automation_path, test_file_path, max_lines=200):
 ]
 ```
 
-### Sub-step 7c: Search Console Repository
+### Sub-step 7c: Console Search (data-collector agent)
 
-**Method:** `_search_console_for_selector(console_path, selector)`
-
-1. Normalize selector: strip `#` or `.` prefix
-2. Run grep: `grep -rn --include=*.tsx --include=*.ts --include=*.jsx --include=*.js "<selector>" repos/console/frontend/src/`
-3. If found: return locations with file, line, content
-4. If not found: search for partial match (first half of selector name) to find similar selectors
+Selector verification in product source is handled by the **data-collector agent** after gather.py completes. The agent uses MCP tools (ACM-UI `search_code`, `search_component`) to verify selector existence with full context — understanding PatternFly components, runtime-generated selectors, and correct route/page context. gather.py initializes the field as `null`.
 
 **Output:**
 ```json
 {
   "selector": "#create-btn",
   "found": false,
-  "locations": [],
-  "similar_selectors": ["#cluster-create-btn", "#create-cluster-button"]
+  "verification": {
+    "verified_by": "data-collector",
+    "method": "mcp_literal_search",
+    "result": "not_found",
+    "detail": "Selector not found in ACM console source"
+  }
 }
 ```
 
@@ -771,27 +632,21 @@ Compares git modification dates between automation and product repos:
 
 **Limitation:** The `compare_timelines` method only works for ID-based selectors (`data-testid`, `id`). It returns null for CSS class selectors, role-based selectors, and text-based selectors. For broader coverage, use the git diff approach below.
 
-### Recent Selector Changes (Git Diff)
+### Recent Selector Changes (data-collector agent)
 
-**Service:** `TimelineComparisonService.find_recent_selector_changes(lookback_commits=200)`
+Selector timeline analysis is handled by the **data-collector agent** after gather.py completes. The agent uses git history analysis (`git log -S`) on both the product and automation repos to determine whether a selector was recently changed, whether the change was intentional (planned refactor) or accidental (side effect), and what the replacement selector is.
 
-Scans the last 200 commits (~6 months) in the console repo's `src/` directory for selector-related changes. Covers all selector types: `data-testid`, `className`, `aria-label`, `id`, CSS classes, OUIA IDs.
-
-Runs **once per analysis** (not per test). Results are cached and cross-referenced per-test via `cross_reference_selector()`.
+gather.py initializes the field as `null`. The agent produces enriched output:
 
 | Output Field | Meaning |
 |---|---|
-| `match_found` | Whether the failing selector was found in the removed selectors list |
-| `matches[].removed_selector` | The selector that was removed |
-| `matches[].added_selectors` | Selectors added in the same file (potential replacements) |
-| `matches[].file` | The product file that changed |
-| `lookback_commits` | Number of commits scanned (default 200) |
-
-**Limitations:**
-- Only covers changes within the lookback window (~6 months). Older changes rely on `console_search.found = false`.
-- Cannot detect text-based selectors (`cy.contains('Submit')`).
-- Cannot detect dynamic/runtime-constructed selectors (template literals).
-- PatternFly internal class changes between PF versions may not appear in the console repo's diff.
+| `change_detected` | Whether any git commits touched this selector |
+| `direction` | `removed_from_product`, `automation_ahead_of_product`, or `null` |
+| `commit.sha`, `commit.message`, `commit.date` | The commit that changed the selector |
+| `replacement_selector` | What was added in the same area (if any) |
+| `intent_assessment` | `intentional_rename`, `likely_unintentional`, `automation_premature`, `no_recent_change` |
+| `classification_hint` | `AUTOMATION_BUG`, `PRODUCT_BUG`, or `null` |
+| `reasoning` | Human-readable explanation for Stage 2 |
 
 ### Component Extraction
 
@@ -802,11 +657,9 @@ Extracts ACM component names from error messages. Each component includes:
 - `subsystem`: Parent subsystem (e.g., `Search`)
 - `source`: Where it was found (error_message, stack_trace, console_log)
 
-### Temporal Summary Injection
+### Temporal Summary (data-collector agent)
 
-**Method:** `_inject_temporal_summaries()`
-
-Adds human-readable temporal summaries to each test's timeline evidence for AI consumption.
+The `temporal_summary` field is populated by the **data-collector agent** (Task 3) at selector level using git log analysis. It provides selector-level timeline data (when the product and automation last modified the selector, not just the file), `stale_test_signal`, and `product_commit_type`. gather.py initializes the field as `null`.
 
 ---
 
@@ -931,6 +784,16 @@ Stored in `core-data.json` under `feature_knowledge`:
     },
     "kg_status": {
       "available": true
+    },
+    "gap_detection": {
+      "stale_components": [],
+      "hardcoded_namespaces": [],
+      "missing_overlay": "acm-2.17.yaml",
+      "overall_match_rate": 0.05,
+      "gap_areas": ["RBAC", "Console", "CLC"],
+      "match_rates": {
+        "CLC": {"total_errors": 16, "matched_count": 0, "unmatched_count": 16, "match_rate": 0.0}
+      }
     }
   }
 }
@@ -944,30 +807,6 @@ Stored in `core-data.json` under `feature_knowledge`:
 - **Phase PR-4:** Feature knowledge override — if prerequisite unmet AND confirmed with live commands, use playbook classification at 0.95 confidence
 
 **Output:** Stored in `core-data.json` under `feature_knowledge` key.
-
----
-
----
-
-## Step 10: Build Element Inventory
-
-**Method:** `DataGatherer._gather_element_inventory()`
-
-Builds an element inventory from the cloned repos and MCP data. Uses `ACMConsoleKnowledge.build_element_inventory()` and `ACMUIMCPClient` to locate data-testid and aria-label attributes in product source code.
-
-Skipped when `--skip-repo` is used (requires cloned repos).
-
-**Output file:** `element-inventory.json`
-
----
-
-## Step 11: Build Investigation Hints
-
-**Method:** `DataGatherer._build_investigation_hints()` + `_inject_temporal_summaries()`
-
-Builds investigation hints for AI analysis, including timeline evidence and failed test locations. Then injects per-test temporal summaries into each test's `extracted_context` for AI consumption.
-
-This step always runs (not gated by `--skip-repo`).
 
 ---
 
@@ -987,90 +826,309 @@ All collected data is written to the run directory.
 | `jenkins-build-info.json` | Build metadata (credentials masked) | gather.py |
 | `test-report.json` | Per-test failure details | gather.py |
 | `environment-status.json` | Cluster health data | gather.py |
-| `element-inventory.json` | MCP element locations (if available) | gather.py |
 | `repos/` | Cloned repositories | gather.py |
 
-### core-data.json Structure
+### core-data.json Complete Schema
+
+All 13 top-level keys are always present. Source column indicates who populates each field — **Script** (gather.py, deterministic), **Agent** (data-collector, AI-powered), or **Both** (initialized by script, enriched by agent).
+
+```
+core-data.json
+├── metadata                    [Script, Step 1]
+├── jenkins                     [Script, Step 1]
+├── test_report                 [Script, Step 3 + Agent]
+│   ├── summary
+│   └── failed_tests[]          ← per-test entries (schema below)
+├── console_log                 [Script, Step 2]
+├── environment                 [Script, Step 4a]
+├── cluster_health              [Script, stub — actual data in cluster-diagnosis.json]
+├── cluster_access              [Script, Step 4a]
+├── cluster_landscape           [Script, Step 4b]
+├── cluster_oracle              [Script, Step 5]
+├── repositories                [Script, Step 6]
+├── feature_grounding           [Script, Step 8]
+├── feature_knowledge           [Script, Step 9]
+└── errors                      [Script, throughout]
+```
+
+#### 1. `metadata` — Run metadata (Script, Step 1)
 
 ```json
 {
-  "metadata": {
-    "jenkins_url": "https://jenkins.../job/acm-e2e/123/",
-    "gathered_at": "2026-02-04T15:30:00Z",
-    "gatherer_version": "3.9.0"
+  "jenkins_url": "",
+  "gathered_at": "",
+  "gatherer_version": "4.0.0",
+  "jenkins_api_available": true,
+  "acm_ui_mcp_available": true,
+  "knowledge_graph_available": false,
+  "run_directory": "runs/<dir>",
+  "gathering_time_seconds": 0.0,
+  "status": "complete",
+  "data_version": "4.0.0"
+}
+```
+
+#### 2. `jenkins` — Build metadata (Script, Step 1)
+
+```json
+{
+  "build_url": "",
+  "job_name": "",
+  "build_number": 0,
+  "build_result": "UNSTABLE",
+  "timestamp": 0,
+  "parameters": { "CYPRESS_HUB_API_URL": "", "GIT_BRANCH": "", "..." : "..." },
+  "branch": "main",
+  "commit_sha": null,
+  "artifacts": ["junit_cypress-*.xml", "..."],
+  "environment_info": { "cluster_name": null, "target_branch": "main" }
+}
+```
+
+#### 3. `test_report` — Test results + per-test context (Script, Step 3 + Agent)
+
+```json
+{
+  "summary": {
+    "total_tests": 0, "passed_count": 0, "failed_count": 0,
+    "skipped_count": 0, "pass_rate": 0.0, "duration": 0.0
   },
-  "jenkins": {
-    "job_name": "acm-qe-e2e-nightly",
-    "build_number": 123,
-    "result": "UNSTABLE",
-    "parameters": [...]
-  },
-  "test_report": {
-    "summary": { "total": 150, "failed": 8 },
-    "failed_tests": [
-      {
-        "test_name": "should create cluster",
-        "error_message": "Expected to find...",
-        "failure_type": "element_not_found",
-        "parsed_stack_trace": { ... },
-        "extracted_context": {
-          "test_file": { "content": "...", "line_count": 150 },
-          "page_objects": [...],
-          "console_search": { "found": false, ... },
-          "assertion_analysis": { "has_data_assertion": false },
-          "failure_mode_category": "element_missing"
-        },
-        "detected_components": [...]
+  "failed_tests": [
+    {
+      "test_name": "",
+      "class_name": "",
+      "status": "FAILED",
+      "duration_seconds": 0.0,
+      "error_message": "",
+      "stack_trace": "",
+      "failure_type": "",
+      "parsed_stack_trace": {
+        "root_cause_file": null, "root_cause_line": null,
+        "test_file": null, "test_line": null,
+        "failing_selector": null, "error_type": "",
+        "frames_count": 0, "user_code_frames": 0
+      },
+      "detected_components": [],
+      "extracted_context": {
+        "test_file": null,
+        "page_objects": [],
+        "console_search": null,
+        "recent_selector_changes": null,
+        "assertion_analysis": null,
+        "failure_mode_category": "",
+        "temporal_summary": null
       }
-    ]
+    }
+  ]
+}
+```
+
+**Per-test field sources:**
+
+| Field | Source | Populated by |
+|-------|--------|-------------|
+| test_name, class_name, status, duration_seconds, error_message, stack_trace, failure_type | JUnit XML | Script (Step 3) |
+| parsed_stack_trace | Stack trace parser | Script (Step 3) |
+| detected_components | Component extraction | Script (Step 3) |
+| test_file | Read from repos/automation/ | Script (Step 7) |
+| page_objects | Trace imports, find selector definitions | **Agent** (Task 1) |
+| console_search | Verify selector in product source via MCP | **Agent** (Task 2) |
+| recent_selector_changes | Git log analysis with intent assessment | **Agent** (Task 3) |
+| assertion_analysis | Parse assertion values from error | Script (Step 7) |
+| failure_mode_category | Classify error type | Script (Step 7) |
+| temporal_summary | Selector-level timeline from git log | **Agent** (Task 3) |
+
+#### 4. `console_log` — Jenkins console output analysis (Script, Step 2)
+
+```json
+{
+  "file_path": "console-log.txt",
+  "total_lines": 0,
+  "error_lines_count": 0,
+  "key_errors": ["first 20 error lines..."],
+  "error_patterns": {
+    "has_500_errors": false,
+    "has_network_errors": false,
+    "has_timeout_mentions": false
+  }
+}
+```
+
+#### 5. `environment` — Cluster connectivity status (Script, Step 4a)
+
+```json
+{
+  "cluster_connectivity": true,
+  "source": "cluster-login"
+}
+```
+
+#### 6. `cluster_health` — Stub (Script, Step 4)
+
+Health data is in `cluster-diagnosis.json` from Stage 1.5, not here.
+
+```json
+{
+  "deferred_to_stage_1_5": true,
+  "note": "Cluster health data provided by cluster-diagnosis.json from Stage 1.5"
+}
+```
+
+#### 7. `cluster_access` — Cluster credentials (Script, Step 4a)
+
+```json
+{
+  "api_url": "",
+  "username": "",
+  "has_credentials": true,
+  "password": "***MASKED***",
+  "note": "Credentials from Jenkins parameters.",
+  "kubeconfig_path": "runs/<dir>/cluster.kubeconfig",
+  "mch_namespace": "ocm"
+}
+```
+
+The `mch_namespace` is discovered via `oc get mch -A`. All downstream `oc` commands
+and service lookups use this namespace instead of hardcoding `open-cluster-management`.
+
+#### 8. `cluster_landscape` — Cluster state snapshot (Script, Step 4b)
+
+```json
+{
+  "managed_cluster_count": 0,
+  "managed_cluster_statuses": { "Ready": 0, "NotReady": 0 },
+  "operator_statuses": { "authentication": "Available", "...": "..." },
+  "degraded_operators": [],
+  "resource_pressure": { "cpu": false, "memory": false, "disk": false, "pid": false },
+  "policy_count": 0,
+  "multiclusterhub_status": "Running",
+  "mch_enabled_components": { "console": true, "search": true, "...": true },
+  "mch_version": ""
+}
+```
+
+#### 9. `cluster_oracle` — Feature context from oracle (Script, Step 5)
+
+The 6-phase Environment Oracle builds a knowledge database about the feature
+being tested, its dependencies, and their health state.
+
+```json
+{
+  "version": "1.0.0",
+  "oracle_phase": "C",
+  "snapshot_time": "",
+  "feature_areas": ["CLC"],
+  "failed_test_count": 0,
+  "polarion_ids": ["RHACM4K-XXXXX", "..."],
+  "polarion_discovery": {
+    "polarion_available": true,
+    "tests_queried": 0,
+    "tests_with_content": 0,
+    "test_case_context": { "RHACM4K-XXXXX": { "title": "", "description": "", "setup": "" } }
   },
-  "environment": {
-    "cluster_connectivity": true,
-    "environment_score": 0.95
+  "knowledge_context": {
+    "kg_available": false,
+    "subsystems_investigated": [],
+    "docs_context": { "docs_path": "", "available_directories": [] },
+    "playbook_architecture": {}
   },
-  "cluster_landscape": {
-    "managed_clusters": [...],
-    "operators": [...],
-    "resource_pressure": {...},
-    "mch_status": "Running"
+  "dependency_targets": [{ "id": "", "type": "", "name": "", "description": "" }],
+  "dependency_health": {},
+  "overall_feature_health": {
+    "score": null,
+    "signal": "unknown",
+    "blocking_issues": [],
+    "summary": ""
   },
-  "console_log": {
-    "error_patterns": { ... },
-    "key_errors": [...]
+  "cluster_access_status": "skipped",
+  "errors": []
+}
+```
+
+#### 11. `repositories` — Cloned repo metadata (Script, Step 6)
+
+```json
+{
+  "automation": {
+    "path": "repos/automation",
+    "url": "",
+    "branch": "main",
+    "commit": "",
+    "cloned": true
   },
-  "investigation_hints": {
-    "timeline_evidence": { ... },
-    "failed_test_locations": [...]
+  "console": {
+    "path": "repos/console",
+    "url": "https://github.com/stolostron/console.git",
+    "branch": "main",
+    "cloned": true,
+    "patternfly_version": { "@patternfly/react-core": "^6.4.1" },
+    "structure_valid": { "ui_components": true, "routes": true, "..." : true }
   },
-  "feature_grounding": {
-    "groups": {
-      "CLC": { "subsystem": "Cluster", "test_count": 3, "key_components": [...] },
-      "Search": { "subsystem": "Search", "test_count": 2, "key_components": [...] }
+  "kubevirt_plugin": {
+    "path": "repos/kubevirt-plugin",
+    "url": "",
+    "branch": "main",
+    "cloned": true,
+    "structure_valid": { "src": true, "views": true }
+  }
+}
+```
+
+Automation repo URL is detected dynamically from the Jenkins pipeline.
+kubevirt-plugin is only cloned when VM/virt tests are detected.
+
+#### 12. `feature_grounding` — Test-to-subsystem mapping (Script, Step 8)
+
+```json
+{
+  "groups": {
+    "CLC": {
+      "subsystem": "Cluster Lifecycle",
+      "key_components": ["cluster-curator", "hive-controllers"],
+      "key_namespaces": ["open-cluster-management", "hive"],
+      "investigation_focus": "Cluster creation, import, upgrade...",
+      "tests": ["RHACM4K-1588: ...", "RHACM4K-8322: ..."],
+      "test_count": 16
     }
   },
-  "feature_knowledge": {
-    "acm_version": "2.16",
-    "profiles_loaded": ["CLC", "Search", "Automation"],
-    "feature_readiness": { ... },
-    "investigation_playbooks": { ... },
-    "kg_dependency_context": { ... },
-    "kg_status": { "available": true }
-  },
-  "backend_probes": {
-    "probed_at": "2026-03-25T10:30:00Z",
-    "console_pod": "console-chart-abc123-xyz",
-    "probes": { ... },
-    "total_anomalies": 0
-  },
-  "cluster_access": {
-    "api_url": "https://api.cluster.example.com:6443",
-    "username": "kubeadmin",
-    "has_credentials": "***MASKED***",
-    "password": "****masked****",
-    "kubeconfig_path": "runs/<dir>/cluster.kubeconfig"
-  },
-  "ai_instructions": { ... }
+  "feature_areas_found": ["CLC", "Virtualization", "RBAC", "..."],
+  "total_groups": 8
 }
+```
+
+#### 13. `feature_knowledge` — Playbooks and KG context (Script, Step 9)
+
+```json
+{
+  "acm_version": "2.17",
+  "profiles_loaded": ["CLC", "Search", "Virtualization", "..."],
+  "feature_readiness": {
+    "CLC": {
+      "all_prerequisites_met": true,
+      "prerequisite_checks": [{ "id": "", "type": "", "met": true }],
+      "unmet_prerequisites": [],
+      "failure_paths": [{ "id": "", "symptoms": [], "classification": "", "confidence": 0.0 }],
+      "pre_matched_paths": []
+    }
+  },
+  "investigation_playbooks": {
+    "CLC": {
+      "display_name": "Cluster Lifecycle",
+      "architecture": { "summary": "", "data_flow": [], "key_insight": "" },
+      "prerequisites": [],
+      "dependencies": [],
+      "failure_paths": []
+    }
+  },
+  "kg_dependency_context": {},
+  "kg_status": { "available": false, "error": "", "impact": "", "remediation": "" }
+}
+```
+
+#### 14. `errors` — Errors encountered during gathering (Script, throughout)
+
+```json
+["Knowledge Graph unavailable: ...", "..."]
 ```
 
 ---
@@ -1089,11 +1147,11 @@ All collected data is written to the run directory.
 | `RepositoryAnalysisService` | 6 | Git clone, repo inference |
 | `TimelineComparisonService` | 7 | Git date comparison |
 | `ComponentExtractor` | 7 | Error → component names |
-| `ACMConsoleKnowledge` | 7, 10 | Directory structure mapping |
+| `ACMConsoleKnowledge` | 7 | Directory structure mapping |
 | `FeatureAreaService` | 8 | Test-to-feature-area mapping (v3.0) |
 | `FeatureKnowledgeService` | 9 | Playbook loading, prerequisite checks, symptom matching (v3.1) |
 | `KnowledgeGraphClient` | 9 | Neo4j dependency queries for kg_dependency_context (v3.2) |
-| `ACMUIMCPClient` | 6, 10 | CNV detection (Step 6), element inventory (Step 10) |
+| `ACMUIMCPClient` | 6 | CNV detection (Step 6) |
 | `shared_utils` | All | Config, subprocess, credentials |
 
 See [04-SERVICES-REFERENCE.md](04-SERVICES-REFERENCE.md) for detailed method signatures.
@@ -1109,6 +1167,6 @@ python -m src.scripts.gather "https://jenkins.example.com/job/test/123/"
 # Options
 python -m src.scripts.gather <url> --verbose       # Verbose logging
 python -m src.scripts.gather <url> --skip-env      # Skip environment + cluster landscape + oracle (Steps 4-5)
-python -m src.scripts.gather <url> --skip-repo     # Skip repository cloning (Steps 6-7, 10)
+python -m src.scripts.gather <url> --skip-repo     # Skip repository cloning (Steps 6-7)
 python -m src.scripts.gather <url> -o ./my-runs    # Custom output directory
 ```

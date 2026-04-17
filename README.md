@@ -6,7 +6,7 @@ Claude Code-powered tools for ACM (Advanced Cluster Management) quality engineer
 
 | App | What It Does | Status |
 |-----|-------------|--------|
-| [ACM Hub Health](apps/acm-hub-health/) | Diagnose and remediate ACM hub clusters through natural language. 6-phase pipeline with 12-layer diagnostic model: layer-organized health checks (foundational layers first), horizontal dependency chain tracing + vertical layer tracing, layer-based fallback for unknown issues. 57 knowledge files (architecture, diagnostics, baselines, webhooks, certs, addons, version constraints, 13 diagnostic traps). Session tracing via Claude Code hooks (JSONL traces with oc command parsing, MCP tracking, phase inference, mutation detection). | Active |
+| [ACM Hub Health](apps/acm-hub-health/) | Diagnose and remediate ACM hub clusters through natural language. 6-phase pipeline with 12-layer diagnostic model: layer-organized health checks (foundational layers first), horizontal dependency chain tracing + vertical layer tracing, layer-based fallback for unknown issues. 54 knowledge files (architecture, diagnostics, baselines, webhooks, certs, addons, version constraints, 13 diagnostic traps). Session tracing via Claude Code hooks (JSONL traces with oc command parsing, MCP tracking, phase inference, mutation detection). | Active |
 | [Z-Stream Analysis](apps/z-stream-analysis/) | Classify Jenkins pipeline failures (product bug, automation bug, infra) using 12-layer diagnostic investigation (v4.0) with root-cause-first analysis. Stage 1.5 cluster-diagnostic agent produces structured health data (environment_health_score, operator_health, health_depth). v4.0 adds context signals (PR-7), Polarion expected-behavior check (PR-6b), symmetric counterfactual (D-V5c/D-V5e), and layer discrepancy detection. Environment Oracle, per-group investigation agents, and knowledge database (61 files: architecture, data-flow, failure-signatures across 12 ACM subsystems + diagnostics methodology including 12-layer model + healthy baselines + addon catalog + webhook registry + diagnostic traps + learned patterns). | Active |
 | [Test Case Generator](apps/test-case-generator/) | Generate Polarion-ready test cases from JIRA tickets. 3-stage pipeline: deterministic data gathering (gh CLI), MCP-powered AI investigation and generation (JIRA, Polarion, ACM UI, Neo4j), deterministic report/validation with Polarion HTML output. Uses conventions from 85+ existing test cases. | Active |
 
@@ -16,7 +16,7 @@ All apps require:
 - **Claude Code CLI** -- [install guide](https://docs.anthropic.com/en/docs/claude-code/getting-started)
 
 App-specific:
-- **Hub Health**: `oc` CLI logged into an ACM hub cluster. Podman for Neo4j knowledge graph container (optional but recommended). Python 3 + PyYAML only if using `knowledge/refresh.py` (optional).
+- **Hub Health**: `oc` CLI logged into an ACM hub cluster. Node.js + `mcp-remote` (`npm install -g mcp-remote`) for the acm-search MCP server. Podman for Neo4j knowledge graph container (optional but recommended). Python 3 + PyYAML only if using `knowledge/refresh.py` (optional).
 - **Z-Stream**: Python 3.10+, `oc` CLI, Red Hat VPN (for Jenkins/Polarion), JIRA API token, GitHub CLI (`gh`)
 - **Test Case Generator**: Python 3.10+, GitHub CLI (`gh`), JIRA API token, Red Hat VPN (for Polarion)
 
@@ -130,7 +130,7 @@ It asks which app you want to configure and only installs the servers that app n
 
 | App | MCP Servers Installed |
 |-----|----------------------|
-| Hub Health | acm-ui, neo4j-rhacm |
+| Hub Health | acm-ui, neo4j-rhacm, acm-search |
 | Z-Stream | acm-ui, jira, jenkins, polarion, neo4j-rhacm |
 | Test Case Generator | acm-ui, jira, polarion, neo4j-rhacm |
 
@@ -146,16 +146,18 @@ any you don't have yet -- placeholder files are created that you can fill in lat
 | JIRA | 25 | [stolostron/jira-mcp-server](https://github.com/stolostron/jira-mcp-server) | Issue search, creation, management for bug correlation |
 | Polarion | 25 | This repo | Polarion test case access (Red Hat VPN required) |
 | Neo4j RHACM (KG) | 2 | [stolostron/knowledge-graph](https://github.com/stolostron/knowledge-graph) | ACM component dependency analysis via Cypher queries |
+| ACM Search | 5 | [stolostron/acm-mcp-server](https://github.com/stolostron/acm-mcp-server) | Fleet-wide resource queries via search-postgres (spoke-side visibility) |
 
-External MCP servers (JIRA, Jenkins, Knowledge Graph) are cloned automatically by
-`setup.sh` into `mcp/.external/` (gitignored). The apps use forks with ACM-specific
-fixes on top of the upstream sources:
+External MCP servers (JIRA, Jenkins, Knowledge Graph, ACM Search) are cloned
+automatically by `setup.sh` into `mcp/.external/` (gitignored). Most use forks with
+ACM-specific fixes on top of the upstream sources:
 
 | Server | Upstream | Fork used by setup.sh | Changes |
 |--------|----------|----------------------|---------|
 | JIRA | [stolostron/jira-mcp-server](https://github.com/stolostron/jira-mcp-server) | [atifshafi/jira-mcp-server](https://github.com/atifshafi/jira-mcp-server) `feat/redhat-fields` | Red Hat field support ([PR#24](https://github.com/stolostron/jira-mcp-server/pull/24)) |
 | Jenkins | [redhat-community-ai-tools/jenkins-mcp](https://github.com/redhat-community-ai-tools/jenkins-mcp) | [atifshafi/jenkins-mcp](https://github.com/atifshafi/jenkins-mcp) `fix/auth-logs-paths` | Auth + log path fixes ([PR#13](https://github.com/redhat-community-ai-tools/jenkins-mcp/pull/13)) |
 | Neo4j RHACM (KG) | [stolostron/knowledge-graph](https://github.com/stolostron/knowledge-graph) | [atifshafi/knowledge-graph](https://github.com/atifshafi/knowledge-graph) `atif-depth-improvements` | Virtualization, Hive, Klusterlet, Addon Framework, HyperShift + depth improvements |
+| ACM Search | [stolostron/acm-mcp-server](https://github.com/stolostron/acm-mcp-server) | upstream `main` (no fork needed) | PostgreSQL search database access for fleet-wide resource queries |
 
 This repo contains the MCP servers we created (ACM UI, Polarion wrapper,
 Jenkins ACM analysis tools).
@@ -176,7 +178,8 @@ ai_systems_v2/
 │   └── .external/             # Cloned at setup time (gitignored)
 │       ├── jira-mcp-server/   #   from stolostron/jira-mcp-server
 │       ├── jenkins-mcp/       #   from redhat-community-ai-tools/jenkins-mcp
-│       └── knowledge-graph/   #   from stolostron/knowledge-graph
+│       ├── knowledge-graph/   #   from stolostron/knowledge-graph
+│       └── acm-mcp-server/    #   from stolostron/acm-mcp-server
 ├── CLAUDE.md                  # Claude Code agent instructions
 └── README.md                  # This file
 ```

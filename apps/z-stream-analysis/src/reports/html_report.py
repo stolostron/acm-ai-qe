@@ -45,6 +45,7 @@ def _map_diagnosis_to_health(diag: dict) -> dict:
     # Direct passthrough fields (same name in both schemas)
     for key in ('infrastructure_issues', 'baseline_comparison', 'classification_guidance',
                 'operator_health', 'cluster_identity', 'console_plugins',
+                'image_integrity', 'cluster_connectivity',
                 'environment_health_score', 'overall_verdict',
                 'critical_issue_count', 'warning_issue_count'):
         if key in diag:
@@ -739,6 +740,19 @@ def generate_html_report(run_dir: Path, trace_file: Optional[Path] = None) -> Pa
             f'</div>'
         )
 
+    # Image integrity from cluster diagnostic
+    image_integrity_html = ""
+    img_data = ch_full.get("image_integrity", {})
+    if img_data and not img_data.get("matches_expected", True):
+        image_integrity_html = (
+            f'<div class="evidence-item tier-1" style="margin-bottom:6px;border-left:3px solid var(--warning);padding-left:10px">'
+            f'<span style="color:var(--warning);font-weight:600;font-size:11px">WARNING</span> '
+            f'<strong>Non-standard console image</strong>'
+            f'<div style="font-size:12px;margin-top:2px">{esc(img_data.get("console_image", ""))}</div>'
+            f'<div style="font-size:11px;color:var(--text-dim);margin-top:2px">{esc(img_data.get("flag", ""))}</div>'
+            f'</div>'
+        )
+
     # K8s service health — prefer health audit subsystem data, fall back to env_status
     svc_health_html = ""
     if not ch_full:
@@ -1136,6 +1150,9 @@ body {{ background: var(--bg); color: var(--text); font-family: -apple-system, B
 
     <!-- Cluster Identity (v3.7) -->
     {"<div style='margin-top:20px'><div class='section-label'>Cluster Identity</div><div style='margin-top:8px'>" + identity_html + "</div></div>" if identity_html else ""}
+
+    <!-- Image Integrity (v4.0) -->
+    {"<div style='margin-top:20px'>" + image_integrity_html + "</div>" if image_integrity_html else ""}
 
     <!-- Infrastructure Issues (v3.7) -->
     {"<div style='margin-top:20px'><div class='section-label' style='color:var(--danger)'>Infrastructure Issues (" + str(len(ch_full.get('infrastructure_issues', []))) + ")</div><div style='margin-top:8px'>" + infra_issues_html + "</div></div>" if infra_issues_html else ""}

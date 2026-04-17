@@ -158,7 +158,7 @@ Stage 1+2 ─── KnowledgeGraphClient ─────────── Neo4j
 |----------|-------|
 | **File** | `src/services/timeline_comparison_service.py` (1027 lines) |
 | **Purpose** | Compares git modification dates between automation and product repos; detects recent selector changes via git diff |
-| **Used by** | Stage 1, Step 7 (timeline evidence), Step 10 (recent selector changes) |
+| **Used by** | Stage 1, Step 7 (timeline evidence, recent selector changes) |
 
 **Key exports:** `TimelineComparisonService`, `TimelineComparisonResult`, `ElementTimeline`, `SelectorTimeline`, `TimeoutPatternResult`
 
@@ -201,8 +201,6 @@ Stage 1+2 ─── KnowledgeGraphClient ─────────── Neo4j
 | `suggest_search_patterns(selector)` | Generate grep patterns for selector |
 | `requires_kubevirt_repo(test_name)` | Check if test needs kubevirt-plugin |
 | `find_element_with_mcp(selector, search_all_repos)` | Search via MCP integration |
-| `build_element_inventory(repository, component_paths)` | Build element inventory |
-
 ---
 
 ### 8. ACMUIMCPClient
@@ -211,7 +209,7 @@ Stage 1+2 ─── KnowledgeGraphClient ─────────── Neo4j
 |----------|-------|
 | **File** | `src/services/acm_ui_mcp_client.py` (295 lines) |
 | **Purpose** | Python MCP client for Stage 1 data gathering; Stage 2 uses Claude Code's native MCP |
-| **Used by** | Stage 1 (element inventory, CNV detection) |
+| **Used by** | Stage 1 (CNV detection) |
 
 **Key exports:** `ACMUIMCPClient`, `ElementInfo`, `SearchResult`, `CNVVersionInfo`, `FleetVirtSelectors`
 
@@ -223,7 +221,6 @@ Stage 1+2 ─── KnowledgeGraphClient ─────────── Neo4j
 | `find_test_ids(file_path, repository)` | Find data-testid/aria-label in a file |
 | `search_code(query, repository)` | Search code across repos |
 | `find_element_definition(selector, search_all_repos)` | Find element definitions |
-| `get_element_inventory(component_paths, repository)` | Build element inventory |
 
 ---
 
@@ -489,24 +486,11 @@ See [03-STAGE3-REPORT-GENERATION.md](03-STAGE3-REPORT-GENERATION.md) for details
 | Property | Value |
 |----------|-------|
 | **File** | `src/scripts/gather.py` (3,649 lines) |
-| **Purpose** | Stage 1 orchestrator: extracts test data from Jenkins, validates environment, gathers context, probes backend APIs |
+| **Purpose** | Stage 1 orchestrator: extracts test data from Jenkins, validates environment, gathers context |
 | **Used by** | Stage 1 (all steps) |
 
-**Backend API probing methods (v3.3):**
-
-| Method | Description |
-|--------|-------------|
-| `_probe_backend_apis()` | Orchestrates all 5 probes, stores results in `gathered_data['backend_probes']` |
-| `_find_console_api_pod(cli, kubeconfig_args)` | Finds a running console-api pod for in-pod curl execution |
-| `_get_bearer_token(cli, kubeconfig_args)` | Gets bearer token via `oc whoami -t` |
-| `_exec_curl_in_pod(cli, kubeconfig_args, pod_name, namespace, token, path, method, data, timeout)` | Executes curl inside the console pod |
-| `_probe_authenticated(...)` | Probes `/authenticated` endpoint |
-| `_probe_hub(...)` | Probes `/hub` and validates against cluster landscape |
-| `_probe_username(...)` | Probes `/username` and checks for reversed format |
-| `_probe_ansibletower(...)` | Probes `/ansibletower` and validates against AAP status |
-| `_probe_search(...)` | Probes `/proxy/search` with basic Pod query |
-
-**Class data:** `FEATURE_AREA_PROBE_MAP` — maps 10 feature areas to probe endpoint names (Automation→ansibletower, CLC→hub, RBAC→username, Search→search, All→authenticated)
+**Note:** Backend API probing methods were removed. Backend health investigation
+is handled by Stage 1.5 (cluster-diagnostic agent) and Stage 2 (analysis agent).
 
 ---
 

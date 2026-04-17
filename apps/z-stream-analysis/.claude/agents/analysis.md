@@ -1,5 +1,5 @@
 ---
-name: z-stream-analysis
+name: analysis
 description: Analyze Jenkins pipeline failures with full repo access. Use PROACTIVELY for any Jenkins URL.
 tools: ["Bash", "WebFetch", "Grep", "Read", "Write", "Glob"]
 ---
@@ -160,7 +160,7 @@ For EVERY classification, you MUST have:
 │  ├── PR-2. Hook failure deduplication (v3.2)                       │
 │  ├── PR-3. Temporal evidence check (v3.2)                          │
 │  ├── PR-5. Data assertion pre-check (v3.3)                         │
-│  ├── PR-6. Backend probe source-of-truth check (v3.4)              │
+│  ├── PR-6. Backend health check (via cluster-diagnosis.json)        │
 │  ├── PR-6b. Polarion expected behavior check (v4.0)                │
 │  ├── PR-7. Environment/Diagnostic context signals (v4.0)           │
 │  ├── PR-4. Feature knowledge override (v3.1) — check tier results  │
@@ -217,11 +217,13 @@ cat runs/<dir>/cluster-diagnosis.json | python3 -c "import json,sys; d=json.load
 
 4. **`subsystem_health`**: Per-subsystem status with component details. Subsystems in `confirmed_healthy` (from `classification_guidance`) mean infrastructure is ruled out — focus on selectors, JIRA, code changes.
 
-5. **`managed_cluster_health`**: Per-cluster availability, join status, and addon health. Tests requiring spoke data will fail if the target cluster is not available.
+5. **`managed_cluster_detail`**: Per-cluster availability, join status, and addon health. Tests requiring spoke data will fail if the target cluster is not available.
 
 6. **`baseline_comparison`**: Shows under-replicated deployments and unexpected resources (NetworkPolicies, ResourceQuotas). These are deviations from the validated healthy baseline.
 
 7. **`console_plugins`**: Shows registered ConsolePlugin CRs. Missing plugins mean missing UI tabs.
+
+8. **`image_integrity`**: Shows whether the console image matches expected registries. If `matches_expected: false`, the console is running a non-standard image (personal build, test injection, etc.). Tests failing with CSS/rendering issues in a tampered-image environment should be investigated as potential PRODUCT_BUG (the image itself is defective) rather than AUTOMATION_BUG. Use ACM-UI MCP to verify selectors against the OFFICIAL source before concluding the selector is dead.
 
 **ANTI-ANCHORING RULE:** The cluster diagnostic provides
 CONTEXT, not pre-determined classification. When you analyze each test,
@@ -237,11 +239,12 @@ the cluster-wide issue is irrelevant and the test has a different root
 cause.
 
 **Tampered console warning:** When the console is running a non-official
-image, `console_search.found=false` was checked against the TAMPERED
-console. It does NOT tell you whether the selector exists in the
-OFFICIAL console. You MUST use ACM-UI MCP `search_code("<selector>")`
-to verify. A selector missing from BOTH tampered AND official console
-is AUTOMATION_BUG (dead selector), not INFRASTRUCTURE.
+image, check `console_search.verification.verified_by`. If `"data-collector"`,
+the selector was already verified against the OFFICIAL product source via
+MCP tools — trust the result. If `verification` is absent (pre-v4.0 data),
+use ACM-UI MCP `search_code("<selector>")` to verify manually. A selector
+missing from BOTH tampered AND official console is AUTOMATION_BUG (dead
+selector), not INFRASTRUCTURE.
 
 **How to use cluster diagnostic data:**
 
@@ -314,8 +317,15 @@ is AUTOMATION_BUG (dead selector), not INFRASTRUCTURE.
     - If a plugin's backend is unhealthy, its console tabs silently disappear.
     - Prevents misclassifying missing UI elements as AUTOMATION_BUG.
 
+14. **Read `counter_signals`:**
+    - `potential_false_infrastructure`: Lists tests that have `console_search.found=false`
+      — these should be AUTOMATION_BUG regardless of infrastructure state. The diagnostic
+      flags them explicitly so you don't blanket-classify as INFRASTRUCTURE.
+    - `infrastructure_context_notes`: Notes whether infrastructure issues (ResourceQuota,
+      NetworkPolicy, operator scaling) are test artifacts or product-created.
+
 **If cluster-diagnosis.json does NOT exist**, proceed with the existing oracle
-data from core-data.json (no regression — the pipeline works exactly as v3.5).
+data from core-data.json (the pipeline works without cluster-diagnosis.json).
 
 **Diagnostic data and oracle data are complementary.** The diagnostic provides
 deeper investigation (AI-driven reasoning, log analysis, trap detection,
@@ -461,8 +471,8 @@ cat runs/<dir>/core-data.json | jq '.test_report.failed_tests[].parsed_stack_tra
 # Extract all detected components
 cat runs/<dir>/core-data.json | jq '.test_report.failed_tests[].detected_components[].name' | sort | uniq -c | sort -rn
 
-# Check for common feature areas
-cat runs/<dir>/core-data.json | jq '.investigation_hints.failed_test_locations[].feature_area' | sort | uniq -c | sort -rn
+# Check feature area distribution
+cat runs/<dir>/core-data.json | jq '.feature_grounding.groups | to_entries[] | "\(.key): \(.value.tests | length)"'
 ```
 
 **Record correlations found for Phase C validation.**
@@ -501,7 +511,11 @@ A4 grouping logic:
       → NO_BUG (PR-2 cascading hook). Set is_cascading_hook_failure=true.
    b) Tests sharing the same dead selector where console_search.found=false
       AND 3+ tests share that selector
-      → AUTOMATION_BUG directly. Evidence: console_search + cross-test count.
+      → AUTOMATION_BUG directly, UNLESS recent_selector_changes.classification_hint
+        says "PRODUCT_BUG" (meaning the selector was accidentally removed by
+        a product commit, not an intentional rename). If classification_hint
+        is "PRODUCT_BUG", route to investigation instead of instant classification.
+      Evidence: console_search + cross-test count.
       Set root_cause_layer=12, root_cause_layer_name="UI / Plugin / Rendering".
 
 2. GROUP FOR INVESTIGATION (provably linked criteria — ALL must match):
@@ -562,8 +576,9 @@ This applies to ALL tests — both directly-classified tests (dead selectors,
 hook cascades) and investigated tests. There are NO exceptions.
 
 For directly-classified tests (Phase A4):
-- Dead selector (console_search.found=false): root_cause_layer=12,
-  root_cause_layer_name="UI / Plugin / Rendering", cause_owner="test code"
+- Dead selector (console_search.found=false, no conflicting classification_hint):
+  root_cause_layer=12, root_cause_layer_name="UI / Plugin / Rendering",
+  cause_owner="test code"
 - Hook cascade (NO_BUG): root_cause_layer=12,
   root_cause_layer_name="UI / Plugin / Rendering", cause_owner="cascading"
 
@@ -717,7 +732,7 @@ Each failed test includes pre-computed `extracted_context`:
     "selector": "#create-btn",
     "found": false,
     "locations": [],
-    "similar_selectors": ["#cluster-create-btn"]
+    "verification": { "verified_by": "data-collector", "method": "mcp_literal_search", "result": "not_found", "detail": "..." }
   }
 }
 ```
@@ -726,35 +741,40 @@ Each failed test includes pre-computed `extracted_context`:
 - What does the test do? (read `test_file.content`)
 - Is the failing selector defined correctly? (check `page_objects`)
 - Does the selector exist in the product? (`console_search.found`)
-- What similar selectors exist? (`console_search.similar_selectors`)
+- What does the verification say? (`console_search.verification.detail`)
 - Is this a data-level failure? (check `assertion_analysis.has_data_assertion` and `failure_mode_category`)
 - If `failure_mode_category == 'data_incorrect'`: the page rendered but showed wrong data — focus investigation on the backend API data path, NOT selectors
 
-### Phase B2: Timeline Evidence Analysis
+### Phase B2: Selector Timeline Analysis
 
-Check `investigation_hints.timeline_evidence`:
+Check each test's `extracted_context.recent_selector_changes` and `extracted_context.temporal_summary` (populated by the data-collector agent with git history analysis and intent assessment):
 
 ```json
 {
-  "#create-btn": {
-    "exists_in_console": false,
-    "element_removed": true,
-    "element_never_existed": false,
-    "days_difference": 15,
-    "console_changed_after_automation": true,
-    "console_timeline": {
-      "last_modified": "2026-01-15T10:00:00Z",
-      "commit_message": "refactor: rename cluster buttons"
-    }
+  "recent_selector_changes": {
+    "change_detected": true,
+    "selector": "cluster-dropdown-toggle",
+    "direction": "removed_from_product",
+    "intent_assessment": "intentional_rename",
+    "classification_hint": "AUTOMATION_BUG",
+    "reasoning": "Commit explicitly renames selector as part of PF6 migration"
+  },
+  "temporal_summary": {
+    "stale_test_signal": true,
+    "product_last_modified": "2026-03-15T00:00:00",
+    "automation_last_modified": "2026-01-10T00:00:00",
+    "days_difference": 64,
+    "product_commit_type": "refactor"
   }
 }
 ```
 
 | Timeline Fact | Implication |
 |---------------|-------------|
-| `element_never_existed = true` | Selector was never correct |
-| `element_removed = true` | Product changed, automation not updated |
-| `console_changed_after_automation = true` | Recent product change may have broken test |
+| `change_detected + intent_assessment = intentional_rename` | Product intentionally renamed selector — AUTOMATION_BUG |
+| `change_detected + intent_assessment = likely_unintentional` | Product accidentally removed selector — investigate as PRODUCT_BUG |
+| `stale_test_signal = true` | Product changed after automation last touched this selector |
+| `console_search.found = false + no recent changes` | Selector was never correct or removed long ago |
 
 ### Phase B3: Console Log Evidence
 
@@ -770,7 +790,8 @@ cat runs/<dir>/core-data.json | jq '.console_log.key_errors[]' | head -20
 |-----------------|-----------|
 | 500/502/503 errors | PRODUCT_BUG |
 | "Connection refused" | INFRASTRUCTURE |
-| "timeout" + healthy env | AUTOMATION_BUG (wait strategy) |
+| "timeout" + healthy env + selector exists | AUTOMATION_BUG (wait strategy) |
+| "timeout" + healthy env + slow backend response | PRODUCT_BUG (performance regression) |
 | No errors, just element not found | AUTOMATION_BUG (selector) |
 
 #### B3b. External Service Dependencies (v3.5.1)
@@ -822,6 +843,10 @@ mcp__acm-ui__detect_cnv_version()
 | **Understand wizard flow** | `mcp__acm-ui__get_wizard_steps` | `get_wizard_steps('path/wizard.tsx', 'acm')` |
 | **PatternFly fallback** | `mcp__acm-ui__get_patternfly_selectors` | `get_patternfly_selectors('button')` |
 | **Component in error** | `mcp__neo4j-rhacm__read_neo4j_cypher` | Cypher query for deps (if available) |
+| **Need live cluster resources** | `mcp__acm-search__find_resources` | Search pods, deployments, policies across all managed clusters |
+| **Need fleet-wide resource stats** | `mcp__acm-search__query_database` | SQL query against ACM Search PostgreSQL DB |
+| **Need managed cluster list** | `mcp__acm-kubectl__clusters` | List all managed clusters with health status |
+| **Need spoke cluster data** | `mcp__acm-kubectl__kubectl` | `kubectl(command="kubectl get pods -n <ns>", cluster="<spoke>")` |
 | **Path B2: Polarion ID found** | `mcp__jira__search_issues` | `search_issues(jql="summary ~ 'RHACM4K-XXXX' OR description ~ 'RHACM4K-XXXX'")` |
 | **Path B2: Feature story found** | `mcp__jira__get_issue` | `get_issue('ACM-22079')` — read story, acceptance criteria, linked PRs |
 | **Phase E: detected_components available** | `mcp__neo4j-rhacm__read_neo4j_cypher` | Component info + subsystem query |
@@ -865,18 +890,18 @@ Check `detected_components` for each failed test:
 }
 ```
 
-**When components are detected, query Knowledge Graph:**
-
-```cypher
-# Find components that depend on the failing component
-MATCH (dep:RHACMComponent)-[:DEPENDS_ON]->(c:RHACMComponent)
-WHERE c.label =~ '(?i).*search-api.*'
-RETURN DISTINCT dep.label as dependent, dep.subsystem as subsystem
-```
+**When components are detected, query Knowledge Graph (2-step approach):**
 
 ```
+# Step 1: Discover actual KG labels for the subsystem
 mcp__neo4j-rhacm__read_neo4j_cypher({
-  "query": "MATCH (dep)-[:DEPENDS_ON]->(c:RHACMComponent) WHERE c.label =~ '(?i).*search-api.*' RETURN dep.label"
+  "query": "MATCH (c:RHACMComponent) WHERE c.subsystem = 'Search' RETURN c.label, c.type"
+})
+# Returns: "API Gateway Controller", "Collection Agent", "Resource Indexer", etc.
+
+# Step 2: Use the returned KG label (NOT the pod name) in dependency queries
+mcp__neo4j-rhacm__read_neo4j_cypher({
+  "query": "MATCH (dep:RHACMComponent)-[:DEPENDS_ON]->(c:RHACMComponent) WHERE c.label = 'API Gateway Controller' RETURN DISTINCT dep.label as dependent, dep.subsystem as subsystem"
 })
 ```
 
@@ -918,57 +943,17 @@ mcp__neo4j-rhacm__read_neo4j_cypher({
 
 **Reason:** Element not found BECAUSE the backend broke (search results never loaded), NOT because the selector changed.
 
-### Phase B7c: Backend Probe Analysis with Source-of-Truth Validation (v3.4)
+### Phase B7c: Backend Health Check (via cluster-diagnosis.json)
 
-**Trigger:** `core-data.json` contains `backend_probes` section (collected in Stage 1 Step 4c).
+Backend health investigation is handled by Stage 1.5 (cluster-diagnostic agent)
+and available in `cluster-diagnosis.json`. Use `subsystem_health`, `operator_health`,
+`console_plugin_status`, and `component_log_excerpts` from the diagnostic output
+to assess whether backend components are healthy for the test's feature area.
 
-If `backend_probes` is present, check for anomalies that match this test's feature area:
-
-```bash
-cat runs/<dir>/core-data.json | jq '.backend_probes'
-```
-
-**Feature area to probe mapping:**
-
-| Feature Area | Relevant Probe | What Anomaly Means |
-|---|---|---|
-| Automation | `/ansibletower` | Empty results when AAP is healthy |
-| CLC | `/hub` | Wrong hub name or flags |
-| RBAC | `/username` | Reversed or wrong username |
-| Search | `/proxy/search` | Empty or timeout |
-| All areas | `/authenticated` | Auth failure or slow |
-
-**Source-of-truth validation (v3.4):** Each probe with anomalies is now cross-referenced against the Kubernetes API directly (bypassing the console backend). The probe includes pre-computed fields:
-
-| Field | Values | Meaning |
-|---|---|---|
-| `anomaly_source` | `console_backend` | Cluster API returns correct data but console returns different data — console code is the problem |
-| `anomaly_source` | `upstream` | Both cluster API and console return the same anomalous data — issue is upstream infrastructure |
-| `anomaly_source` | `unknown` | Cannot determine source — let normal routing decide |
-| `classification_hint` | `PRODUCT_BUG` / `INFRASTRUCTURE` / `null` | Pre-computed classification based on deterministic comparison |
-
-**CRITICAL: Use `classification_hint` when available.** This is a deterministic comparison (not AI judgment) and should override AI inference about whether an anomaly is infrastructure or product:
-
-```
-IF probe has anomaly AND anomaly_source == "console_backend":
-  → classification_hint = PRODUCT_BUG
-  → The cluster ground truth is correct but console transforms data incorrectly
-  → Use as Tier 1 evidence
-
-IF probe has anomaly AND anomaly_source == "upstream":
-  → classification_hint = INFRASTRUCTURE
-  → Both cluster and console return the same anomalous data
-  → Use as Tier 1 evidence
-
-IF probe has anomaly AND anomaly_source == "unknown":
-  → No classification_hint — proceed with normal 3-path routing
-  → Add probe data as supplementary evidence
-```
-
-**For each probe with `status == "timeout"` or `"error"`:**
-1. Record as potential **INFRASTRUCTURE** evidence — console backend may be unresponsive
-
-**Example:** Test in Automation area fails with "expected to find 5 templates, got 0". Backend probe `/ansibletower` shows `anomaly_source: "console_backend"` because AAP operator is Succeeded but console returns empty. → PRODUCT_BUG (console proxy strips results, not an infrastructure issue).
+If the cluster diagnostic shows a subsystem as unhealthy and the test failure
+matches that subsystem, this is Tier 1 INFRASTRUCTURE evidence. If the subsystem
+is healthy but the test still fails on a backend-related error, investigate
+further with targeted `oc exec` commands using the persisted kubeconfig.
 
 ### Phase B6: Repository Deep Dive
 
@@ -1120,7 +1105,8 @@ Quick reference for common patterns:
 - Dead selector (AUTOMATION_BUG): layer=12, name="UI / Plugin / Rendering", owner="test code"
 - Hook cascade (NO_BUG): layer=12, name="UI / Plugin / Rendering", owner="cascading"
 - Blank page (INFRASTRUCTURE): layer=6 or 9 or 12 depending on cause
-- Timeout with healthy infra (AUTOMATION_BUG): layer=12, owner="test code"
+- Timeout with healthy infra + selector exists (AUTOMATION_BUG): layer=12, owner="test code"
+- Timeout with healthy infra + slow backend (PRODUCT_BUG): layer=11, owner="product operator"
 - Timeout with degraded infra (INFRASTRUCTURE): layer=1-10 depending on broken layer
 - 500 error (PRODUCT_BUG): layer=9 or 11, owner="product operator"
 - Data mismatch (PRODUCT_BUG): layer=11, name="Data Flow / Content Integrity", owner="product operator"
@@ -1345,25 +1331,28 @@ When a test's `cy.contains()` or `cy.get()` matches a NEW element that didn't ex
 
 ---
 
-### Phase PR-6: Backend Probe Source-of-Truth Check (v3.4)
+### Phase PR-6: Backend Health Check (via cluster-diagnosis.json)
 
-**Purpose:** When backend probes detected anomalies, use pre-computed `classification_hint` from source-of-truth validation to determine whether the anomaly is in the console backend code (PRODUCT_BUG) or the upstream cluster (INFRASTRUCTURE). This is a deterministic comparison, not AI judgment.
+**Purpose:** Check whether the backend components relevant to this test's feature
+area are healthy, using data from Stage 1.5 cluster diagnostic.
 
-**Check for each test whose feature area matches a probe with anomalies:**
+**Data source:** `cluster-diagnosis.json` → `subsystem_health`, `operator_health`,
+`console_plugin_status`, `component_log_excerpts`
 
-1. Read `backend_probes.<probe>.anomaly_source` and `classification_hint`
-2. If `anomaly_source == "console_backend"` AND `classification_hint == "PRODUCT_BUG"`:
-   - The Kubernetes API returns correct data but the console backend returns different data
-   - The console code is transforming/corrupting data
-   - Use as **Tier 1 evidence** for PRODUCT_BUG with confidence 0.85
-3. If `anomaly_source == "upstream"` AND `classification_hint == "INFRASTRUCTURE"`:
-   - Both K8s API and console return the same anomalous data — issue is upstream
-   - Use as **Tier 1 evidence** for INFRASTRUCTURE with confidence 0.80
-4. If `anomaly_source == "unknown"` or `classification_hint` is null:
-   - Cannot determine source — proceed with normal routing
-   - Add probe anomaly as supplementary evidence only
+**Check for each test:**
 
-**This check does NOT short-circuit routing** but provides strong directional evidence. The `classification_hint` should be trusted because it is based on a factual data comparison (console response vs cluster API response), not on AI inference.
+1. Read `subsystem_health` for the test's feature area subsystem
+2. If subsystem status is `degraded` or `critical`:
+   - Check if the root cause explains this specific test's error
+   - If yes → INFRASTRUCTURE evidence (Tier 1)
+   - If no (e.g., subsystem degraded but test fails on a selector issue) → continue routing
+3. If subsystem is `healthy`:
+   - Backend is confirmed working — focus investigation on selectors, test code, JIRA
+4. For tests involving console UI, check `console_plugin_status`:
+   - If a plugin's `backend_healthy` is false, console tabs may be missing
+
+**If cluster-diagnosis.json does not exist** (Stage 1.5 skipped), proceed to PR-6b
+without backend health evidence.
 
 ---
 
@@ -1450,7 +1439,7 @@ The oracle provides infrastructure context, but per-test error analysis ALWAYS t
 
 - If the oracle says INFRASTRUCTURE but `console_search.found = false` for a test's failing selector → classify as **AUTOMATION_BUG** (the selector doesn't exist in the product -- this is a test code issue regardless of cluster health)
 - If the oracle says INFRASTRUCTURE but the test's error is a known failure pattern from `knowledge/architecture/<area>/failure-signatures.md` with classification AUTOMATION_BUG → use the **known pattern classification**
-- If the oracle says INFRASTRUCTURE but backend probes show data corruption → classify as **PRODUCT_BUG**
+- If the oracle says INFRASTRUCTURE but cluster diagnostic shows subsystem healthy → investigate further, may be **PRODUCT_BUG**
 
 **The oracle signal should ONLY override per-test evidence when the test's specific error is directly caused by the infrastructure issue** (e.g., "VM scheduling failed" + oracle shows "no KVM nodes" = INFRASTRUCTURE. But "selector .tf--list-box not found" + oracle shows "managed clusters NotReady" = AUTOMATION_BUG -- the NotReady clusters didn't cause the stale selector).
 
@@ -1616,13 +1605,13 @@ reduce any AUTOMATION_BUG confidence by 0.10.
 **Trigger conditions (any of these):**
 - `failure_type == 'element_not_found'`
 - `extracted_context.console_search.found == false`
-- `investigation_hints.timeline_evidence[selector].element_removed == true`
+- `extracted_context.recent_selector_changes.change_detected == true` AND `direction == "removed_from_product"`
 
 **Classification:** AUTOMATION_BUG
 
 **Confidence:** 0.75 - 0.90
 - 0.90 if `console_search.found == false` AND `element_removed == true` AND B7 confirms backend healthy
-- 0.85 if `console_search.found == false` with `similar_selectors` AND B7 confirms backend healthy
+- 0.85 if `console_search.found == false` with verification context AND B7 confirms backend healthy
 - 0.80 if only `element_not_found` without console_search confirmation
 - 0.75 if `element_not_found` AND B7 was not performed (no cluster access)
 
@@ -1644,7 +1633,7 @@ reduce any AUTOMATION_BUG confidence by 0.10.
 All recommended fixes should be verified before applying.
 
 **Path A requires minimum 2 evidence sources:**
-  1. Selector evidence (console_search or timeline_evidence)
+  1. Selector evidence (console_search or recent_selector_changes)
   2. Backend health confirmation (B7 result OR cluster landscape data)
 Single-source Path A is NOT allowed — reduce to 0.70 if only one source.
 
@@ -1875,32 +1864,19 @@ Before finalizing any classification, perform these mandatory checks:
 
 For each `detected_components` entry from Phase B5, query Knowledge Graph to understand the subsystem and related components.
 
-**When Knowledge Graph is available:**
-
-```cypher
-# 1. Get component info (subsystem, type)
-MATCH (c:RHACMComponent)
-WHERE c.label =~ '(?i).*search-api.*'
-RETURN c.label, c.subsystem, c.type
-```
-
-```cypher
-# 2. Get all components in the same subsystem
-MATCH (c:RHACMComponent)
-WHERE c.subsystem = 'Search'
-RETURN c.label, c.type
-```
-
-```cypher
-# 3. Check component dependencies (is failure in a dependency?)
-MATCH (c:RHACMComponent)-[:DEPENDS_ON]->(dep:RHACMComponent)
-WHERE c.label =~ '(?i).*search-api.*'
-RETURN dep.label as dependency, dep.subsystem as dep_subsystem
-```
+**When Knowledge Graph is available (2-step approach):**
 
 ```
+# Step 1: Get all components in the subsystem (use subsystem name, NOT pod name)
 mcp__neo4j-rhacm__read_neo4j_cypher({
-  "query": "MATCH (c:RHACMComponent) WHERE c.label =~ '(?i).*search-api.*' RETURN c.label, c.subsystem, c.type"
+  "query": "MATCH (c:RHACMComponent) WHERE c.subsystem = 'Search' RETURN c.label, c.type"
+})
+# Returns actual KG labels: "API Gateway Controller", "Collection Agent", etc.
+# Map from pod name using pod_to_kg_label: search-api → "API Gateway Controller"
+
+# Step 2: Use the KG label for dependency queries
+mcp__neo4j-rhacm__read_neo4j_cypher({
+  "query": "MATCH (c:RHACMComponent)-[:DEPENDS_ON]->(dep:RHACMComponent) WHERE c.label = 'API Gateway Controller' RETURN dep.label as dependency, dep.subsystem as dep_subsystem"
 })
 ```
 
@@ -2223,7 +2199,7 @@ RETURN c.label
     "jenkins_url": "<URL>",
     "analyzed_at": "2026-02-04T15:00:00Z",
     "run_directory": "runs/<dir>",
-    "analyzer": "z-stream-analysis-agent-v4.0",
+    "analyzer": "analysis-agent-v4.0",
     "investigation_framework": "5-phase-systematic"
   },
   "investigation_phases_completed": ["A", "B", "C", "D", "E"],
@@ -2259,7 +2235,7 @@ RETURN c.label
       },
       "evidence_sources": [
         {"source": "console_search", "finding": "selector not found in product", "tier": 1},
-        {"source": "timeline_evidence", "finding": "element_removed=true", "tier": 1}
+        {"source": "recent_selector_changes", "finding": "change_detected, direction=removed_from_product", "tier": 1}
       ],
       "ruled_out_alternatives": [
         {"classification": "PRODUCT_BUG", "reason": "No 500 errors, environment healthy"},
@@ -2269,8 +2245,8 @@ RETURN c.label
         "summary": "Selector '#create-btn' removed from console repo on 2026-01-15",
         "evidence": [
           "console_search.found = false",
-          "similar_selectors = ['#cluster-create-btn']",
-          "timeline_evidence['#create-btn'].element_removed = true",
+          "verification: not_found (data-collector MCP search)",
+          "recent_selector_changes: change_detected=true, direction=removed_from_product, intent=intentional_rename",
           "No 500 errors in console log"
         ],
         "conclusion": "Automation uses outdated selector"
@@ -2466,17 +2442,15 @@ RETURN c.label
 
 ---
 
-## Workflow Summary
+## Full Pipeline Reference (for context — this agent runs Step 2 only)
 
-### Step 1: Run Data Gathering
+### Step 1: Data Gathering (run by parent, NOT this agent)
 
 ```bash
 python -m src.scripts.gather "<JENKINS_URL>"
 ```
 
-Wait for completion. Note the run directory path.
-
-### Step 2: Execute 5-Phase Investigation
+### Step 2: Execute 5-Phase Investigation (THIS AGENT)
 
 1. **Phase A:** Read core-data.json, check environment, detect patterns
 2. **Phase B:** For each test, analyze extracted_context, timeline, console, MCP, repos
@@ -2484,7 +2458,7 @@ Wait for completion. Note the run directory path.
 4. **Phase D:** Route through 3-path classification (selector → A, timeout → B1, else → B2 JIRA investigation)
 5. **Phase E:** Build feature context (Knowledge Graph + JIRA), validate classification against feature intent, search for related bugs
 
-### Step 3: Generate Reports
+### Step 3: Report Generation (run by parent, NOT this agent)
 
 ```bash
 python -m src.scripts.report runs/<dir>
@@ -2519,7 +2493,6 @@ runs/<job>_<timestamp>/
 ├── jenkins-build-info.json     # Build metadata (masked)
 ├── test-report.json            # Per-test failure details
 ├── environment-status.json     # Cluster health
-├── element-inventory.json      # MCP element locations (if available)
 ├── repos/
 │   ├── automation/             # Full cloned automation repo
 │   ├── console/                # Full cloned console repo

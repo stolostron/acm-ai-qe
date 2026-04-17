@@ -537,3 +537,248 @@ class TestRealPlaybooks:
         )
         # Should match search-index-stale or collector-not-on-spoke
         assert len(matches) >= 1
+
+
+# ── Gap Detection Tests (v4.0) ──
+
+
+class TestDetectStaleComponents:
+    """Test stale component detection between playbooks and components.yaml."""
+
+    def test_detects_component_not_in_knowledge(self, tmp_path):
+        """Components in base.yaml not in components.yaml are flagged."""
+        service = FeatureKnowledgeService()
+        service.profiles = {
+            'Search': {
+                'architecture': {
+                    'key_components': [
+                        {'name': 'search-api', 'namespace': '{mch_ns}'},
+                        {'name': 'nonexistent-widget', 'namespace': '{mch_ns}'},
+                    ]
+                }
+            }
+        }
+        # Create a components.yaml with only search-api
+        comp_file = tmp_path / 'components.yaml'
+        comp_file.write_text(yaml.dump({
+            'components': {
+                'search-api': {'subsystem': 'Search', 'type': 'deployment'},
+            }
+        }))
+        stale = service.detect_stale_components(comp_file)
+        assert len(stale) == 1
+        assert stale[0]['component'] == 'nonexistent-widget'
+        assert stale[0]['profile'] == 'Search'
+
+    def test_no_stale_when_all_match(self, tmp_path):
+        """No stale components when all match."""
+        service = FeatureKnowledgeService()
+        service.profiles = {
+            'Search': {
+                'architecture': {
+                    'key_components': [
+                        {'name': 'search-api', 'namespace': '{mch_ns}'},
+                    ]
+                }
+            }
+        }
+        comp_file = tmp_path / 'components.yaml'
+        comp_file.write_text(yaml.dump({
+            'components': {
+                'search-api': {'subsystem': 'Search', 'type': 'deployment'},
+            }
+        }))
+        stale = service.detect_stale_components(comp_file)
+        assert len(stale) == 0
+
+    def test_missing_components_file(self):
+        """Returns empty if components.yaml doesn't exist."""
+        service = FeatureKnowledgeService()
+        from pathlib import Path
+        stale = service.detect_stale_components(Path('/nonexistent/path.yaml'))
+        assert stale == []
+
+    def test_real_playbooks_against_real_components(self):
+        """Real base.yaml vs real components.yaml — should find some mismatches."""
+        service = FeatureKnowledgeService()
+        service.load_playbooks()
+        from pathlib import Path
+        stale = service.detect_stale_components(
+            Path('knowledge/components.yaml')
+        )
+        # Some naming mismatches expected (cluster-curator vs cluster-curator-controller)
+        assert isinstance(stale, list)
+        # Search should not have search-redisgraph anymore
+        stale_names = [s['component'] for s in stale]
+        assert 'search-redisgraph' not in stale_names
+
+
+class TestDetectHardcodedNamespaces:
+    """Test hardcoded namespace detection in investigation commands."""
+
+    def test_detects_hardcoded_namespace(self):
+        """Flags literal namespaces in oc commands."""
+        service = FeatureKnowledgeService()
+        service.profiles = {
+            'Search': {
+                'failure_paths': [{
+                    'id': 'test-path',
+                    'investigation': [{
+                        'step': 'Check pods',
+                        'command': 'oc get pods -n my-custom-ns -l app=search-api',
+                    }]
+                }]
+            }
+        }
+        hardcoded = service.detect_hardcoded_namespaces()
+        assert len(hardcoded) == 1
+        assert hardcoded[0]['namespace'] == 'my-custom-ns'
+
+    def test_ignores_parameterized_namespace(self):
+        """Parameterized {mch_ns} should not be flagged."""
+        service = FeatureKnowledgeService()
+        service.profiles = {
+            'Search': {
+                'failure_paths': [{
+                    'id': 'test-path',
+                    'investigation': [{
+                        'step': 'Check pods',
+                        'command': 'oc get pods -n {mch_ns} -l app=search-api',
+                    }]
+                }]
+            }
+        }
+        hardcoded = service.detect_hardcoded_namespaces()
+        assert len(hardcoded) == 0
+
+    def test_ignores_known_fixed_namespaces(self):
+        """Fixed namespaces like multicluster-engine should not be flagged."""
+        service = FeatureKnowledgeService()
+        service.profiles = {
+            'CLC': {
+                'failure_paths': [{
+                    'id': 'test-path',
+                    'investigation': [{
+                        'step': 'Check hive',
+                        'command': 'oc get pods -n hive -l app=hive-controllers',
+                    }]
+                }]
+            }
+        }
+        hardcoded = service.detect_hardcoded_namespaces()
+        assert len(hardcoded) == 0
+
+    def test_real_playbooks_no_hardcoded(self):
+        """After namespace parameterization, real playbooks should have 0 hardcoded."""
+        service = FeatureKnowledgeService()
+        service.load_playbooks()
+        hardcoded = service.detect_hardcoded_namespaces()
+        assert len(hardcoded) == 0
+
+
+class TestDetectMissingOverlay:
+    """Test missing version overlay detection."""
+
+    def test_detects_missing_overlay(self):
+        """Returns filename when overlay doesn't exist."""
+        service = FeatureKnowledgeService()
+        result = service.detect_missing_overlay('2.17')
+        assert result == 'acm-2.17.yaml'
+
+    def test_existing_overlay(self):
+        """Returns None when overlay exists."""
+        service = FeatureKnowledgeService()
+        result = service.detect_missing_overlay('2.16')
+        assert result is None
+
+    def test_no_version(self):
+        """Returns None when version is unknown."""
+        service = FeatureKnowledgeService()
+        result = service.detect_missing_overlay(None)
+        assert result is None
+
+
+class TestCountUnmatchedErrors:
+    """Test error message match counting."""
+
+    def test_counts_matched_and_unmatched(self):
+        """Correct counts for mixed matched/unmatched errors."""
+        service = FeatureKnowledgeService()
+        service.profiles = {
+            'Search': {
+                'failure_paths': [{
+                    'id': 'search-api-down',
+                    'symptoms': ['(?i)500.*search'],
+                }]
+            }
+        }
+        result = service.count_unmatched_errors('Search', [
+            'Got 500 error from search',  # matches
+            'Element not found: .pf-tree',  # no match
+            'Timeout waiting for page',  # no match
+        ])
+        assert result['total_errors'] == 3
+        assert result['matched_count'] == 1
+        assert result['unmatched_count'] == 2
+        assert result['match_rate'] == pytest.approx(0.333, abs=0.01)
+
+    def test_empty_errors(self):
+        """Handles empty error list."""
+        service = FeatureKnowledgeService()
+        service.profiles = {'Search': {'failure_paths': []}}
+        result = service.count_unmatched_errors('Search', [])
+        assert result['total_errors'] == 0
+        assert result['match_rate'] == 0.0
+
+    def test_unknown_profile(self):
+        """Unknown profile returns all unmatched."""
+        service = FeatureKnowledgeService()
+        service.profiles = {}
+        result = service.count_unmatched_errors('Unknown', ['some error'])
+        assert result['unmatched_count'] == 1
+
+
+class TestRunGapDetection:
+    """Test the combined gap detection runner."""
+
+    def test_runs_all_checks(self, tmp_path):
+        """Runs all gap detection checks and returns combined results."""
+        service = FeatureKnowledgeService()
+        service.profiles = {
+            'Search': {
+                'architecture': {
+                    'key_components': [
+                        {'name': 'search-api', 'namespace': '{mch_ns}'},
+                    ]
+                },
+                'failure_paths': [{
+                    'id': 'test',
+                    'symptoms': ['(?i)500.*search'],
+                    'investigation': [{
+                        'step': 'test',
+                        'command': 'oc get pods -n {mch_ns}',
+                    }]
+                }]
+            }
+        }
+        comp_file = tmp_path / 'components.yaml'
+        comp_file.write_text(yaml.dump({
+            'components': {
+                'search-api': {'subsystem': 'Search', 'type': 'deployment'},
+            }
+        }))
+
+        result = service.run_gap_detection(
+            acm_version='2.17',
+            feature_areas_with_errors={'Search': ['Element not found: .pf-tree']},
+            components_path=comp_file,
+        )
+        assert 'stale_components' in result
+        assert 'hardcoded_namespaces' in result
+        assert 'missing_overlay' in result
+        assert 'match_rates' in result
+        assert 'overall_match_rate' in result
+        assert 'gap_areas' in result
+        # Search has 0 matches for this error
+        assert result['match_rates']['Search']['matched_count'] == 0
+        assert 'Search' in result['gap_areas']

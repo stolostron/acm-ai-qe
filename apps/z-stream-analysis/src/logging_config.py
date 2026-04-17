@@ -62,19 +62,6 @@ def get_log_file_path() -> Optional[Path]:
 
 
 # ---------------------------------------------------------------------------
-# Custom processors
-# ---------------------------------------------------------------------------
-
-def _add_pipeline_context(logger_name, method_name, event_dict):
-    """Inject run_id and stage from contextvars into every log entry."""
-    run_id = _run_id_var.get()
-    if run_id:
-        event_dict["run_id"] = run_id
-    event_dict["stage"] = _stage_var.get()
-    return event_dict
-
-
-# ---------------------------------------------------------------------------
 # Console formatter for progress output
 # ---------------------------------------------------------------------------
 

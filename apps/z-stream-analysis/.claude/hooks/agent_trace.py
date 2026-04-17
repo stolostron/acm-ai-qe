@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Agent trace hook for z-stream-analysis.
+Agent trace hook for z-stream analysis pipeline.
 
 Captures every Claude Code tool call, MCP interaction, prompt, and
 subagent operation into a structured JSONL trace file.

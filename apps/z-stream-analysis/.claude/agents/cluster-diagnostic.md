@@ -1,7 +1,7 @@
 ---
 name: cluster-diagnostic
 description: Comprehensive cluster health diagnostic for z-stream failure analysis. Run after gather.py (Stage 1.5).
-tools: ["Bash", "Read", "Write", "Glob", "Grep"]
+tools: ["Bash", "Read", "Write", "Glob", "Grep", "mcp:acm-search", "mcp:acm-kubectl"]
 ---
 
 # Cluster Diagnostic Agent (v4.0)
@@ -33,6 +33,8 @@ This directory contains:
 ALL cluster operations are strictly read-only. You may run:
 - `oc get`, `oc describe`, `oc logs`, `oc adm top`, `oc whoami`, `oc version`
 - `oc exec <pod> -- <read-only-command>` (only for data verification like psql SELECT)
+- ACM Search MCP (`acm-search`): `find_resources`, `query_database`, `list_tables`, `get_database_stats` for fleet-wide resource queries across all managed clusters
+- ACM Kubectl MCP (`acm-kubectl`): `clusters` to list managed clusters, `kubectl` to run read-only kubectl on hub or spoke clusters
 
 NEVER run: `oc apply`, `oc create`, `oc delete`, `oc patch`, `oc scale`, `oc edit`
 
@@ -149,7 +151,7 @@ Read these files from the z-stream knowledge database:
 - `knowledge/components.yaml` — component registry with namespaces, health checks
 - `knowledge/addon-catalog.yaml` — addon health expectations and dependencies
 - `knowledge/webhook-registry.yaml` — expected webhooks with criticality
-- `knowledge/diagnostics/diagnostic-traps.md` — 10 trap patterns to check (8 standard + 2 counter-traps)
+- `knowledge/diagnostics/diagnostic-traps.md` — 14 trap patterns to check (11 standard + 3 counter-traps)
 
 ### Step 2.2: Load Architecture Knowledge
 
@@ -193,75 +195,183 @@ Read:
 
 ## Phase 3: CHECK (~15-30 oc commands)
 
-**Goal:** Systematically verify health of EVERY ACM subsystem.
+**Goal:** Systematically verify health layer by layer. Lower layers affect
+everything above them — check bottom-up to find root causes before checking
+symptoms. See `knowledge/diagnostics/diagnostic-layers.md` for the full
+per-layer reference.
 
-### Step 3.0: Check MCH/MCE Operator Health (Trap 1)
+### FOUNDATIONAL LAYERS (check first — affect everything)
+
+### Step 3.0: Layers 1-2 — Compute + Control Plane (Trap 1)
 
 **ALWAYS do this FIRST before trusting any MCH/MCE status:**
 
 ```bash
+# MCH/MCE operator health
 oc get deploy multiclusterhub-operator -n $MCH_NS --no-headers --kubeconfig <run_dir>/cluster.kubeconfig
 oc get deploy multicluster-engine-operator -n multicluster-engine --no-headers --kubeconfig <run_dir>/cluster.kubeconfig
+
+# OCP cluster operators
+oc get clusteroperators --no-headers --kubeconfig <run_dir>/cluster.kubeconfig
+
+# Node health
+oc adm top nodes --kubeconfig <run_dir>/cluster.kubeconfig
 ```
 
-If either operator has 0 available replicas, the MCH/MCE status is STALE.
-Record this as a critical infrastructure issue.
+If MCH/MCE operator has 0 available replicas, the MCH/MCE status is STALE
+(Trap 1). Record as critical infrastructure issue.
 
-### Step 3.1: Pod Health Per Namespace
+Flag any OCP operator where AVAILABLE != True or DEGRADED == True.
+OCP-level degradation (dns, monitoring, ingress, authentication) silently
+affects ALL ACM features.
+
+Check node resources against `healthy-baseline.yaml` thresholds:
+CPU > 80%, Memory > 85%, Disk > 90%.
+
+**If any foundational issue exists, it likely explains MOST other findings.**
+
+### Step 3.1: Layer 3 — Network + Infrastructure Guards
+
+**CRITICAL: Check BEFORE pod health. A NetworkPolicy can make pods appear
+healthy (Running, 0 restarts) while being completely non-functional (Trap 11).
+A ResourceQuota can silently prevent pod recreation (Trap 9).**
+
+```bash
+# NetworkPolicy (ACM does NOT create these — presence is suspicious)
+oc get networkpolicy -n $MCH_NS --no-headers --kubeconfig <run_dir>/cluster.kubeconfig 2>/dev/null
+oc get networkpolicy -n multicluster-engine --no-headers --kubeconfig <run_dir>/cluster.kubeconfig 2>/dev/null
+
+# ResourceQuota (can block pod scheduling)
+oc get resourcequota -n $MCH_NS --no-headers --kubeconfig <run_dir>/cluster.kubeconfig 2>/dev/null
+oc get resourcequota -n multicluster-engine --no-headers --kubeconfig <run_dir>/cluster.kubeconfig 2>/dev/null
+```
+
+Flag ANY found — these are not expected in ACM namespaces and cause
+silent failures. If NetworkPolicy or ResourceQuota is found, ALL subsequent
+pod health checks must be interpreted in that context: pods may LOOK healthy
+but be non-functional or unable to restart.
+
+### Step 3.2: Layer 4 — Storage
+
+```bash
+# Check PVCs in ACM namespaces
+oc get pvc -n $MCH_NS --kubeconfig <run_dir>/cluster.kubeconfig 2>/dev/null
+oc get pvc -n ${MCH_NS}-observability --kubeconfig <run_dir>/cluster.kubeconfig 2>/dev/null
+```
+
+All PVCs must be Bound. Unbound PVCs prevent statefulsets from starting.
+
+**Data integrity verification** — check that critical stores have data:
+
+```bash
+# Search-postgres data (catches Trap 3: search all green but empty)
+oc --kubeconfig <run_dir>/cluster.kubeconfig \
+  exec deploy/search-postgres -n $MCH_NS -- \
+  psql -U searchuser -d search -c "SELECT count(*) FROM search.resources" 2>&1
+```
+
+If row count is 0 but search pods are Running, data was lost (Trap 3).
+Record as INFRASTRUCTURE with evidence from the data query.
+
+### Step 3.3: Layer 5 — Configuration
+
+Review MCH component toggles from Phase 1. If a feature is completely
+absent (no pods, no CRDs), verify it's intentionally disabled via
+`.spec.overrides.components` before reporting as broken.
+
+Check OLM subscriptions for ACM/MCE operators:
+```bash
+oc get subscription -n $MCH_NS --kubeconfig <run_dir>/cluster.kubeconfig 2>/dev/null
+```
+
+### Step 3.4: Layers 6-8 — Auth, RBAC, Webhooks (conditional)
+
+Check these layers only if relevant symptoms surfaced:
+
+**Layer 6 (TLS/Certificates)** — If certificate errors appeared in pod logs
+or events, check against `knowledge/certificate-inventory.yaml`:
+
+```bash
+# Check for pending CSRs
+oc get csr --kubeconfig <run_dir>/cluster.kubeconfig 2>/dev/null | grep -i pending
+
+# Check service-ca secret ages (rotation issues)
+oc get secrets -n $MCH_NS --kubeconfig <run_dir>/cluster.kubeconfig | grep tls
+```
+
+Certificate rotation failures are SILENT — pods run, APIs respond, but
+connections fail. If cert errors surfaced in Phase 3.6 pod logs, trace
+the certificate chain using `certificate-inventory.yaml`.
+
+**Layer 7 (RBAC)** — If permission errors detected in logs, check bindings.
+
+**Layer 8 (Webhooks)** — Compare live webhooks (Step 1.6) against
+`webhook-registry.yaml`:
+- Missing webhooks that should exist
+- Changed failure policies (Fail → Ignore or vice versa)
+- Webhook services that are in non-Running pods
+
+### COMPONENT LAYERS (check after foundational)
+
+### Step 3.5: Layer 9 — Operators + Pod Health
+
+**Interpret pod health in context of Layer 3 findings** — if a NetworkPolicy
+or ResourceQuota was found, pods may LOOK healthy but be non-functional.
 
 Check each ACM namespace for non-Running pods:
 
 ```bash
-# MCH namespace
 oc get pods -n $MCH_NS --field-selector=status.phase!=Running,status.phase!=Succeeded --no-headers --kubeconfig <run_dir>/cluster.kubeconfig
-
-# MCE namespace
 oc get pods -n multicluster-engine --field-selector=status.phase!=Running,status.phase!=Succeeded --no-headers --kubeconfig <run_dir>/cluster.kubeconfig
-
-# Hub namespace
-oc get pods -n open-cluster-management-hub --field-selector=status.phase!=Running,status.phase!=Succeeded --no-headers --kubeconfig <run_dir>/cluster.kubeconfig
-
-# Hive namespace
+oc get pods -n ${MCH_NS}-hub --field-selector=status.phase!=Running,status.phase!=Succeeded --no-headers --kubeconfig <run_dir>/cluster.kubeconfig
 oc get pods -n hive --field-selector=status.phase!=Running,status.phase!=Succeeded --no-headers --kubeconfig <run_dir>/cluster.kubeconfig
-
-# Observability namespace (if enabled)
-oc get pods -n open-cluster-management-observability --field-selector=status.phase!=Running,status.phase!=Succeeded --no-headers --kubeconfig <run_dir>/cluster.kubeconfig 2>/dev/null
+oc get pods -n ${MCH_NS}-observability --field-selector=status.phase!=Running,status.phase!=Succeeded --no-headers --kubeconfig <run_dir>/cluster.kubeconfig 2>/dev/null
 ```
 
-### Step 3.2: Compare Against Baseline
-
 **Naming convention note:** `healthy-baseline.yaml` uses Kubernetes deployment
-names (e.g., `addon-manager-controller`, `cluster-curator-controller`,
-`observability-grafana`). `components.yaml` uses logical component names
-(e.g., `addon-manager`, `cluster-curator`, `grafana`). When cross-referencing
-between the two files, match by prefix or substring — the deployment name
-typically extends the logical component name with a suffix.
+names (e.g., `addon-manager-controller`). `components.yaml` uses logical
+component names (e.g., `addon-manager`). Match by prefix or substring.
 
-For each namespace, compare actual pod count against
-`healthy-baseline.yaml` expected ranges. Flag:
-- Missing critical deployments (expected but not found)
-- Under-replicated deployments (fewer replicas than min_replicas)
-- Unexpected extra deployments (could indicate test artifacts)
+Compare actual pod counts against `healthy-baseline.yaml`. Flag missing
+critical deployments, under-replicated deployments, and unexpected extras.
 
-### Step 3.3: Investigate Unhealthy Pods
-
-For EACH non-Running pod found in Step 3.1:
+**Pod restart counts** — Running but unstable:
 
 ```bash
-# Current logs
+oc get pods -n $MCH_NS -o custom-columns=NAME:.metadata.name,RESTARTS:.status.containerStatuses[0].restartCount,STATUS:.status.phase --no-headers --kubeconfig <run_dir>/cluster.kubeconfig
+```
+
+Flag any pod with restartCount > 3. Record in `component_restart_counts`.
+
+**Console image integrity check** — Detect tampered or non-standard images:
+
+```bash
+oc get deploy console-chart-console-v2 -n $MCH_NS -o jsonpath='{.spec.template.spec.containers[0].image}' --kubeconfig <run_dir>/cluster.kubeconfig
+```
+
+Compare against `healthy-baseline.yaml` → `image_patterns.console-chart-console-v2.expected_prefix`.
+Expected prefixes: `quay.io:443/acm-d/console`, `quay.io/stolostron/console`.
+
+If the image does NOT match any expected prefix:
+- Record in `infrastructure_issues` as type `tampered_image`, severity `warning`
+- Set Console subsystem to `degraded` (not `healthy`) — the image source is untrusted
+- Do NOT add Console to `confirmed_healthy` — CSS/rendering bugs are possible
+- Apply the image integrity penalty (-0.10) in the health score calculation
+- Add to `counter_signals.infrastructure_context_notes` noting the non-standard registry
+
+### Step 3.6: Investigate Unhealthy Pods
+
+For EACH non-Running pod found in Step 3.5:
+
+```bash
 oc logs <pod> -n <ns> --tail=50 --kubeconfig <run_dir>/cluster.kubeconfig
-
-# Previous logs (pre-restart, catches OOM kills)
 oc logs <pod> -n <ns> --previous --tail=30 --kubeconfig <run_dir>/cluster.kubeconfig 2>/dev/null
-
-# Events (scheduling failures, OOM, image pull errors)
 oc get events -n <ns> --sort-by=.lastTimestamp --field-selector involvedObject.name=<pod> --kubeconfig <run_dir>/cluster.kubeconfig 2>/dev/null
 ```
 
-**Save the key error lines** — extract the 2-3 most relevant log lines
-(error messages, stack traces, OOM events) and store them in the output
-under `component_log_excerpts`. This saves Agent #2 from re-running
-`oc logs` and wasting context on redundant investigation.
+**Save key error lines** in `component_log_excerpts` — extract the 2-3 most
+relevant log lines per unhealthy pod. This saves Stage 2 from re-running
+`oc logs`.
 
 Scan logs for these 7 structured error patterns:
 
@@ -275,63 +385,7 @@ Scan logs for these 7 structured error patterns:
 | `template-error` | Policy template mismatch | PRODUCT_BUG or config |
 | Rapid repeated entries for same resource | Reconciliation hot-loop | INFRASTRUCTURE |
 
-### Step 3.4: Infrastructure Guards
-
-```bash
-# NetworkPolicy (ACM doesn't create these — presence is suspicious)
-oc get networkpolicy -n $MCH_NS --no-headers --kubeconfig <run_dir>/cluster.kubeconfig 2>/dev/null
-oc get networkpolicy -n multicluster-engine --no-headers --kubeconfig <run_dir>/cluster.kubeconfig 2>/dev/null
-
-# ResourceQuota (can block pod scheduling)
-oc get resourcequota -n $MCH_NS --no-headers --kubeconfig <run_dir>/cluster.kubeconfig 2>/dev/null
-oc get resourcequota -n multicluster-engine --no-headers --kubeconfig <run_dir>/cluster.kubeconfig 2>/dev/null
-```
-
-Flag ANY found — these are not expected and can cause silent failures.
-
-### Step 3.4b: Pod Restart Counts (Running but Unstable)
-
-A pod can be Running but have restarted 15 times in the last hour. This
-is a strong INFRASTRUCTURE signal that "all pods green" checks miss.
-
-For each ACM namespace, check restart counts for ALL pods (including Running):
-
-```bash
-oc get pods -n $MCH_NS -o custom-columns=NAME:.metadata.name,RESTARTS:.status.containerStatuses[0].restartCount,STATUS:.status.phase --no-headers --kubeconfig <run_dir>/cluster.kubeconfig
-```
-
-Flag any pod with restartCount > 3. Record in the output under
-`component_restart_counts` with the pod name, namespace, count, and
-current status. This catches "healthy-looking but flaky" components.
-
-### Step 3.4c: OCP Cluster Operators
-
-OCP-level operator degradation (dns, monitoring, ingress, authentication)
-silently affects ACM tests. Check all cluster operators:
-
-```bash
-oc get clusteroperators --no-headers --kubeconfig <run_dir>/cluster.kubeconfig
-```
-
-Parse output: columns are NAME, VERSION, AVAILABLE, PROGRESSING, DEGRADED.
-Flag any operator where AVAILABLE != True or DEGRADED == True.
-Record degraded OCP operators in `infrastructure_issues` — these are
-platform-level problems that affect all ACM features.
-
-### Step 3.5: Node Health
-
-```bash
-oc adm top nodes --kubeconfig <run_dir>/cluster.kubeconfig
-```
-
-Check against `healthy-baseline.yaml` thresholds:
-- CPU > 80%: warning
-- Memory > 85%: warning (can cause OOM kills)
-- Disk > 90%: warning
-
-Record node-level pressure as an infrastructure issue.
-
-### Step 3.6: Addon Health + Managed Cluster Detail
+### Step 3.7: Layer 10 — Cross-Cluster
 
 ```bash
 oc get managedclusteraddons -A --no-headers --kubeconfig <run_dir>/cluster.kubeconfig
@@ -340,7 +394,7 @@ oc get managedclusteraddons -A --no-headers --kubeconfig <run_dir>/cluster.kubec
 Compare against `addon-catalog.yaml`:
 - For each required addon: is it Available=True on all clusters?
 - For addons required_for a feature area: is that feature area in the failing tests?
-- Check Trap 7: if ALL addons unavailable, check addon-manager first
+- Check Trap 7: if ALL addons unavailable, check addon-manager pod first
 
 **Per-cluster detail:** For any managed cluster that is NotReady, capture WHY:
 
@@ -350,60 +404,71 @@ oc get lease -n <cluster-namespace> --sort-by=.spec.renewTime --kubeconfig <run_
 ```
 
 Record per-cluster status in `managed_cluster_detail` — which clusters
-are NotReady, their condition messages (rate limited, lease stale,
-agent missing), and which addons are affected. Agent #2 needs this
-to determine if spoke-dependent tests (search, governance) will fail.
+are NotReady, their condition messages, and which addons are affected.
 
-### Step 3.7: Webhook Verification
+### Step 3.8: Console Plugin + Third-Party Operator Status
 
-Compare live webhooks (Step 1.6) against `webhook-registry.yaml`:
-- Missing webhooks that should exist
-- Changed failure policies (Fail → Ignore or vice versa)
-- Webhook services that are in non-Running pods (cross-reference with Step 3.1)
-
-### Step 3.7b: Console Plugin Status
-
-Check which console plugins are registered and if their backend services
-are healthy:
+**Console plugins:**
 
 ```bash
 oc get consoleplugins -o json --kubeconfig <run_dir>/cluster.kubeconfig
 ```
 
-For each plugin, extract:
-- Plugin name and namespace
-- Backend service name (`.spec.backend.service`)
-- Proxy targets (`.spec.proxy[*].endpoint.service`)
+For each plugin, extract name, backend service, proxy targets. Cross-reference
+backend service pods against Step 3.5 findings. If a plugin's backend pod
+is in CrashLoopBackOff, console tabs silently disappear (Trap 2).
 
-Cross-reference backend service pods against Phase 3.1 findings.
-If a plugin's backend pod is in CrashLoopBackOff, that plugin's console
-tabs will silently disappear (Trap 2). Record in `console_plugin_status`.
-
-### Step 3.8: Third-Party Operator Health
-
-For each third-party operator discovered in Step 1.4:
+**Third-party operators** (discovered in Phase 1):
 
 ```bash
 oc get pods -n <operator-namespace> --no-headers --kubeconfig <run_dir>/cluster.kubeconfig
 ```
 
-Assess: healthy (all pods Running), degraded (some not Running), missing.
-Note any ACM integration (ConsolePlugin, addon, deployments in ACM namespace).
+Assess: healthy, degraded, or missing. Note ACM integration level.
 
-### Step 3.9: Trap Detection
+### APPLICATION LAYERS (check last)
 
-Walk through ALL 10 traps from `diagnostics/diagnostic-traps.md` (8 standard + 2 counter-traps):
+### Step 3.9: Layer 11-12 — Data Flow + UI
 
+Only check these if Layer 9 shows pods healthy but features are not working.
+
+Verify data is flowing correctly through the component's `data-flow.md`.
+For search: check search-api responds. For governance: check policy
+propagation. For observability: check thanos-query returns data.
+
+### Step 3.10: Trap Detection
+
+Walk through ALL 14 traps from `diagnostics/diagnostic-traps.md`:
+
+**Standard traps:**
 1. **Trap 1 (Stale MCH):** Already checked in Step 3.0
 2. **Trap 2 (Console tabs):** Check console-mce pod + ConsolePlugin CRDs
-3. **Trap 3 (Search empty):** Check search-postgres pod age relative to other search pods
-4. **Trap 4 (Observability S3):** Check thanos pods if observability namespace exists
+3. **Trap 3 (Search empty):** Already checked in Step 3.2 (data integrity)
+4. **Trap 4 (Observability S3):** Check thanos pods if observability exists
 5. **Trap 5 (GRC post-upgrade):** Check governance addon pod ages vs MCH upgrade time
 6. **Trap 6 (Cluster NotReady):** Check leases for NotReady managed clusters
-7. **Trap 7 (All addons down):** Already checked in Step 3.6
+7. **Trap 7 (All addons down):** Already checked in Step 3.7
 8. **Trap 8 (Console cascade):** Check search-api if multiple console features affected
+9. **Trap 9 (ResourceQuota):** Already checked in Step 3.1 (Layer 3)
+10. **Trap 10 (Cert rotation):** Check cert ages if TLS errors surfaced
+11. **Trap 11 (NetworkPolicy hidden):** Already checked in Step 3.1 (Layer 3)
 
-Record which traps were checked and which were triggered.
+**Counter-traps (prevent false INFRASTRUCTURE):**
+12. **Trap 12 (Selector doesn't exist):** Read `console_search.found` from
+    `core-data.json` failed tests. Count tests where `found=false`. These are
+    AUTOMATION_BUG regardless of infrastructure state. Report in counter_signals.
+13. **Trap 13 (Backend returns wrong data):** Check `assertion_analysis` in
+    `core-data.json` failed tests. If `has_data_assertion=true` and the subsystem
+    is healthy, this is PRODUCT_BUG not INFRASTRUCTURE. Report in counter_signals.
+14. **Trap 14 (Disabled prerequisite should be enabled):** If a feature operator/addon
+    is not installed but Jenkins parameters indicate it should be (`INSTALL_AAP=true`,
+    `ENABLE_OBSERVABILITY=true`), or MCH spec enables the component, the absence is
+    INFRASTRUCTURE (setup failure), not NO_BUG (intentionally disabled).
+
+**IMPORTANT:** Record ALL 14 traps in `diagnostic_traps_applied` — every trap
+must appear with TRIGGERED, NOT triggered, or N/A status. Do not omit traps
+that were checked in earlier steps (3.0, 3.1, 3.2). The output must show
+the complete 14-trap checklist so Stage 2 knows which traps were evaluated.
 
 ---
 
@@ -513,7 +578,7 @@ For each finding from Phases 3-5, determine:
 - Confidence: 0.90-0.95 for direct dependency, 0.80-0.85 for transitive
 
 **IMPORTANT (v3.9):** Pre-classified INFRASTRUCTURE is guidance, not final
-classification. Stage 2 (z-stream-analysis agent) MUST perform per-test
+classification. Stage 2 (analysis agent) MUST perform per-test
 counterfactual verification (D-V5) to confirm each test's specific error
 is caused by this infrastructure issue. Tests with dead selectors
 (`console_search.found=false`) may be AUTOMATION_BUG even in affected
@@ -557,6 +622,12 @@ Compute using this weighted penalty formula. Start at 1.0, subtract penalties:
 | Image integrity | 10% | -0.10 if console image from non-standard registry |
 
 Floor at 0.0. Round to 2 decimal places. Show your math in the completion summary.
+
+**Test artifact awareness:** NetworkPolicies and ResourceQuotas in ACM namespaces
+are almost always test artifacts (no ownerReferences, created recently, not ACM-managed).
+Note in `counter_signals.infrastructure_context_notes` whether each finding is a test
+artifact or a real production issue. The score applies the penalty regardless (it reflects
+actual cluster state), but the context helps Stage 2 weight the finding appropriately.
 
 **`critical_issue_count`** (integer):
 Count of entries in `infrastructure_issues` with severity "critical"
@@ -682,6 +753,13 @@ Write the file to `<run_dir>/cluster-diagnosis.json` using this exact schema.
         "namespace": "<ns>"
       }
     ],
+
+    "image_integrity": {
+      "console_image": "<actual image string>",
+      "expected_prefixes": ["<from healthy-baseline.yaml>"],
+      "matches_expected": "<true | false>",
+      "flag": "<null if matches, description if non-standard>"
+    },
 
     "subsystem_health": {
       "<SubsystemName>": {
@@ -880,12 +958,13 @@ Write the file to `<run_dir>/cluster-diagnosis.json` using this exact schema.
 
 ### Step 6.4: Self-Healing Knowledge
 
-For each UNKNOWN operator discovered that was investigated:
+When ANY of these triggers fire during the investigation, write discoveries
+to `knowledge/learned/` for future runs:
 
-Write `knowledge/learned/<operator-name>.md` with:
+**Trigger 1: Unknown operator discovered (Phase 1/2)**
+Write `knowledge/learned/<operator-name>.md`:
 ```markdown
 # <Operator Name>
-
 Discovered: <date>
 Source: Cluster diagnostic Stage 1.5
 
@@ -899,12 +978,71 @@ Source: Cluster diagnostic Stage 1.5
 ## ACM Integration
 <None | Console plugin | Addon | Deployment in ACM namespace>
 
-## Dependencies
-<Service references found in env vars>
+## Dependencies (from 8-source introspection)
+- ownerReferences: <controller hierarchy>
+- env vars: <service references (*.svc, *_HOST, *_URL)>
+- OLM labels: <olm.owner, managed-by>
+- ConsolePlugin: <UI integration targets>
+- Webhooks: <validation/mutation targets>
 
 ## Classification Impact
 <How this operator's health affects ACM test failure classification>
 ```
+
+**Trigger 2: New failure pattern discovered (Phase 3/4)**
+Write to `knowledge/learned/new-patterns.yaml`:
+```yaml
+- pattern_id: "<component>-<error_type>-<date>"
+  discovered: "<date>"
+  component: "<component>"
+  error_signature: "<regex from log>"
+  classification: "<INFRASTRUCTURE|PRODUCT_BUG>"
+  evidence: "<what was observed>"
+```
+
+**Trigger 3: New dependency chain discovered (Phase 5)**
+Write to `knowledge/learned/new-chains.yaml`:
+```yaml
+- chain_id: "<source>-to-<target>-<date>"
+  discovered: "<date>"
+  components: ["<source>", "<intermediate>", "<target>"]
+  evidence: "<how discovered (env vars, owner refs, etc.)>"
+```
+
+**Trigger 4: Certificate issue found (Phase 3, Layer 6)**
+Write to `knowledge/learned/cert-issues.yaml`:
+```yaml
+- secret_name: "<secret>"
+  namespace: "<ns>"
+  discovered: "<date>"
+  issue: "<expired|pending|wrong_ca>"
+  impact: "<what fails>"
+```
+
+**Trigger 5: Post-upgrade settling behavior observed**
+Write to `knowledge/learned/upgrade-observations.yaml`:
+```yaml
+- version: "<acm_version>"
+  observed: "<date>"
+  symptom: "<what looked broken>"
+  resolved_after: "<time>"
+  was_transient: true
+```
+
+**8-Source Introspection Framework** (used for Trigger 1 and whenever
+component dependencies are unknown):
+
+1. `ownerReferences` — Pod → Deployment → CSV → Operator chain
+2. OLM labels — `olm.owner` maps resources to CSV
+3. CSV metadata — `.spec.customresourcedefinitions.owned` and deployments
+4. K8s labels — `app.kubernetes.io/managed-by`, `part-of`, `component`
+5. Environment variables — `*.svc`, `*_HOST`, `*_URL` reveal runtime deps
+6. Webhooks — validation/mutation service targets
+7. ConsolePlugins — UI integration and backend proxy targets
+8. APIServices — non-local API aggregation dependencies
+
+When knowledge is insufficient, use this introspection order to
+reverse-engineer component relationships from live cluster state.
 
 ### Step 6.5: Validate and Completion Summary
 

@@ -18,7 +18,7 @@ it triggers a self-healing process to investigate, learn, and record findings.
 │  │ knowledge/architecture/    │  │ knowledge/diagnostics/                │ │
 │  │                            │  │                                       │ │
 │  │ Per-component directories: │  │ dependency-chains.md                  │ │
-│  │   architecture.md          │  │   8 critical cascade paths            │ │
+│  │   architecture.md          │  │   11 critical cascade paths           │ │
 │  │   data-flow.md             │  │ evidence-tiers.md                     │ │
 │  │   known-issues.md          │  │   How to weight evidence (Tier 1/2/3) │ │
 │  │                            │  │ diagnostic-playbooks.md               │ │
@@ -124,7 +124,7 @@ Flow, UI/Plugin. Used in Phase 3 (layer-organized health checking), Phase 5
 
 ### dependency-chains.md
 
-Documents 8 critical cascade paths with tracing procedures:
+Documents 11 critical cascade paths with tracing procedures:
 
 1. **Console → Search → Managed Clusters** -- search-collector down = resources missing
 2. **Governance → Framework Addon → Config Policy → Clusters** -- policy propagation chain
@@ -134,6 +134,9 @@ Documents 8 critical cascade paths with tracing procedures:
 6. **Observability Operator → Addon → Thanos** -- metrics pipeline
 7. **Addon Manager → Addon Framework → Spoke Addon Pods** -- single point of failure for all addons
 8. **StorageClass → CSI Driver → PV → PVC → Pod** -- persistent storage for stateful components
+9. **Channel → Subscription → ManifestWork → Spoke Application** -- app deployment via subscription model
+10. **CNV → Search Collector → Search API → kubevirt-plugin → Console** -- cross-cluster VM discovery
+11. **SubmarinerConfig → Addon → Gateway → Tunnel → Service Discovery** -- cross-cluster networking
 
 Used in Phase 5 (Correlate) to trace upstream from symptoms to root causes.
 
@@ -209,7 +212,7 @@ These complement the narrative documentation with machine-readable reference dat
 | File | Content | Used In |
 |------|---------|---------|
 | `healthy-baseline.yaml` | Expected pod counts, deployment states, node thresholds | Phase 3 (Check) -- compare actual vs expected |
-| `dependency-chains.yaml` | 8 cascade paths in structured YAML | Phase 5 (Correlate) -- structured lookups |
+| `dependency-chains.yaml` | 11 cascade paths in structured YAML | Phase 5 (Correlate) -- structured lookups |
 | `webhook-registry.yaml` | Validating/mutating webhooks, failure policies | Phase 3 (Check) -- detect missing webhooks |
 | `certificate-inventory.yaml` | TLS secrets, rotation, impact when corrupted | Phase 6 (Deep) -- cert investigation |
 | `addon-catalog.yaml` | All addons, health checks, dependencies | Phase 3 (Check) -- addon health audit |
@@ -227,7 +230,7 @@ Defines what "normal" looks like for a healthy ACM hub:
 
 ### dependency-chains.yaml
 
-Structured YAML complement to `diagnostics/dependency-chains.md`. Same 8 chains
+Structured YAML complement to `diagnostics/dependency-chains.md`. Same 11 chains
 in a format suitable for programmatic lookups:
 - Each chain has components with roles and dependencies
 - Impact descriptions per failure point

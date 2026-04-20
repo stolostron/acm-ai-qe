@@ -75,6 +75,20 @@ Hive registers validating webhooks with `failurePolicy=Fail`:
 
 If webhook service is unreachable, ALL ClusterDeployment and ClusterImageSet operations fail with 500 errors.
 
+## Translation Keys
+
+| Key | English Text | Context |
+|-----|-------------|---------|
+| `Clusters` | "Clusters" | Navigation tab |
+| `Managed clusters` | "Managed clusters" | Tab header |
+| `Cluster sets` | "Cluster sets" | Tab header |
+| `Create cluster` | "Create cluster" | Button |
+| `Import cluster` | "Import cluster" | Button |
+| `Destroy cluster` | "Destroy cluster" | Action |
+| `Detach cluster` | "Detach cluster" | Action |
+| `Upgrade available` | "Upgrade available" | Status badge |
+| `Hibernate cluster` | "Hibernate cluster" | Action (Hive-provisioned only) |
+
 ## Setup Prerequisites
 
 - Hive enabled and webhook configured

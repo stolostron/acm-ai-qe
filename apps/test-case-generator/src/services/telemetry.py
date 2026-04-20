@@ -19,7 +19,7 @@ class PipelineTelemetry:
         self._pipeline_start = time.monotonic()
         self._log_event("pipeline_start", {"jira_id": jira_id})
 
-    def _log_event(self, event_type: str, data: Optional[dict] = None):
+    def _log_event(self, event_type: str, data: Optional[dict] = None) -> None:
         """Append a JSONL event to the telemetry log."""
         entry = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -33,13 +33,13 @@ class PipelineTelemetry:
         with open(self.log_path, "a", encoding="utf-8") as f:
             f.write(json.dumps(entry) + "\n")
 
-    def start_stage(self, stage_name: str):
+    def start_stage(self, stage_name: str) -> None:
         """Mark the start of a pipeline stage."""
         self._stage_name = stage_name
         self._stage_start = time.monotonic()
         self._log_event("stage_start", {"stage": stage_name})
 
-    def end_stage(self, stage_name: str, metadata: Optional[dict] = None):
+    def end_stage(self, stage_name: str, metadata: Optional[dict] = None) -> None:
         """Mark the end of a pipeline stage with optional metadata."""
         elapsed = 0.0
         if self._stage_start is not None:
@@ -56,7 +56,7 @@ class PipelineTelemetry:
         self._stage_start = None
         self._stage_name = None
 
-    def end_pipeline(self, verdict: str = "complete"):
+    def end_pipeline(self, verdict: str = "complete") -> None:
         """Mark the end of the full pipeline."""
         total_elapsed = time.monotonic() - self._pipeline_start
         self._log_event("pipeline_end", {
@@ -64,6 +64,6 @@ class PipelineTelemetry:
             "verdict": verdict,
         })
 
-    def log_error(self, stage: str, error: str):
+    def log_error(self, stage: str, error: str) -> None:
         """Log an error event."""
         self._log_event("error", {"stage": stage, "error": error})

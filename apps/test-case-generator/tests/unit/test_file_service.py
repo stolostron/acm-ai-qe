@@ -1,9 +1,5 @@
 """Tests for file_service.py peer test case discovery and knowledge loading."""
 
-from pathlib import Path
-
-import pytest
-
 from src.services.file_service import (
     find_existing_test_cases,
     get_app_root,
@@ -45,7 +41,7 @@ class TestPeerDiscovery:
     def test_sample_test_case_always_found(self):
         """On a fresh clone, the sample test case should always be found."""
         # Use a version that won't match any external paths
-        results = find_existing_test_cases("99.99", area="governance")
+        results = find_existing_test_cases("99.99", area="governance", max_count=20)
         sample_found = any("sample-test-case.md" in r for r in results)
         assert sample_found, "Sample test case not found in knowledge/examples/"
 

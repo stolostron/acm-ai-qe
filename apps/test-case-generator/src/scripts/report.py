@@ -16,6 +16,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
+from src.models.review_result import ReviewResult
 from src.services.convention_validator import validate_test_case
 from src.services.html_generator import generate_html
 from src.services.telemetry import PipelineTelemetry
@@ -42,7 +43,14 @@ def find_test_case(run_dir: Path) -> Path | None:
     return None
 
 
-def write_summary(run_dir: Path, test_case_path: Path, review_result, setup_path, steps_path, jira_id: str):
+def write_summary(
+    run_dir: Path,
+    test_case_path: Path,
+    review_result: ReviewResult,
+    setup_path: str | None,
+    steps_path: str | None,
+    jira_id: str,
+) -> Path:
     """Write a human-readable SUMMARY.txt."""
     summary_lines = [
         f"Test Case Generation Summary",
@@ -93,7 +101,7 @@ def write_summary(run_dir: Path, test_case_path: Path, review_result, setup_path
     return summary_path
 
 
-def main():
+def main() -> None:
     args = parse_args()
     run_dir = Path(args.run_dir).resolve()
 

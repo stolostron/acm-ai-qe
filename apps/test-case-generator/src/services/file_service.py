@@ -62,17 +62,16 @@ def find_existing_test_cases(version: str, area: Optional[str] = None, max_count
     """
     search_paths: list[Path] = []
 
-    # 1. Check external automation workspace for the relevant area(s)
-    automation_base = Path(os.environ.get(
-        "ACM_AUTOMATION_WORKSPACE",
-        str(Path.home() / "Documents" / "work" / "automation" / "documentation" / "acm-components"),
-    ))
-    if automation_base.exists():
-        component_dirs = AREA_TO_COMPONENT_DIRS.get(area, []) if area else []
-        for component_dir in component_dirs:
-            tc_path = automation_base / component_dir / "test-cases" / version
-            if tc_path.exists():
-                search_paths.append(tc_path)
+    # 1. Check external automation workspace (opt-in via env var, no hardcoded default)
+    automation_workspace = os.environ.get("ACM_AUTOMATION_WORKSPACE")
+    if automation_workspace:
+        automation_base = Path(automation_workspace)
+        if automation_base.exists():
+            component_dirs = AREA_TO_COMPONENT_DIRS.get(area, []) if area else []
+            for component_dir in component_dirs:
+                tc_path = automation_base / component_dir / "test-cases" / version
+                if tc_path.exists():
+                    search_paths.append(tc_path)
 
     # 2. Previous pipeline runs
     search_paths.append(get_app_root() / "runs")

@@ -8,7 +8,7 @@ Claude Code-powered tools for ACM (Advanced Cluster Management) quality engineer
 |-----|-------------|--------|
 | [ACM Hub Health](apps/acm-hub-health/) | Diagnose and remediate ACM hub clusters through natural language. 6-phase pipeline with 12-layer diagnostic model: layer-organized health checks (foundational layers first), horizontal dependency chain tracing + vertical layer tracing, layer-based fallback for unknown issues. 54 knowledge files (architecture, diagnostics, baselines, webhooks, certs, addons, version constraints, 13 diagnostic traps). Session tracing via Claude Code hooks (JSONL traces with oc command parsing, MCP tracking, phase inference, mutation detection). | Active |
 | [Z-Stream Analysis](apps/z-stream-analysis/) | Classify Jenkins pipeline failures (product bug, automation bug, infra) using 12-layer diagnostic investigation (v4.0) with root-cause-first analysis. Stage 1.5 cluster-diagnostic agent produces structured health data (environment_health_score, operator_health, health_depth). v4.0 adds context signals (PR-7), Polarion expected-behavior check (PR-6b), symmetric counterfactual (D-V5c/D-V5e), and layer discrepancy detection. Environment Oracle, per-group investigation agents, and knowledge database (61 files: architecture, data-flow, failure-signatures across 12 ACM subsystems + diagnostics methodology including 12-layer model + healthy baselines + addon catalog + webhook registry + diagnostic traps + learned patterns). | Active |
-| [Test Case Generator](apps/test-case-generator/) | Generate Polarion-ready test cases from JIRA tickets. 3-stage pipeline: deterministic data gathering (gh CLI), MCP-powered AI investigation and generation (JIRA, Polarion, ACM UI, Neo4j), deterministic report/validation with Polarion HTML output. Uses conventions from 85+ existing test cases. | Active |
+| [Test Case Generator](apps/test-case-generator/) | Generate Polarion-ready test cases from JIRA tickets. 6-phase subagent pipeline: deterministic data gathering (gh CLI), parallel AI investigation (3 subagents: feature-investigator, code-change-analyzer, ui-discovery), synthesis with scope gating and AC cross-referencing, optional live validation (browser + oc + acm-search + acm-kubectl), AI-powered test case writing, mandatory quality review gate (AC vs implementation, scope alignment, numeric thresholds), and deterministic report/validation with Polarion HTML output. 6 specialized agents, 7 MCP integrations (JIRA, Polarion, ACM UI, Neo4j, ACM Search, ACM Kubectl, Playwright). Supports 9 console areas (Governance, RBAC, Fleet Virt, CCLM, MTV, Clusters, Search, Applications, Credentials). Session tracing via Claude Code hooks. | Active |
 
 ## Prerequisites
 
@@ -18,7 +18,7 @@ All apps require:
 App-specific:
 - **Hub Health**: `oc` CLI logged into an ACM hub cluster. Node.js + `mcp-remote` (`npm install -g mcp-remote`) for the acm-search MCP server. Podman for Neo4j knowledge graph container (optional but recommended). Python 3 + PyYAML only if using `knowledge/refresh.py` (optional).
 - **Z-Stream**: Python 3.10+, `oc` CLI, Red Hat VPN (for Jenkins/Polarion), JIRA API token, GitHub CLI (`gh`)
-- **Test Case Generator**: Python 3.10+, GitHub CLI (`gh`), JIRA API token, Red Hat VPN (for Polarion)
+- **Test Case Generator**: Python 3.10+, GitHub CLI (`gh`), JIRA API token, Red Hat VPN (for Polarion), Node.js 18+ (for acm-kubectl and playwright live validation MCPs)
 
 ## Quick Start: ACM Hub Health Agent
 
@@ -111,11 +111,11 @@ Then use the slash command:
 Or run the pipeline manually:
 ```bash
 python -m src.scripts.gather ACM-30459 --version 2.17
-# Claude Code performs MCP-powered investigation + test case generation (Stage 2)
+# Claude Code performs Phases 1-4.5: investigation + generation + quality review
 python -m src.scripts.report runs/ACM-30459/<run-dir>
 ```
 
-See [apps/test-case-generator/CLAUDE.md](apps/test-case-generator/CLAUDE.md) for full documentation.
+See [apps/test-case-generator/README.md](apps/test-case-generator/README.md) for setup and usage, [docs/](apps/test-case-generator/docs/) for detailed documentation.
 
 ## MCP Setup
 
@@ -132,7 +132,7 @@ It asks which app you want to configure and only installs the servers that app n
 |-----|----------------------|
 | Hub Health | acm-ui, neo4j-rhacm, acm-search |
 | Z-Stream | acm-ui, jira, jenkins, polarion, neo4j-rhacm |
-| Test Case Generator | acm-ui, jira, polarion, neo4j-rhacm |
+| Test Case Generator | acm-ui, jira, polarion, neo4j-rhacm, acm-search, acm-kubectl, playwright |
 
 Credentials are prompted only for the servers being installed. Press Enter to skip
 any you don't have yet -- placeholder files are created that you can fill in later.
@@ -147,6 +147,8 @@ any you don't have yet -- placeholder files are created that you can fill in lat
 | Polarion | 25 | This repo | Polarion test case access (Red Hat VPN required) |
 | Neo4j RHACM (KG) | 2 | [stolostron/knowledge-graph](https://github.com/stolostron/knowledge-graph) | ACM component dependency analysis via Cypher queries |
 | ACM Search | 5 | [stolostron/acm-mcp-server](https://github.com/stolostron/acm-mcp-server) | Fleet-wide resource queries via search-postgres (spoke-side visibility) |
+| ACM Kubectl | 3 | [stolostron/acm-mcp-server](https://github.com/stolostron/acm-mcp-server) | Multicluster kubectl (list clusters, run commands on hub/spokes) |
+| Playwright | 24 | [@playwright/mcp](https://www.npmjs.com/package/@playwright/mcp) (npm) | Browser automation for live UI validation |
 
 External MCP servers (JIRA, Jenkins, Knowledge Graph, ACM Search) are cloned
 automatically by `setup.sh` into `mcp/.external/` (gitignored). Most use forks with

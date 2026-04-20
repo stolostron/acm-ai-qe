@@ -66,6 +66,18 @@ ApplicationSet → GitOps Addon → ArgoCD on hub or spokes
 - For ArgoCD: `openshift-gitops` operator installed, ApplicationSet CRD registered
 - At least one managed cluster with AVAILABLE=True for deployment targeting
 
+## Translation Keys
+
+| Key | English Text | Context |
+|-----|-------------|---------|
+| `Applications` | "Applications" | Navigation tab |
+| `Create application` | "Create application" | Button |
+| `Subscription` | "Subscription" | Application type in create wizard |
+| `Argo CD` | "Argo CD" | Application type in create wizard |
+| `Topology` | "Topology" | Tab in application details |
+| `Sync` | "Sync" | ArgoCD sync status/action |
+| `Healthy` | "Healthy" | ArgoCD health status |
+
 ## Testing Considerations
 
 - Argo CD and Subscription models have different creation flows and different wizard steps

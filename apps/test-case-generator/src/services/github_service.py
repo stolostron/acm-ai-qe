@@ -91,12 +91,14 @@ def get_pr_diff(pr_number: int, repo: str = "stolostron/console", output_path: O
 def detect_area_from_files(files: list[str]) -> Optional[str]:
     """Detect the console area from PR file paths."""
     area_patterns = {
-        "governance": ["Governance", "governance"],
+        "governance": ["Governance", "governance", "policy", "Policy"],
         "rbac": ["rbac", "RBAC", "RoleAssignment", "ClusterPermission", "user-management"],
-        "fleet-virt": ["Virtualization", "virtualization", "kubevirt"],
-        "clusters": ["Clusters", "clusters", "ClusterSet"],
+        "fleet-virt": ["Virtualization", "virtualization", "kubevirt", "fleet-virt"],
+        "cclm": ["CCLM", "cclm", "LiveMigration", "live-migration"],
+        "mtv": ["MTV", "mtv", "forklift", "migration-toolkit"],
+        "clusters": ["Clusters", "clusters", "ClusterSet", "ClusterDeployment", "ClusterPool"],
         "search": ["Search", "search"],
-        "applications": ["Applications", "applications"],
+        "applications": ["Applications", "applications", "Subscription", "Channel"],
         "credentials": ["Credentials", "credentials"],
     }
 

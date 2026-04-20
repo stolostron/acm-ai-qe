@@ -16,6 +16,17 @@ The Governance area covers policy management in ACM Console, including policy cr
 7. **Kyverno Policy** (`kyverno.io`, namespaced) -- Namespace-scoped Kyverno policies (adds Namespace column)
 8. **ValidatingAdmissionPolicyBinding** (`admissionregistration.k8s.io`) -- K8s native admission
 
+## CRDs / Resources
+
+| CRD | API Group | Purpose |
+|-----|-----------|---------|
+| Policy | `policy.open-cluster-management.io/v1` | Parent policy resource (managed policies) |
+| ConfigurationPolicy | `policy.open-cluster-management.io/v1` | Configuration enforcement on managed clusters |
+| CertificatePolicy | `policy.open-cluster-management.io/v1` | Certificate compliance checking |
+| OperatorPolicy | `policy.open-cluster-management.io/v1beta1` | Operator installation and update management |
+| PolicySet | `policy.open-cluster-management.io/v1beta1` | Groups policies for placement |
+| PlacementBinding | `policy.open-cluster-management.io/v1` | Binds policies/policy sets to placements |
+
 ### Discovered vs Managed Policies
 - **Discovered policies**: Found via search API on managed clusters; no parent policy in ACM
 - **Managed policies**: Created through ACM Policy framework; have a parent Policy resource
@@ -51,8 +62,24 @@ For namespaced policies, Namespace appears between Name and Engine.
 - `policyTemplateDetails`: `/multicloud/governance/policies/details/:namespace/:name/template/:clusterName/:apiGroup?/:apiVersion/:kind/:templateName`
 
 ## Translation Keys
-- `table.labels` -> "Labels"
-- `Label` -> "Label" (filter)
+
+| Key | English Text | Context |
+|-----|-------------|---------|
+| `table.labels` | "Labels" | Column header and description list field |
+| `Label` | "Label" | Filter label in toolbar |
+| `Policies` | "Policies" | Tab header |
+| `Discovered policies` | "Discovered policies" | Tab header |
+| `Clusters` | "Clusters" | Tab header within policy details |
+| `Violations` | "Violations" | Column header |
+| `Inform and enforce` | "Inform and enforce" | Remediation action options |
+
+## Setup Prerequisites
+
+- ACM 2.17+ hub cluster with console access
+- `governance-policy-framework` enabled in MCH (enabled by default)
+- At least one managed cluster with policies for testing
+- For discovered policies: spoke-side policies exist (not created via ACM)
+- For policy creation tests: namespace with appropriate RBAC
 
 ## Testing Considerations
 - Test both discovered AND managed policy paths (same component serves both)

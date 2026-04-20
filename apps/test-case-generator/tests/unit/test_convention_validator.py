@@ -1,6 +1,5 @@
 """Tests for convention_validator.py structural validation."""
 
-import tempfile
 import textwrap
 from pathlib import Path
 

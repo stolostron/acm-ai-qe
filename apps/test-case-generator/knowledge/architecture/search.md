@@ -53,6 +53,25 @@ Search indexes ~22 Kubernetes resource types with ~90 fields. No custom CRDs —
 - FG-RBAC (MCRA) permissions are respected — users only see resources on clusters they have access to
 - Fleet Virt VM list is entirely sourced from Search — if search is down, VM list is empty
 
+## Translation Keys
+
+| Key | English Text | Context |
+|-----|-------------|---------|
+| `Search` | "Search" | Navigation tab |
+| `Search resources` | "Search resources" | Placeholder text |
+| `Saved searches` | "Saved searches" | Saved filter section |
+| `Related resources` | "Related resources" | Related resources tab |
+| `Suggested search templates` | "Suggested search templates" | Quick filters |
+
+## Query Syntax
+
+Search queries use `key:value` pairs with operators:
+- Equality: `kind:Pod` or `cluster:spoke-1`
+- Inequality: `kind:!=Secret`
+- Multiple values: `namespace:default,kube-system`
+- Wildcard: `name:search-*`
+- Multiple criteria: `kind:Pod namespace:default status:Running`
+
 ## Setup Prerequisites
 
 - `search` component enabled in MCH (enabled by default)

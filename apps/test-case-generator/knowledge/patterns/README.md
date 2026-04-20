@@ -1,8 +1,10 @@
 # Learned Patterns
 
-This directory contains patterns learned from successful test case generation runs. Files here are written by the agent after producing validated test cases.
+This directory stores patterns learned from successful test case generation runs. The test-case-generator agent writes here after producing validated test cases.
 
-## Contents
+No patterns have been written yet. Files will accumulate as runs complete successfully.
+
+## Planned Contents
 
 Files are added over time as the agent discovers new patterns:
 
@@ -14,6 +16,6 @@ Files are added over time as the agent discovers new patterns:
 ## Rules
 
 - Only the test-case-generator agent writes to this directory
-- Files are JSON format for easy parsing
+- Files are JSON format: `<area>-patterns.json`
 - Each file has a `last_updated` timestamp
 - Patterns are additive -- never delete existing entries, only add or update

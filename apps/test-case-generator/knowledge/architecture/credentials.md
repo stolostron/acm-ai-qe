@@ -67,6 +67,35 @@ Credentials are stored as Kubernetes Secrets with the label `cluster.open-cluste
 - For validation testing: network access to the provider API endpoints
 - For usage testing: at least one cluster using the credential
 
+## Translation Keys
+
+| Key | English Text | Context |
+|-----|-------------|---------|
+| `Credentials` | "Credentials" | Navigation tab |
+| `Add credential` | "Add credential" | Button |
+| `Provider type` | "Provider type" | Wizard step label |
+| `Base DNS domain` | "Base DNS domain" | Cloud credential field |
+| `Connection` | "Connection" | Connection details section |
+| `Pull secret` | "Pull secret" | Optional field for cluster provisioning |
+
+## Secret Structure
+
+Credentials are stored as Kubernetes Secrets with specific annotations:
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: <credential-name>
+  namespace: <credential-namespace>
+  labels:
+    cluster.open-cluster-management.io/type: <provider>
+    cluster.open-cluster-management.io/credentials: ""
+type: Opaque
+data:
+  # Provider-specific base64-encoded fields
+```
+
 ## Testing Considerations
 
 - Credentials contain secrets — **never display actual values** in test expected results

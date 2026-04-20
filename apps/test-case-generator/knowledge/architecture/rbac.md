@@ -68,6 +68,39 @@ Fine-Grained RBAC (FG-RBAC) in ACM Console enables granular role-based access co
 - `acm-roles` addon deployed when fine-grained-rbac is enabled
 - At least one ManagedClusterSet with bound clusters for scope testing
 
+## Translation Keys
+
+| Key | English Text | Context |
+|-----|-------------|---------|
+| `Role assignments` | "Role assignments" | Tab header |
+| `Create role assignment` | "Create role assignment" | Button |
+| `Identities` | "Identities" | Tab header in user management |
+| `Roles` | "Roles" | Tab header in user management |
+| `User` | "User" | Subject type option in wizard |
+| `Group` | "Group" | Subject type option in wizard |
+| `Global access` | "Global access" | Scope type option |
+| `Cluster set` | "Cluster set" | Scope type option |
+
+## MCRA YAML Structure
+
+```yaml
+apiVersion: rbac.open-cluster-management.io/v1alpha1
+kind: MulticlusterRoleAssignment
+metadata:
+  name: <assignment-name>
+  namespace: open-cluster-management
+spec:
+  subject:
+    name: <user-or-group>
+    kind: User | Group
+    apiGroup: rbac.authorization.k8s.io
+  role:
+    name: <role-name>
+  clusterSelector:
+    matchLabels:
+      cluster.open-cluster-management.io/clusterset: <cluster-set-name>
+```
+
 ## Testing Considerations
 
 - Test with both internal users and OIDC (Direct Authentication) users

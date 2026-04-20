@@ -43,11 +43,13 @@ Before writing, read:
 
 ### Step 2: Plan the Test Case
 
+**SCOPE GATE:** Before planning steps, extract the target JIRA story's Acceptance Criteria from the FEATURE INVESTIGATION block (if ACs are not present there, retrieve them via JIRA MCP `get_issue` using the `jira_id` from `gather-output.json`). Only plan steps that validate these specific ACs. If the PR covers multiple stories, filter to only the target story's scope. Steps that test other stories in the same PR should be mentioned in Notes as "Related functionality delivered in same PR but scoped to [other-story]".
+
 Using the synthesized context, plan:
-1. **Title** -- following area naming pattern
+1. **Title** -- following area naming pattern, scoped to the target JIRA story (not the broader PR)
 2. **Step count** -- typically 5-10 for medium complexity
 3. **Setup** -- prerequisites, test users, resources to create
-4. **Steps** -- each maps to a scenario from the investigation
+4. **Steps** -- each must map to at least one AC bullet from the target JIRA story
 5. **CLI checkpoints** -- where backend validation is needed mid-test
 6. **Teardown** -- resources to clean up
 
@@ -56,7 +58,7 @@ Using the synthesized context, plan:
 Before writing, verify a few critical elements via MCP to ensure investigation data is current:
 
 1. `set_acm_version(<acm_version>)` -- MUST call first
-2. `get_routes()` -- verify the entry point route still exists
+2. `get_routes()` -- verify the entry point route still exists. Find the specific route(s) that render the primary component under test (not just the area-level route). Include the full parameterized route pattern and route key in the Entry Point. If the feature is accessible via multiple routes (e.g., discovered vs managed), list all applicable routes.
 3. `search_translations("<key label>")` -- spot-check 1-2 key labels
 
 This is a quick sanity check, not full investigation (that was done in Phase 1).
@@ -92,7 +94,7 @@ Write the test case markdown following conventions EXACTLY. Structure:
 
 **Teardown**: Bash cleanup commands with `--ignore-not-found`
 
-**Notes** (optional): Implementation details, code references, known issues
+**Notes** (optional): Implementation details, code references, known issues. If the synthesized context contains an **AC-IMPLEMENTATION DISCREPANCIES** section, include a Note for each discrepancy explaining which behavior the test validates (implementation) and citing the source code. Format: "**Implementation vs AC discrepancy:** The JIRA acceptance criteria states '[AC text].' However, the actual implementation [describes behavior]. The source code in [file] confirms this. The test case validates against the implementation."
 
 ### Step 5: Self-Review
 
@@ -142,4 +144,5 @@ Write two files to the run directory:
 - ALWAYS do a quick MCP spot-check to verify key elements are current
 - ALWAYS self-review before writing the file
 - If investigation context is incomplete for a step, note it as "[NEEDS VERIFICATION]" rather than guessing
+- NEVER state specific numeric thresholds (e.g., "overflow at 5 labels", "max 10 items") unless the exact number is found in: (a) the PR diff, (b) JIRA AC, (c) MCP translation/source, or (d) area knowledge. If a threshold exists but the exact value is unknown, write "[verify threshold from source code]" rather than guessing a number
 - If a MCP server is unavailable for spot-check, note it and proceed with investigation data

@@ -10,6 +10,7 @@
 # Apps and their MCP requirements:
 #   acm-hub-health    -> acm-ui, neo4j-rhacm, acm-search
 #   z-stream-analysis -> acm-ui, jira, jenkins, polarion, neo4j-rhacm
+#   test-case-generator -> acm-ui, jira, polarion, neo4j-rhacm, acm-search, acm-kubectl, playwright
 #
 # All paths are resolved dynamically -- no machine-specific references.
 
@@ -39,7 +40,7 @@ fail()  { echo -e "${RED}[FAIL]${NC} $1"; }
 # Which MCPs each app requires (space-separated)
 APP_HUB_HEALTH_MCPS="acm-ui neo4j-rhacm acm-search"
 APP_ZSTREAM_MCPS="acm-ui jira jenkins polarion neo4j-rhacm"
-APP_TESTCASE_GEN_MCPS="acm-ui jira polarion neo4j-rhacm"
+APP_TESTCASE_GEN_MCPS="acm-ui jira polarion neo4j-rhacm acm-search acm-kubectl playwright"
 
 # App directory names (relative to $REPO_ROOT/apps/)
 APP_HUB_HEALTH_DIR="acm-hub-health"
@@ -75,7 +76,7 @@ echo -e "    ${CYAN}2)${NC} Z-Stream Pipeline Analysis"
 echo -e "       Needs: acm-ui, jira, jenkins, polarion, neo4j-rhacm"
 echo ""
 echo -e "    ${CYAN}3)${NC} Test Case Generator"
-echo -e "       Needs: acm-ui, jira, polarion, neo4j-rhacm"
+echo -e "       Needs: acm-ui, jira, polarion, neo4j-rhacm, acm-search, acm-kubectl, playwright"
 echo ""
 echo -e "    ${CYAN}4)${NC} All apps"
 echo -e "       Sets up all MCP servers for all apps"
@@ -108,7 +109,7 @@ while true; do
         4)
             SELECTED_APPS="$APP_HUB_HEALTH_DIR $APP_ZSTREAM_DIR $APP_TESTCASE_GEN_DIR"
             # Union of all app MCPs (no single app is the superset anymore)
-            SELECTED_MCPS="acm-ui jira jenkins polarion neo4j-rhacm acm-search"
+            SELECTED_MCPS="acm-ui jira jenkins polarion neo4j-rhacm acm-search acm-kubectl playwright"
             echo ""
             ok "Selected: All apps"
             break
@@ -171,19 +172,32 @@ if needs_mcp "acm-ui"; then
     fi
 fi
 
-# Node.js + mcp-remote (needed for acm-search)
-if needs_mcp "acm-search"; then
+# Node.js (needed for acm-search, acm-kubectl, playwright)
+if needs_mcp "acm-search" || needs_mcp "acm-kubectl" || needs_mcp "playwright"; then
     if command -v node &>/dev/null; then
         ok "Node.js $(node --version)"
     else
         warn "Node.js not found. Install: brew install node (macOS) or sudo dnf install nodejs (Fedora/RHEL)"
-        echo "  Node.js is needed for mcp-remote (acm-search MCP bridge)."
+        echo "  Node.js is needed for acm-search (mcp-remote), acm-kubectl, and playwright."
     fi
+fi
+
+# mcp-remote (needed for acm-search SSE bridge)
+if needs_mcp "acm-search"; then
     if command -v mcp-remote &>/dev/null; then
         ok "mcp-remote installed"
     else
         warn "mcp-remote not found. Will attempt to install during acm-search setup."
         echo "  Or install manually: npm install -g mcp-remote"
+    fi
+fi
+
+# npx (needed for acm-kubectl and playwright)
+if needs_mcp "acm-kubectl" || needs_mcp "playwright"; then
+    if command -v npx &>/dev/null; then
+        ok "npx is available"
+    else
+        warn "npx not found. Install Node.js 18+ which includes npx."
     fi
 fi
 
@@ -223,7 +237,10 @@ ACM_SEARCH_BRANCH="main"
 EXTERNAL_DIR="$MCP_DIR/.external"
 
 clone_external() {
-    local name="$1" repo="$2" branch="$3" target="$EXTERNAL_DIR/$name"
+    local name="$1"
+    local repo="$2"
+    local branch="$3"
+    local target="$EXTERNAL_DIR/$name"
 
     if [ -d "$target/.git" ]; then
         info "Updating $name from upstream..."
@@ -712,16 +729,97 @@ setup_acm_search() {
     echo ""
 }
 
+setup_acm_kubectl() {
+    CURRENT_MCP=$((CURRENT_MCP + 1))
+    echo "--------------------------------------------"
+    echo "  [$CURRENT_MCP/$TOTAL_MCPS] ACM Kubectl MCP Server"
+    echo "--------------------------------------------"
+    echo ""
+    echo "  What: Multicluster kubectl -- list managed clusters, run kubectl on hub/spoke clusters."
+    echo "  Used for: Live cluster validation (checking spoke state, verifying resources)."
+    echo "  Requires: Node.js 18+, oc/kubectl logged into an ACM hub cluster."
+    echo "  Source: https://github.com/stolostron/acm-mcp-server (servers/multicluster-kubectl)"
+    echo ""
+
+    # The repo is shared with acm-search -- clone if not already present
+    clone_external "acm-mcp-server" "$ACM_SEARCH_REPO" "$ACM_SEARCH_BRANCH"
+
+    ACM_KUBECTL_DIR="$EXTERNAL_DIR/acm-mcp-server/servers/multicluster-kubectl"
+
+    if [ ! -d "$ACM_KUBECTL_DIR" ]; then
+        fail "Multicluster kubectl directory not found: $ACM_KUBECTL_DIR"
+        echo ""
+        return
+    fi
+
+    if command -v npx &>/dev/null; then
+        ok "npx available -- acm-kubectl will run via: npx -y acm-mcp-server@latest"
+    else
+        warn "npx not found. Install Node.js 18+ which includes npx."
+    fi
+
+    # Check if oc/kubectl is available for runtime
+    if command -v oc &>/dev/null && oc whoami &>/dev/null 2>&1; then
+        ok "oc logged in (kubectl commands will target this cluster)"
+    elif command -v kubectl &>/dev/null; then
+        ok "kubectl available (ensure KUBECONFIG points to ACM hub)"
+    else
+        warn "oc/kubectl not found. acm-kubectl needs cluster access at runtime."
+        echo "  Log into an ACM hub: oc login <hub-api-url>"
+    fi
+
+    echo ""
+}
+
+setup_playwright() {
+    CURRENT_MCP=$((CURRENT_MCP + 1))
+    echo "--------------------------------------------"
+    echo "  [$CURRENT_MCP/$TOTAL_MCPS] Playwright MCP Server"
+    echo "--------------------------------------------"
+    echo ""
+    echo "  What: Browser automation for live UI validation (navigate, click, snapshot, screenshot)."
+    echo "  Used for: Live cluster validation (verifying ACM console UI behavior)."
+    echo "  Requires: Node.js 18+, Chromium browser (installed by Playwright)."
+    echo "  Source: @playwright/mcp (npm package)"
+    echo ""
+
+    if ! command -v npx &>/dev/null; then
+        warn "npx not found. Install Node.js 18+ which includes npx."
+        echo ""
+        return
+    fi
+
+    ok "npx available -- playwright will run via: npx @playwright/mcp@latest"
+
+    # Check if Playwright browsers are installed
+    if npx playwright install --dry-run chromium &>/dev/null 2>&1; then
+        ok "Playwright browsers check passed"
+    else
+        info "Installing Playwright Chromium browser (first-time setup)..."
+        if npx playwright install chromium 2>/dev/null; then
+            ok "Chromium browser installed"
+        else
+            warn "Could not install Chromium automatically."
+            echo "  Install manually: npx playwright install chromium"
+            echo "  Playwright MCP will still be added to .mcp.json."
+        fi
+    fi
+
+    echo ""
+}
+
 # -----------------------------------------------
 # Install Selected MCP Servers
 # -----------------------------------------------
 
-needs_mcp "acm-ui"     && setup_acm_ui
-needs_mcp "jira"        && setup_jira
-needs_mcp "jenkins"     && setup_jenkins
-needs_mcp "polarion"    && setup_polarion
-needs_mcp "neo4j-rhacm" && setup_neo4j
-needs_mcp "acm-search"  && setup_acm_search
+needs_mcp "acm-ui"      && setup_acm_ui
+needs_mcp "jira"         && setup_jira
+needs_mcp "jenkins"      && setup_jenkins
+needs_mcp "polarion"     && setup_polarion
+needs_mcp "neo4j-rhacm"  && setup_neo4j
+needs_mcp "acm-search"   && setup_acm_search
+needs_mcp "acm-kubectl"  && setup_acm_kubectl
+needs_mcp "playwright"   && setup_playwright
 
 # -----------------------------------------------
 # Generate .mcp.json for Each Selected App
@@ -848,7 +946,17 @@ all_servers = {
                  '--read-only'],
         'timeout': 60
     },
-    'acm-search': _build_acm_search_config()
+    'acm-search': _build_acm_search_config(),
+    'acm-kubectl': {
+        'command': 'npx',
+        'args': ['-y', 'acm-mcp-server@latest'],
+        'timeout': 60
+    },
+    'playwright': {
+        'command': 'npx',
+        'args': ['@playwright/mcp@latest'],
+        'timeout': 30
+    }
 }
 
 # Build config with only the requested MCPs
@@ -950,6 +1058,22 @@ if needs_mcp "acm-search"; then
         echo -e "    ${YELLOW}DEPS${NC} acm-search   -- Deployed, but missing mcp-remote or token. Re-run setup."
     else
         echo -e "    ${YELLOW}SETUP${NC} acm-search   -- Not deployed. Log into ACM hub and re-run setup."
+    fi
+fi
+
+if needs_mcp "acm-kubectl"; then
+    if command -v npx &>/dev/null; then
+        echo -e "    ${GREEN}OK${NC}   acm-kubectl  -- Multicluster kubectl (3 tools, via npx)"
+    else
+        echo -e "    ${YELLOW}DEPS${NC} acm-kubectl  -- Needs Node.js 18+ with npx"
+    fi
+fi
+
+if needs_mcp "playwright"; then
+    if command -v npx &>/dev/null; then
+        echo -e "    ${GREEN}OK${NC}   playwright   -- Browser automation (24 tools, via npx)"
+    else
+        echo -e "    ${YELLOW}DEPS${NC} playwright   -- Needs Node.js 18+ with npx"
     fi
 fi
 

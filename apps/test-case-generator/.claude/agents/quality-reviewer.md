@@ -85,6 +85,19 @@ Use MCP to spot-check UI elements mentioned in the test case:
 4. If wizard steps are mentioned, verify via `get_wizard_steps`
 5. Flag any UI element that cannot be verified as "POTENTIALLY ASSUMED"
 
+### Step 4.5: AC vs Implementation Check
+
+If the test case targets a specific JIRA story:
+
+1. Read `gather-output.json` from the run directory to find the JIRA ID
+2. Extract the JIRA story's Acceptance Criteria (from the FEATURE INVESTIGATION context or via JIRA MCP `get_issue`)
+3. For each AC bullet, check if the test case's expected results are consistent with it
+4. If an AC says behavior X but the test expects behavior Y:
+   - Check if a Note in the test case explains the discrepancy
+   - If a Note exists and cites source code: PASS
+   - If no Note exists: flag as BLOCKING: "AC states '[X]' but test expects '[Y]' — add a Note explaining the discrepancy and which behavior is correct"
+5. Check that the test case scope matches the target JIRA story's ACs, not the broader PR scope. If the test includes steps for functionality from other stories in the same PR, flag as BLOCKING: "Step N tests [functionality] which belongs to [other-story], not [target-story] — move to Notes or remove from test case"
+
 ### Step 5: Polarion Coverage Check
 
 Use Polarion MCP to verify metadata accuracy:
@@ -169,5 +182,6 @@ When called for a re-review (after fixes were applied):
 - ALWAYS verify at least 2-3 UI elements via MCP before concluding
 - ALWAYS check Polarion for duplicate/existing test cases
 - ALWAYS compare with 2-3 peer test cases for consistency
+- Flag as BLOCKING if any test step states a numeric threshold (e.g., "overflow at 5 labels", "max 10 items") without evidence from the PR diff, JIRA AC, MCP source, or area knowledge. Accept "[verify threshold from source code]" as a placeholder.
 - If MCP is unavailable, note it and review based on format only
 - The verdict MUST be either PASS or NEEDS_FIXES -- no ambiguity

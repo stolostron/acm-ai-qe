@@ -155,7 +155,7 @@ Six agents, each with a dedicated role in the pipeline:
 | **UI Discovery** | `.claude/agents/ui-discovery.md` | Phase 1 (parallel) | Source code discovery: selectors, translations, routes, wizard steps, test IDs |
 | **Live Validator** | `.claude/agents/live-validator.md` | Phase 3 | Live cluster verification: browser UI, oc CLI, acm-search, acm-kubectl |
 | **Test Case Generator** | `.claude/agents/test-case-generator.md` | Phase 4 | Write test case markdown from synthesized investigation context |
-| **Quality Reviewer** | `.claude/agents/quality-reviewer.md` | Phase 4.5 | Validate conventions, verify discovered vs assumed, peer consistency, PASS/NEEDS_FIXES |
+| **Quality Reviewer** | `.claude/agents/quality-reviewer.md` | Phase 4.5 | Validate conventions, verify discovered vs assumed, AC vs implementation, scope alignment, numeric thresholds, peer consistency, PASS/NEEDS_FIXES |
 
 ### Phase 1: Parallel Agent Launch
 
@@ -214,10 +214,10 @@ Feature Investigator:
   jira      -> get_issue, search_issues, get_project_components
   polarion  -> get_polarion_work_items, get_polarion_test_case_summary
   neo4j     -> read_neo4j_cypher (architecture context)
-  gh CLI    -> gh pr view
+  bash      -> gh pr view (GitHub CLI via bash)
 
 Code Change Analyzer:
-  gh CLI    -> gh pr view, gh pr diff
+  bash      -> gh pr view, gh pr diff (GitHub CLI via bash)
   acm-ui    -> set_acm_version, search_code, get_component_source,
                get_component_types, search_translations, get_routes
   neo4j     -> read_neo4j_cypher (component dependencies)
@@ -230,7 +230,7 @@ UI Discovery:
 Live Validator:
   playwright -> browser_navigate, browser_snapshot, browser_click, browser_fill_form,
                 browser_take_screenshot, browser_console_messages, browser_network_requests
-  oc CLI     -> oc get pods/csv/mch/managedcluster
+  bash       -> oc get pods/csv/mch/managedcluster (oc CLI via bash)
   acm-search -> find_resources, query_database
   acm-kubectl -> clusters, kubectl, connect_cluster
 
@@ -274,7 +274,7 @@ knowledge/
 
 **Writing rules**: Only write to `patterns/` and `diagnostics/`. Never modify `conventions/` or `architecture/` programmatically.
 
-**Persistent knowledge**: After a successful run, write area-specific patterns to `knowledge/patterns/<area>-patterns.json` with discovered selectors, routes, translations, and common test structures. Read these at the start of future runs for the same area.
+**Persistent knowledge** (planned): After a successful run, the test-case-generator agent may write area-specific patterns to `knowledge/patterns/<area>-patterns.json` with discovered selectors, routes, translations, and common test structures. When present, read these at the start of future runs for the same area.
 
 ---
 
@@ -308,13 +308,51 @@ runs/ACM-30459/ACM-30459-2026-04-08T12-00-00/
 
 ---
 
+## Session Tracing
+
+Claude Code hooks capture every tool call, MCP interaction, prompt, subagent launch, and error into structured JSONL trace files. This provides full observability across all pipeline phases, including the AI agent phases (1-4.5) that the Python telemetry doesn't cover.
+
+**Trace files:** `.claude/traces/<session_id>.jsonl` (gitignored, generated at runtime)
+**Session index:** `.claude/traces/sessions.jsonl` (one-line summary per session)
+**Hook implementation:** `.claude/hooks/agent_trace.py`
+
+### Events captured
+
+| Event | Hook | Fields |
+|-------|------|--------|
+| `prompt` | UserPromptSubmit | prompt text, `pipeline_command` (generate/review/batch) |
+| `tool_call` | PreToolUse | tool, input summary, mcp_server/mcp_tool, oc_verb/resource/namespace, pipeline_phase, knowledge_category |
+| `tool_result` | PostToolUse | tool, output (truncated) |
+| `tool_error` | PostToolUseFailure | tool, error message |
+| `subagent_complete` | SubagentStop | agent_id, agent_type, pipeline_phase |
+| `turn_complete` | Stop | triggers session summary |
+
+### Pipeline phase detection
+
+Subagent launches are tagged with their pipeline phase:
+
+| Subagent Type | Phase |
+|---------------|-------|
+| feature-investigator | phase_1 |
+| code-change-analyzer | phase_1 |
+| ui-discovery | phase_1 |
+| live-validator | phase_3 |
+| test-case-generator | phase_4 |
+| quality-reviewer | phase_4_5 |
+
+### Session summary fields
+
+Written to `sessions.jsonl` on each Stop event: `pipeline_command`, `phases_seen`, `duration_sec`, `prompts`, `tool_calls`, `subagent_launches`, `mcp_calls`, `oc_commands`, `mutations`, `knowledge_reads`, `pattern_writes`, `pipeline_outputs`, `errors`.
+
+---
+
 ## Validation Layers
 
 The pipeline has two independent validation systems. Both must pass:
 
 | Layer | When | What it checks | Authoritative for |
 |-------|------|---------------|-------------------|
-| **Phase 4.5** (quality-reviewer agent) | Before Stage 3 | MCP verification of UI elements, Polarion coverage, peer consistency, discovered vs assumed | Semantic correctness (are the right things tested?) |
+| **Phase 4.5** (quality-reviewer agent) | Before Stage 3 | MCP verification of UI elements, AC vs implementation, scope alignment, numeric thresholds, Polarion coverage, peer consistency, discovered vs assumed | Semantic correctness (are the right things tested?) |
 | **Stage 3** (report.py / convention_validator.py) | After Phase 4.5 | Title pattern, metadata fields, section order, step format, entry point, teardown | Structural correctness (is the format right?) |
 
 If Stage 3 fails after Phase 4.5 passed, fix the structural issue and re-run `report.py`. Do not re-run the quality reviewer unless the fix changed test content.
@@ -358,6 +396,14 @@ Test cases are validated against these criteria (Phase 4.5 + Stage 3):
 
 - `README.md` -- Setup, usage, examples
 - `CLAUDE.md` -- This file (app constitution)
+- `docs/00-OVERVIEW.md` -- Architecture overview, pipeline/agent/MCP summary
+- `docs/01-PIPELINE-PHASES.md` -- Phase-by-phase pipeline execution
+- `docs/02-AGENTS.md` -- Agent definitions, inputs, outputs, MCP tools
+- `docs/03-MCP-INTEGRATION.md` -- MCP server setup, tools, usage patterns
+- `docs/04-KNOWLEDGE-SYSTEM.md` -- Conventions, architecture knowledge, patterns
+- `docs/05-QUALITY-GATES.md` -- Phase 4.5 reviewer + Stage 3 validator
+- `docs/06-SESSION-TRACING.md` -- Claude Code hooks, JSONL traces, session summaries
+- `docs/architecture-diagrams.html` -- Interactive pipeline workflow visualization
 - `knowledge/README.md` -- Knowledge database index
 - `knowledge/conventions/test-case-format.md` -- Test case format conventions
 - `knowledge/conventions/polarion-html-templates.md` -- Polarion HTML rules

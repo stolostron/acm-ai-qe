@@ -78,6 +78,7 @@ Requires Podman with `neo4j-rhacm` container running.
    - **Conditional logic** -- feature flags, RBAC checks, state-dependent rendering
    - **Error handling** -- new error messages, validation, edge cases
    - **Translation strings** -- new i18n keys (what the user sees)
+   - **UI interaction model** -- for new interactive elements (filters, inputs, toggles), identify the PatternFly component type (e.g., `ToolbarFilter` with searchable dropdown, `TextInput` for free text, `Select` for single/multi-select, `Switch` for toggle). This determines how testers interact with it — "click and select from dropdown" vs "type text and press Enter" are different test steps
 
 5. **Read full component source** for key changed files:
    - `get_component_source("path/from/diff", repo="acm")`
@@ -127,6 +128,9 @@ Conditional Logic Added:
 
 New Error Messages:
 - "[message text]": [when it appears]
+
+UI Interaction Models:
+- [element]: [PatternFly component type] -- [how testers should interact with it]
 
 Translation Strings:
 - "[UI text]": [context]

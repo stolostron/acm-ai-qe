@@ -9,6 +9,7 @@ Generates Polarion-ready test cases for ACM Console UI features from JIRA ticket
 - `gh` CLI ([GitHub CLI](https://cli.github.com/)) authenticated (`gh auth login`)
 - Access to Red Hat JIRA (Atlassian Cloud)
 - Access to Polarion (VPN required)
+- Node.js 18+ (for acm-kubectl and playwright MCP servers used in live validation)
 - Optional: Podman (for Neo4j architecture knowledge graph)
 - Optional: Live ACM cluster with console access (for Phase 3 live validation)
 
@@ -65,7 +66,7 @@ Options:
 # Stage 1: Gather data
 python -m src.scripts.gather ACM-30459 --version 2.17
 
-# Stage 2: AI investigation + generation (interactive in Claude Code)
+# Phases 1-4.5: AI investigation + generation + quality review (interactive in Claude Code)
 
 # Stage 3: Generate reports
 python -m src.scripts.report runs/ACM-30459/<run-dir>
@@ -90,7 +91,8 @@ Each run produces artifacts under `runs/<JIRA_ID>/<timestamp>/`:
 ## Pipeline Architecture
 
 ```
-Stage 1: gather.py (deterministic)     -> gather-output.json + pr-diff.txt
+Phase 0: Parse inputs + ask questions    -> resolved JIRA ID, version, area
+Stage 1: gather.py (deterministic)       -> gather-output.json + pr-diff.txt
 Phase 1: 3 parallel investigation agents -> feature + code + UI context
 Phase 2: Synthesize test plan            -> merged investigation
 Phase 3: Live validation (optional)      -> confirmed behavior
@@ -108,7 +110,7 @@ Stage 3: report.py (deterministic)       -> HTML + validation + summary
 | UI Discovery | 1 (parallel) | Source code selectors, translations, routes |
 | Live Validator | 3 | Browser + oc CLI + acm-search + acm-kubectl |
 | Test Case Generator | 4 | Write test case from synthesized context |
-| Quality Reviewer | 4.5 | Conventions, discovered vs assumed, PASS/NEEDS_FIXES |
+| Quality Reviewer | 4.5 | Conventions, AC vs implementation, scope alignment, discovered vs assumed, PASS/NEEDS_FIXES |
 
 ## Knowledge Database
 
@@ -130,3 +132,16 @@ The `knowledge/` directory contains curated domain knowledge:
 | acm-search | Live cluster resource queries across managed clusters |
 | acm-kubectl | Multicluster kubectl (list clusters, run commands on hub/spokes) |
 | playwright | Browser automation for live UI validation |
+
+## Documentation
+
+Detailed documentation is in the `docs/` directory:
+
+- [00-OVERVIEW.md](docs/00-OVERVIEW.md) -- Architecture overview
+- [01-PIPELINE-PHASES.md](docs/01-PIPELINE-PHASES.md) -- Phase-by-phase pipeline execution
+- [02-AGENTS.md](docs/02-AGENTS.md) -- Agent definitions and MCP tools
+- [03-MCP-INTEGRATION.md](docs/03-MCP-INTEGRATION.md) -- MCP server setup and configuration
+- [04-KNOWLEDGE-SYSTEM.md](docs/04-KNOWLEDGE-SYSTEM.md) -- Conventions and domain knowledge
+- [05-QUALITY-GATES.md](docs/05-QUALITY-GATES.md) -- Quality reviewer + structural validator
+- [06-SESSION-TRACING.md](docs/06-SESSION-TRACING.md) -- Claude Code hooks and JSONL traces
+- [architecture-diagrams.html](docs/architecture-diagrams.html) -- Interactive pipeline visualization

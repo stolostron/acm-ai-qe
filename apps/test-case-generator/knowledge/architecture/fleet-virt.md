@@ -32,6 +32,12 @@ Fleet Virtualization in ACM Console provides centralized management of virtual m
 
 ## Navigation Routes
 
+| Route Key | Path | Page |
+|-----------|------|------|
+| `virtualMachines` | `/k8s/all-clusters/all-namespaces/kubevirt.io~v1~VirtualMachine` | Fleet VM list |
+| `vmDetails` | `/k8s/ns/:namespace/:kind/:name` | VM details page |
+| `infraVMs` | `/multicloud/infrastructure/virtual-machines` | Infrastructure VM tab |
+
 Fleet Virtualization pages are part of the Infrastructure section. Routes are provided by the kubevirt-plugin ConsolePlugin.
 
 ## VM State Machine
@@ -63,6 +69,25 @@ Actions available depend on current state:
 - ClusterPermission propagated to spokes via ManifestWork
 - search-api filters VM results by MCRA permissions
 - Console RBAC wizard provides VM-specific role assignments
+
+## Translation Keys
+
+| Key | English Text | Context |
+|-----|-------------|---------|
+| `Virtual machines` | "Virtual machines" | Tab header |
+| `Start` | "Start" | VM action button |
+| `Stop` | "Stop" | VM action button |
+| `Restart` | "Restart" | VM action button |
+| `Pause` | "Pause" | VM action button |
+| `Migrate` | "Migrate" | VM action button (live migration) |
+| `Tree view` | "Tree view" | Toggle for hierarchical navigation |
+
+## CNV Version Requirements
+
+- CNV 4.14+: Basic VM management
+- CNV 4.15+: Live migration support, migration policies
+- CNV 4.16+: CCLM (cross-cluster live migration) support
+- Set `set_cnv_version()` in acm-ui MCP to match spoke CNV version
 
 ## Setup Prerequisites
 

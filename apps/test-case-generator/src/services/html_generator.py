@@ -95,15 +95,17 @@ def generate_steps_html(content: str) -> str:
     if not matches:
         return ""
 
-    # Table header
-    th_style = f'style="text-align:left;vertical-align:top;padding:8px;border:1px solid #ccc;{BOLD_STYLE}"'
+    TH_STYLE = 'white-space:nowrap;height:12px;text-align:left;vertical-align:top;font-weight:bold;background-color:#F0F0F0;border:1px solid #CCCCCC;padding:5px;width:50%'
+    TD_STYLE = 'height:12px;text-align:left;vertical-align:top;line-height:18px;border:1px solid #CCCCCC;padding:5px'
+
     rows = [
         "<table style=\"border-collapse:collapse;width:100%;\">",
         "<tbody>",
-        f"<tr><th {th_style}>Step</th><th {th_style}>Expected Result</th></tr>",
+        f'<tr><th contenteditable="false" id="testStepKey:step" style="{TH_STYLE};">Step</th>'
+        f'<th contenteditable="false" id="testStepKey:expectedResult" style="{TH_STYLE};">Expected Result</th></tr>',
     ]
 
-    td_style = f'style="vertical-align:top;padding:8px;border:1px solid #ccc;{BASE_STYLE}"'
+    td_style = f'style="{TD_STYLE}"'
 
     for i, match in enumerate(matches):
         step_num = match.group(1)
@@ -138,7 +140,7 @@ def generate_steps_html(content: str) -> str:
 
         # Format actions
         action_lines = []
-        action_lines.append(f'<span style="{BOLD_STYLE}">Step {step_num}: {_escape_html(step_title)}</span><br>')
+        action_lines.append(f'<span style="font-weight:bold;">Step {step_num}: {_escape_html(step_title)}</span><br><br>')
         for line in actions_text.split("\n"):
             stripped = line.strip()
             if stripped and not stripped.startswith("**Actions"):
@@ -155,7 +157,10 @@ def generate_steps_html(content: str) -> str:
                 expected_lines.append(f"{_escape_html(stripped)}<br>")
         expected_html = "\n".join(expected_lines)
 
-        rows.append(f"<tr><td {td_style}>{actions_html}</td><td {td_style}>{expected_html}</td></tr>")
+        rows.append(
+            f'<tr><td {td_style}><span style="{BASE_STYLE};">{actions_html}</span></td>'
+            f'<td {td_style}><span style="{BASE_STYLE};">{expected_html}</span></td></tr>'
+        )
 
     rows.append("</tbody>")
     rows.append("</table>")

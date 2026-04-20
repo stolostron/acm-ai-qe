@@ -54,7 +54,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def main():
+def main() -> None:
     args = parse_args()
     jira_id = args.jira_id.upper()
 
@@ -108,7 +108,7 @@ def main():
         print("  ACM version not specified (will be detected from JIRA in Stage 2)")
 
     # --- Existing Test Cases ---
-    version_for_search = acm_version or "2.17"
+    version_for_search = acm_version or "latest"
     existing = find_existing_test_cases(version_for_search, area=area)
     if existing:
         print(f"  Found {len(existing)} peer test case(s) for reference")

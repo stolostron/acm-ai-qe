@@ -117,6 +117,14 @@ oc get pods -n <mch-ns> -l app=search-postgres \
 **Rule:** Search "all green" + "empty results" = always check postgres
 schema and data count before investigating anything else.
 
+**Operational note:** search-postgres uses Deployment strategy `Recreate`
+(not `RollingUpdate`). Combined with emptyDir, ANY deployment update
+(including ACM upgrades, operator reconciliation, resource limit
+changes) terminates the old pod before starting the new one. This
+causes both a data loss AND a downtime window on every restart. Post-
+upgrade empty search results for 10-30 minutes is expected behavior,
+similar to Trap 5 (GRC settling). See post-upgrade-patterns.md #6.
+
 **Playbook reference:** diagnostic-playbooks.md, Search section, Step 6.
 
 ---
@@ -445,6 +453,19 @@ the affected pod to pick up the new cert.
 **Rule:** service-ca-operator creates but doesn't overwrite. If a cert
 is broken, check the secret contents before blaming the operator.
 
+**Shared TLS secret pattern:** Some ACM services share a TLS secret
+across components. If a shared secret is corrupted, ALL services that
+mount it fail simultaneously. When multiple services show TLS errors
+at the same time, check whether they reference the same secret:
+```bash
+# Find which secrets are mounted by a failing pod
+oc get deploy <name> -n <ns> -o jsonpath='{.spec.template.spec.volumes[*].secret.secretName}'
+# Check if other deployments mount the same secret
+oc get deploy -n <ns> -o json | jq -r '.items[] | .metadata.name as $n | .spec.template.spec.volumes[]? | select(.secret?) | "\($n): \(.secret.secretName)"' | sort -t: -k2
+```
+A single corrupted secret can manifest as failures in seemingly
+unrelated subsystems.
+
 ---
 
 ## Trap 13: ConsolePlugin Registered but Plugin Service Unreachable
@@ -491,6 +512,58 @@ and console-mce pod (Trap 2).
 
 ---
 
+## Trap 14: Both Operator Replicas Running but Reconciliation Stopped
+
+**What you see:** An operator Deployment shows 2/2 (or 3/3) replicas
+Running and Ready. Pod logs show no errors. But the operator is not
+reconciling -- CRs are not being processed, status fields are not
+updating, managed resources are drifting.
+
+**What you might conclude:** Everything is healthy. Or: the CR is
+correct and nothing needs reconciling.
+
+**What's actually happening:** Kubernetes controllers with HA (multiple
+replicas) use leader election to ensure only one replica actively
+reconciles. The standby replicas idle until the leader's lease expires.
+If leader election is stuck -- the leader's lease expired but no replica
+re-acquires it (clock skew, etcd latency, Lease/ConfigMap lock
+contention) -- NEITHER replica reconciles. Health probes still pass
+because they check the process, not the reconcile loop.
+
+This applies to any HA operator using `--leader-elect`, including:
+- multiclusterhub-operator (2 replicas)
+- multicluster-engine-operator (2 replicas)
+- grc-policy-propagator (2 replicas)
+- cluster-manager (3 replicas)
+- cluster-curator-controller (2 replicas)
+- Any controller with leader election enabled
+
+**How to detect:**
+```bash
+# Check leader election lease for the operator
+oc get lease -n <operator-ns> --no-headers | grep <operator-name>
+oc get lease <lease-name> -n <operator-ns> -o jsonpath='{.spec.renewTime}'
+# If renewTime is stale (>2x leaseDurationSeconds ago), leader election
+# is stuck. Default leaseDuration is typically 15-30s.
+
+# Check operator logs for reconciliation activity
+oc logs -n <ns> -l <operator-label> --tail=30 --timestamps
+# Healthy: "Reconciling <resource>" messages at regular intervals
+# Stuck: only health check / probe activity, no reconcile messages
+
+# Common root cause: etcd latency (Layer 2)
+time oc get namespaces > /dev/null
+# If >2 seconds, etcd latency may be causing lease expiry
+```
+
+**Rule:** When an HA operator shows all replicas Running but nothing is
+being reconciled, check the leader election lease before concluding the
+CRs are correct. A stale lease `renewTime` indicates stuck leader
+election. This is a variant of Trap 1 (stale status) but with a
+different root cause -- the operator process is alive but not active.
+
+---
+
 ## Quick Reference: Trap Index
 
 | Trap | Symptom | Check First |
@@ -508,3 +581,4 @@ and console-mce pod (Trap 2).
 | 11 | Pods Running but cross-service fails | NetworkPolicy in ACM namespace |
 | 12 | TLS errors, service-ca healthy | Corrupted cert secret (delete to fix) |
 | 13 | Feature tabs present but broken | Plugin backend pod health |
+| 14 | Both replicas Running, nothing reconciling | Leader election lease (renewTime) |

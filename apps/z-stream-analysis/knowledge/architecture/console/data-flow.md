@@ -15,18 +15,43 @@ Browser loads OCP console
           -> React component fetches data via backend API
 ```
 
-## API Proxy Flow (Generic)
+## Console-API Request Proxy Chain (Corrected)
 
-Most console API calls follow this pattern:
+Every console API request follows this 5-hop path. Each hop can fail
+independently, and the error at each hop looks different:
 
 ```
-React component
-  -> fetch('/api/proxy/...', { method, body })
-    -> backend/src/routes/proxy.ts doProxy()
-      -> constructs Kubernetes API URL
-      -> authenticates with service account token
-      -> proxies request to kube-apiserver
-      -> returns response to frontend
+Browser
+  -> OCP Ingress Router (HAProxy) [hop 1]
+    -> OCP Console Pod (openshift-console namespace) [hop 2]
+      -> ConsolePlugin proxy (routes to ACM plugin backend) [hop 3]
+        -> console-api / plugin backend (port 3000) [hop 4]
+          -> target service (search-api, grc-propagator, etc.) [hop 5]
+```
+
+**Error handling at each hop:**
+| Hop | Failure symptom | Root cause layer |
+|-----|----------------|-----------------|
+| 1 - Ingress Router | Connection refused, 503 | Layer 3 (Network) |
+| 2 - OCP Console Pod | 502 Bad Gateway | Layer 9 (OCP operator) |
+| 3 - ConsolePlugin proxy | 404 plugin not found, blank tab | Layer 8 (ConsolePlugin CR) |
+| 4 - console-api | 500, auth errors, wrong data | Layer 9 or 12 |
+| 5 - target service | Empty results, timeout | Layer 9 or 11 |
+
+When diagnosing "403 on console feature", check token forwarding at each
+hop. The ConsolePlugin proxy must have `authorization: UserToken` configured.
+
+## API Proxy Flow (Detail)
+
+Most console API calls from hop 4 onward follow this pattern:
+
+```
+console-api (plugin backend)
+  -> backend/src/routes/proxy.ts doProxy()
+    -> constructs Kubernetes API URL
+    -> authenticates with forwarded user token or service account token
+    -> proxies request to kube-apiserver or target service
+    -> returns response to frontend
 ```
 
 The proxy adds authentication, handles RBAC, and may transform responses.

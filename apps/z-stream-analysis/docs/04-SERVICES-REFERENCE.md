@@ -20,7 +20,7 @@ gather.py ──┬── JenkinsAPIClient ──────────── 
             ├── ClusterInvestigationService ── Cluster landscape + pod diagnostics (v3.0)
             ├── FeatureAreaService ────────── Test-to-feature-area mapping (v3.0)
             ├── FeatureKnowledgeService ──── Playbook loading + symptom matching (v3.1)
-            ├── EnvironmentOracleService ── Feature context oracle (v3.5, Phase 6 skipped in v3.7)
+            ├── EnvironmentOracleService ── Feature context oracle (v3.5, Phase 6 re-enabled in v4.1)
             └── shared_utils ──────────────── Config, subprocess, credentials
 
 report.py ── ReportFormatter ─────────────── Markdown/JSON/text output

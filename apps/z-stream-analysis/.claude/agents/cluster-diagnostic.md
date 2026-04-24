@@ -151,7 +151,8 @@ Read these files from the z-stream knowledge database:
 - `knowledge/components.yaml` — component registry with namespaces, health checks
 - `knowledge/addon-catalog.yaml` — addon health expectations and dependencies
 - `knowledge/webhook-registry.yaml` — expected webhooks with criticality
-- `knowledge/diagnostics/diagnostic-traps.md` — 14 trap patterns to check (11 standard + 3 counter-traps)
+- `knowledge/service-map.yaml` — Service-to-pod mapping with endpoint diagnostic notes
+- `knowledge/diagnostics/diagnostic-traps.md` — 14 trap patterns + Trap 1b to check (11 standard + 1 variant + 3 counter-traps)
 
 ### Step 2.2: Load Architecture Knowledge
 
@@ -230,11 +231,12 @@ CPU > 80%, Memory > 85%, Disk > 90%.
 
 **If any foundational issue exists, it likely explains MOST other findings.**
 
-### Step 3.1: Layer 3 — Network + Infrastructure Guards
+### Step 3.1: Layer 3 — Network + Infrastructure Guards + Service Endpoints
 
 **CRITICAL: Check BEFORE pod health. A NetworkPolicy can make pods appear
 healthy (Running, 0 restarts) while being completely non-functional (Trap 11).
-A ResourceQuota can silently prevent pod recreation (Trap 9).**
+A ResourceQuota can silently prevent pod recreation (Trap 9). A Service with
+zero ready endpoints means no traffic reaches the backing pods.**
 
 ```bash
 # NetworkPolicy (ACM does NOT create these — presence is suspicious)
@@ -244,14 +246,28 @@ oc get networkpolicy -n multicluster-engine --no-headers --kubeconfig <run_dir>/
 # ResourceQuota (can block pod scheduling)
 oc get resourcequota -n $MCH_NS --no-headers --kubeconfig <run_dir>/cluster.kubeconfig 2>/dev/null
 oc get resourcequota -n multicluster-engine --no-headers --kubeconfig <run_dir>/cluster.kubeconfig 2>/dev/null
+
+# Service endpoint verification (zero endpoints = silent failure)
+oc get endpoints -n $MCH_NS --no-headers --kubeconfig <run_dir>/cluster.kubeconfig 2>/dev/null | awk '$2 == "<none>" {print $1}'
+oc get endpoints -n multicluster-engine --no-headers --kubeconfig <run_dir>/cluster.kubeconfig 2>/dev/null | awk '$2 == "<none>" {print $1}'
+oc get endpoints -n hive --no-headers --kubeconfig <run_dir>/cluster.kubeconfig 2>/dev/null | awk '$2 == "<none>" {print $1}'
 ```
 
-Flag ANY found — these are not expected in ACM namespaces and cause
-silent failures. If NetworkPolicy or ResourceQuota is found, ALL subsequent
-pod health checks must be interpreted in that context: pods may LOOK healthy
-but be non-functional or unable to restart.
+Flag ANY NetworkPolicy or ResourceQuota found — these are not expected in
+ACM namespaces and cause silent failures.
+
+Flag ANY Service with zero endpoints — cross-reference `knowledge/service-map.yaml`
+to determine which components are affected and what features break. A Service
+with zero endpoints means the Service object exists but no traffic can reach
+the backing pods (label mismatch, readiness probe failing, pod not started).
 
 ### Step 3.2: Layer 4 — Storage
+
+**Determine storage model before checking PVCs.** Different components use
+different storage:
+- **PVC-backed:** observability (thanos-*) → check PVC bound, disk usage
+- **emptyDir:** search-postgres, hive-clustersync → check pod age + data count
+- **Stateless:** search-api, console, grc → skip Layer 4
 
 ```bash
 # Check PVCs in ACM namespaces
@@ -273,16 +289,30 @@ oc --kubeconfig <run_dir>/cluster.kubeconfig \
 If row count is 0 but search pods are Running, data was lost (Trap 3).
 Record as INFRASTRUCTURE with evidence from the data query.
 
-### Step 3.3: Layer 5 — Configuration
+### Step 3.3: Layer 5 — Configuration + OLM Foundational Health
 
 Review MCH component toggles from Phase 1. If a feature is completely
 absent (no pods, no CRDs), verify it's intentionally disabled via
 `.spec.overrides.components` before reporting as broken.
 
-Check OLM subscriptions for ACM/MCE operators:
+Check OLM subscriptions and foundational health:
 ```bash
+# Subscriptions
 oc get subscription -n $MCH_NS --kubeconfig <run_dir>/cluster.kubeconfig 2>/dev/null
+
+# CatalogSource health (gRPC connection state)
+oc get catsrc -n openshift-marketplace -o jsonpath='{range .items[*]}{.metadata.name}: {.status.connectionState.lastObservedState}{"\n"}{end}' --kubeconfig <run_dir>/cluster.kubeconfig 2>/dev/null
+
+# InstallPlan completion
+oc get installplan -n $MCH_NS --no-headers --kubeconfig <run_dir>/cluster.kubeconfig 2>/dev/null
+
+# CSV phase (already captured in Phase 1, check for non-Succeeded)
 ```
+
+**OLM failure scenarios to check:**
+1. CatalogSource with stale gRPC → OLM can't resolve new operator versions
+2. CSV not Succeeded → check olm.maxOpenShiftVersion annotation vs cluster OCP version (see version-constraints.yaml)
+3. Multiple pods with ImagePullBackOff simultaneously → check MCH operator CSV for corrupted OPERAND_IMAGE_* env vars (one root cause at L5 explains all L1 symptoms)
 
 ### Step 3.4: Layers 6-8 — Auth, RBAC, Webhooks (conditional)
 
@@ -328,12 +358,49 @@ oc get pods -n hive --field-selector=status.phase!=Running,status.phase!=Succeed
 oc get pods -n ${MCH_NS}-observability --field-selector=status.phase!=Running,status.phase!=Succeeded --no-headers --kubeconfig <run_dir>/cluster.kubeconfig 2>/dev/null
 ```
 
+**StatefulSet checks** — `oc get deploy` misses StatefulSets entirely:
+```bash
+# Hive namespace StatefulSets (hive-clustersync, hive-machinepool)
+oc get statefulset -n hive --no-headers --kubeconfig <run_dir>/cluster.kubeconfig 2>/dev/null
+# Observability StatefulSets (thanos-receive, thanos-store, compactor, rule, alertmanager)
+oc get statefulset -n ${MCH_NS}-observability --no-headers --kubeconfig <run_dir>/cluster.kubeconfig 2>/dev/null
+```
+Note: hive-controllers runs with `--disabled-controllers clustersync,machinepool`
+intentionally — those run as separate StatefulSets. This is NOT a misconfiguration.
+
+**Sub-operator CR status** — bridges the gap between MCH status (too coarse)
+and individual pod logs (too granular):
+```bash
+# Search CR conditions (Search subsystem health)
+oc get search -n $MCH_NS -o jsonpath='{range .items[0].status.conditions[*]}{.type}: {.status}{"\n"}{end}' --kubeconfig <run_dir>/cluster.kubeconfig 2>/dev/null
+# HiveConfig (Hive subsystem health)
+oc get hiveconfig hive -o jsonpath='{.status.conditions}' --kubeconfig <run_dir>/cluster.kubeconfig 2>/dev/null
+# MultiClusterObservability CR (if observability enabled)
+oc get multiclusterobservability observability -o jsonpath='{.status.conditions}' --kubeconfig <run_dir>/cluster.kubeconfig 2>/dev/null
+```
+
 **Naming convention note:** `healthy-baseline.yaml` uses Kubernetes deployment
 names (e.g., `addon-manager-controller`). `components.yaml` uses logical
 component names (e.g., `addon-manager`). Match by prefix or substring.
 
-Compare actual pod counts against `healthy-baseline.yaml`. Flag missing
-critical deployments, under-replicated deployments, and unexpected extras.
+Compare actual pod counts (including StatefulSets) against `healthy-baseline.yaml`.
+Flag missing critical deployments/statefulsets, under-replicated, and unexpected extras.
+
+**Deployment scheduling investigation** — when a deployment has 0 available
+replicas, check scheduling BEFORE checking container logs (if the pod never
+started, there are no logs):
+```bash
+oc describe deploy <name> -n <ns> --kubeconfig <run_dir>/cluster.kubeconfig | grep -A5 Conditions
+oc get events -n <ns> --sort-by=.lastTimestamp --kubeconfig <run_dir>/cluster.kubeconfig | grep -E "Unschedulable|FailedCreate|FailedScheduling"
+```
+
+**Leader election check (Trap 1b)** — if operator pods are Running/Ready but
+features seem broken, check the leader election Lease:
+```bash
+oc get lease -n $MCH_NS --kubeconfig <run_dir>/cluster.kubeconfig 2>/dev/null | head -20
+```
+A stale `renewTime` (not renewed in last few minutes) means no replica holds
+the leader lock — reconciliation stopped despite healthy-looking pods.
 
 **Pod restart counts** — Running but unstable:
 
@@ -442,6 +509,7 @@ Walk through ALL 14 traps from `diagnostics/diagnostic-traps.md`:
 
 **Standard traps:**
 1. **Trap 1 (Stale MCH):** Already checked in Step 3.0
+1b. **Trap 1b (Leader election stuck):** Already checked in Step 3.5 (leader election Lease)
 2. **Trap 2 (Console tabs):** Check console-mce pod + ConsolePlugin CRDs
 3. **Trap 3 (Search empty):** Already checked in Step 3.2 (data integrity)
 4. **Trap 4 (Observability S3):** Check thanos pods if observability exists

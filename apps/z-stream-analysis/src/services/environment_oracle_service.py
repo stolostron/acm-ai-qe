@@ -100,7 +100,7 @@ class OracleResult:
 
 class EnvironmentOracleService:
     """
-    Environment Oracle (v4.0) — five-phase pipeline (Phase 6 removed, handled by Stage 1.5).
+    Environment Oracle (v4.1) — six-phase pipeline.
 
     Phase 1: Identify feature area and failed tests
     Phase 2: Fetch Polarion test case context for AI interpretation
@@ -259,7 +259,7 @@ class EnvironmentOracleService:
             # operators, addons, CRDs, components/pods, managed clusters.
             # ============================================================
             if skip_cluster:
-                self.logger.info("Oracle Phase 6: Skipped (--skip-env)")
+                self.logger.info("Oracle Phase 6: Skipped (no cluster access)")
                 result.cluster_access_status = 'skipped'
             elif not cluster_credentials or not cluster_credentials.get('has_credentials'):
                 self.logger.info("Oracle Phase 6: Skipped (no cluster credentials)")

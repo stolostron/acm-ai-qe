@@ -21,16 +21,38 @@ Hub Cluster
                           search.edges (sourceId, destId, edgeType, cluster)
 ```
 
-## Query Phase (UI -> API -> Database)
+## Console Integration Path (Full Chain)
+
+The search query path includes OCP console hops that are invisible to
+the application but can fail independently:
 
 ```
-User types search query in console UI
-  -> frontend constructs GraphQL query
-  -> POST /api/proxy/search (console backend, backend/src/lib/search.ts)
-    -> backend proxies to search-api pod (HTTP)
-      -> search-api executes SQL against search-postgres
-      -> returns matching resources with pagination
-    -> backend returns results to frontend
+Browser
+  -> OCP Ingress Router (HAProxy)
+    -> OCP Console Pod (openshift-console)
+      -> ConsolePlugin proxy (routes to ACM plugin)
+        -> console-api (plugin backend, port 3000)
+          -> Resource Proxy (backend/src/lib/search.ts)
+            -> search-api pod (HTTP, port 4010)
+              -> search-postgres (SQL, port 5432)
+              -> returns matching resources
+            -> backend returns results
+          -> frontend renders results
+```
+
+Each hop can fail: ingress down (L3), OCP console down (L9), plugin not
+registered (L8), console-api down (L9/L12), search-api down (L9/L11),
+postgres empty (L4/Trap 3).
+
+## Query Phase (Detail: console-api onward)
+
+```
+console-api receives proxied request
+  -> backend/src/lib/search.ts constructs search request
+  -> proxies to search-api pod (HTTP)
+    -> search-api executes SQL against search-postgres
+    -> returns matching resources with pagination
+  -> backend returns results to frontend
   -> frontend renders results in accordion groups by resource type
 ```
 

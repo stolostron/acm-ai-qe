@@ -64,7 +64,7 @@ STAGE 1: gather.py      → core-data.json + cluster.kubeconfig + repos/
   Step 2: Console log download + error pattern extraction
   Step 3: Test report extraction
   Step 4: Cluster login + kubeconfig persist + MCH namespace discovery (4a), landscape (4b)
-  Step 5: Feature context oracle (Polarion, KG topology — Phase 6 skipped, handled by Stage 1.5)
+  Step 5: Feature context oracle (Polarion, KG topology, targeted dependency verification)
   Step 6-9: Repo cloning, context extraction, feature grounding, knowledge
 STAGE 1.5: cluster-diagnostic agent → cluster-diagnosis.json (comprehensive health + structured data)
 STAGE 2: AI Analysis    → analysis-results.json (12-layer diagnostic investigation, per-group investigation agents)
@@ -235,18 +235,18 @@ Two-layer structured logging captures every operation across all pipeline stages
 ## Tests
 
 ```bash
-# Fast — unit + regression (664 tests, no external deps):
+# Fast — unit + regression (703 tests, no external deps):
 python -m pytest tests/unit/ tests/regression/ -q
 
-# Full suite (714+ tests, requires Jenkins VPN for integration):
+# Full suite (748 tests, requires Jenkins VPN for integration):
 python -m pytest tests/ -q --timeout=300
 ```
 
-Test structure: `tests/unit/` (605 tests across 18 service/script files), `tests/regression/` (59 cross-module consistency + schema coverage tests), `tests/integration/` (50 tests requiring Jenkins VPN), `tests/fixtures/` (synthetic analysis-results.json).
+Test structure: `tests/unit/` (642 tests across 21 service/script files), `tests/regression/` (61 cross-module consistency + schema coverage tests), `tests/integration/` (45 tests requiring Jenkins VPN), `tests/fixtures/` (synthetic analysis-results.json).
 
 ## Knowledge Database (`knowledge/`)
 
-Domain reference data for the AI agent during Stage 2 analysis. Includes per-subsystem architecture docs (12 areas), diagnostics methodology (5 files), structured YAML data (13 files), and self-healing learned patterns. See `docs/06-KNOWLEDGE-DATABASE.md` for the complete file reference, YAML schemas, and maintenance procedures.
+Domain reference data for the AI agent during Stage 2 analysis. Includes per-subsystem architecture docs (12 areas), diagnostics methodology (5 files), structured YAML data (14 files), and self-healing learned patterns. See `docs/06-KNOWLEDGE-DATABASE.md` for the complete file reference, YAML schemas, and maintenance procedures.
 
 **How the agent uses it:**
 1. **Phase A0:** Read `architecture/<area>/architecture.md` and `data-flow.md` for each detected feature area
@@ -281,8 +281,8 @@ z-stream-analysis/
 ├── knowledge/             # Knowledge database (see docs/06)
 │   ├── architecture/      # Per-subsystem docs (12 areas, 37 files)
 │   ├── diagnostics/       # Classification methodology + 12-layer model (5 files)
-│   └── *.yaml             # Structured data files (13 files)
-├── tests/                 # Unit (605), regression (59), integration (50)
+│   └── *.yaml             # Structured data files (14 files)
+├── tests/                 # Unit (642), regression (61), integration (45)
 ├── .claude/agents/        # analysis.md, cluster-diagnostic.md, investigation-agent.md, data-collector.md
 ├── .claude/hooks/         # agent_trace.py (trace logging)
 └── docs/                  # Detailed documentation (10 files)

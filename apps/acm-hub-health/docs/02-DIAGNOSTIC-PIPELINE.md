@@ -394,7 +394,7 @@ the root cause rather than treating each symptom independently.
           ▼
   ┌───────────────────┐
   │ Read dependency   │     knowledge/diagnostics/dependency-chains.md
-  │ chains -- trace   │     11 critical cascade paths (HORIZONTAL tracing)
+  │ chains -- trace   │     12 critical cascade paths (HORIZONTAL tracing)
   │ HORIZONTAL chains │
   │ upstream           │
   └────────┬──────────┘
@@ -450,7 +450,7 @@ the root cause rather than treating each symptom independently.
 
 ### Horizontal + Vertical Tracing
 
-The 11 dependency chains trace HORIZONTALLY within subsystems (console →
+The 12 dependency chains trace HORIZONTALLY within subsystems (console →
 search → postgres). The 12-layer model traces VERTICALLY through
 infrastructure layers (Layer 12 UI → Layer 3 NetworkPolicy).
 
@@ -477,7 +477,7 @@ From `knowledge/diagnostics/evidence-tiers.md`:
 | Console 500 across all features | All UI features broken simultaneously | Console-api pod down (single backend) |
 | Components degraded after OCP upgrade | Multiple pods restarting post-upgrade | OCP upgrade disruption (may self-resolve) |
 
-### 11 Dependency Chains
+### 12 Dependency Chains
 
 The agent traces through these cascade paths (documented in
 `knowledge/diagnostics/dependency-chains.md` and `knowledge/dependency-chains.yaml`):
@@ -493,6 +493,7 @@ The agent traces through these cascade paths (documented in
 9. **Channel → Subscription → ManifestWork → Spoke Application** -- subscription-controller down = app deployment halts; channel auth failure = stuck in Propagated
 10. **CNV → Search Collector → Search API → kubevirt-plugin → Console** -- search-collector missing = VMs don't appear in hub UI; kubevirt-plugin unregistered = Fleet Virt tab absent
 11. **SubmarinerConfig → Addon → Gateway → Tunnel → Service Discovery** -- gateway unhealthy = cross-cluster tunnels down; OCP 4.18+ incompatibility (ACM-22805)
+12. **HiveConfig → ClusterDeployment → Install Pod → ManagedCluster** -- HiveConfig missing = no Hive controllers deployed; hiveadmission down = ALL cluster ops blocked (Trap 10); install pod failure = single cluster affected
 
 ### Spoke-Side Chain Verification (acm-search MCP)
 

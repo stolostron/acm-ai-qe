@@ -284,6 +284,10 @@ class DataGatherer:
         Extract cluster credentials from Jenkins parameters, login to the
         target cluster, and persist kubeconfig for all subsequent steps.
 
+        Tries Jenkins build parameters first. Falls back to extracting
+        credentials from the console log (works when Jenkins uses Password
+        Parameter types that are concealed from the REST API).
+
         Populates gathered_data['cluster_access'] and configures kubeconfig
         on ClusterInvestigationService and EnvironmentValidationService.
 
@@ -291,13 +295,26 @@ class DataGatherer:
             kubeconfig_path or None if login failed
         """
         api_url, username, password = self._extract_cluster_credentials()
+        credential_source = 'jenkins_parameters'
+
+        # Fallback: extract from console log when Jenkins params are incomplete
+        # (e.g., Password Parameter types concealed from the REST API)
+        if not (api_url and username and password):
+            self.logger.info(
+                "Credentials incomplete in Jenkins params, trying console log fallback..."
+            )
+            fallback = self._extract_credentials_from_console_log(run_dir)
+            if fallback:
+                api_url, username, password = fallback
+                credential_source = 'console_log_fallback'
+                print(f"  Credentials extracted from console log ({username})", flush=True)
 
         self.gathered_data['cluster_access'] = {
             'api_url': api_url,
             'username': username,
             'has_credentials': bool(api_url and username and password),
             'password': password,
-            'note': 'Credentials from Jenkins parameters.',
+            'credential_source': credential_source,
         }
 
         kubeconfig_path = None
@@ -322,7 +339,8 @@ class DataGatherer:
                 self.logger.warning("Failed to login to target cluster")
         else:
             self.logger.warning(
-                "Target cluster credentials not found in Jenkins parameters."
+                "Target cluster credentials not found in Jenkins parameters "
+                "or console log."
             )
 
         self.gathered_data['cluster_access']['kubeconfig_path'] = kubeconfig_path
@@ -518,8 +536,12 @@ class DataGatherer:
             self._print_stage(0, 'FEATURE CONTEXT ORACLE',
                               'Feature-area identification, Polarion context & KG topology')
             self._print_step(5, total_steps, "Running feature context oracle...")
-            # skip_cluster=True: health checks now handled by Step 4
-            self._run_environment_oracle(skip_cluster=True)
+            # Phase 6 runs when cluster credentials are available.
+            # Stage 1.5 provides broad health; Phase 6 provides targeted dependency verification.
+            has_cluster_access = self.gathered_data.get(
+                'cluster_access', {}
+            ).get('has_credentials', False)
+            self._run_environment_oracle(skip_cluster=not has_cluster_access)
             # Show oracle summary
             oracle = self.gathered_data.get('cluster_oracle', {})
             overall = oracle.get('overall_feature_health', {})
@@ -808,6 +830,72 @@ class DataGatherer:
             self.logger.info(f"Found target cluster URL: {api_url}")
 
         return api_url, username, password
+
+    def _extract_credentials_from_console_log(
+        self, run_dir: Path
+    ) -> Optional[Tuple[str, str, str]]:
+        """
+        Fallback: extract oc login credentials from the console log.
+
+        CI scripts run with 'set -x', which traces the full oc login
+        command including the password. Works for any pipeline type
+        regardless of how Jenkins injects credentials (Password Parameter,
+        Credential Binding, environment variable injection, etc.).
+
+        Handles both common oc login formats:
+          oc login [flags] -u USER -p PASS URL
+          oc login -u USER -p PASS --server URL [flags]
+
+        Returns:
+            (api_url, username, password) tuple, or None
+        """
+        console_path = run_dir / 'console-log.txt'
+        if not console_path.exists():
+            return None
+
+        user_pat = re.compile(r'-u\s+(\S+)')
+        pass_pat = re.compile(r'-p\s+(\S+)')
+        url_pat = re.compile(r'(https://\S+)')
+
+        first_match = None
+
+        try:
+            with open(console_path, 'r', errors='replace') as f:
+                for line in f:
+                    if 'oc login' not in line or '-p ' not in line:
+                        continue
+
+                    user_m = user_pat.search(line)
+                    pass_m = pass_pat.search(line)
+                    url_m = url_pat.search(line)
+
+                    if not (user_m and pass_m and url_m):
+                        continue
+
+                    user = user_m.group(1)
+                    password = pass_m.group(1)
+                    api_url = url_m.group(1)
+
+                    # Skip masked passwords (Jenkins MaskPasswordsBuildWrapper)
+                    if re.match(r'^\*+$', password):
+                        continue
+
+                    # Admin credentials get immediate priority (hub login)
+                    if user in ('kubeadmin', 'admin'):
+                        return api_url, user, password
+
+                    if first_match is None:
+                        first_match = (api_url, user, password)
+
+        except Exception as e:
+            self.logger.debug(f"Console log credential extraction failed: {e}")
+
+        if first_match:
+            self.logger.warning(
+                f"No admin credentials in console log, "
+                f"using {first_match[1]} — cluster diagnostics may be limited."
+            )
+        return first_match
 
     def _gather_cluster_landscape(self):
         """

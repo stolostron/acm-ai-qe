@@ -18,7 +18,7 @@ it triggers a self-healing process to investigate, learn, and record findings.
 │  │ knowledge/architecture/    │  │ knowledge/diagnostics/                │ │
 │  │                            │  │                                       │ │
 │  │ Per-component directories: │  │ dependency-chains.md                  │ │
-│  │   architecture.md          │  │   11 critical cascade paths           │ │
+│  │   architecture.md          │  │   12 critical cascade paths           │ │
 │  │   data-flow.md             │  │ evidence-tiers.md                     │ │
 │  │   known-issues.md          │  │   How to weight evidence (Tier 1/2/3) │ │
 │  │                            │  │ diagnostic-playbooks.md               │ │
@@ -124,7 +124,7 @@ Flow, UI/Plugin. Used in Phase 3 (layer-organized health checking), Phase 5
 
 ### dependency-chains.md
 
-Documents 11 critical cascade paths with tracing procedures:
+Documents 12 critical cascade paths with tracing procedures:
 
 1. **Console → Search → Managed Clusters** -- search-collector down = resources missing
 2. **Governance → Framework Addon → Config Policy → Clusters** -- policy propagation chain
@@ -137,6 +137,7 @@ Documents 11 critical cascade paths with tracing procedures:
 9. **Channel → Subscription → ManifestWork → Spoke Application** -- app deployment via subscription model
 10. **CNV → Search Collector → Search API → kubevirt-plugin → Console** -- cross-cluster VM discovery
 11. **SubmarinerConfig → Addon → Gateway → Tunnel → Service Discovery** -- cross-cluster networking
+12. **HiveConfig → ClusterDeployment → Install Pod → ManagedCluster** -- cluster provisioning via Hive
 
 Used in Phase 5 (Correlate) to trace upstream from symptoms to root causes.
 
@@ -180,7 +181,7 @@ ordered investigation steps with specific commands:
 
 ### common-diagnostic-traps.md
 
-13 patterns where the obvious diagnosis is WRONG. Each trap describes what you
+14 patterns where the obvious diagnosis is WRONG. Each trap describes what you
 see, what you might conclude, and what's actually happening:
 
 | Trap | Symptom | What to Check First |
@@ -198,6 +199,7 @@ see, what you might conclude, and what's actually happening:
 | 11 | Pods Running but cross-service fails | NetworkPolicy in ACM namespace |
 | 12 | TLS errors, service-ca healthy | Corrupted cert secret (delete to fix) |
 | 13 | Feature tabs present but broken | Plugin backend pod health |
+| 14 | Both replicas Running, nothing reconciling | Leader election lease (renewTime) |
 
 Loaded in Phase 2 (Learn). Verified against in Phase 5 (Correlate) before
 finalizing any diagnosis.
@@ -212,7 +214,7 @@ These complement the narrative documentation with machine-readable reference dat
 | File | Content | Used In |
 |------|---------|---------|
 | `healthy-baseline.yaml` | Expected pod counts, deployment states, node thresholds | Phase 3 (Check) -- compare actual vs expected |
-| `dependency-chains.yaml` | 11 cascade paths in structured YAML | Phase 5 (Correlate) -- structured lookups |
+| `dependency-chains.yaml` | 12 cascade paths in structured YAML | Phase 5 (Correlate) -- structured lookups |
 | `webhook-registry.yaml` | Validating/mutating webhooks, failure policies | Phase 3 (Check) -- detect missing webhooks |
 | `certificate-inventory.yaml` | TLS secrets, rotation, impact when corrupted | Phase 6 (Deep) -- cert investigation |
 | `addon-catalog.yaml` | All addons, health checks, dependencies | Phase 3 (Check) -- addon health audit |
@@ -230,7 +232,7 @@ Defines what "normal" looks like for a healthy ACM hub:
 
 ### dependency-chains.yaml
 
-Structured YAML complement to `diagnostics/dependency-chains.md`. Same 11 chains
+Structured YAML complement to `diagnostics/dependency-chains.md`. Same 12 chains
 in a format suitable for programmatic lookups:
 - Each chain has components with roles and dependencies
 - Impact descriptions per failure point

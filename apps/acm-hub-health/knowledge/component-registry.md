@@ -92,8 +92,30 @@ Handle cluster creation, import, and upgrade operations.
   - `registration-operator` -- hub-side registration
   - `placement-controller` (in `open-cluster-management-hub`) -- placement decisions
 - **Hive** (in `hive` namespace):
-  - `hive-controllers` -- provisions cloud infrastructure for new clusters
-  - `hive-operator` -- manages Hive installation
+  - `hive-controllers` (Deployment) -- provisions cloud infrastructure for
+    new clusters. Runs with `--disabled-controllers clustersync,machinepool`
+    because those run as separate StatefulSets.
+  - `hive-operator` (Deployment, in `multicluster-engine`) -- manages Hive
+    installation. Watches HiveConfig CR.
+  - `hiveadmission` (Deployment, 2 replicas) -- webhook admission for
+    ClusterDeployment operations. failurePolicy: Fail.
+  - `hive-clustersync` (StatefulSet) -- syncs SyncSets to provisioned clusters
+  - `hive-machinepool` (StatefulSet) -- manages MachinePool resources
+  - `HiveConfig` (cluster-scoped CR) -- intermediate configuration CR between
+    MCE operator and Hive controllers. If missing, hive-operator deploys
+    nothing. Check `oc get hiveconfig -o yaml` for status conditions.
+- **Provisioning resources** (created per provisioning operation):
+  - `ClusterProvision` -- tracks a single provisioning attempt. Created by
+    hive-controllers. Multiple ClusterProvisions exist if retries occurred.
+    Check: `oc get clusterprovision -n <cluster-ns>`
+  - Install Pod -- runs `openshift-install create cluster`. Ephemeral pod
+    created in the cluster's namespace. Label: `hive.openshift.io/install=true`.
+    Logs contain cloud-specific provisioning output.
+  - `ClusterImageSet` -- defines an available OCP release version for
+    provisioning. Cluster-scoped. Managed by `cluster-image-set-controller`.
+    If the referenced release image doesn't exist in the registry (common
+    in disconnected environments), provisioning fails at install pod.
+    Check: `oc get clusterimagesets`
 - **Check**: `oc get pods -n <mch-namespace> -l app=managedcluster-import-controller`
 
 ### Add-on Manager

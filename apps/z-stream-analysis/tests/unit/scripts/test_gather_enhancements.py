@@ -20,6 +20,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from src.scripts.gather import DataGatherer
+from src.services.feature_area_service import FeatureAreaService
 
 
 class TestStackTracePreParsing:
@@ -237,3 +238,212 @@ class TestCNVVersionDetection:
     # TestClassifySelectorType, TestExtractTestIdsFromFile, TestSearchElementInRepos,
     # TestGatherElementInventory removed — Step 10 (element inventory) was removed
     # in v4.0. Selector verification is now handled by data-collector agent Task 2.
+
+
+class TestConsoleLogCredentialFallback:
+    """Tests for _extract_credentials_from_console_log fallback method."""
+
+    @pytest.fixture
+    def gatherer(self):
+        """Create a DataGatherer instance with mocked services."""
+        with patch.object(DataGatherer, '__init__', lambda x, **kwargs: None):
+            gatherer = DataGatherer()
+            gatherer.output_dir = Path('/tmp/test')
+            gatherer.verbose = False
+            gatherer.logger = Mock()
+            gatherer.gathered_data = {}
+            return gatherer
+
+    def test_extracts_kubeadmin_format1(self, gatherer, tmp_path):
+        """Format 1: flags before URL."""
+        console = tmp_path / 'console-log.txt'
+        console.write_text(
+            '+ oc login --insecure-skip-tls-verify '
+            '-u kubeadmin -p WXHWj-C25aT-fQ9cF-FQFUB '
+            'https://api.example.com:6443\n'
+        )
+        result = gatherer._extract_credentials_from_console_log(tmp_path)
+        assert result is not None
+        api_url, user, password = result
+        assert api_url == 'https://api.example.com:6443'
+        assert user == 'kubeadmin'
+        assert password == 'WXHWj-C25aT-fQ9cF-FQFUB'
+
+    def test_extracts_kubeadmin_format2(self, gatherer, tmp_path):
+        """Format 2: --server prefix."""
+        console = tmp_path / 'console-log.txt'
+        console.write_text(
+            '+ oc login -u kubeadmin -p secret123 '
+            '--server https://api.cluster.example.com:6443 '
+            '--insecure-skip-tls-verify=true\n'
+        )
+        result = gatherer._extract_credentials_from_console_log(tmp_path)
+        assert result is not None
+        api_url, user, password = result
+        assert api_url == 'https://api.cluster.example.com:6443'
+        assert user == 'kubeadmin'
+        assert password == 'secret123'
+
+    def test_prioritizes_admin_over_test_users(self, gatherer, tmp_path):
+        """Admin credentials should be returned even if test users appear first."""
+        console = tmp_path / 'console-log.txt'
+        console.write_text(
+            '+ oc login -u clc-e2e-admin-cluster -p test-RBAC-4-e2e '
+            '--server https://api.example.com:6443 --insecure-skip-tls-verify=true\n'
+            '+ oc login -u kubeadmin -p realPassword '
+            'https://api.example.com:6443\n'
+        )
+        result = gatherer._extract_credentials_from_console_log(tmp_path)
+        assert result is not None
+        _, user, password = result
+        assert user == 'kubeadmin'
+        assert password == 'realPassword'
+
+    def test_falls_back_to_first_match_when_no_admin(self, gatherer, tmp_path):
+        """When no admin credentials exist, return the first match."""
+        console = tmp_path / 'console-log.txt'
+        console.write_text(
+            '+ oc login -u clc-e2e-user -p testPass '
+            '--server https://api.example.com:6443\n'
+        )
+        result = gatherer._extract_credentials_from_console_log(tmp_path)
+        assert result is not None
+        _, user, password = result
+        assert user == 'clc-e2e-user'
+        assert password == 'testPass'
+
+    def test_skips_masked_passwords(self, gatherer, tmp_path):
+        """Masked passwords (all asterisks) should be skipped."""
+        console = tmp_path / 'console-log.txt'
+        console.write_text(
+            '+ oc login -u kubeadmin -p **** '
+            'https://api.example.com:6443\n'
+            '+ oc login -u kubeadmin -p ******** '
+            'https://api.example.com:6443\n'
+        )
+        result = gatherer._extract_credentials_from_console_log(tmp_path)
+        assert result is None
+
+    def test_returns_none_when_no_console_log(self, gatherer, tmp_path):
+        """Missing console log file should return None."""
+        result = gatherer._extract_credentials_from_console_log(tmp_path)
+        assert result is None
+
+    def test_returns_none_when_no_oc_login_lines(self, gatherer, tmp_path):
+        """Console log without oc login commands should return None."""
+        console = tmp_path / 'console-log.txt'
+        console.write_text(
+            'Running tests...\n'
+            'Test completed\n'
+            'Build finished\n'
+        )
+        result = gatherer._extract_credentials_from_console_log(tmp_path)
+        assert result is None
+
+    def test_skips_lines_without_password(self, gatherer, tmp_path):
+        """Lines with oc login but no -p flag should be skipped."""
+        console = tmp_path / 'console-log.txt'
+        console.write_text(
+            '+ oc login --token=sha256~abc https://api.example.com:6443\n'
+            "echo 'oc login will be done shortly'\n"
+        )
+        result = gatherer._extract_credentials_from_console_log(tmp_path)
+        assert result is None
+
+    def test_handles_incomplete_oc_login(self, gatherer, tmp_path):
+        """oc login with -p but missing -u or URL should be skipped."""
+        console = tmp_path / 'console-log.txt'
+        console.write_text(
+            '+ oc login -p somepassword\n'
+        )
+        result = gatherer._extract_credentials_from_console_log(tmp_path)
+        assert result is None
+
+    def test_admin_user_also_matches(self, gatherer, tmp_path):
+        """The 'admin' username should also get priority."""
+        console = tmp_path / 'console-log.txt'
+        console.write_text(
+            '+ oc login -u admin -p adminPass '
+            'https://api.example.com:6443\n'
+        )
+        result = gatherer._extract_credentials_from_console_log(tmp_path)
+        assert result is not None
+        _, user, _ = result
+        assert user == 'admin'
+
+    def test_handles_read_errors_gracefully(self, gatherer, tmp_path):
+        """File read errors should return None, not raise."""
+        console = tmp_path / 'console-log.txt'
+        console.write_bytes(b'\x80\x81\x82 oc login -u kubeadmin -p pass https://api.x.com:6443\n')
+        result = gatherer._extract_credentials_from_console_log(tmp_path)
+        # Should not crash; may or may not find credentials depending on encoding
+        assert result is None or len(result) == 3
+
+
+class TestLoginToClusterFallback:
+    """Tests for _login_to_cluster console log fallback integration."""
+
+    @pytest.fixture
+    def gatherer(self):
+        """Create a DataGatherer with mocked services for login tests."""
+        with patch.object(DataGatherer, '__init__', lambda x, **kwargs: None), \
+             patch.object(FeatureAreaService, 'set_mch_namespace'):
+            gatherer = DataGatherer()
+            gatherer.output_dir = Path('/tmp/test')
+            gatherer.verbose = False
+            gatherer.logger = Mock()
+            gatherer.gathered_data = {'jenkins': {'parameters': {}}}
+            gatherer.env_service = Mock()
+            gatherer.env_service.cli = 'oc'
+            gatherer.cluster_investigation_service = Mock()
+            gatherer.mch_namespace = 'open-cluster-management'
+            yield gatherer
+
+    def test_uses_jenkins_params_when_available(self, gatherer, tmp_path):
+        """Should use Jenkins params and not try console log fallback."""
+        gatherer.gathered_data['jenkins']['parameters'] = {
+            'CYPRESS_HUB_API_URL': 'https://api.test.com:6443',
+            'CYPRESS_OPTIONS_HUB_USER': 'kubeadmin',
+            'OC_CLUSTER_PASS': 'jenkinsPass',
+        }
+
+        with patch.object(gatherer, '_persist_cluster_kubeconfig', return_value=None):
+            with patch.object(gatherer, '_extract_credentials_from_console_log') as mock_fallback:
+                gatherer._login_to_cluster(tmp_path)
+                mock_fallback.assert_not_called()
+
+        assert gatherer.gathered_data['cluster_access']['credential_source'] == 'jenkins_parameters'
+
+    def test_falls_back_to_console_log(self, gatherer, tmp_path):
+        """Should try console log when Jenkins params lack password."""
+        gatherer.gathered_data['jenkins']['parameters'] = {
+            'CYPRESS_HUB_API_URL': 'https://api.test.com:6443',
+            'CYPRESS_OPTIONS_HUB_USER': 'kubeadmin',
+        }
+
+        console = tmp_path / 'console-log.txt'
+        console.write_text(
+            '+ oc login -u kubeadmin -p consolePass '
+            'https://api.test.com:6443\n'
+        )
+
+        with patch.object(gatherer, '_persist_cluster_kubeconfig', return_value='/tmp/kc'):
+            with patch.object(gatherer, '_discover_mch_namespace', return_value='ocm'):
+                gatherer._login_to_cluster(tmp_path)
+
+        access = gatherer.gathered_data['cluster_access']
+        assert access['credential_source'] == 'console_log_fallback'
+        assert access['has_credentials'] is True
+
+    def test_records_no_credentials_when_both_fail(self, gatherer, tmp_path):
+        """Should log warning when both methods fail."""
+        gatherer.gathered_data['jenkins']['parameters'] = {}
+
+        console = tmp_path / 'console-log.txt'
+        console.write_text('no credentials here\n')
+
+        gatherer._login_to_cluster(tmp_path)
+
+        access = gatherer.gathered_data['cluster_access']
+        assert access['has_credentials'] is False
+        assert access['kubeconfig_path'] is None

@@ -274,15 +274,30 @@ baseline:
           min_replicas: 1
 
     hive:
-      note: "Hive cluster provisioning -- always present"
-      expected_pod_count_range: "3-6"
+      note: "Hive cluster provisioning -- always present. Has both Deployments and StatefulSets."
+      expected_pod_count_range: "5-8"
       critical_deployments:
         - name: hive-controllers
           min_replicas: 1
+          note: "Runs with --disabled-controllers clustersync,machinepool (intentional -- they run as separate StatefulSets)"
+          subsystem: cluster-lifecycle
         - name: hive-operator
           min_replicas: 1
+          subsystem: cluster-lifecycle
         - name: hiveadmission
           min_replicas: 2
+          note: "Webhook admission for ClusterDeployment ops. If down, ALL CD operations blocked (Trap 10)."
+          subsystem: cluster-lifecycle
+        - name: hive-clustersync
+          min_replicas: 1
+          type: statefulset
+          note: "Syncs SyncSets/SelectorSyncSets to provisioned clusters. StatefulSet for stable identity."
+          subsystem: cluster-lifecycle
+        - name: hive-machinepool
+          min_replicas: 1
+          type: statefulset
+          note: "Manages MachinePool resources for provisioned clusters. StatefulSet for stable identity."
+          subsystem: cluster-lifecycle
 
   nodes:
     minimum_ready: 1

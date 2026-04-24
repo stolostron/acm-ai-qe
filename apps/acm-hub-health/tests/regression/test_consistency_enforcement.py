@@ -124,8 +124,8 @@ class TestCountConsistency:
     Each test defines the expected value and checks all locations."""
 
     EXPECTED_LAYER_COUNT = 12
-    EXPECTED_CHAIN_COUNT = 11
-    EXPECTED_TRAP_COUNT = 13
+    EXPECTED_CHAIN_COUNT = 12
+    EXPECTED_TRAP_COUNT = 14
     EXPECTED_PHASE_COUNT = 6
     EXPECTED_ISSUE_FIELDS = 9
     EXPECTED_DIAGNOSTICS_FILES = 8

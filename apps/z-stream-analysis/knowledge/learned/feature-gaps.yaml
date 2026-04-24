@@ -290,3 +290,133 @@ gaps:
     explanation: PF6 button text elements may have visibility:hidden in portal context
   source: knowledge/architecture/application-lifecycle/failure-signatures.md
   evidence: 1 Ansible integration test failed with pf-v6-c-button__text CSS issue
+- date: '2026-04-22'
+  trigger: unmatched_error
+  feature_area: RBAC
+  gap_type: missing_failure_path
+  proposed_entry:
+    id: managed-cluster-context-switch-failed
+    description: cy.exec() fails to switch oc context to managed cluster via cluster-proxy
+    category: connectivity
+    symptoms:
+    - (?i)Failed to switch context to managed cluster
+    classification: INFRASTRUCTURE
+    confidence: 0.85
+    explanation: Test setup requires oc context switch to managed cluster, failure indicates
+      cluster-proxy connectivity issue or managed cluster not reachable
+  source: knowledge_database
+  evidence: 8 tests failed with Failed to switch context to managed cluster
+- date: '2026-04-22'
+  trigger: unmatched_error
+  feature_area: Virtualization
+  gap_type: missing_failure_path
+  proposed_entry:
+    id: kubevirt-crd-check-timeout
+    description: cy.exec() oc get crd virtualmachines.kubevirt.io times out in before-all
+      hook
+    category: prerequisite
+    symptoms:
+    - (?i)cy\.exec.*oc get crd virtualmachines\.kubevirt\.io.*timed out
+    classification: INFRASTRUCTURE
+    confidence: 0.9
+    explanation: Before-all hook checks for KubeVirt CRD via oc exec, timeout indicates
+      CNV not installed or API server unreachable
+  source: knowledge/architecture/virtualization/failure-signatures.md
+  evidence: 3 tests failed with kubevirt CRD check timeout in before-all hook
+- date: '2026-04-22'
+  trigger: unmatched_error
+  feature_area: RBAC
+  gap_type: missing_failure_path
+  proposed_entry:
+    id: cy-click-multiple-elements
+    description: cy.click() called on selector matching multiple elements
+    category: configuration
+    symptoms:
+    - (?i)cy\.click\(\).*can only be called on a single element.*contained \d+ elements
+    classification: AUTOMATION_BUG
+    confidence: 0.9
+    explanation: Test selector matches multiple DOM elements but cy.click() expects single
+      element
+  source: knowledge_database
+  evidence: 1 RBAC test failed with cy.click() multiple elements error
+- date: '2026-04-22'
+  trigger: unmatched_error
+  feature_area: RBAC
+  gap_type: missing_failure_path
+  proposed_entry:
+    id: pf-table-row-covered-by-action-list
+    description: PatternFly table row covered by action-list overlay with position:fixed
+    category: configuration
+    symptoms:
+    - (?i)pf-v6-c-table__tr.*not visible.*position.*fixed.*pf-v6-c-action-list
+    classification: PRODUCT_BUG
+    confidence: 0.8
+    explanation: Table row in Role Assignment wizard covered by ActionList overlay from
+      CreateIdentityForm.tsx
+  source: knowledge_database
+  evidence: 1 RBAC test failed with table row visibility blocked by ActionList
+- date: '2026-04-22'
+  trigger: unmatched_error
+  feature_area: RBAC
+  gap_type: missing_failure_path
+  proposed_entry:
+    id: pre-authorized-user-text-changed
+    description: Product renamed 'add pre-authorized user' to 'Add user' or 'Create user'
+    category: configuration
+    symptoms:
+    - (?i)Expected to find content.*add pre-authorized user
+    classification: AUTOMATION_BUG
+    confidence: 0.95
+    explanation: Commit 639e721d0 (2026-03-25, ACM-31178) changed button title in
+      IdentitiesList.tsx
+  source: knowledge/architecture/rbac/failure-signatures.md
+  evidence: 1 RBAC test failed expecting old 'add pre-authorized user' text
+- date: '2026-04-22'
+  trigger: unmatched_error
+  feature_area: Virtualization
+  gap_type: missing_failure_path
+  proposed_entry:
+    id: vm-cleanup-timeout
+    description: after-all hook cy.exec() oc delete virtualmachine times out
+    category: configuration
+    symptoms:
+    - (?i)cy\.exec.*oc delete virtualmachine.*timed out
+    classification: NO_BUG
+    confidence: 0.85
+    explanation: After-all cleanup fails because VM was never created (cascading from
+      before-all failure)
+  source: knowledge_database
+  evidence: 2 tests failed with VM cleanup timeout in after-all hooks
+- date: '2026-04-22'
+  trigger: unmatched_error
+  feature_area: RBAC
+  gap_type: missing_failure_path
+  proposed_entry:
+    id: role-assignment-button-not-enabled
+    description: Create role assignment button does not become enabled within wait timeout
+    category: data_flow
+    symptoms:
+    - (?i)Create role assignment button did not become enabled
+    classification: PRODUCT_BUG
+    confidence: 0.7
+    explanation: Role assignment wizard button remains disabled, product validation issue
+      or data loading failure preventing form submission
+  source: knowledge_database
+  evidence: 1 RBAC test failed with button not enabled
+- date: '2026-04-22'
+  trigger: unmatched_error
+  feature_area: Virtualization
+  gap_type: missing_failure_path
+  proposed_entry:
+    id: vm-actions-dropdown-not-found
+    description: VM actions dropdown button not rendered despite selector existing in product
+      source
+    category: data_flow
+    symptoms:
+    - (?i)Expected to find element.*actions-dropdown.*button.*never found
+    classification: INFRASTRUCTURE
+    confidence: 0.75
+    explanation: data-test="actions-dropdown" exists in kubevirt-plugin source but not
+      rendered at runtime, VM may not exist on the page or VM details page not reached
+  source: knowledge/architecture/virtualization/failure-signatures.md
+  evidence: 2 tests failed with actions-dropdown button not found

@@ -76,10 +76,11 @@ The knowledge database (`knowledge/`) provides domain reference data that the AI
 
 | File | Records | Purpose | Refresh Source |
 |------|---------|---------|----------------|
-| `components.yaml` | 58 components | Component registry with health checks, pod labels, namespaces (validated against live ACM 2.16 GA) | `oc get` via refresh.py + live cluster |
+| `components.yaml` | 70 components | Component registry with health checks, pod labels, namespaces, provisioning resources (validated against live ACM 2.16 GA) | `oc get` via refresh.py + live cluster |
 | `dependencies.yaml` | 10 chains | Cascade failure tracing (incl. operator management, addon delivery, registration) | Neo4j KG + manual |
 | `failure-patterns.yaml` | 19 patterns + JIRA cache | Short-circuit classification + bug correlation | Manual + learned/ promotion |
-| `version-constraints.yaml` | 1+ constraints | Version incompatibility detection | Manual QE review |
+| `service-map.yaml` | 15+ services | Service-to-pod mapping with endpoint diagnostics (validated against live ACM 2.16 GA) | Cluster snapshot + manual |
+| `version-constraints.yaml` | 5 constraints | Version incompatibility detection (OLM ceiling, Submariner, ClusterCurator, console-mce, AnsibleJob) | Manual QE review |
 | `selectors.yaml` | 50+ selectors | UI selector ground truth | ACM-UI MCP |
 | `api-endpoints.yaml` | 5 endpoints | Backend probe reference | ACM-UI MCP code search |
 | `feature-areas.yaml` | 13 areas | Test-to-feature mapping | Manual + code sync |
@@ -708,4 +709,4 @@ Classification methodology documentation for the AI agent:
 | `diagnostic-layers.md` | 12-layer diagnostic investigation methodology (v3.8): per-layer checklists, error-to-layer mapping, WHO/WHY investigation, classification-after-root-cause rules |
 | `evidence-tiers.md` | How Tier 1 and Tier 2 evidence is weighted for confidence scoring |
 | `common-misclassifications.md` | 6 documented cases where the pipeline gets confused and why |
-| `diagnostic-traps.md` | 10 patterns where the obvious diagnosis is WRONG (8 from hub health + 2 counter-traps) |
+| `diagnostic-traps.md` | 14 patterns (11 standard + Trap 1b variant + 3 counter-traps) where the obvious diagnosis is WRONG |

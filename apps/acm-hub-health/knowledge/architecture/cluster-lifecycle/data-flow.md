@@ -98,6 +98,26 @@ renews its lease periodically (heartbeat).
 API. Certificate issues -> registration fails silently, ManagedCluster
 stays in Unknown state.
 
+### Layer-Annotated Provisioning Flow
+
+Each provisioning step maps to a diagnostic layer. When provisioning
+fails, identify which step failed and check that layer:
+
+| Step | Layer | What Can Break |
+|------|-------|---------------|
+| Console resource creation | L8 (webhook) | hiveadmission webhook down (Trap 10) |
+| HiveConfig check | L5 (configuration) | HiveConfig missing or misconfigured |
+| ClusterImageSet resolution | L5 (configuration) | ClusterImageSet doesn't exist (disconnected env) |
+| hive-controllers picks up CD | L9 (operator) | hive-controllers pod down |
+| Credential validation | L6 (auth) | Cloud credentials expired or invalid |
+| Install pod scheduling | L1 (compute) | Insufficient resources, node taints |
+| Cloud API provisioning | External | Cloud quota, API errors, networking |
+| OCP bootstrap | External | Bootstrap timeout, DNS resolution |
+| Kubeconfig/secret creation | L4 (storage) | Namespace missing, secret write failure |
+| Import controller handoff | L9 (operator) | managedcluster-import-controller down |
+| Klusterlet registration | L6 (auth) + L3 (network) | Certificate issues, firewall |
+| ManagedCluster Available | L10 (cross-cluster) | Lease renewal failure |
+
 ---
 
 ## Flow 2: Cluster Import

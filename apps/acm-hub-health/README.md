@@ -49,7 +49,7 @@ Why are managed clusters Unknown?     # symptom investigation
 2. **Learn** -- consult architecture knowledge + previous discoveries
 3. **Check** -- layer-organized health checks (foundational layers first, then components)
 4. **Pattern Match** -- match symptoms against documented known issues with JIRA references
-5. **Correlate** -- trace horizontal (11 dependency chains) + vertical (12 infrastructure layers)
+5. **Correlate** -- trace horizontal (12 dependency chains) + vertical (12 infrastructure layers)
 6. **Deep Investigate** -- logs, events, storage, networking + layer-based fallback
 
 ### Self-Healing Knowledge
@@ -99,7 +99,7 @@ Trace files are gitignored. See the "Session Tracing" section in
 
 ## Knowledge Base
 
-54 knowledge files covering 12 ACM subsystems -- architecture docs, structured
+59 knowledge files covering 12 ACM subsystems -- architecture docs, structured
 operational data, 12-layer diagnostic model, and diagnostic methodology.
 
 See [docs/06-SLASH-COMMANDS.md](docs/06-SLASH-COMMANDS.md) for full command reference.
@@ -109,7 +109,8 @@ knowledge/
   component-registry.md                 # Master inventory of ACM components
   failure-patterns.md                   # Failure signatures mapped to root causes
   healthy-baseline.yaml                 # Expected pod counts, deployment states
-  dependency-chains.yaml                # 11 cascade paths (structured YAML)
+  dependency-chains.yaml                # 12 cascade paths (structured YAML)
+  service-map.yaml                      # Service-to-Pod mappings for connectivity diagnosis
   webhook-registry.yaml                 # Validating/mutating webhooks
   certificate-inventory.yaml            # TLS secrets, rotation, impact
   addon-catalog.yaml                    # Addon health checks and dependencies
@@ -132,8 +133,8 @@ knowledge/
     infrastructure/                     # " + post-upgrade-patterns.md
   diagnostics/                          # Health check methodology
     diagnostic-layers.md                # 12-layer investigation framework
-    dependency-chains.md                # 11 cascade paths (narrative)
-    common-diagnostic-traps.md          # 13 patterns where obvious diagnosis is wrong
+    dependency-chains.md                # 12 cascade paths (narrative)
+    common-diagnostic-traps.md          # 14 patterns where obvious diagnosis is wrong
     evidence-tiers.md                   # Evidence weighting rules
     diagnostic-playbooks.md             # 14 per-subsystem investigation procedures
   learned/                              # Agent-discovered knowledge (grows over time)

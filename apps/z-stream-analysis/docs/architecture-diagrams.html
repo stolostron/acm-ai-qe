@@ -134,7 +134,7 @@ graph TD
   <p class="desc">Step 4 establishes cluster access and collects landscape data. The comprehensive health audit is handled by Stage 1.5 (cluster-diagnostic agent). Click any box to see details.</p>
   <div class="mermaid">
 graph LR
-    S4A["4a: Cluster Login\nExtract credentials from Jenkins params\noc login + persist cluster.kubeconfig\nDiscover MCH namespace (oc get mch -A)\nWire kubeconfig + namespace to services"]:::clickable --> S4C["4b: Cluster Landscape\nClusterInvestigationService\nManaged clusters, operators,\nresource pressure, policies, MCH\n~6 oc commands"]:::clickable
+    S4A["4a: Cluster Login\nExtract credentials (Jenkins params → console log fallback)\noc login + persist cluster.kubeconfig\nDiscover MCH namespace (oc get mch -A)\nWire kubeconfig + namespace to services"]:::clickable --> S4C["4b: Cluster Landscape\nClusterInvestigationService\nManaged clusters, operators,\nresource pressure, policies, MCH\n~6 oc commands"]:::clickable
     S4C --> S4OUT["Step 4 Outputs:\ncluster.kubeconfig\ncluster_landscape\nin core-data.json"]:::clickable
 
     style S4A fill:#0f1320,stroke:#38bdf8,color:#d8dce8
@@ -258,7 +258,7 @@ graph TD
   <div class="mermaid">
 graph TD
     CD1["Phase 1: DISCOVER\n~7-9 oc commands\nAuth, MCH/MCE, ALL CSVs,\nnodes, webhooks, managed clusters\nRead core-data.json for test context"]:::clickable --> CD2["Phase 2: LEARN\n~2-5 oc commands + knowledge reads\nLoad baselines, architecture docs,\nfailure signatures per subsystem\nIdentify unknown operators"]:::clickable
-    CD2 --> CD3["Phase 3: CHECK (layer-aware)\n~15-30 oc commands\nL1-2: Compute + Control Plane\nL3: Network + Infra Guards\nL4: Storage + Data Integrity\nL9: Operators + Pod Health\nImage integrity, 14 traps"]:::clickable
+    CD2 --> CD3["Phase 3: CHECK (layer-aware)\n~15-30 oc commands\nL1-2: Compute + Control Plane\nL3: Network + Infra Guards + Endpoints\nL4: Storage + Data Integrity\nL5: OLM + Config\nL9: Operators + StatefulSets + Sub-CRs\nImage integrity, 14 traps + 1b"]:::clickable
     CD3 --> CD4["Phase 4: PATTERN MATCH\n~0 oc commands\nMatch against failure-patterns.yaml\nMatch against failure-signatures.md\nKnown JIRA bugs cache\nVersion constraints check"]:::clickable
     CD4 --> CD5["Phase 5: CORRELATE\n~0-10 oc commands\nDependency chain verification\nCross-subsystem impact analysis\nUnknown operator dependency discovery\nRoot cause consolidation"]:::clickable
     CD5 --> CD6["Phase 6: OUTPUT\nWrite cluster-diagnosis.json\nBuild classification guidance\nSelf-healing knowledge\nCompletion summary"]:::clickable
@@ -628,8 +628,8 @@ const DATA = {
         <div class="label">6 Diagnostic Phases:</div>
         <div class="value">
           <strong>Phase 1: DISCOVER</strong> &mdash; Full cluster inventory (MCH/MCE, ALL CSVs, webhooks, nodes, managed clusters)<br>
-          <strong>Phase 2: LEARN</strong> &mdash; Compare inventory against healthy-baseline.yaml, addon-catalog.yaml, webhook-registry.yaml, diagnostic traps<br>
-          <strong>Phase 3: CHECK (layer-aware)</strong> &mdash; Bottom-up investigation: foundational layers (Compute, Network, Storage) BEFORE component layers (Operators, Pods). Infrastructure guards, console image integrity, log pattern scanning (7 patterns), addon/webhook verification, 14 trap detection<br>
+          <strong>Phase 2: LEARN</strong> &mdash; Compare inventory against healthy-baseline.yaml, addon-catalog.yaml, webhook-registry.yaml, service-map.yaml, diagnostic traps<br>
+          <strong>Phase 3: CHECK (layer-aware)</strong> &mdash; Bottom-up investigation: foundational layers (Compute, Network, Storage, OLM) BEFORE component layers (Operators, StatefulSets, Sub-operator CRs). Service endpoint verification, infrastructure guards, console image integrity, log pattern scanning (7 patterns), addon/webhook verification, 14 trap + Trap 1b detection<br>
           <strong>Phase 4: PATTERN MATCH</strong> &mdash; Cross-reference findings against failure-patterns.yaml, failure-signatures.md, known JIRA bugs<br>
           <strong>Phase 5: CORRELATE</strong> &mdash; Trace dependency chains, cross-subsystem impact analysis, env var dependency discovery for unknown operators<br>
           <strong>Phase 6: OUTPUT</strong> &mdash; Write cluster-diagnosis.json + self-healing discoveries to knowledge/learned/
@@ -693,7 +693,7 @@ const DATA = {
   // === DIAGRAM 2a: STEP 4 CLUSTER LOGIN + LANDSCAPE ===
   's4-login': {
     title: 'Step 4a: Cluster Login + Namespace Discovery',
-    html: `<div class="detail-section"><h4>Extract credentials, persist kubeconfig, discover MCH namespace</h4><div class="value">Extracts cluster API URL, username, and password from Jenkins build parameters. Runs <code>oc login</code> to create <code>cluster.kubeconfig</code> in the run directory. Then discovers the MCH namespace via <code>oc get mch -A</code> &mdash; this can be <code>open-cluster-management</code>, <code>ocm</code>, or a custom namespace depending on the ACM installation. The discovered namespace is propagated to ClusterInvestigationService (rebuilds component namespace map) and FeatureAreaService (updates key_namespaces). All subsequent <code>oc</code> commands use the discovered namespace, not a hardcoded default.</div></div>`
+    html: `<div class="detail-section"><h4>Extract credentials, persist kubeconfig, discover MCH namespace</h4><div class="value">Extracts cluster credentials using two-tier lookup: Jenkins build parameters first, then console log fallback (for pipelines using Jenkins Password Parameter types concealed from the REST API). The console log fallback parses <code>oc login</code> commands traced by <code>set -x</code>, prioritizing admin credentials. Runs <code>oc login</code> to create <code>cluster.kubeconfig</code> in the run directory. Then discovers the MCH namespace via <code>oc get mch -A</code> &mdash; this can be <code>open-cluster-management</code>, <code>ocm</code>, or a custom namespace depending on the ACM installation. The discovered namespace is propagated to ClusterInvestigationService (rebuilds component namespace map) and FeatureAreaService (updates key_namespaces). All subsequent <code>oc</code> commands use the discovered namespace, not a hardcoded default. The <code>credential_source</code> field in <code>cluster_access</code> records which method succeeded.</div></div>`
   },
   's4-landscape': {
     title: 'Step 4b: Cluster Landscape (~6 oc commands)',
@@ -857,10 +857,11 @@ component_details per area</pre><div class="value">Skipped when Neo4j MCP is una
         <div class="label">Knowledge files loaded:</div>
 <pre class="data-block"><span class="key">Baselines:</span>
   knowledge/healthy-baseline.yaml &mdash; expected pod counts, thresholds
-  knowledge/components.yaml &mdash; component registry, health checks
+  knowledge/components.yaml &mdash; component registry (70 components), health checks
   knowledge/addon-catalog.yaml &mdash; addon health expectations
   knowledge/webhook-registry.yaml &mdash; expected webhooks + criticality
-  knowledge/diagnostics/diagnostic-traps.md &mdash; 14 trap patterns
+  knowledge/service-map.yaml &mdash; Service-to-pod mapping, endpoint diagnostics
+  knowledge/diagnostics/diagnostic-traps.md &mdash; 14 traps + Trap 1b patterns
 
 <span class="key">Per-subsystem architecture</span> (for each failing feature area):
   knowledge/architecture/&lt;subsystem&gt;/architecture.md
@@ -886,26 +887,36 @@ component_details per area</pre><div class="value">Skipped when Neo4j MCP is una
   MCH/MCE operator replicas, OCP cluster operators
   Node resources: CPU > 80%, memory > 85%, disk > 90%
 
-<span class="key">3.1</span> L3: Network + Infrastructure Guards (Traps 9, 11)
+<span class="key">3.1</span> L3: Network + Infra Guards + Endpoints (Traps 9, 11)
   NetworkPolicy in ACM namespaces (NOT expected &rarr; suspicious)
   ResourceQuota in ACM namespaces (can block pod creation)
+  Service endpoint verification (zero endpoints = silent failure)
+  Cross-ref service-map.yaml for impact analysis
   CRITICAL: check BEFORE pod health
 
 <span class="key">3.2</span> L4: Storage + Data Integrity (Trap 3)
+  Determine storage model first (PVC vs emptyDir vs stateless)
   PVCs must be Bound, search-postgres data query
-  Row count = 0 but pods Running = data lost
+  Row count = 0 but pods Running = data lost (Recreate strategy)
 
-<span class="key">3.3</span> L5: Configuration
+<span class="key">3.3</span> L5: Configuration + OLM Foundational Health
   MCH component toggles, OLM subscriptions
+  CatalogSource gRPC health, InstallPlan completion
+  olm.maxOpenShiftVersion ceiling check
+  CSV OPERAND_IMAGE_* corruption detection
 
 <span class="key">3.4</span> L6-8: Auth, RBAC, Webhooks (conditional)
-  Cert inventory check, webhook registry comparison
+  Cert inventory check, multi-hop token forwarding
+  Webhook registry comparison, shared TLS secret detection
   Only if relevant symptoms surfaced</pre>
         <div class="label">COMPONENT LAYERS (check after foundational):</div>
-<pre class="data-block"><span class="key">3.5</span> L9: Operators + Pod Health
+<pre class="data-block"><span class="key">3.5</span> L9: Operators + StatefulSets + Sub-CRs
   Non-Running pods per namespace, baseline comparison
+  StatefulSets (hive-clustersync, hive-machinepool, thanos-*)
+  Sub-operator CRs (Search CR, HiveConfig, MCO conditions)
   Console image integrity vs healthy-baseline.yaml
-  Pod restart counts (flag > 3)
+  Pod restart counts (flag > 3), scheduling investigation
+  Leader election Lease check (Trap 1b)
   Interpret in context of Layer 3 findings
 
 <span class="key">3.6</span> Investigate unhealthy pods
@@ -920,7 +931,7 @@ component_details per area</pre><div class="value">Skipped when Neo4j MCP is una
 
 <span class="key">3.9</span> L11-12: Data Flow + UI (if pods healthy but broken)
 
-<span class="key">3.10</span> Walk ALL 14 diagnostic traps (explicit report)</pre>
+<span class="key">3.10</span> Walk ALL 14 diagnostic traps + Trap 1b (explicit report)</pre>
       </div>
     `
   },
@@ -1376,7 +1387,7 @@ at Context.eval
         <h4>Cluster login, MCH namespace discovery, and landscape snapshot</h4>
         <div class="value">Step 4 runs two sub-steps: cluster login with kubeconfig persistence and dynamic MCH namespace discovery (4a), and cluster landscape snapshot (4b). Comprehensive health validation (environment score, subsystem health, operator health, image integrity) is handled by Stage 1.5 (cluster-diagnostic agent).</div>
         <div class="label">Step 4a &mdash; Cluster login:</div>
-        <div class="value">Extracts credentials from Jenkins parameters, runs <code>oc login</code>, and persists <code>cluster.kubeconfig</code> for Stage 1.5 and Stage 2.</div>
+        <div class="value">Extracts credentials from Jenkins parameters (primary) or console log fallback (for concealed Password Parameters), runs <code>oc login</code>, and persists <code>cluster.kubeconfig</code> for Stage 1.5 and Stage 2.</div>
         <div class="label">Step 4b &mdash; Cluster landscape:</div>
 <pre class="data-block">{
   <span class="key">"managed_cluster_count"</span>: <span class="num">2</span>,

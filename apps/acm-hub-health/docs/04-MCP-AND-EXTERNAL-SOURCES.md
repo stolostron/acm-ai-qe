@@ -132,7 +132,7 @@ This ensures search results match the code that's actually running on the cluste
 The `neo4j-rhacm` MCP server provides read-only Cypher query access to a
 Neo4j graph database containing 370 ACM components and 541 dependency
 relationships (incl. Hive, Klusterlet, HyperShift, Virtualization, RBAC).
-It supplements the 11 curated dependency chains in
+It supplements the 12 curated dependency chains in
 `knowledge/dependency-chains.yaml` with a broader, dynamic component graph.
 
 ### Configuration
@@ -186,7 +186,7 @@ The MCP server exposes two Cypher query tools:
 
 | Scenario | Query Pattern |
 |----------|---------------|
-| Component not in the 11 curated chains | Query direct dependencies and dependents |
+| Component not in the 12 curated chains | Query direct dependencies and dependents |
 | Multiple failures with no obvious link | Find common upstream dependencies |
 | Unknown component during self-healing | Query subsystem membership and dependencies |
 | Tracing transitive failure impact | Query dependents up to 3 hops deep |

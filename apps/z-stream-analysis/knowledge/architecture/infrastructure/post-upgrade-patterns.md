@@ -45,6 +45,40 @@ These are INFRASTRUCTURE, not product bugs.
 - **Explanation:** OLM may take several minutes to transition CSV to Succeeded after upgrade
 - **Diagnostic:** `oc get csv -n open-cluster-management`
 
+## Search Re-Collection After Postgres Restart
+- **Error:** `expected results > 0` or search tests return empty results
+- **Pattern:** All search pods Running but search returns no data shortly after upgrade
+- **Classification:** INFRASTRUCTURE (80% confidence) — will self-resolve
+- **Explanation:** search-postgres uses emptyDir and Deployment strategy Recreate. Any upgrade that touches the search-postgres deployment spec kills the old pod before starting the new one, guaranteeing data loss. Re-collection from spoke collectors takes 10-30 minutes depending on fleet size.
+- **Expected resolution:** 10-30 minutes after search-postgres pod restarts
+- **Diagnostic:** `oc get pods -n <mch-ns> -l app=search-postgres -o jsonpath='{.items[0].metadata.creationTimestamp}'` (compare against upgrade time)
+- **Key distinction:** If search-postgres pod age is > 30 minutes and data is still empty, investigate further -- may be a real indexer or collector issue (Trap 3)
+
+## Webhook Certificate Rotation
+- **Error:** Webhook calls fail with TLS errors shortly after upgrade
+- **Pattern:** Webhook-protected operations (ClusterDeployment, ManagedCluster) fail intermittently
+- **Classification:** INFRASTRUCTURE (75% confidence)
+- **Explanation:** After upgrade, webhook certificates may need rotation by service-ca. The rotation happens automatically within 2-5 minutes. Some shared TLS secrets may affect multiple services simultaneously.
+- **Expected resolution:** 2-5 minutes after the service-ca controller processes the rotation
+- **Diagnostic:** `oc get csr | grep Pending` and check TLS secret ages against certificate-inventory.yaml
+
+## API Deprecation Warnings (Post-OCP Upgrade)
+- **Error:** `the server does not allow access to the requested resource` or deprecation warnings
+- **Pattern:** Tests using deprecated API versions fail after OCP upgrade
+- **Classification:** AUTOMATION_BUG if test uses deprecated API, PRODUCT_BUG if product code uses deprecated API
+- **Explanation:** After OCP upgrade, removed API versions are no longer served. Tests or product code using removed versions fail.
+- **Diagnostic:** `oc api-resources | grep <resource>` and check which API version the test/product uses
+
+## Pattern 10: Intentional Controller Disable Flags
+- **Error:** Missing controllers or functionality after upgrade
+- **Pattern:** Agent sees controllers absent from a deployment and reports a misconfiguration
+- **Classification:** NO_BUG (intentional configuration)
+- **Explanation:** Some ACM deployments intentionally disable controllers via command-line flags. For example, hive-controllers runs with `--disabled-controllers clustersync,machinepool` because those controllers run as separate StatefulSets (hive-clustersync, hive-machinepool). This is NOT a misconfiguration.
+- **How to detect:** Check the deployment spec args for `--disabled-controllers` or similar flags before reporting absent functionality as a finding.
+- **Key instances:**
+  - `hive-controllers --disabled-controllers clustersync,machinepool` (they run as separate StatefulSets)
+- **Diagnostic:** `oc get deploy hive-controllers -n hive -o jsonpath='{.spec.template.spec.containers[0].args}'`
+
 ## Classification Guidance
 
 When analyzing post-upgrade pipeline failures:

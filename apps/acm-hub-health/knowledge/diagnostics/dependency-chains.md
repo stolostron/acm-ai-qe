@@ -1,7 +1,13 @@
 # Dependency Chains
 
-11 critical paths where failures cascade across ACM subsystems. When diagnosing
+12 critical paths where failures cascade across ACM subsystems. When diagnosing
 an issue, trace UPSTREAM through the relevant chain to find the root cause.
+
+**Note on implicit Service layer:** Every dependency arrow in these chains
+passes through a Kubernetes Service. If a Service has zero ready endpoints
+(selector doesn't match Running pods), the chain breaks silently. When
+tracing a broken chain, check `oc get endpoints -n <ns> <service-name>`
+at each hop. See `service-map.yaml` for the full Service-to-Pod mapping.
 
 ---
 
@@ -29,6 +35,15 @@ Console UI (VM page, search page, RBAC resource views)
 don't appear in search. If search-postgres is down, ALL search queries fail.
 If search-api is down, Console VM pages show empty, RBAC resource views are
 blank, and search page is broken.
+
+**Sub-paths:** This chain has two logical sub-paths sharing the database:
+(1) **Query path** (console → search-api → postgres): reads data. (2)
+**Ingestion path** (collectors → search-indexer → postgres): writes data.
+When search returns empty results, determine which path is broken: query
+path broken = search-api can't reach postgres (connection errors in API
+logs). Ingestion path broken = data was never indexed (`SELECT count(*)`
+returns 0 but API is responsive). This read/write sub-path pattern also
+applies to observability (metrics ingestion vs Grafana queries).
 
 **Tracing procedure:**
 1. Is the Console page itself loading? If not -> check console-api pods
@@ -396,6 +411,59 @@ to OVN-Kubernetes changes (ACM-22805).
 
 ---
 
+## Chain 12: HiveConfig -> ClusterDeployment -> Install Pod -> ManagedCluster
+
+**Layers spanned:** 5 (configuration) → 8 (webhooks) → 9 (operators) → 1 (compute/scheduling) → 10 (cross-cluster) → 6 (auth/registration)
+
+```
+HiveConfig (cluster-scoped Hive configuration)
+  <- configures ->
+    hive-operator (deploys Hive controllers)
+      <- deploys ->
+        hive-controllers (watches ClusterDeployments)
+          <- validates via ->
+            hiveadmission webhook (failurePolicy: Fail)
+              <- creates ->
+                ClusterProvision + Install Pod (in cluster namespace)
+                  <- provisions ->
+                    Cloud infrastructure (VMs, networking, DNS)
+                      <- produces ->
+                        kubeconfig + kubeadmin-password Secrets
+                          <- auto-imported by ->
+                            managedcluster-import-controller
+                              <- deploys ->
+                                klusterlet (via ManifestWork to spoke)
+                                  <- registers ->
+                                    ManagedCluster (Available=True)
+```
+
+**Impact:** If HiveConfig is missing or misconfigured, hive-operator has
+nothing to watch and deploys no Hive controllers. If hive-controllers is
+down, ALL new cluster provisioning stops. If hiveadmission webhook is
+down, ALL ClusterDeployment operations are blocked (Trap 10). If the
+install pod fails, only that specific cluster is affected.
+
+**Resource creation ordering:** The Console creates cluster resources in
+a specific order: Namespace first, then ManagedCluster, Secrets (cloud
+credentials, pull-secret, install-config), and ClusterDeployment LAST.
+ClusterDeployment triggers Hive -- if created before prerequisites exist,
+provisioning fails immediately.
+
+**Prerequisites:** ClusterImageSet must exist on the hub for the target
+OCP version. Cloud credentials Secret must contain valid provider
+credentials. Install-config Secret must reference a reachable base domain.
+
+**Tracing procedure:**
+1. Check HiveConfig: `oc get hiveconfig -o yaml | grep -A5 'status:'`
+2. Check hive-controllers: `oc get pods -n hive -l control-plane=controller-manager`
+3. Check for webhook blocking: `oc get events -n <cluster-ns> | grep webhook`
+4. Check ClusterDeployment status: `oc get clusterdeployment -n <cluster-ns> -o yaml | grep -A10 'conditions:'`
+5. Check ClusterProvision: `oc get clusterprovision -n <cluster-ns>`
+6. Check install pod: `oc get pods -n <cluster-ns> -l hive.openshift.io/install=true`
+7. If provisioned, check import: `oc get managedclusters | grep <cluster-name>`
+
+---
+
 ## Cross-Chain Patterns
 
 When multiple chains are affected simultaneously, look for shared dependencies:
@@ -410,3 +478,5 @@ When multiple chains are affected simultaneously, look for shared dependencies:
 | ALL addons Unavailable across ALL clusters | addon-manager down (chain 7) |
 | Observability + search both have storage errors | Shared storage infrastructure failure (chain 8) |
 | New clusters import but get no addons | addon-manager down; import works independently (chains 4,7) |
+| Cluster provisioning stuck + cluster import stuck | Hive controllers or HiveConfig issue (chain 12) |
+| ALL cluster ops fail (create, import, delete) | Hive webhook down (chain 12, Trap 10) |

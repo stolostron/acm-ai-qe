@@ -216,7 +216,7 @@ OUTPUT:
 
 **Services:** `EnvironmentValidationService` (login + kubeconfig persist), `ClusterInvestigationService` (landscape)
 
-Step 4 establishes cluster access and collects landscape data. It does three things: (4a) login, kubeconfig persistence, and MCH namespace discovery, (4b) cluster landscape snapshot, (4c) backend API probes. The comprehensive health audit is handled by Stage 1.5 (cluster-diagnostic agent), which produces `cluster-diagnosis.json`.
+Step 4 establishes cluster access and collects landscape data. It does two things: (4a) login (two-tier credential lookup: Jenkins parameters, then console log fallback), kubeconfig persistence, and MCH namespace discovery, (4b) cluster landscape snapshot. The comprehensive health audit is handled by Stage 1.5 (cluster-diagnostic agent), which produces `cluster-diagnosis.json`.
 
 **MCH namespace discovery (Step 4a):** After login, gather.py runs `oc get mch -A` to discover the actual MCH namespace. This can be `open-cluster-management`, `ocm`, or a custom namespace depending on the ACM installation. The discovered namespace is used for all subsequent `oc` commands and propagated to all services (`ClusterInvestigationService`, `FeatureAreaService`). Derived namespaces (`-hub`, `-observability`, `-agent`) are computed from the discovered base namespace.
 
@@ -251,9 +251,9 @@ Extract cluster URL from Jenkins parameters
 | `oc api-resources` | `oc scale`, `oc rollout` |
 | `kubectl get`, `kubectl describe` | Any write operation |
 
-### Cluster Access Persistence (v3.1, updated v3.5)
+### Cluster Access Persistence (v3.1, updated v4.1)
 
-Part of `_login_to_cluster()` (Step 4a). After cluster login, creates a persistent `cluster.kubeconfig` file in the run directory. This kubeconfig is used by Stage 1.5 (cluster-diagnostic agent) and Stage 2 (analysis agent) for live `oc` commands. Passwords are masked in `core-data.json` — the kubeconfig provides authentication without needing the raw password.
+Part of `_login_to_cluster()` (Step 4a). Extracts cluster credentials with two-tier lookup: Jenkins build parameters first, then console log fallback (for pipelines that use Jenkins Password Parameter types concealed from the REST API). After login, creates a persistent `cluster.kubeconfig` in the run directory. The `credential_source` field records which method succeeded (`jenkins_parameters` or `console_log_fallback`). Passwords are masked in `core-data.json` — the kubeconfig provides authentication without needing the raw password.
 
 ```json
 {
@@ -263,7 +263,7 @@ Part of `_login_to_cluster()` (Step 4a). After cluster login, creates a persiste
     "has_credentials": "***MASKED***",
     "password": "****masked****",
     "kubeconfig_path": "runs/<dir>/cluster.kubeconfig",
-    "note": "Credentials from Jenkins parameters. Used by AI agent for Stage 2 cluster investigation."
+    "credential_source": "jenkins_parameters"
   }
 }
 ```
@@ -982,7 +982,7 @@ Health data is in `cluster-diagnosis.json` from Stage 1.5, not here.
   "username": "",
   "has_credentials": true,
   "password": "***MASKED***",
-  "note": "Credentials from Jenkins parameters.",
+  "credential_source": "jenkins_parameters",
   "kubeconfig_path": "runs/<dir>/cluster.kubeconfig",
   "mch_namespace": "ocm"
 }

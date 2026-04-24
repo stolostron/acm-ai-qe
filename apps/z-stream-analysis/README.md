@@ -126,14 +126,14 @@ Every test in the output includes `root_cause_layer` (1-12), `root_cause_layer_n
 
 ## Knowledge Database
 
-Standalone knowledge database at `knowledge/` with 60 files providing domain
+Standalone knowledge database at `knowledge/` with 62+ files providing domain
 reference data for the diagnostic agent (Stage 1.5) and the AI analysis agent (Stage 2).
 
 | Directory | Content | Files |
 |-----------|---------|-------|
 | `architecture/` | Per-subsystem architecture, data flow, failure signatures | 37 files across 12 subsystems + 2 platform docs |
-| `diagnostics/` | Classification decision tree, evidence tiers, known misclassifications, diagnostic traps, 12-layer diagnostic model | 5 files |
-| Root YAML | Components, dependencies, selectors, API endpoints, feature areas, failure patterns, test mapping, healthy baseline, addon catalog, webhook registry, version constraints, prerequisites | 12 files |
+| `diagnostics/` | Classification decision tree, evidence tiers, known misclassifications, diagnostic traps (14 + Trap 1b variant), 12-layer diagnostic model | 5 files |
+| Root YAML | Components (70), dependencies, selectors, API endpoints, feature areas, failure patterns, test mapping, healthy baseline, addon catalog, webhook registry, service map, version constraints (5), prerequisites, certificate inventory | 14 files |
 | `learned/` | Agent-contributed corrections, patterns, selector changes, operator discoveries | 3+ files (grows via self-healing) |
 | `refresh.py` | Updates knowledge from cluster, MCP, KG | 1 script |
 

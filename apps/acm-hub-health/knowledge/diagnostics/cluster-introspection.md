@@ -53,6 +53,13 @@ Scan for: `*.svc` references (service deps), `DB_HOST`/`*_HOST` (database),
 secret/configmap references (configuration deps). This is the richest
 source for runtime dependencies.
 
+The `OPERAND_IMAGE_*` pattern is particularly important: the MCH operator
+CSV contains 40+ such env vars, each specifying the exact image digest
+for a managed component (console, search, governance, etc.). If the CSV
+is corrupted, these values propagate bad image references to all managed
+deployments, causing ImagePullBackOff across multiple subsystems (see
+diagnostic-layers.md Layer 5 cross-layer note).
+
 ## 6. Webhooks
 
 Cross-operator validation dependencies:

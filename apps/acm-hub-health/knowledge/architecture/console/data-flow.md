@@ -84,15 +84,26 @@ Browser                    OCP Console              ACM/MCE Plugin Pods
 
 ## 3. Console-API Request Proxy Chain
 
-This is the primary data flow for all ACM UI operations.
+This is the primary data flow for all ACM UI operations. The request
+traverses multiple hops before reaching the backend service.
 
 ### Request Path
 ```
 Browser
   |
-  |  REST/GraphQL request (e.g., GET /multicloud/api/v1/proxy/search)
+  |  POST /api/proxy/plugin/acm/console/multicloud/proxy/<target>
   v
-console-api (BFF)
+OCP Ingress Router (HAProxy)
+  |
+  |  TLS re-encrypt via Route object (openshift-console namespace)
+  v
+OCP Console Pod (openshift-console namespace)
+  |
+  |  ConsolePlugin proxy: matches /api/proxy/plugin/acm/console/*
+  |  Strips prefix, forwards to plugin backend Service
+  |  Injects user's OAuth token (authorization: UserToken)
+  v
+console-api (BFF) -- console-chart-console-v2 Service, port 3000
   |
   |  1. Authentication Handler: validate OAuth token
   |  2. RBAC Middleware: check user permissions (SubjectAccessReview)
@@ -101,37 +112,39 @@ console-api (BFF)
 Resource Proxy
   |
   |  Forward request with user's token to backend service
+  |  Upstream URL constructed dynamically using MCH namespace
   v
 Backend Service (search-api / grc-propagator / subscription-ctrl / observability)
   |
   |  Process request, apply backend RBAC, return data
   v
-Resource Proxy
-  |
-  |  Pass response back
-  v
-console-api
-  |
-  |  Serialize response, add cache headers
-  v
-Browser
-  |
-  |  React components render data
-  v
-User sees UI
+Response flows back through the same chain to the browser
 ```
+
+The OCP Console and ConsolePlugin proxy hops are transparent to
+application logic but are distinct failure domains. If the OCP Console
+pod is down or the ConsolePlugin is not registered, no ACM feature is
+accessible through the UI -- even though all backend services are healthy.
 
 ### Proxy Target Resolution
 
 | URL Prefix | Target Service | Namespace | Port |
 |---|---|---|---|
-| `/proxy/search` | search-api | MCH namespace | 4010 |
+| `/proxy/search` | search-search-api | MCH namespace | 4010 |
 | `/proxy/cluster` | cluster-management services | MCH namespace | varies |
 | `/proxy/observability` | observability services | open-cluster-management-observability | varies |
 | `/proxy/app` | subscription-controller / channel-controller | MCH namespace | varies |
 | `/proxy/grc` | grc-policy-propagator | MCH namespace | 8381 |
 
 ### Error Handling at Each Hop
+
+**Browser -> OCP Ingress Router:** Route object misconfigured or HAProxy
+overloaded -> connection timeout. Check: `oc get route console -n
+openshift-console -o yaml`.
+
+**OCP Console -> ConsolePlugin proxy:** ConsolePlugin CR not registered
+or plugin backend Service unreachable -> 502/504. Check: `oc get
+consoleplugins`, then `oc get endpoints -n <mch-ns> console-chart-console-v2`.
 
 **Browser -> console-api:** Network error, CORS failure, or console-api pod
 down -> browser shows "Oh no! Something went wrong" error page or connection

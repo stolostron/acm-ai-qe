@@ -222,7 +222,66 @@ components:
     min_replicas: 2
     depends_on: [hive-operator]
     critical_for: [clusterdeployment-validation]
-    notes: "Webhook admission for ClusterDeployment operations."
+    notes: "Webhook admission for ClusterDeployment operations. failurePolicy: Fail means if hiveadmission is down, ALL ClusterDeployment operations are blocked."
+
+  hive-clustersync:
+    subsystem: Cluster-Lifecycle
+    type: hub-statefulset
+    namespace: hive
+    pod_label: "control-plane=clustersync"
+    health_check: "oc get statefulset hive-clustersync -n hive -o jsonpath='{.status.readyReplicas}'"
+    min_replicas: 1
+    depends_on: [hive-operator]
+    critical_for: [syncset-application]
+    notes: "Handles SyncSet application to provisioned clusters. Uses emptyDir -- sync state lost on restart. Runs as separate StatefulSet (disabled in hive-controllers via --disabled-controllers flag)."
+
+  hive-machinepool:
+    subsystem: Cluster-Lifecycle
+    type: hub-statefulset
+    namespace: hive
+    pod_label: "control-plane=machinepool"
+    health_check: "oc get statefulset hive-machinepool -n hive -o jsonpath='{.status.readyReplicas}'"
+    min_replicas: 1
+    depends_on: [hive-operator]
+    critical_for: [machinepool-management]
+    notes: "Manages MachinePools for provisioned clusters. Runs as separate StatefulSet."
+
+  hiveconfig:
+    subsystem: Cluster-Lifecycle
+    type: intermediate-cr
+    namespace: cluster-scoped
+    health_check: "oc get hiveconfig hive -o jsonpath='{.status.conditions}'"
+    depends_on: [hive-operator]
+    critical_for: [hive-controllers, hive-clustersync, hive-machinepool]
+    notes: "HiveConfig CR is an intermediate checkpoint. status.conditions indicate Hive subsystem health. Check before diving into individual Hive pod logs."
+
+  cluster-provision:
+    subsystem: Cluster-Lifecycle
+    type: resource
+    namespace: "<cluster-namespace>"
+    health_check: "oc get clusterprovision -n <cluster-ns>"
+    depends_on: [hive-controllers]
+    critical_for: [cluster-provisioning-tracking]
+    notes: "Tracks provisioning attempts per cluster. Check status.conditions for provisioning progress and failure reasons."
+
+  install-pod:
+    subsystem: Cluster-Lifecycle
+    type: resource
+    namespace: "<cluster-namespace>"
+    pod_label: "hive.openshift.io/install=true"
+    health_check: "oc get pods -n <cluster-ns> -l hive.openshift.io/install=true"
+    depends_on: [hive-controllers]
+    critical_for: [cluster-provisioning]
+    notes: "Install pods run the actual cluster provisioning. Labeled with hive.openshift.io/install=true. Check pod logs for cloud API errors."
+
+  cluster-image-set:
+    subsystem: Cluster-Lifecycle
+    type: resource
+    namespace: cluster-scoped
+    health_check: "oc get clusterimagesets"
+    depends_on: []
+    critical_for: [cluster-provisioning]
+    notes: "ClusterImageSet must exist for the target OCP version before ClusterDeployment is created. Common issue in disconnected environments."
 
   placement-controller:
     subsystem: Cluster-Lifecycle

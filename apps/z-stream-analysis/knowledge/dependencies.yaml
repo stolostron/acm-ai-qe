@@ -35,16 +35,27 @@ dependency_chains:
       work_manager_backlog: PRODUCT_BUG
 
   cluster_lifecycle:
-    chain: "hive-controllers -> managedcluster-import-controller -> klusterlet -> registration-agent"
-    layers_involved: [9, 10]
-    layer_note: "Hive/import controllers at L9 (operators), klusterlet/registration at L10 (spoke agents)"
-    if_hive_down: "Cluster provisioning fails."
-    if_import_controller_down: "Cluster import stuck."
+    chain: "HiveConfig -> hive-operator -> hive-controllers -> hiveadmission (webhook) -> ClusterDeployment -> ClusterProvision -> Install Pod -> cloud infrastructure -> kubeconfig Secrets -> managedcluster-import-controller -> klusterlet -> registration-agent -> ManagedCluster Available"
+    layers_involved: [5, 8, 9, 1, 10, 6]
+    layer_note: "HiveConfig at L5 (config), hiveadmission webhook at L8 (API validation), hive/import controllers at L9 (operators), install pod scheduling at L1 (compute), klusterlet registration at L10+L6 (spoke+auth)"
+    if_hiveconfig_unhealthy: "All Hive operations degraded. Check HiveConfig status conditions."
+    if_hiveadmission_down: "ALL ClusterDeployment operations blocked (webhook failurePolicy: Fail). Includes create, update, delete."
+    if_hive_down: "Cluster provisioning/deprovisioning stops. Existing clusters unaffected."
+    if_install_pod_fails: "Provisioning fails at cloud API level. Check install pod logs for cloud-specific errors."
+    if_import_controller_down: "Cluster import stuck. ManagedCluster stays Pending."
     if_klusterlet_disconnected: "All spoke-dependent features fail for that cluster."
+    prerequisites:
+      - "ClusterImageSet must exist for target OCP version (oc get clusterimagesets)"
+      - "Cloud provider credentials must be valid (Secret in cluster namespace)"
+      - "ClusterDeployment must be created AFTER Secrets (resource ordering matters)"
     classification_hint:
+      hiveconfig_unhealthy: INFRASTRUCTURE
+      hiveadmission_down: INFRASTRUCTURE
       hive_down: INFRASTRUCTURE
+      install_pod_cloud_error: INFRASTRUCTURE
       import_controller_down: INFRASTRUCTURE
       klusterlet_disconnected: INFRASTRUCTURE
+      clusterimagesets_missing: INFRASTRUCTURE
 
   console:
     chain: "OpenShift OAuth -> console-api -> ConsolePlugin CRs -> feature UIs"
@@ -139,3 +150,5 @@ cross_subsystem_dependencies:
   - "Addon delivery (addon-manager in hub namespace) is required for ALL spoke-side addons -- single point of failure"
   - "Registration (registration-controller in hub namespace) is required for new cluster imports -- existing clusters unaffected"
   - "ConsolePlugin CRs (acm, mce) must be registered for UI features to appear -- missing plugin = missing UI tabs"
+  - "Provisioning stuck + import stuck simultaneously -> investigate hive-controllers or HiveConfig first (shared root cause)"
+  - "Multiple unrelated pods with ImagePullBackOff -> check MCH operator CSV for corrupted OPERAND_IMAGE_* refs (Layer 5 root cause)"

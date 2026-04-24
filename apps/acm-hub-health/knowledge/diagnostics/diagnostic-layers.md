@@ -147,10 +147,26 @@ suspicious. This is checked BEFORE pod health (Layer 9) because a
 NetworkPolicy can make pods appear healthy (Running, 0 restarts) while
 being completely non-functional.
 
+**Service endpoint verification:** Every inter-component dependency
+in ACM traverses a Kubernetes Service. A Service with zero ready
+endpoints is a silent failure -- requests hang or return connection
+refused, but no error appears on the Service object itself. When a
+NetworkPolicy is found or connectivity failures are suspected, check
+whether affected Services have ready endpoints:
+```
+oc get endpoints -n <acm-ns> --no-headers | awk '$2 == "<none>" {print $1}'
+oc get endpoints -n multicluster-engine --no-headers | awk '$2 == "<none>" {print $1}'
+oc get endpoints -n hive --no-headers | awk '$2 == "<none>" {print $1}'
+```
+Any Service with `<none>` endpoints means its selector does not match
+any Running/Ready pods. Cross-reference with `service-map.yaml` to
+identify which components are affected.
+
 **Diagnostic traps:** Trap 9 (ResourceQuota blocks pod restarts),
 Trap 11 (NetworkPolicy silently blocks pod communication).
 
-**Knowledge:** infrastructure/architecture.md, infrastructure/known-issues.md
+**Knowledge:** infrastructure/architecture.md, infrastructure/known-issues.md,
+service-map.yaml
 
 ---
 
@@ -170,6 +186,22 @@ Broken:  PVC Pending, disk full, emptyDir data lost, S3 expired
 Signal:  search-postgres recently restarted? emptyDir data loss (Trap 3).
 ```
 
+**Storage models vary by component.** Not all ACM components use PVCs.
+Before checking PVCs, determine the component's storage model:
+```
+# Determine storage model for any deployment:
+# oc get deploy <name> -n <ns> -o jsonpath='{.spec.template.spec.volumes[*].name}'
+#
+# PVC-backed:  observability (thanos-receive, thanos-store, alertmanager,
+#              compactor, rule) -- data survives pod restart
+# emptyDir:    search-postgres (default) -- data lost on restart, rebuilt
+#              from collectors. No PVC expected; absence is normal.
+# Stateless:   search-api, console, grc-propagator, import-controller
+#              -- no persistent data, no storage concern
+# External:    observability (S3/object storage) -- check thanos-object-storage Secret
+```
+A missing PVC is only a finding if the component is expected to use one.
+
 **Diagnostic traps:** Trap 3 (search empty but pods green -- emptyDir
 data loss), Trap 4 (observability empty -- S3 misconfiguration).
 
@@ -182,18 +214,45 @@ healthy-baseline.yaml
 
 **What breaks:** MCH component disabled (feature silently absent), OLM
 Subscription pointing to wrong channel, ConfigMap with wrong values,
-feature gate not enabled.
+feature gate not enabled, CatalogSource gRPC disconnected, CSV not
+Succeeded.
 
 ```
 Check: oc get mch -n <acm-ns> -o jsonpath='{range .spec.overrides.components[*]}{.name}={.enabled}{"\n"}{end}'
        oc get sub -A | grep -E "acm|mce|multicluster"
-Healthy: All expected MCH components enabled, correct OLM subscriptions
-Broken:  Component disabled (silently absent), wrong subscription channel
+       oc get catsrc -n openshift-marketplace -o 'custom-columns=NAME:.metadata.name,STATE:.status.connectionState.lastObservedState'
+       oc get csv -n <acm-ns> -o 'custom-columns=NAME:.metadata.name,PHASE:.status.phase'
+       oc get csv -n multicluster-engine -o 'custom-columns=NAME:.metadata.name,PHASE:.status.phase'
+Healthy: All expected MCH components enabled, correct OLM subscriptions,
+         CatalogSources READY, CSVs Succeeded
+Broken:  Component disabled (silently absent), wrong subscription channel,
+         CatalogSource disconnected, CSV stuck (Pending/Replacing/Failed)
 Signal:  Feature completely absent (no pods, no CRDs, no errors)?
          Check Layer 5 -- a disabled component produces zero evidence.
 ```
 
-**Knowledge:** acm-platform.md, per-subsystem architecture files
+**OLM is the foundation for ALL operators.** A CatalogSource with
+stale gRPC connectivity prevents OLM from resolving operator updates.
+A CSV not in `Succeeded` phase means the operator deployment may be
+partially rolled out. OLM also enforces a hard OCP version ceiling
+via `olm.maxOpenShiftVersion` -- check this when upgrades fail:
+```
+oc get csv -n <acm-ns> -o jsonpath='{.items[0].metadata.annotations.olm\.maxOpenShiftVersion}'
+```
+If this annotation exists and the OCP version exceeds it, OLM blocks
+operator upgrade until a newer bundle is published.
+
+**Cross-layer note (L1 symptom, L5 root cause):** If multiple unrelated
+pods show ImagePullBackOff simultaneously, check the CSV for corrupted
+`OPERAND_IMAGE_*` env vars. The MCH operator CSV contains 40+ image
+references. A corrupted CSV propagates bad image refs to all managed
+component deployments:
+```
+oc get csv -n <acm-ns> -o yaml | grep OPERAND_IMAGE | head -5
+```
+
+**Knowledge:** acm-platform.md, per-subsystem architecture files,
+version-constraints.yaml
 
 ---
 
@@ -214,6 +273,16 @@ Healthy: IDPs configured, no pending CSRs, certs valid
 Broken:  IDP unreachable, certs expired, SA tokens missing
 Signal:  Admin works but non-admin fails? This is Layer 6, not Layer 12.
 ```
+
+**Multi-hop token forwarding:** For features accessed through the OCP
+Console, the user's OAuth token is forwarded across multiple hops:
+Browser → OCP Console → ConsolePlugin proxy → plugin backend
+(console-api) → target service (search-api, grc-propagator, etc.).
+A 401/403 at any hop breaks the chain. When diagnosing auth failures
+for console-proxied features, check logs at each hop to identify WHERE
+the token is rejected. This applies to ALL features accessed through
+the console UI (search, governance, applications, observability,
+fleet virtualization).
 
 **Diagnostic traps:** Trap 12 (TLS cert corrupted -- service-ca
 doesn't auto-repair existing secrets).
@@ -285,6 +354,8 @@ Check: oc get deploy multiclusterhub-operator -n <acm-ns>
        oc get pods -n multicluster-engine --field-selector=status.phase!=Running,status.phase!=Succeeded
        oc get pods -n open-cluster-management-hub --field-selector=status.phase!=Running,status.phase!=Succeeded
        oc get pods -n hive --no-headers
+       oc get statefulset -n hive --no-headers
+       oc get statefulset -n open-cluster-management-observability --no-headers 2>/dev/null
        oc logs -n <acm-ns> -l name=multiclusterhub-operator --tail=50
 Healthy: Operator replicas match desired, reconciling normally
 Broken:  0 replicas (CRITICAL -- Trap 1), CrashLoopBackOff, hot-loop
@@ -295,8 +366,40 @@ Signal:  MCH says "Running" but things break? Check operator replicas.
 "Running" is STALE. All ACM components are unmanaged and will not
 recover from failures. This takes priority over all other findings.
 
+**StatefulSets alongside Deployments:** Some namespaces have both.
+The `hive` namespace has Deployments (hive-controllers, hiveadmission)
+AND StatefulSets (hive-clustersync, hive-machinepool). Observability
+uses StatefulSets for thanos-receive, thanos-store, compactor, rule,
+and alertmanager. Always check `oc get statefulset` in addition to
+Deployments for these namespaces.
+
+**Sub-operator CR status:** Many ACM subsystems use an intermediate
+Custom Resource between the top-level MCH/MCE status and individual
+pods. These CRs report subsystem-level health:
+```
+oc get search -n <acm-ns> -o yaml 2>/dev/null | grep -A3 'type: Ready'
+oc get hiveconfig -o yaml 2>/dev/null | grep -A5 'status:'
+oc get mco observability -o yaml 2>/dev/null | grep -A5 'conditions:'
+```
+When MCH says "Running" but a subsystem is broken, check its
+intermediate CR before diving into individual pod logs. The general
+pattern is: operator → intermediate CR → component deployments.
+
+**Replica mismatch investigation:** When `desiredReplicas !=
+availableReplicas`, trace the Deployment → ReplicaSet → Pod chain
+before checking container logs. The pod may never have started:
+```
+oc describe deploy <name> -n <ns> | grep -A5 'Conditions\|Events'
+oc get events -n <ns> --sort-by=.lastTimestamp --field-selector involvedObject.kind=Pod | tail -10
+```
+Common findings: `Unschedulable` (Layer 1: node resources, taints),
+`FailedCreate` (Layer 3: ResourceQuota), `FailedScheduling` (Layer 1:
+affinity/anti-affinity). Do not check container logs when the
+container never started.
+
 **Diagnostic traps:** Trap 1 (stale MCH/MCE status when operator not
-running), Trap 7 (ALL addons Unavailable -- check addon-manager first).
+running), Trap 7 (ALL addons Unavailable -- check addon-manager first),
+Trap 14 (both operator replicas Running but leader election stuck).
 
 **Knowledge:** acm-platform.md, healthy-baseline.yaml, per-subsystem
 architecture files
@@ -407,10 +510,11 @@ obvious diagnosis is wrong:
 | 11 | Pods Running, cross-service fails | Layer 9 (per-service) | Layer 3 (NetworkPolicy) |
 | 12 | TLS errors, service-ca healthy | Layer 9 (service-ca) | Layer 6 (corrupted secret) |
 | 13 | Feature tabs present but broken | Layer 12 (UI rendering) | Layer 9 (plugin backend) |
+| 14 | Both replicas Running, nothing reconciling | OK (pods healthy) | Layer 9 (leader election stuck) |
 
 ## Using Layers with Dependency Chains
 
-The 11 dependency chains in `dependency-chains.md` trace HORIZONTALLY
+The 12 dependency chains in `dependency-chains.md` trace HORIZONTALLY
 within and across subsystems. The layer model traces VERTICALLY through
 infrastructure layers. Use both:
 
@@ -431,6 +535,14 @@ When multiple issues are found across different subsystems:
    - Yes → that's the root cause; higher findings are symptoms
    - No → there are multiple independent root causes
 4. For each potential root cause, verify with evidence-tiers.md rules
+5. Trace resource ownership to confirm the causal chain:
+   `oc get <resource> -n <ns> -o jsonpath='{.metadata.ownerReferences}'`
+   Owner references confirm which controller created the resource.
+   If multiple unhealthy resources share a common owner, investigate
+   that owner rather than each resource individually. This works for
+   any Kubernetes resource and is especially useful when the component
+   is not covered by curated dependency chains. See
+   `cluster-introspection.md` source #1 for the full technique.
 
 Example: Search shows empty results (Layer 11 symptom), AND GRC shows
 stale compliance (Layer 11 symptom). Instead of investigating each

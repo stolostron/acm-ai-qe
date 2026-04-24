@@ -2,7 +2,7 @@
 # YAML complement to diagnostics/dependency-chains.md (narrative version).
 # Use this for structured lookups; read the narrative version for investigation procedures.
 #
-# 11 chains: 8 core + app-lifecycle-subscription + virtualization-vm-discovery + submariner-networking
+# 12 chains: 8 core + app-lifecycle-subscription + virtualization-vm-discovery + submariner-networking + cluster-provisioning
 # Populated by: refresh.py (Neo4j KG transitive queries + manual curation)
 # Refresh frequency: weekly or after ACM version change
 
@@ -359,6 +359,47 @@ chains:
       globalnet_missing: "Overlapping CIDRs not translated. Cross-cluster traffic fails with IP conflicts."
       ocp_418_incompatible: "Submariner breaks on OCP 4.18+ due to OVN-Kubernetes changes (ACM-22805)."
 
+  - id: cluster-provisioning
+    name: "HiveConfig -> ClusterDeployment -> Install Pod -> ManagedCluster"
+    description: "Cluster provisioning via Hive. Spans from HiveConfig through cloud infrastructure provisioning to managed cluster registration."
+    layers: [5, 8, 9, 1, 10, 6]
+    components:
+      - name: hive-operator
+        role: hive_lifecycle
+        depends_on: [mce-operator]
+        note: "Deploys Hive controllers based on HiveConfig CR. In multicluster-engine namespace."
+      - name: hiveconfig
+        role: configuration
+        depends_on: [hive-operator]
+        note: "Cluster-scoped CR controlling Hive behavior. Missing HiveConfig = no Hive controllers deployed."
+      - name: hive-controllers
+        role: provisioning_orchestrator
+        depends_on: [hiveconfig]
+        note: "Watches ClusterDeployments, creates ClusterProvisions and install pods. In hive namespace."
+      - name: hiveadmission
+        role: webhook_validation
+        depends_on: [hiveconfig]
+        note: "Validates ClusterDeployment operations. failurePolicy: Fail -- if down, ALL CD ops blocked (Trap 10)."
+      - name: install-pod
+        role: cloud_provisioner
+        depends_on: [hive-controllers]
+        note: "Ephemeral pod running openshift-install. In cluster namespace. Label: hive.openshift.io/install=true."
+      - name: managedcluster-import-controller
+        role: cluster_import
+        depends_on: [install-pod]
+        note: "Auto-imports provisioned clusters. Deploys klusterlet via ManifestWork."
+      - name: klusterlet
+        role: spoke_agent
+        depends_on: [managedcluster-import-controller]
+        note: "Registration + work agent on spoke. Required for all spoke-dependent features."
+    impact:
+      hiveconfig_missing: "hive-operator has nothing to watch. No Hive controllers deployed."
+      hive_controllers_down: "ALL new cluster provisioning stops. Existing clusters unaffected."
+      hiveadmission_down: "ALL ClusterDeployment operations blocked (create, update, delete). Trap 10."
+      install_pod_failed: "Single cluster provisioning failed. Check install pod logs for cloud-specific errors."
+      import_controller_down: "Provisioned clusters not auto-imported. Cluster stays in provisioning-complete state."
+      clusterimagesets_missing: "Provisioning fails at image resolution. Common in disconnected environments."
+
 cross_chain_patterns:
   - symptom: "Search + Observability both broken"
     likely_cause: "Shared storage or node pressure"
@@ -407,3 +448,11 @@ cross_chain_patterns:
   - symptom: "App + VM + Policy status all Unknown on one spoke"
     likely_cause: "klusterlet disconnected (all spoke-dependent features fail)"
     chains_affected: [app-lifecycle-subscription, virtualization-vm-discovery, governance-policy-spoke, observability-metrics]
+
+  - symptom: "Cluster provisioning stuck + cluster import stuck"
+    likely_cause: "Hive controllers or HiveConfig issue"
+    chains_affected: [cluster-provisioning]
+
+  - symptom: "ALL cluster ops fail (create, import, delete)"
+    likely_cause: "Hive webhook down (hiveadmission)"
+    chains_affected: [cluster-provisioning]

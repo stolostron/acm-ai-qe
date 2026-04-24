@@ -11,7 +11,7 @@ Jenkins pipeline failure analysis (v4.0) with classification: PRODUCT_BUG | AUTO
 Five-stage pipeline:
 0. **Environment Oracle** (inside gather.py) — Feature-aware dependency health & knowledge database (`cluster_oracle`)
 1. **gather.py** — Extracts test data from Jenkins (builds `core-data.json` with cluster landscape and feature grounding; persists `cluster.kubeconfig` for Stage 1.5 and Stage 2)
-1.5. **Cluster Diagnostic** (AI agent) — Comprehensive 6-phase cluster investigation producing `cluster-diagnosis.json` with environment health score, subsystem health, operator health, image integrity validation, classification guidance, dependency chain verification, 14 diagnostic trap checks, and structured data for Stage 2 routing
+1.5. **Cluster Diagnostic** (AI agent) — Comprehensive 6-phase cluster investigation producing `cluster-diagnosis.json` with environment health score, subsystem health, operator health, image integrity validation, classification guidance, dependency chain verification, 14 diagnostic trap checks (+ Trap 1b leader-election variant), service endpoint verification, OLM foundational health, sub-operator CR status, and structured data for Stage 2 routing
 2. **AI Analysis** — 12-layer diagnostic investigation: groups tests by shared signals, traces root cause through infrastructure layers (Compute→UI), classifies based on WHO caused breakage. Per-group investigation agents for deeper analysis. Produces `analysis-results.json` with `root_cause_layer` per test.
 3. **report.py** — Generates `Detailed-Analysis.md` + `analysis-report.html` from analysis results
 
@@ -19,7 +19,7 @@ See `apps/z-stream-analysis/CLAUDE.md` for schema requirements, classification g
 
 ### ACM Hub Health Agent (`apps/acm-hub-health/`) — Active
 
-AI-powered diagnostic and remediation agent for ACM hub clusters. Uses Claude Code with embedded ACM domain knowledge to perform health checks at any depth -- from quick sanity checks to deep component-level investigations. Natural language driven, no dependencies beyond `oc` + `claude`. Diagnosis is read-only; cluster fixes are executed only after presenting a structured remediation plan and getting explicit user approval. Includes structured knowledge database (`knowledge/`) with baseline, dependency chains (11 cascade paths with layer annotations), 12-layer diagnostic model (vertical root cause tracing), webhooks, certificates, addon catalog, and 13 diagnostic traps. Phase 3 uses layer-organized health checks (foundational layers first, then component layers). Phase 5 traces both horizontally (dependency chains) and vertically (12 infrastructure layers). Uses the ACM search database MCP (`acm-search`) for fleet-wide spoke-side resource queries across all managed clusters. Falls back to cluster metadata introspection (8 live metadata sources) and the Neo4j knowledge graph MCP (`neo4j-rhacm`) for dependency analysis when the curated knowledge doesn't cover a component or path. Optional CLI wrapper (`acm-hub`) enables running diagnostics from any terminal without launching an interactive session. Session tracing via Claude Code hooks captures all tool calls, MCP interactions, prompts, and errors to structured JSONL files (`.claude/traces/`) with diagnostic-specific enrichment (oc command parsing, phase inference, mutation detection, session-level aggregate stats).
+AI-powered diagnostic and remediation agent for ACM hub clusters. Uses Claude Code with embedded ACM domain knowledge to perform health checks at any depth -- from quick sanity checks to deep component-level investigations. Natural language driven, no dependencies beyond `oc` + `claude`. Diagnosis is read-only; cluster fixes are executed only after presenting a structured remediation plan and getting explicit user approval. Includes structured knowledge database (`knowledge/`) with baseline, dependency chains (12 cascade paths with layer annotations), 12-layer diagnostic model (vertical root cause tracing), webhooks, certificates, addon catalog, and 14 diagnostic traps. Phase 3 uses layer-organized health checks (foundational layers first, then component layers). Phase 5 traces both horizontally (dependency chains) and vertically (12 infrastructure layers). Uses the ACM search database MCP (`acm-search`) for fleet-wide spoke-side resource queries across all managed clusters. Falls back to cluster metadata introspection (8 live metadata sources) and the Neo4j knowledge graph MCP (`neo4j-rhacm`) for dependency analysis when the curated knowledge doesn't cover a component or path. Optional CLI wrapper (`acm-hub`) enables running diagnostics from any terminal without launching an interactive session. Session tracing via Claude Code hooks captures all tool calls, MCP interactions, prompts, and errors to structured JSONL files (`.claude/traces/`) with diagnostic-specific enrichment (oc command parsing, phase inference, mutation detection, session-level aggregate stats).
 
 Usage: `cd apps/acm-hub-health && bash setup.sh && oc login <hub> && claude`
 
@@ -115,9 +115,9 @@ ai_systems_v2/
 # Z-stream analysis tests (from app directory)
 cd apps/z-stream-analysis/
 
-# Fast — unit + regression (664 tests, no external deps):
+# Fast — unit + regression (703 tests, no external deps):
 python -m pytest tests/unit/ tests/regression/ -q
 
-# Full suite (714+ tests, requires Jenkins VPN for integration):
+# Full suite (748 tests, requires Jenkins VPN for integration):
 python -m pytest tests/ -q --timeout=300
 ```

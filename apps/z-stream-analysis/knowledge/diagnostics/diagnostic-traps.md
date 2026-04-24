@@ -36,6 +36,25 @@ means no component reconciliation — any component that crashes stays down.
 **Rule:** Never trust MCH/MCE `.status.phase` without first confirming the
 operator pod is Running and Ready.
 
+**Variant — Leader Election Stuck (Trap 1b):** Both operator replicas
+show Running/Ready, health probes pass, but reconciliation has stopped.
+The Kubernetes leader election Lease expired (often due to etcd latency
+at Layer 2), and neither replica re-acquired it. The agent checks
+operator replicas (2/2 — healthy), pod status (Running/Ready — healthy),
+MCH status (Running — appears healthy) and concludes everything is fine.
+Meanwhile, no reconciliation is happening and managed resources drift.
+
+**How to detect:**
+```bash
+# Check leader election Lease renewTime
+oc get lease -n <mch-ns> | grep multiclusterhub
+oc get lease <lease-name> -n <mch-ns> -o jsonpath='{.spec.renewTime}'
+# If renewTime is not within the last few minutes, leader election is stuck
+```
+
+**Applies to:** MCH operator (2 replicas), MCE operator (2 replicas),
+grc-policy-propagator (2 replicas), cluster-manager (3 replicas).
+
 ---
 
 ## Trap 2: Console Pod Healthy but Feature Tabs Missing
@@ -117,6 +136,16 @@ due to pod restart, will self-recover).
 
 **Rule:** Search "all green" + "empty results" = always check postgres pod
 age and data count before classifying.
+
+**Operational note — Recreate strategy + emptyDir:** search-postgres uses
+Deployment strategy `Recreate` (not `RollingUpdate`). Combined with
+`emptyDir`, every deployment update terminates the old pod BEFORE starting
+the new one, guaranteeing data loss and a downtime window. Any MCH
+operator reconciliation that touches the search-postgres deployment spec
+(image update during upgrade, resource limit change, env var modification)
+causes the pod to be killed before the new one starts. Post-upgrade empty
+search results for 10-30 minutes is expected behavior (similar to Trap 5
+for GRC), not a finding.
 
 ---
 
@@ -287,6 +316,7 @@ before investigating individual features.
 | Trap | Symptom | Check First | Wrong Classification → Correct |
 |------|---------|-------------|-------------------------------|
 | 1 | MCH says Running but things break | Operator pod replicas | PRODUCT_BUG → INFRASTRUCTURE |
+| 1b | Operator pods Running but nothing reconciling | Leader election Lease renewTime | Healthy → INFRASTRUCTURE |
 | 2 | Console pod healthy, tabs missing | console-mce + ConsolePlugin CRDs | AUTOMATION_BUG → INFRASTRUCTURE |
 | 3 | Search all green, empty results | Postgres pod age + data count | PRODUCT_BUG → INFRASTRUCTURE |
 | 4 | Observability dashboards empty | Thanos pods + S3 secret | PRODUCT_BUG → INFRASTRUCTURE |
@@ -343,6 +373,18 @@ This is invisible to basic pod health checks.
 
 **Rule:** If services can't communicate but pods are healthy, check
 certificates before investigating code.
+
+**Shared TLS secret pattern:** Some ACM services share TLS secrets
+across components. When multiple services show TLS errors simultaneously,
+check whether they share a common TLS secret — one corrupted secret
+explains all the failures:
+```bash
+# Find which deployments mount the same secret
+oc get deploy -n <acm-ns> -o json | jq -r '.items[] | .metadata.name as $d | .spec.template.spec.volumes[]? | select(.secret) | "\($d) -> \(.secret.secretName)"' | sort -t'>' -k2
+```
+If multiple deployments reference the same TLS secret and that secret is
+corrupted or expired, the root cause is ONE secret, not multiple
+independent certificate failures.
 
 ---
 

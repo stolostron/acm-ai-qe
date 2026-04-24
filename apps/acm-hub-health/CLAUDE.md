@@ -108,7 +108,7 @@ Report before/after status.
 
 ## Knowledge System
 
-See `knowledge/README.md` for the full knowledge map (57 files, 5 layers).
+See `knowledge/README.md` for the full knowledge map (59 files, 5 layers).
 
 **Usage priority**: Architecture first (understand how it works) ->
 known-issues (match patterns) -> structured YAML (compare baselines) ->
@@ -193,7 +193,7 @@ Build understanding of what's deployed and what healthy looks like:
 3. For each component: read `architecture/<component>/architecture.md` +
    any `learned/` entries. Compare cluster state with knowledge.
 4. Read `knowledge/healthy-baseline.yaml` -- load expected baselines
-5. Read `knowledge/diagnostics/common-diagnostic-traps.md` -- load 13 traps
+5. Read `knowledge/diagnostics/common-diagnostic-traps.md` -- load 14 traps
 6. If managed clusters present, read
    `knowledge/architecture/cluster-lifecycle/health-patterns.md`
 7. Read `knowledge/diagnostics/diagnostic-layers.md` -- 12-layer framework
@@ -269,7 +269,7 @@ incompatibilities.
 ### Phase 5: Correlate (Deep)
 
 When multiple issues are found:
-1. Trace HORIZONTALLY: `knowledge/diagnostics/dependency-chains.md` (11
+1. Trace HORIZONTALLY: `knowledge/diagnostics/dependency-chains.md` (12
    chains) or `dependency-chains.yaml` (structured format)
 2. Trace VERTICALLY: identify the LOWEST affected layer across all
    findings. A single Layer 3 issue manifests as Layer 11 and 12 symptoms.

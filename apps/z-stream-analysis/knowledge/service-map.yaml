@@ -1,0 +1,180 @@
+# ACM Service Map -- Z-Stream Analysis
+# Maps critical Kubernetes Services to their backing pods, consumers, and
+# diagnostic notes. Used by the AI agent when Layer 3 endpoint verification
+# finds a Service with zero ready endpoints -- this file answers "what breaks?"
+#
+# Validated against: ACM 2.16 GA on Azure (ashafi-acm-216-ga)
+# Refresh frequency: after ACM version change
+
+services:
+
+  # =====================================================================
+  # MCH Namespace Services
+  # =====================================================================
+
+  search-search-api:
+    namespace: "{mch_ns}"
+    port: 4010
+    pod_selector: "app=search-api"
+    consumers:
+      - console-chart-console-v2
+    diagnostic_note: >
+      Zero endpoints = all search-dependent features fail silently (empty
+      results, no error). Affects: Search UI, Fleet Virt VM list, Fleet Virt
+      tree view, RBAC resource views, some policy status views (Trap 8).
+
+  search-search-indexer:
+    namespace: "{mch_ns}"
+    port: 3010
+    pod_selector: "app=search-indexer"
+    consumers:
+      - search-collector (spoke addon)
+    diagnostic_note: >
+      Zero endpoints = spoke collectors can't deliver data. Search index
+      stops updating. Existing data still queryable via search-api.
+
+  search-search-postgres:
+    namespace: "{mch_ns}"
+    port: 5432
+    pod_selector: "app=search-postgres"
+    consumers:
+      - search-api
+      - search-indexer
+    diagnostic_note: >
+      Zero endpoints = all search queries fail with SQL connection error.
+      Uses emptyDir -- data lost on restart (Trap 3). Recreate strategy
+      guarantees downtime during deployment updates.
+
+  console-chart-console-v2:
+    namespace: "{mch_ns}"
+    port: 3000
+    pod_selector: "app=console-chart-v2"
+    consumers:
+      - OCP console (via ConsolePlugin proxy)
+    diagnostic_note: >
+      Zero endpoints = ALL ACM console features unavailable. The OCP
+      console still loads but ACM tabs show errors or blank content.
+
+  grc-policy-propagator:
+    namespace: "{mch_ns}"
+    port: 8381
+    pod_selector: "component=ocm-policy-propagator"
+    consumers:
+      - console-chart-console-v2 (governance API proxy)
+    diagnostic_note: >
+      Zero endpoints = no new policies distributed to spokes. Existing
+      policies continue to be enforced on spokes but compliance status
+      updates stop reaching the hub.
+
+  # =====================================================================
+  # Multicluster-Engine Namespace Services
+  # =====================================================================
+
+  console-mce-console:
+    namespace: multicluster-engine
+    port: 3001
+    pod_selector: "app=console-mce"
+    consumers:
+      - OCP console (via ConsolePlugin proxy)
+    diagnostic_note: >
+      Zero endpoints = MCE UI tabs silently disappear (Trap 2). Cluster
+      management, infrastructure, and CLC UI features all missing. No
+      error shown -- nav items simply don't render.
+
+  ocm-webhook:
+    namespace: multicluster-engine
+    port: 443
+    pod_selector: "control-plane=ocm-webhook"
+    consumers:
+      - kube-apiserver (via ValidatingWebhookConfiguration)
+    diagnostic_note: >
+      Zero endpoints = ManagedCluster and related resource validation
+      fails. Operations may be rejected or pass without validation
+      depending on failurePolicy.
+
+  cluster-proxy:
+    namespace: multicluster-engine
+    port: 8090
+    pod_selector: "proxy.open-cluster-management.io/component-name=proxy-server"
+    consumers:
+      - console-chart-console-v2
+      - console-mce-console
+    diagnostic_note: >
+      Zero endpoints = spoke cluster API proxy unavailable. Features
+      requiring direct spoke access (terminal, logs) fail.
+
+  # =====================================================================
+  # Hive Namespace Services
+  # =====================================================================
+
+  hiveadmission:
+    namespace: hive
+    port: 443
+    pod_selector: "app=hiveadmission"
+    consumers:
+      - kube-apiserver (via ValidatingWebhookConfiguration)
+    diagnostic_note: >
+      Zero endpoints = ALL ClusterDeployment operations blocked (Trap 10
+      pattern). kube-apiserver can't reach the admission webhook, so
+      cluster creation, updates, and deletion all fail with "failed
+      calling webhook" errors.
+
+  hive-controllers:
+    namespace: hive
+    port: 8080
+    pod_selector: "control-plane=controller-manager"
+    consumers:
+      - metrics scraper
+    diagnostic_note: >
+      Metrics-only service. Zero endpoints means hive-controllers pod
+      is not running -- check deployment and events. Cluster provisioning
+      and deprovision operations will not be processed.
+
+  # =====================================================================
+  # Hub Namespace Services
+  # =====================================================================
+
+  cluster-manager-registration-webhook:
+    namespace: open-cluster-management-hub
+    port: 9443
+    pod_selector: "app=cluster-manager-registration-webhook"
+    consumers:
+      - kube-apiserver (via ValidatingWebhookConfiguration)
+    diagnostic_note: >
+      Zero endpoints = ManagedCluster create/update operations rejected.
+      New cluster imports fail.
+
+  cluster-manager-work-webhook:
+    namespace: open-cluster-management-hub
+    port: 9443
+    pod_selector: "app=cluster-manager-work-webhook"
+    consumers:
+      - kube-apiserver (via ValidatingWebhookConfiguration)
+    diagnostic_note: >
+      Zero endpoints = ManifestWork validation fails. All addon
+      deployment and spoke resource delivery blocked.
+
+  # =====================================================================
+  # Observability Namespace Services (when enabled)
+  # =====================================================================
+
+  observability-thanos-query:
+    namespace: open-cluster-management-observability
+    port: 9090
+    pod_selector: "app.kubernetes.io/name=thanos-query"
+    consumers:
+      - observability-grafana
+      - observability-rbac-query-proxy
+    diagnostic_note: >
+      Zero endpoints = Grafana dashboards show no data. All observability
+      queries fail.
+
+  observability-thanos-receive:
+    namespace: open-cluster-management-observability
+    port: 19291
+    pod_selector: "app.kubernetes.io/name=thanos-receive"
+    consumers:
+      - metrics-collector (spoke addon)
+    diagnostic_note: >
+      Zero endpoints = spoke metrics not ingested. Historical data still
+      available via thanos-store but no new metrics arrive.

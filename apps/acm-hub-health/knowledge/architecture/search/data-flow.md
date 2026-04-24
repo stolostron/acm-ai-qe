@@ -81,8 +81,13 @@ Stores the complete resource index. Contains:
 
 ### Console Integration Path
 ```
-Browser -> console-api (BFF) -> Resource Proxy -> search-api (GraphQL)
+Browser -> OCP Console -> ConsolePlugin proxy -> console-api (BFF) -> Resource Proxy -> search-api (GraphQL)
 ```
+The first two hops (OCP Console and ConsolePlugin proxy) are transparent
+to the search data flow but are distinct failure domains: if the OCP
+Console pod or ConsolePlugin registration is broken, search queries from
+the UI fail even though search-api is healthy. Direct API access to
+search-api (bypassing console) would still work.
 
 ### Fleet Virt Integration Path
 ```

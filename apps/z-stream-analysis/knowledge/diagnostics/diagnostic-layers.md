@@ -149,13 +149,26 @@ Knowledge: kubernetes-fundamentals.md
 ```
 Check: oc get networkpolicy -n <acm-ns> --no-headers
        oc get endpoints -n <acm-ns> <service-name>
+       oc get svc -n <acm-ns> -o wide
        oc exec deploy/<pod-a> -- curl http://<service-b>:<port> --connect-timeout 3
        oc get resourcequota -n <acm-ns>
-Healthy: No NetworkPolicies in ACM namespaces, pods can reach services
+Healthy: No NetworkPolicies in ACM namespaces, all Services have ready endpoints
 Broken: NetworkPolicy blocking traffic, service has no endpoints, DNS failure
 IMPORTANT: ACM does NOT create NetworkPolicies. Any found in ACM namespaces is suspicious.
-Knowledge: infrastructure/failure-signatures.md, subsystem architecture files
+Knowledge: infrastructure/failure-signatures.md, service-map.yaml, subsystem architecture files
 ```
+
+**Service endpoint verification:** A Service with zero ready endpoints is
+a silent failure — the Service object exists, the pod may be Running, but
+no traffic reaches it because the selector doesn't match any Ready pods.
+This happens after label changes during upgrades, when readiness probes
+fail, or when pods restart and haven't passed readiness yet. Check:
+```
+oc get endpoints -n <acm-ns> <service-name>
+# If ENDPOINTS column shows <none>, no traffic can reach the backing pods
+```
+Cross-reference `knowledge/service-map.yaml` for which components depend
+on each Service and what breaks when endpoints are missing.
 
 ### Layer 4: Storage / Data Persistence
 ```
@@ -168,14 +181,54 @@ Signal: search-postgres recently restarted? emptyDir data loss (Trap 3).
 Knowledge: search/architecture.md, observability/failure-signatures.md
 ```
 
+**Storage model reference:** Determine the storage model BEFORE checking
+PVCs. Different components use different storage and need different checks:
+
+| Component | Storage Model | Layer 4 Concern |
+|-----------|--------------|-----------------|
+| search-postgres | emptyDir | Pod restart = total data loss. Check pod age + row count |
+| observability (thanos-*) | PVC (StatefulSet) | PVC bound? Disk full? S3 credentials valid? |
+| search-api, console, grc | stateless | No Layer 4 concern — skip for these |
+| hive-clustersync | emptyDir | Pod restart = sync state lost, re-sync needed |
+
+For emptyDir components, the diagnostic question is "did the pod restart
+recently?" not "is the PVC bound?" For stateless components, skip Layer 4.
+
 ### Layer 5: Configuration / Desired State
 ```
 Check: oc get mch -n <acm-ns> -o jsonpath='{range .spec.overrides.components[*]}{.name}={.enabled}{"\n"}{end}'
        oc get sub -A | grep -E "acm|mce|multicluster"
-Healthy: All MCH components enabled, correct OLM subscriptions
+       oc get catsrc -n openshift-marketplace
+       oc get installplan -n <acm-ns>
+       oc get csv -n <acm-ns>
+Healthy: All MCH components enabled, correct OLM subscriptions, CSVs Succeeded
 Broken: Component disabled (silently absent), wrong subscription channel
 Signal: Feature completely absent (no pods, no CRDs, no errors)? Check Layer 5 first.
-Knowledge: acm-platform.md, subsystem architecture files
+Knowledge: acm-platform.md, subsystem architecture files, version-constraints.yaml
+```
+
+**OLM foundational health:** OLM is the foundation for all operator
+installations. Three failure scenarios are invisible to basic pod checks:
+
+1. **CatalogSource with stale gRPC connection:** `oc get catsrc -n
+   openshift-marketplace` — if `LAST OBSERVED` is stale, OLM can't
+   resolve new operator versions. Self-healing is broken.
+2. **olm.maxOpenShiftVersion ceiling:** After OCP upgrade, check if the
+   cluster's OCP version exceeds the operator bundle's ceiling annotation.
+   CSV stays in Replacing/Pending state. See `version-constraints.yaml`.
+3. **Corrupted CSV with bad OPERAND_IMAGE refs:** The MCH operator CSV
+   contains 40+ image references as `OPERAND_IMAGE_*` env vars. A
+   corrupted CSV propagates bad image refs to all managed component
+   deployments. Multiple unrelated pods with ImagePullBackOff
+   simultaneously is a signal to check the CSV — one root cause at
+   Layer 5 explains all the Layer 1 symptoms.
+
+```
+# Check CatalogSource health
+oc get catsrc -n openshift-marketplace -o jsonpath='{range .items[*]}{.metadata.name}: {.status.connectionState.lastObservedState}{"\n"}{end}'
+
+# Check CSV phase
+oc get csv -n <acm-ns> -o jsonpath='{range .items[*]}{.metadata.name}: {.status.phase}{"\n"}{end}'
 ```
 
 ### Layer 6: Authentication / Identity
@@ -189,6 +242,20 @@ Signal: Admin works but non-admin fails? This is Layer 6, not Layer 12.
 Skip: If test uses admin user or ServiceAccount-based auth (auto-managed).
 Knowledge: rbac/architecture.md
 ```
+
+**Multi-hop token forwarding:** Console-proxied features involve a 5-hop
+token forwarding chain:
+```
+Browser → OCP Ingress Router (HAProxy) → OCP Console Pod
+  → ConsolePlugin proxy → plugin backend (console-api)
+    → target service (search-api, grc-propagator, etc.)
+```
+When a user gets 403 on a console-proxied feature (search, governance,
+applications, Fleet Virt, observability dashboards), the token may have
+been dropped at any hop. Check logs at each hop before concluding the
+issue is Layer 7 (RBAC). The ConsolePlugin proxy must have
+`authorization: UserToken` configured, and the console backend's
+`getAuthenticatedToken()` must succeed at each proxy stage.
 
 ### Layer 7: Authorization / RBAC
 ```
@@ -217,13 +284,61 @@ Knowledge: webhook-registry.yaml, kubernetes-fundamentals.md
 ### Layer 9: Operator / Reconciliation
 ```
 Check: oc get deploy <operator> -n <ns>
+       oc get statefulset -n hive
+       oc get statefulset -n open-cluster-management-observability
        oc logs -n <ns> -l name=<operator> --tail=50
        oc logs -n <ns> <pod> --previous (if CrashLoopBackOff)
 Healthy: Operator replicas match desired, reconciling normally
 Broken: 0 replicas (Trap 1 -- status is stale!), CrashLoopBackOff, hot-loop
 Signal: MCH says "Running" but things break? Check if MCH operator is at 0 replicas.
+       Also check leader election Lease -- pods may be Running but not reconciling (Trap 1b).
 Knowledge: acm-platform.md, components.yaml, per-subsystem architecture.md
 ```
+
+**Sub-operator CR status checks:** ACM uses a recursive operator pattern.
+When MCH says "Running" but a subsystem is broken, check the intermediate
+CR to bridge the gap between MCH status (too coarse) and pod logs (too
+granular):
+```
+# Search CR conditions
+oc get search -n <acm-ns> -o jsonpath='{range .items[0].status.conditions[*]}{.type}: {.status} ({.message}){"\n"}{end}'
+
+# HiveConfig status
+oc get hiveconfig hive -o jsonpath='{.status.conditions}'
+
+# MultiClusterObservability CR conditions
+oc get multiclusterobservability observability -o jsonpath='{.status.conditions}'
+```
+
+**Deployment scheduling investigation:** When a deployment has 0
+available replicas, check scheduling BEFORE checking container logs —
+if the pod never started, there are no logs:
+```
+oc describe deploy <name> -n <ns> | grep -A5 Conditions
+oc get events -n <ns> --sort-by=.lastTimestamp | grep -E "Unschedulable|FailedCreate|FailedScheduling"
+```
+Root cause is often Layer 1 (compute) or Layer 3 (ResourceQuota).
+
+**StatefulSet awareness:** The hive namespace has 2 StatefulSets
+(hive-clustersync, hive-machinepool) and the observability namespace
+has 5+ (thanos-receive, thanos-store, compactor, rule, alertmanager).
+`oc get deploy` misses these entirely — always check StatefulSets too.
+If hive-clustersync is down, SyncSets won't be applied to provisioned
+clusters, but `oc get deploy -n hive` would show "all healthy."
+
+**Leader election stuck (Trap 1b):** Both operator replicas may be
+Running/Ready, health probes pass, but reconciliation has stopped
+because the leader election Lease expired (often due to etcd latency
+at Layer 2). Check:
+```
+oc get lease -n <acm-ns> | grep <operator>
+oc get lease <lease-name> -n <acm-ns> -o jsonpath='{.spec.renewTime}'
+```
+A stale `renewTime` (not renewed in the last few minutes) means no
+replica holds the leader lock — reconciliation has stopped despite
+healthy-looking pods. Applies to all HA operators: MCH operator (2
+replicas), MCE operator (2), grc-policy-propagator (2), cluster-manager
+(3).
 
 ### Layer 10: Cross-Cluster / Hub-Spoke
 ```

@@ -35,7 +35,8 @@ reviews:
           Step 1: Jenkins API (build metadata, params, branch, SHA)
           Step 2: Console log download + error pattern extraction
           Step 3: JUnit/XML test report parsing + stack trace parsing
-          Step 4a: Cluster login + kubeconfig persistence + MCH namespace discovery
+          Step 4a: Cluster login (two-tier: Jenkins params → console log fallback) +
+            kubeconfig persistence + MCH namespace discovery
             (namespace can be open-cluster-management, ocm, or custom — discovered via oc get mch -A)
           Step 4b: Cluster landscape (managed clusters, operators, resource pressure)
           Backend health: handled by Stage 1.5 (cluster diagnostic) and Stage 2 (analysis agent)
@@ -70,8 +71,9 @@ reviews:
           - baseline_comparison (missing/under-replicated vs healthy-baseline.yaml)
           - addon_health, webhook_status, managed_cluster_detail
           - component_log_excerpts, component_restart_counts
-          Uses 14 diagnostic traps (11 standard + 3 counter-traps) from
-            knowledge/diagnostics/diagnostic-traps.md. Layer-aware Phase 3
+          Uses 14 diagnostic traps (11 standard + Trap 1b leader-election variant
+            + 3 counter-traps) from knowledge/diagnostics/diagnostic-traps.md.
+            Layer-aware Phase 3
             checks foundational layers (network, storage, certs) BEFORE pod
             health. Self-healing writes to knowledge/learned/ on 5 triggers.
 
@@ -526,10 +528,10 @@ reviews:
         Test files. Structure varies by app:
 
         Z-stream-analysis tests:
-        - tests/unit/ (605 tests): No network access. Test individual services.
-        - tests/regression/ (57 tests): Cross-module consistency checks,
+        - tests/unit/ (642 tests): No network access. Test individual services.
+        - tests/regression/ (61 tests): Cross-module consistency checks,
           schema coverage, field name alignment across services.
-        - tests/integration/ (50 tests): Require Jenkins VPN. Test full pipeline.
+        - tests/integration/ (45 tests): Require Jenkins VPN. Test full pipeline.
         - tests/fixtures/: Synthetic analysis-results.json for testing.
 
         Test-case-generator tests:
@@ -551,7 +553,7 @@ reviews:
         - test_consistency_enforcement.py: Drift detection across 4 classes:
           TestKnowledgeReferenceIntegrity (4): every knowledge/ and docs/ path
             referenced in CLAUDE.md/docs must exist on disk
-          TestCountConsistency (9): layers=12, chains=11, traps=13, phases=6,
+          TestCountConsistency (9): layers=12, chains=12, traps=14, phases=6,
             issue_fields=9, diagnostics_files=8 — verified across files
           TestReportFormatConsistency (4): issue template fields and verdict
             rules must match between CLAUDE.md and docs/05-OUTPUT-AND-REPORTING.md
@@ -579,7 +581,7 @@ reviews:
         Phase 2: Learn (standard+)
           Load knowledge: component-registry.md, architecture docs per
           discovered component, healthy-baseline.yaml, diagnostic-layers.md,
-          common-diagnostic-traps.md (13 anti-patterns).
+          common-diagnostic-traps.md (14 anti-patterns).
           Compare discovered topology against knowledge base.
           If managed clusters present, load health-patterns.md.
           Trigger self-healing if topology mismatches knowledge.
@@ -611,12 +613,12 @@ reviews:
           Check post-upgrade-patterns.md before reporting upgrade symptoms.
 
         Phase 5: Correlate (deep only)
-          Horizontal: dependency-chains.md/yaml (11 cascade paths upstream)
+          Horizontal: dependency-chains.md/yaml (12 cascade paths upstream)
           Vertical: 12-layer model (find LOWEST affected layer — Layer 3
             issue manifests as Layer 11 empty data → Layer 12 empty UI)
           Evidence: evidence-tiers.md (2+ sources, at least 1 Tier 1)
           Cross-chain: shared dependency (klusterlet, storage, addon-manager)?
-          Traps: verify conclusion against common-diagnostic-traps.md (13)
+          Traps: verify conclusion against common-diagnostic-traps.md (14)
           Fallback: cluster introspection (8 metadata sources), then
             neo4j-rhacm MCP, then acm-ui MCP for source code understanding.
 
@@ -652,7 +654,7 @@ reviews:
           4. Execute each fix, verify result with oc get/describe
           5. Post-remediation health check (Phase 1 + Phase 3 on affected)
 
-        === KNOWLEDGE SYSTEM (57 files) ===
+        === KNOWLEDGE SYSTEM (59 files) ===
 
         Architecture knowledge (knowledge/architecture/, 40 files):
           12 subsystems, each with architecture.md + data-flow.md +
@@ -664,12 +666,14 @@ reviews:
           (upgrade settling timelines).
           Platform: acm-platform.md (MCH/MCE hierarchy), k8s-fundamentals.md.
 
-        Structured data (knowledge/*.yaml, 6 files):
+        Structured data (knowledge/*.yaml, 7 files):
           healthy-baseline.yaml: Expected pod counts, conditions, images.
             Has acm_version header. Phase 3 baseline comparison.
-          dependency-chains.yaml: 11 cascade paths (structured).
+          dependency-chains.yaml: 12 cascade paths (structured).
             cross_chain_patterns section maps symptoms → root causes.
-            Must stay in sync with dependency-chains.md (narrative, 8 core).
+            Must stay in sync with dependency-chains.md (narrative version).
+          service-map.yaml: Service-to-Pod mappings for connectivity diagnosis.
+            Per-Service: name, port, selector, consumers, diagnostic note.
           webhook-registry.yaml: ~20 webhooks, failure_policy, impact.
             Fail policy = critical (blocks resource creation).
           certificate-inventory.yaml: ~30 TLS secrets, rotation owners.
@@ -681,8 +685,8 @@ reviews:
 
         Diagnostics (knowledge/diagnostics/, 8 files):
           diagnostic-layers.md: 12-layer framework (per-layer checks)
-          dependency-chains.md: 8 chains (narrative investigation procedures)
-          common-diagnostic-traps.md: 13 anti-patterns. Each must have:
+          dependency-chains.md: 12 chains (narrative investigation procedures)
+          common-diagnostic-traps.md: 14 anti-patterns. Each must have:
             symptoms, wrong conclusion, correct diagnosis, detection command.
           evidence-tiers.md: Tier 1 (definitive) / Tier 2 (strong) /
             Tier 3 (supportive). Combination rules, confidence modifiers.
@@ -803,11 +807,11 @@ reviews:
 
         Consistency checks on any change:
         - Auto-approved commands and MCP tools ↔ .claude/settings.json permissions
-        - Diagnostic trap count ("13 traps") ↔ common-diagnostic-traps.md
+        - Diagnostic trap count ("14 traps") ↔ common-diagnostic-traps.md
         - Introspection source count ("8 sources") ↔ listed sources
         - Knowledge file references ↔ files actually in knowledge/
         - MCP tool names ↔ .mcp.json server configuration (acm-ui, neo4j-rhacm, acm-search)
-        - Cascade chain count (8 narrative, 11 YAML) ↔ dependency-chains.md/yaml
+        - Cascade chain count (12 narrative, 12 YAML) ↔ dependency-chains.md/yaml
 
     - path: "apps/acm-hub-health/.claude/settings.json"
       instructions: |
@@ -890,14 +894,12 @@ reviews:
           Changes affect Phase 3 (Check) and Phase 5 (Correlate).
 
         dependency-chains.md:
-          8 core cascade paths with narrative investigation procedures.
-          MUST stay in sync with dependency-chains.yaml (11 chains total,
-          structured version includes 3 additional: app-lifecycle,
-          virtualization, submariner).
+          12 cascade paths with narrative investigation procedures.
+          MUST stay in sync with dependency-chains.yaml (12 chains total).
           Changes affect Phase 5 horizontal tracing.
 
         common-diagnostic-traps.md:
-          13 anti-patterns where obvious diagnosis is wrong. Each trap:
+          14 anti-patterns where obvious diagnosis is wrong. Each trap:
             - What you see (symptoms)
             - What you might conclude (wrong diagnosis)
             - What's actually happening (correct diagnosis)
@@ -931,7 +933,7 @@ reviews:
           Changes should be validated against real healthy clusters.
 
         dependency-chains.yaml:
-          11 cascade paths in machine-readable format. Each chain has
+          12 cascade paths in machine-readable format. Each chain has
           components, dependencies, impact descriptions.
           cross_chain_patterns section: 12 symptom → root cause mappings.
           MUST stay in sync with dependency-chains.md (narrative version).

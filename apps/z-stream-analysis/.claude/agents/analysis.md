@@ -1393,7 +1393,7 @@ The oracle contains feature context data (Polarion, KG topology). In v4.0, clust
 
 **Primary source:** `cluster-diagnosis.json` → `infrastructure_issues` array. Each entry is a confirmed finding with severity, category, component, namespace, and impact.
 
-**Fallback:** If `cluster_oracle.dependency_health` is populated (non-empty), it can supplement the diagnostic with feature-specific dependency status. This field is typically empty because oracle Phase 6 is skipped (health checks are handled by the Stage 1.5 cluster-diagnostic agent). Use it when available but prefer `cluster-diagnosis.json`.
+**Supplement:** `cluster_oracle.dependency_health` provides feature-specific dependency status (targeted checks on the exact operators, CRDs, and addons each failed test depends on). Use it alongside `cluster-diagnosis.json` — Stage 1.5 gives broad cluster health, the oracle gives targeted dependency verification for the features under test.
 
 For each test, check if ANY infrastructure issue from `cluster-diagnosis.json` affects the test's feature area. Cross-reference using `classification_guidance.affected_feature_areas`.
 
@@ -1516,7 +1516,7 @@ The oracle is **Tier 1 evidence** for all of the above — it is direct cluster 
 **Health data freshness caveat (v4.0: health data from Stage 1.5 cluster-diagnostic):** The cluster diagnostic runs during Stage 1.5 (cluster-diagnostic agent). By the time Stage 2 analysis runs, the cluster state may have changed. Apply these modifiers:
 - If `cluster_diagnosis.overall_verdict` is present → diagnostic ran successfully, data is fresh (taken minutes before analysis)
 - If `cluster-diagnosis.json` does not exist, Stage 1.5 was skipped. Do NOT use health data for INFRASTRUCTURE classification.
-- Oracle's `cluster_access_status` is always `"skipped"` (Phase 6 skipped). Use `cluster-diagnosis.json` for health evidence instead. Oracle provides feature context (Polarion, KG topology) only.
+- Oracle's `cluster_access_status` is `"authenticated"` when cluster credentials were available (Phase 6 ran targeted dependency checks). If `"skipped"` or `"no_credentials"`, Phase 6 did not run — rely on `cluster-diagnosis.json` for health evidence.
 
 Health audit data does NOT supersede live cluster investigation (Tier 1-4 commands in Phase B). If you can re-authenticate to the cluster, verify health findings with live commands before finalizing.
 

@@ -174,3 +174,28 @@ succeed despite the warnings. No functional impact.
 errors (not just deprecation warnings), the API has been removed. Check
 if the ACM version is compatible with the OCP version. Cross-reference
 with `version-constraints.yaml`.
+
+### 10. Intentional Controller Disable Flags (Informational)
+
+**What happens:** Some ACM operators support configuration flags that
+intentionally disable specific controllers. For example, hive-controllers
+runs with `--disabled-controllers clustersync,machinepool` because those
+controllers run as separate StatefulSets with stable identity. Similarly,
+MCH `.spec.overrides.components[].enabled: false` intentionally disables
+entire subsystems.
+
+**Signals:** Controller-specific pods or reconciliation absent. CRs
+managed by that controller are not processed. No error messages -- the
+absence is intentional.
+
+**When to escalate:** Never, if the flag is intentionally set. The
+diagnostic challenge is distinguishing intentional disabling from
+accidental misconfiguration. General principle: before reporting a
+missing controller as a finding, check whether the operator's
+configuration has a disable flag set:
+```
+# Hive disabled controllers
+oc get deploy hive-controllers -n hive -o jsonpath='{.spec.template.spec.containers[0].args}'
+# MCH disabled components
+oc get mch -A -o jsonpath='{range .items[0].spec.overrides.components[*]}{.name}={.enabled}{"\n"}{end}'
+```

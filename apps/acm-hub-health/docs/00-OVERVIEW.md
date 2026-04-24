@@ -223,8 +223,8 @@ acm-hub-health/
 │   │   └── infrastructure/             ← architecture.md, data-flow.md, known-issues.md, post-upgrade-patterns.md
 │   ├── diagnostics/                    ← Health check methodology
 │   │   ├── diagnostic-layers.md        ← 12-layer investigation framework
-│   │   ├── dependency-chains.md        ← 11 critical cascade paths (narrative)
-│   │   ├── common-diagnostic-traps.md  ← 13 patterns where obvious diagnosis is wrong
+│   │   ├── dependency-chains.md        ← 12 critical cascade paths (narrative)
+│   │   ├── common-diagnostic-traps.md  ← 14 patterns where obvious diagnosis is wrong
 │   │   ├── evidence-tiers.md           ← Evidence weighting rules
 │   │   └── diagnostic-playbooks.md     ← Per-subsystem investigation procedures
 │   └── learned/                        ← Agent-discovered knowledge (grows over time)

@@ -94,3 +94,23 @@ constraints:
     correct_diagnosis: Product bug in connection handling, not resource pressure
     fix: Upgrade to ACM 2.15.1+ or 2.16+
     jira: ACM-24965
+
+  - id: olm-max-openshift-version
+    component: OLM / All ACM operators
+    affected_versions:
+      ocp: "varies per operator bundle"
+    description: >
+      OLM enforces a hard OCP version ceiling via the
+      olm.maxOpenShiftVersion annotation on operator bundles. If the
+      cluster's OCP version exceeds this ceiling, OLM blocks operator
+      installation or upgrade. This is a platform-level constraint
+      affecting ALL operators managed by OLM.
+    health_signal: >
+      CSV stuck in Pending or Replacing phase after OCP upgrade.
+      InstallPlan not created for new operator version. Subscription
+      shows state other than AtLatestKnown.
+    detection: >
+      oc get csv -n <acm-ns> -o jsonpath='{.items[0].metadata.annotations.olm\.maxOpenShiftVersion}'
+      Compare against: oc get clusterversion -o jsonpath='{.status.desired.version}'
+    correct_diagnosis: OLM version ceiling enforcement, not operator bug
+    fix: Wait for operator bundle update supporting the new OCP version

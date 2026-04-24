@@ -50,6 +50,33 @@ User selects clusters to transfer to a new ClusterSet
 If managed clusters are NotReady, the transfer API call may succeed but
 the expected "Transferred" text never appears in the table cell.
 
+## Layer-Annotated Provisioning Flow
+
+Each provisioning step maps to a primary diagnostic layer. When
+provisioning fails at a specific step, investigate the mapped layer:
+
+| Step | Operation | Primary Layer | Check |
+|------|-----------|--------------|-------|
+| 1 | Credential validation | L6 (Auth) | Cloud provider secret valid? |
+| 2 | HiveConfig check | L5 (Config) | HiveConfig status conditions? |
+| 3 | hiveadmission webhook | L8 (API/Webhook) | Webhook endpoints available? |
+| 4 | ClusterDeployment creation | L8 (API) | CRD exists? Webhook accepts? |
+| 5 | Install pod scheduling | L1 (Compute) | Node resources? Pod events? |
+| 6 | Cloud infrastructure creation | L1 (External) | Install pod logs for cloud errors |
+| 7 | Kubeconfig generation | L6 (Auth) | Secret created in cluster namespace? |
+| 8 | Import controller picks up cluster | L9 (Operator) | import-controller Running? |
+| 9 | Klusterlet deployed to spoke | L10 (Cross-Cluster) | klusterlet bootstrap succeeds? |
+| 10 | Registration + Available | L6+L3 (Auth+Network) | Lease renewal? Network connectivity? |
+
+**Resource ordering matters:** ClusterDeployment must be created AFTER
+the cloud credential Secret and pull-secret are in the cluster namespace.
+Creating ClusterDeployment first is NOT a Hive bug — it's a resource
+ordering error.
+
+**Prerequisites:** ClusterImageSet must exist for target OCP version
+(`oc get clusterimagesets`). Missing ClusterImageSet is common in
+disconnected environments.
+
 ## Failure Points
 
 | Point | What breaks | Symptom |

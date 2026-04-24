@@ -274,15 +274,25 @@ baseline:
 
     hive:
       note: "Hive cluster provisioning -- always present"
-      validated_pod_count: 5
-      expected_pod_count_range: "3-6"
+      validated_pod_count: 7
+      expected_pod_count_range: "5-8"
       critical_deployments:
         - name: hive-controllers
           min_replicas: 1
           validated_replicas: 1
+          note: "Runs with --disabled-controllers clustersync,machinepool intentionally (they run as separate StatefulSets)"
         - name: hiveadmission
           min_replicas: 2
           validated_replicas: 2
+      critical_statefulsets:
+        - name: hive-clustersync
+          min_replicas: 1
+          validated_replicas: 1
+          note: "Handles SyncSet application to provisioned clusters. If down, SyncSets not applied."
+        - name: hive-machinepool
+          min_replicas: 1
+          validated_replicas: 1
+          note: "Manages MachinePools for provisioned clusters."
 
     open-cluster-management-agent:
       note: "Spoke agent namespace (on hub when local-cluster is joined)"

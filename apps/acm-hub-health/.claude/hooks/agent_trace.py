@@ -146,11 +146,13 @@ def _detect_phase_from_read(file_path):
         return "correlate"
     if "diagnostics/" in file_path:
         return "correlate"
-    if "failure-patterns" in file_path or "known-issues" in file_path:
+    if "failure-patterns" in file_path or "known-issues" in file_path \
+            or "version-constraints" in file_path:
         return "pattern-match"
     if any(p in file_path for p in (
         "healthy-baseline", "addon-catalog",
         "webhook-registry", "certificate-inventory",
+        "service-map",
     )):
         return "check"
     if "learned/" in file_path:

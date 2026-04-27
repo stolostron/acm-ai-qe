@@ -1,217 +1,303 @@
+<div align="center">
+
 # ACM Hub Health Agent
 
-AI-powered diagnostic agent for Red Hat Advanced Cluster Management (ACM) hub
-clusters. Uses Claude Code with deep ACM architectural knowledge to investigate
-hub health, diagnose root causes with evidence, and provide actionable findings.
+**Diagnose ACM hub clusters with evidence-based root cause analysis.**
 
-The agent understands how every ACM subsystem works (search, governance,
-observability, cluster lifecycle, console, applications, virtualization, RBAC,
-networking) and traces dependency chains to find root causes, not just symptoms.
+6-phase diagnostic pipeline &mdash; 12-layer investigation model &mdash; 59 knowledge files &mdash; 3 MCP integrations
 
-## Prerequisites
+</div>
 
-- **`oc` CLI** -- logged into your ACM hub cluster
-- **Claude Code CLI** -- [install guide](https://docs.anthropic.com/en/docs/claude-code/getting-started)
-- **Node.js** + **`mcp-remote`** (`npm install -g mcp-remote`) -- for the search database MCP server
-- **Podman** -- for Neo4j knowledge graph container (optional but recommended)
+---
 
 ## Quick Start
 
 ```bash
 cd acm-hub-health
-bash setup.sh         # one-time: clones rhacm-docs, sets up MCPs (acm-ui, neo4j-rhacm, acm-search)
+bash setup.sh         # one-time setup
 oc login <hub-api>    # login to your hub
 claude                # start the agent
 ```
 
-Once Claude Code launches, it picks up the agent configuration (CLAUDE.md,
-knowledge base, slash commands, permissions) automatically. You're ready
-to go.
-
-## Usage
-
-Use slash commands or natural language inside the Claude Code session:
-
 ```
-/sanity                              # quick pulse (~30s)
-/health-check                        # standard check (~2-3 min)
-/deep                                # full audit (~5-10 min)
-/investigate observability            # targeted deep dive
-Why are managed clusters Unknown?     # symptom investigation
-/learn                                # refresh knowledge from cluster
+/health-check
 ```
+
+Other commands: `/sanity` (30s pulse), `/deep` (full audit), `/investigate <area>`, `/learn`.
+
+> [!TIP]
+> Or just say: `Why are my managed clusters Unknown?`
 
 ## How It Works
 
-### 6-Phase Diagnostic Pipeline
+```mermaid
+flowchart LR
+    C[oc login] --> P1
 
-1. **Discover** -- inventory what's deployed (MCH, MCE, components, nodes, fleet)
-2. **Learn** -- consult architecture knowledge + previous discoveries
-3. **Check** -- layer-organized health checks (foundational layers first, then components)
-4. **Pattern Match** -- match symptoms against documented known issues with JIRA references
-5. **Correlate** -- trace horizontal (12 dependency chains) + vertical (12 infrastructure layers)
-6. **Deep Investigate** -- logs, events, storage, networking + layer-based fallback
+    subgraph Pipeline
+        direction LR
+        P1["Phase 1\nDiscover"] --> P2["Phase 2\nLearn"]
+        P2 --> P3["Phase 3\nCheck"]
+        P3 --> P4["Phase 4\nPattern Match"]
+        P4 --> P5["Phase 5\nCorrelate"]
+        P5 --> P6["Phase 6\nDeep Investigate"]
+    end
 
-### Self-Healing Knowledge
+    P1 -- "MCH, MCE, nodes\nfleet, operators" --> P2
+    P2 -- "baselines, traps\narchitecture" --> P3
+    P3 -- "layer-by-layer\nhealth status" --> P4
+    P4 -- "known issues\nJIRA matches" --> P5
+    P5 -- "dependency chains\nvertical tracing" --> P6
+    P6 --> R["Health Report\n+ Remediation Plan"]
+```
 
-When the agent encounters something not in its knowledge base, it
-reverse-engineers dependencies from live cluster metadata (owner refs,
-OLM labels, CSV metadata, env vars, webhooks), cross-references with
-the knowledge graph (neo4j-rhacm MCP), then uses ACM source code
-(acm-ui MCP) to understand how those dependencies work. Findings are
-recorded in `knowledge/learned/` so future runs benefit.
+| Phase | What | How |
+|:-----:|------|-----|
+| **1** | Inventory what's deployed | MCH/MCE CRs, nodes, managed clusters, CSVs |
+| **2** | Load knowledge baselines | Architecture docs, healthy baselines, 14 diagnostic traps |
+| **3** | Layer-by-layer health checks | Bottom-up: foundational layers first, then components |
+| **4** | Match against known issues | Failure patterns, JIRA references, version constraints |
+| **5** | Trace root causes | 12 horizontal dependency chains + vertical layer tracing |
+| **6** | Deep investigation | Pod logs, events, storage, networking, data flow |
 
-### Evidence-Based Diagnosis
+## 12-Layer Diagnostic Model
 
-Every conclusion requires 2+ evidence sources with explicit confidence levels.
-The agent traces upstream through dependency chains rather than reporting
-leaf symptoms independently.
+The agent traces each symptom downward through 12 infrastructure layers to find the root cause.
+
+```mermaid
+block-beta
+    columns 4
+
+    block:upper:4
+        columns 4
+        L12["12 UI / Plugin"]
+        L11["11 Data Flow"]
+        L10["10 Cross-Cluster"]
+        L9["9 Operator"]
+    end
+
+    block:mid:4
+        columns 4
+        L8["8 API / Webhook"]
+        L7["7 RBAC / AuthZ"]
+        L6["6 Auth / Identity"]
+        L5["5 Config / State"]
+    end
+
+    block:lower:4
+        columns 4
+        L4["4 Storage"]
+        L3["3 Network"]
+        L2["2 Control Plane"]
+        L1["1 Compute"]
+    end
+
+    style L12 fill:#4a90d9,color:#fff
+    style L11 fill:#4a90d9,color:#fff
+    style L10 fill:#5ba5c9,color:#fff
+    style L9 fill:#5ba5c9,color:#fff
+    style L8 fill:#6bb5a0,color:#fff
+    style L7 fill:#6bb5a0,color:#fff
+    style L6 fill:#6bb5a0,color:#fff
+    style L5 fill:#7cba6e,color:#fff
+    style L4 fill:#b8a038,color:#fff
+    style L3 fill:#b8a038,color:#fff
+    style L2 fill:#c97a4a,color:#fff
+    style L1 fill:#c97a4a,color:#fff
+```
+
+A Layer 3 NetworkPolicy blocking search-postgres traffic looks like a Layer 11 data flow issue, which looks like a Layer 12 UI bug. The diagnostic model traces downward to find where the chain actually breaks.
+
+## Depth Levels
+
+| Command | Depth | Time | Phases |
+|:--------|:-----:|:----:|:------:|
+| `/sanity` | Quick pulse | ~30s | 1 |
+| `/health-check` | Standard check | ~2-3 min | 1-4 |
+| `/deep` | Full audit | ~5-10 min | 1-6 |
+| `/investigate <area>` | Targeted deep dive | ~3-5 min | All, focused |
+| `/learn` | Knowledge refresh | ~2 min | N/A |
 
 ## Diagnose First, Fix With Approval
 
-Diagnosis is always read-only (`oc get`, `oc describe`, `oc logs`). When
-cluster-fixable issues are found, the agent presents all root causes and
-exact fix commands in a structured remediation plan, then asks for your
-explicit approval before making any changes. You review the full plan and
-decide -- the agent never modifies the cluster without your consent.
+Diagnosis is always **read-only** (`oc get`, `oc describe`, `oc logs`). Cluster modifications only happen after the agent presents a structured remediation plan and you explicitly approve.
 
-## Session Tracing
+```
+## Remediation Plan
 
-Every diagnostic session is automatically traced to structured JSONL files
-via Claude Code hooks. No setup required -- tracing is active from the
-first session.
+### Fix 1: Delete ResourceQuota blocking pod creation
+Root Cause: Externally applied quota with 5-pod limit on ACM namespace (needs ~30)
+Command:    oc delete resourcequota restrict-ocm -n ocm
+Risk:       Low
+
+Should I proceed? (yes/no)
+```
+
+## Subsystems
+
+12 ACM subsystems, each backed by architecture docs, data flow maps, and failure signature catalogs.
+
+Search &bull; Governance &bull; Observability &bull; Cluster Lifecycle &bull; Console &bull; Applications &bull; Virtualization &bull; RBAC &bull; Automation &bull; Addon Framework &bull; Networking &bull; Infrastructure
+
+<details>
+<summary><b>6-Phase Pipeline Details</b></summary>
+
+### Phase 1: Discover
+
+Inventory the hub -- runs in parallel:
+- MCH CR (namespace, version, components, status)
+- MCE CR (version, enabled components)
+- Nodes (count, roles, pressure)
+- Managed clusters (availability, join status)
+- CSVs and OLM subscriptions
+- Operator deployments (replica counts)
+
+### Phase 2: Learn
+
+Load knowledge baselines and compare against cluster state:
+- `component-registry.md` -- master component inventory
+- `healthy-baseline.yaml` -- expected pod counts and states
+- `common-diagnostic-traps.md` -- 14 patterns where the obvious diagnosis is wrong
+- Per-subsystem architecture docs
+- Previous discoveries from `knowledge/learned/`
+
+### Phase 3: Check
+
+Layer-by-layer health checks, bottom-up:
+1. **Foundational (Layers 1-3):** Nodes, control plane, NetworkPolicies, ResourceQuotas
+2. **Component (Layers 4-10):** Storage, configuration, auth, RBAC, webhooks, pods, addons
+3. **Application (Layers 11-12):** Data flow verification, ConsolePlugins, console image integrity
+
+### Phase 4: Pattern Match
+
+Cross-reference symptoms against documented issues:
+- `failure-patterns.md` -- cross-component failure signatures
+- Per-subsystem `known-issues.md` files
+- `version-constraints.yaml` -- known version incompatibilities
+- `post-upgrade-patterns.md` -- normal post-upgrade settling vs real issues
+
+### Phase 5: Correlate
+
+Trace root causes across subsystem boundaries:
+- **Horizontal:** 12 dependency chains (e.g., Console -> search-api -> search-postgres -> collectors)
+- **Vertical:** Identify the lowest affected layer across all findings
+- Evidence weighting: 2+ sources per conclusion, at least one Tier 1
+
+### Phase 6: Deep Investigate
+
+Deep dive into critical findings:
+- Pod logs (`--tail=100`, `--previous`)
+- Namespace events (sorted by timestamp)
+- Resource details (describe, YAML)
+- Storage, networking, data flow verification
+- Per-subsystem diagnostic playbooks
+
+</details>
+
+<details>
+<summary><b>14 Diagnostic Traps</b></summary>
+
+Patterns where the obvious diagnosis is wrong. The agent checks these before concluding any investigation.
+
+| Trap | Symptom | Check First |
+|:----:|---------|-------------|
+| 1 | MCH says Running but things are broken | Operator pod replicas (stale status) |
+| 2 | Console pod healthy, tabs missing | console-mce pod + ConsolePlugin CRDs |
+| 3 | Search all green, empty results | Postgres schema + data count (emptyDir loss) |
+| 4 | Observability dashboards empty | Thanos pods + S3 secret (not operator) |
+| 5 | GRC non-compliant after upgrade | Addon pod age (normal settling, wait 15 min) |
+| 6 | ManagedCluster NotReady | Lease + conditions (not klusterlet crash) |
+| 7 | ALL addons Unavailable everywhere | addon-manager pod (single point of failure) |
+| 8 | Multiple console pages broken | search-api pod (shared dependency) |
+| 9 | Pods gradually disappearing | ResourceQuota in ACM namespace |
+| 10 | ALL cluster operations fail | Hive webhook service (failurePolicy: Fail) |
+| 11 | Pods Running but cross-service fails | NetworkPolicy in ACM namespace |
+| 12 | TLS errors, service-ca healthy | Corrupted cert secret (delete to recreate) |
+| 13 | Feature tabs present but broken | Plugin backend pod health |
+| 14 | Both replicas Running, nothing reconciling | Leader election lease (renewTime stale) |
+
+</details>
+
+<details>
+<summary><b>Knowledge Database</b> &mdash; 59 files</summary>
+
+| Directory | Content | Files |
+|-----------|---------|:-----:|
+| `architecture/` | Per-subsystem architecture, data flow, known issues | 40 |
+| `diagnostics/` | 12-layer model, dependency chains, traps, playbooks, evidence tiers | 8 |
+| Root YAML/MD | Components, baselines, services, webhooks, certs, addons, versions, patterns | 11 |
+| `learned/` | Agent-contributed discoveries (grows over time) | 0+ |
+
+Each of the 12 subsystems has `architecture.md`, `data-flow.md`, and `known-issues.md`.
+
+Refresh structured data from a live cluster:
+
+```bash
+python -m knowledge.refresh    # requires Python 3 + PyYAML
+```
+
+</details>
+
+<details>
+<summary><b>MCP Servers</b> &mdash; 3 servers, 27 tools</summary>
+
+| Server | Tools | Purpose |
+|--------|:-----:|---------|
+| ACM-UI | 20 | ACM Console + kubevirt-plugin source search via GitHub |
+| Neo4j RHACM | 2 | Component dependency analysis via Cypher (370 nodes, 541 relationships) |
+| ACM Search | 5 | Fleet-wide spoke-side resource queries via search-postgres |
+
+Setup: `bash setup.sh` (or `bash mcp/setup.sh` from repo root).
+
+The agent also supports self-healing knowledge: when a component isn't covered by the knowledge base, it reverse-engineers dependencies from 8 live cluster metadata sources (owner refs, OLM labels, CSVs, env vars, webhooks, ConsolePlugins, APIServices, annotations).
+
+</details>
+
+<details>
+<summary><b>Session Tracing</b></summary>
+
+Every diagnostic session is automatically traced via Claude Code hooks. No setup required.
 
 ```
 .claude/traces/
 ├── <session-id>.jsonl     # Detailed per-session trace
-└── sessions.jsonl         # One-line summary per session (aggregate stats)
+└── sessions.jsonl         # One-line summary per session
 ```
 
-Each trace entry captures: tool calls (with `oc` verb/resource/namespace
-parsing), MCP interactions (server, tool, input/output), knowledge file
-reads (with diagnostic phase inference), mutation detection (remediation
-commands), prompts (with diagnostic type detection), subagent operations,
-and errors. The session index tracks aggregate stats: duration, tool call
-count, MCP calls, oc commands, mutations, knowledge reads/writes, errors.
+Each trace captures: tool calls (with `oc` verb/resource/namespace parsing), MCP interactions, knowledge file reads (with phase inference), mutation detection, and errors. Session index tracks aggregate stats: duration, tool call count, MCP calls, mutations.
 
-Trace files are gitignored. See the "Session Tracing" section in
-[CLAUDE.md](CLAUDE.md) for the full field reference.
+See [docs/session-tracing.md](docs/session-tracing.md) for the full field reference.
 
-## Knowledge Base
+</details>
 
-59 knowledge files covering 12 ACM subsystems -- architecture docs, structured
-operational data, 12-layer diagnostic model, and diagnostic methodology.
+<details>
+<summary><b>CLI Mode</b> &mdash; run from any terminal</summary>
 
-See [docs/06-SLASH-COMMANDS.md](docs/06-SLASH-COMMANDS.md) for full command reference.
-
-```
-knowledge/
-  component-registry.md                 # Master inventory of ACM components
-  failure-patterns.md                   # Failure signatures mapped to root causes
-  healthy-baseline.yaml                 # Expected pod counts, deployment states
-  dependency-chains.yaml                # 12 cascade paths (structured YAML)
-  service-map.yaml                      # Service-to-Pod mappings for connectivity diagnosis
-  webhook-registry.yaml                 # Validating/mutating webhooks
-  certificate-inventory.yaml            # TLS secrets, rotation, impact
-  addon-catalog.yaml                    # Addon health checks and dependencies
-  version-constraints.yaml              # Known version incompatibilities
-  refresh.py                            # Update YAML from live cluster
-  architecture/                         # How ACM works (per-component)
-    kubernetes-fundamentals.md          # K8s primitives ACM uses
-    acm-platform.md                     # MCH/MCE, operator hierarchy, addon framework
-    search/                             # architecture.md, data-flow.md, known-issues.md
-    governance/                         # "
-    observability/                      # "
-    cluster-lifecycle/                  # " + health-patterns.md
-    console/                            # "
-    application-lifecycle/              # "
-    virtualization/                     # "
-    rbac/                               # "
-    automation/                         # " (ClusterCurator, AAP hooks)
-    addon-framework/                    # " (addon manager, ManifestWork delivery)
-    networking/                         # " (Submariner, tunnels, service discovery)
-    infrastructure/                     # " + post-upgrade-patterns.md
-  diagnostics/                          # Health check methodology
-    diagnostic-layers.md                # 12-layer investigation framework
-    dependency-chains.md                # 12 cascade paths (narrative)
-    common-diagnostic-traps.md          # 14 patterns where obvious diagnosis is wrong
-    evidence-tiers.md                   # Evidence weighting rules
-    diagnostic-playbooks.md             # 14 per-subsystem investigation procedures
-  learned/                              # Agent-discovered knowledge (grows over time)
-```
-
-Refresh structured data from a live cluster with `python -m knowledge.refresh`
-(requires Python 3 + PyYAML). See [knowledge/README.md](knowledge/README.md)
-for all flags and smart merge behavior.
-
----
-
-## Optional: CLI Mode (Run From Any Terminal)
-
-You can also run diagnostics directly from any terminal without launching an
-interactive Claude Code session first. This is optional -- the default usage
-above works without any additional setup.
-
-### What It Does
-
-The `acm-hub` script is a CLI wrapper that invokes Claude Code with the
-correct project directory and prompt. It works from any terminal as long as
-you're logged into a cluster with `oc`. You don't need to `cd` into the app
-directory.
-
-By default it runs in **print mode** -- streams the diagnosis to your terminal
-and exits. Add `-i` for an **interactive session** where the agent can present
-a remediation plan and execute fixes with your approval.
+The `acm-hub` script is a CLI wrapper -- run diagnostics without launching an interactive session.
 
 ### Setup
 
-**1. Make sure the prerequisites are met** (same as above -- `oc` + `claude`).
-
-**2. Create a symlink** so `acm-hub` is available on your PATH:
-
 ```bash
-# Option A: symlink to ~/.local/bin (most common)
 mkdir -p ~/.local/bin
 ln -s "$(pwd)/acm-hub" ~/.local/bin/acm-hub
-
-# Option B: symlink to /usr/local/bin (system-wide)
-sudo ln -s "$(pwd)/acm-hub" /usr/local/bin/acm-hub
 ```
-
-Make sure the target directory is on your PATH. For `~/.local/bin`, add
-this to your `~/.zshrc` or `~/.bashrc` if it's not already there:
-
-```bash
-export PATH="$HOME/.local/bin:$PATH"
-```
-
-**3. Verify it works:**
-
-```bash
-acm-hub --help
-```
-
-That's it. The script resolves the app directory from its own location
-(works through symlinks), so you can run it from anywhere.
 
 ### Commands
 
 ```bash
-acm-hub sanity                        # quick pulse (~30s)
-acm-hub check                         # standard health check (~2-3 min)
-acm-hub health-check                  # same as check (matches /health-check slash command)
-acm-hub deep                          # full deep audit (~5-10 min)
-acm-hub investigate observability     # targeted investigation
+acm-hub sanity                           # quick pulse
+acm-hub check                           # standard health check
+acm-hub deep                            # full audit
+acm-hub investigate observability        # targeted investigation
 acm-hub investigate "why clusters Unknown"
-acm-hub learn                         # full knowledge refresh
-acm-hub learn search                  # knowledge refresh for search only
+acm-hub learn                           # knowledge refresh
 ```
 
-### Print Mode vs Interactive Mode
+### Print vs Interactive Mode
 
 ```bash
-acm-hub check                         # print mode (default)
-acm-hub check -i                      # interactive mode
+acm-hub check                           # print mode (default) -- streams and exits
+acm-hub check -i                        # interactive mode -- can execute remediation
 ```
 
 | | Print Mode (default) | Interactive Mode (`-i`) |
@@ -220,19 +306,20 @@ acm-hub check -i                      # interactive mode
 | **Remediation** | Presents plan but cannot execute | Can ask approval and execute fixes |
 | **Use case** | Quick checks, scripting, CI | Full diagnostic + fix workflow |
 
-### Examples
+</details>
 
-```bash
-# Morning pulse check from any terminal
-oc login https://my-hub:6443
-acm-hub sanity
+## Prerequisites
 
-# Something looks wrong -- run a full check
-acm-hub check
+- **`oc` CLI** -- logged into your ACM hub cluster
+- **Claude Code CLI** -- [install guide](https://docs.anthropic.com/en/docs/claude-code/getting-started)
+- **Node.js** + **`mcp-remote`** (`npm install -g mcp-remote`) -- for ACM Search MCP
+- **Podman** -- for Neo4j knowledge graph container (optional)
 
-# Dig into a specific area
-acm-hub investigate observability
+## Documentation
 
-# Found issues, want to fix them -- use interactive mode
-acm-hub check -i
-```
+| | |
+|---|---|
+| [Overview](docs/00-OVERVIEW.md) | [Depth router](docs/01-DEPTH-ROUTER.md) |
+| [Diagnostic pipeline](docs/02-DIAGNOSTIC-PIPELINE.md) | [Knowledge system](docs/03-KNOWLEDGE-SYSTEM.md) |
+| [MCP integration](docs/04-MCP-AND-EXTERNAL-SOURCES.md) | [Output and reporting](docs/05-OUTPUT-AND-REPORTING.md) |
+| [Slash commands](docs/06-SLASH-COMMANDS.md) | [Session tracing](docs/session-tracing.md) |

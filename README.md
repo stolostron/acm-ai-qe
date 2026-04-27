@@ -4,7 +4,6 @@
 
 **AI-powered quality engineering tools for ACM, built on Claude Code.**
 
-Three apps. One repo. Natural language driven.
 
 </div>
 

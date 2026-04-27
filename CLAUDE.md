@@ -128,9 +128,9 @@ ai_systems_v2/
 # Z-stream analysis tests (from app directory)
 cd apps/z-stream-analysis/
 
-# Fast — unit + regression (703 tests, no external deps):
+# Fast — unit + regression (713 tests, no external deps):
 python -m pytest tests/unit/ tests/regression/ -q
 
-# Full suite (748 tests, requires Jenkins VPN for integration):
+# Full suite (758 tests, requires Jenkins VPN for integration):
 python -m pytest tests/ -q --timeout=300
 ```

@@ -1,6 +1,6 @@
 # Knowledge System
 
-The `knowledge/` directory contains curated domain knowledge that agents read during the pipeline. Knowledge is organized into four categories: conventions (authoritative format rules), architecture (per-area domain knowledge), examples (sample test cases), and diagnostics (known quality issues).
+The `knowledge/` directory contains curated domain knowledge that agents read during the pipeline. Knowledge is organized into three categories: conventions (authoritative format rules), architecture (per-area domain knowledge), and examples (sample test cases).
 
 ## Directory Structure
 
@@ -21,10 +21,8 @@ knowledge/
 │   └── credentials.md              # Provider credentials
 ├── examples/                       # Sample test cases for format reference
 │   └── sample-test-case.md         # Convention-compliant sample (fallback)
-├── patterns/                       # Learned patterns from successful runs
-│   └── README.md                   # Index (grows over time)
-└── diagnostics/                    # Known quality issues
-    └── common-mistakes.md          # Frequent test case errors
+└── patterns/                       # Learned patterns from successful runs
+    └── README.md                   # Index (grows over time)
 ```
 
 ## Reading Rules
@@ -35,15 +33,14 @@ Agents read knowledge at specific pipeline phases:
 |-------|-------------|-----|
 | Stage 1 | `conventions/test-case-format.md`, `conventions/polarion-html-templates.md`, `architecture/<area>.md` | Loaded into `gather-output.json` for downstream agents |
 | Phase 4 (writer) | All conventions files, peer test cases from `examples/`, patterns for the area | Format reference before writing |
-| Phase 4.5 (reviewer) | Conventions files, `diagnostics/common-mistakes.md` | Validation reference |
+| Phase 4.5 (reviewer) | Conventions files, common mistakes checklist (built into agent) | Validation reference |
 | Stage 3 | `conventions/polarion-html-templates.md` (baked into `html_generator.py`) | HTML generation rules |
 
 ## Writing Rules
 
-- Only write to `patterns/` and `diagnostics/`
+- Only write to `patterns/`
 - Never modify `conventions/` or `architecture/` programmatically
 - Patterns are written after successful pipeline runs (planned)
-- Diagnostics are updated when new quality issues are discovered
 
 ---
 
@@ -160,16 +157,7 @@ The sample uses governance area conventions (`[GRC-2.17]` tag, Governance compon
 
 ## Diagnostics
 
-### common-mistakes.md
-
-Known quality issues found during test case review. Agents read this file to avoid repeating common errors:
-
-- Assumed UI labels (labels from memory, not MCP discovery)
-- Missing setup resources (teardown deletes resources that were never created)
-- CLI as UI substitute (using `oc` commands instead of UI navigation)
-- Missing teardown commands (orphaned resources after test)
-- Wrong Polarion fields (incorrect component/subcomponent mapping)
-- Fabricated numeric thresholds (stating specific numbers without source evidence)
+Common mistakes are now built into the quality-reviewer agent (`.claude/agents/quality-reviewer.md`, "Common Mistakes to Flag" section) rather than stored as a separate knowledge file.
 
 ---
 

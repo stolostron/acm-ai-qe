@@ -185,3 +185,15 @@ When called for a re-review (after fixes were applied):
 - Flag as BLOCKING if any test step states a numeric threshold (e.g., "overflow at 5 labels", "max 10 items") without evidence from the PR diff, JIRA AC, MCP source, or area knowledge. Accept "[verify threshold from source code]" as a placeholder.
 - If MCP is unavailable, note it and review based on format only
 - The verdict MUST be either PASS or NEEDS_FIXES -- no ambiguity
+
+## Common Mistakes to Flag
+
+- **Metadata**: missing Release field, wrong Component for area, missing Tags
+- **Entry point**: assumed navigation path (must be discovered via `get_routes()`, not written from memory)
+- **JIRA coverage**: missing primary ticket reference in Description
+- **CLI as UI substitute**: using `oc get` to verify something that should be checked in the browser UI
+- **Assumed UI labels**: label text not verified via `search_translations()`
+- **Missing expected results**: every numbered action must have explicit expected results
+- **Missing step separators**: horizontal rules (`---`) required between steps
+- **Setup commands**: missing `# Expected:` comments, assuming cluster state instead of verifying prerequisites, missing ACM version check as first setup command
+- **Implementation vs AC**: test case must validate against implementation behavior; discrepancies must be noted in the Notes section with source code references

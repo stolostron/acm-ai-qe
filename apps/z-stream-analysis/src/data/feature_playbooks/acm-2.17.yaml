@@ -1,0 +1,32 @@
+# ACM 2.17 version overlay
+#
+# Deep-merged into base.yaml at load time. Only include CHANGES from base:
+# - New profiles are added directly
+# - Existing profiles are merged field-by-field:
+#   - architecture: overlay fields override base fields
+#   - prerequisites/failure_paths: merge by 'id' (same id replaces, new ids append)
+#   - scalar fields: overlay wins
+#   - dependencies: overlay replaces base list
+
+profiles:
+  Search:
+    failure_paths:
+      - id: search-postgres-wal-pressure
+        description: WAL write-ahead log pressure after ACM 2.17 schema migration
+        category: component_health
+        symptoms:
+          - "(?i)search.*timeout.*postgres"
+          - "(?i)FATAL.*too many connections"
+        classification: INFRASTRUCTURE
+        confidence: 0.80
+        explanation: >-
+          ACM 2.17 includes a search-postgres schema migration that temporarily
+          increases WAL pressure. If the migration is still running when tests
+          execute, search queries may time out or fail with connection errors.
+        investigation:
+          - step: Check postgres WAL status
+            command: "oc exec -n {mch_ns} deploy/search-postgres -- psql -U searchuser search -c 'SELECT pg_current_wal_lsn()'"
+            expect: WAL LSN advancing normally
+          - step: Check active connections
+            command: "oc exec -n {mch_ns} deploy/search-postgres -- psql -U searchuser search -c 'SELECT count(*) FROM pg_stat_activity'"
+            expect: Connection count within limits

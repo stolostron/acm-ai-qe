@@ -277,24 +277,22 @@ graph LR
 <!-- DIAGRAM 7: KNOWLEDGE SYSTEM -->
 <div id="d7" class="card">
   <h2>Diagram 7: Knowledge System</h2>
-  <p class="desc">Curated domain knowledge organized into four categories. Conventions are authoritative format rules. Architecture provides per-area context. Read by agents at specific pipeline phases.</p>
+  <p class="desc">Curated domain knowledge organized into three categories. Conventions are authoritative format rules. Architecture provides per-area context. Read by agents at specific pipeline phases.</p>
   <div class="mermaid">
 graph TD
     CONV["conventions/\n4 files\ntest-case-format.md\narea-naming-patterns.md\ncli-in-steps-rules.md\npolarion-html-templates.md"]:::clickable --> WRITER["Phase 4: Writer\nReads before writing"]
     ARCH["architecture/\n7 files\ngovernance.md, rbac.md\nfleet-virt.md, clusters.md\nsearch.md, apps.md, creds.md"]:::clickable --> GATHER["Stage 1: Gather\nLoaded into gather-output"]
     EXAMPLES["examples/\nsample-test-case.md\nFormat fallback"]:::clickable --> WRITER
-    DIAG["diagnostics/\ncommon-mistakes.md\nKnown quality issues"]:::clickable --> REVIEWER["Phase 4.5: Reviewer\nAvoidance checklist"]
+    CONV --> REVIEWER["Phase 4.5: Reviewer\nValidation reference"]
 
     style CONV fill:#0f1320,stroke:#38bdf8,color:#d8dce8
     style ARCH fill:#0f1320,stroke:#4ade80,color:#d8dce8
     style EXAMPLES fill:#0f1320,stroke:#f472b6,color:#d8dce8
-    style DIAG fill:#0f1320,stroke:#fbbf24,color:#d8dce8
 
     classDef clickable cursor:pointer
     click CONV showDetail
     click ARCH showDetail
     click EXAMPLES showDetail
-    click DIAG showDetail
   </div>
   <p class="click-hint">Click any category to see its files and content</p>
 </div>
@@ -663,7 +661,6 @@ const DATA = {
   'CONV': { title: 'conventions/', html: `<div class="detail-section"><h4>Test Case Format Rules</h4><div class="label">4 files:</div><div class="value">&bull; <code>test-case-format.md</code> &mdash; Section order, naming, 85-case conventions<br>&bull; <code>area-naming-patterns.md</code> &mdash; Title tag by area ([GRC-X.XX], [FG-RBAC-X.XX])<br>&bull; <code>cli-in-steps-rules.md</code> &mdash; CLI only for backend validation<br>&bull; <code>polarion-html-templates.md</code> &mdash; HTML generation templates</div><div class="label">Read by:</div><div class="value">Phase 4 (writer), Phase 4.5 (reviewer), Stage 3 (html_generator.py)</div></div>` },
   'ARCH': { title: 'architecture/', html: `<div class="detail-section"><h4>Per-Area Domain Knowledge</h4><div class="label">7 files:</div><div class="value">&bull; governance.md &mdash; Policy types, discovered vs managed, system labels<br>&bull; rbac.md &mdash; FG-RBAC, MCRA, scopes<br>&bull; fleet-virt.md &mdash; Tree view, VM actions, KubeVirt<br>&bull; clusters.md &mdash; Cluster lifecycle, import/detach<br>&bull; search.md &mdash; Search API, global queries<br>&bull; applications.md &mdash; ALC, subscriptions<br>&bull; credentials.md &mdash; Provider credentials</div><div class="label">Read by:</div><div class="value">Stage 1 (loaded into gather-output.json), Phase 4 (area context)</div></div>` },
   'EXAMPLES': { title: 'examples/', html: `<div class="detail-section"><h4>Sample Test Case</h4><div class="value"><code>sample-test-case.md</code> &mdash; Convention-compliant sample used as format fallback when no peer test cases exist for the area/version.</div></div>` },
-  'DIAG': { title: 'diagnostics/', html: `<div class="detail-section"><h4>Known Quality Issues</h4><div class="value"><code>common-mistakes.md</code> &mdash; Frequent test case errors: assumed UI labels, missing setup resources, CLI as UI substitute, fabricated thresholds.</div><div class="label">Read by:</div><div class="value">Phase 4.5 (quality reviewer) as avoidance checklist</div></div>` },
   'HOOKS': { title: 'Claude Code Hooks', html: `<div class="detail-section"><h4>6 Event Types</h4><div class="label">Hook script:</div><div class="value"><code>.claude/hooks/agent_trace.py</code> (473 lines)</div><div class="label">Events captured:</div><div class="value">&bull; <strong>PreToolUse</strong> (Bash, mcp__.*, Agent, Read, Write, Edit)<br>&bull; <strong>PostToolUse</strong> (Bash, mcp__.*)<br>&bull; <strong>PostToolUseFailure</strong> (mcp__.*, Bash)<br>&bull; <strong>UserPromptSubmit</strong> (all prompts)<br>&bull; <strong>SubagentStop</strong> (all subagents)<br>&bull; <strong>Stop</strong> (turn completion)</div></div>` },
   'TRACE': { title: 'Session Trace File', html: `<div class="detail-section"><h4>Per-Session JSONL</h4><div class="label">Location:</div><div class="value"><code>.claude/traces/&lt;session_id&gt;.jsonl</code></div><div class="label">Enrichment:</div><div class="value">&bull; Pipeline command detection (generate/review/batch)<br>&bull; Pipeline phase from subagent type<br>&bull; Knowledge category from file path<br>&bull; oc command parsing (verb, resource, namespace)<br>&bull; MCP server/tool extraction</div></div>` },
   'INDEX': { title: 'Session Index', html: `<div class="detail-section"><h4>One-Line Summary per Session</h4><div class="label">Location:</div><div class="value"><code>.claude/traces/sessions.jsonl</code></div><div class="label">Fields:</div><div class="value">pipeline_command, phases_seen, duration_sec, prompts, tool_calls, subagent_launches, mcp_calls, oc_commands, mutations, knowledge_reads, pattern_writes, pipeline_outputs, errors</div></div>` },

@@ -190,7 +190,6 @@ Knowledge file reads are categorized by directory:
 | `conventions/` | `conventions` |
 | `architecture/` | `architecture` |
 | `patterns/` | `patterns` |
-| `diagnostics/` | `diagnostics` |
 | `examples/` | `examples` |
 
 ### oc Command Parsing

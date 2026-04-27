@@ -119,7 +119,6 @@ The `knowledge/` directory contains curated domain knowledge:
 - **`conventions/`** -- Test case format rules (from 85+ existing test cases)
 - **`architecture/`** -- Per-area domain knowledge (governance, RBAC, fleet-virt, etc.)
 - **`patterns/`** -- Learned patterns from successful runs (agent-written)
-- **`diagnostics/`** -- Known quality issues and common mistakes
 
 ## MCP Servers
 

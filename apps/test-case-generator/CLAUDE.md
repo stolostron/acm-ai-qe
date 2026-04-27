@@ -38,70 +38,9 @@ Stage 3: report.py               -> HTML + review-results.json + SUMMARY.txt
 
 ---
 
-## MANDATORY: Phase Gate Enforcement
+## Pipeline Execution
 
-**This section is NON-NEGOTIABLE. Every phase must be tracked and gated.**
-
-### Phase tracking
-
-When running `/generate`, print a phase tracker line before each phase:
-
-```
-[Phase 0] Determining area and inputs...
-[Phase 1] Launching 3 parallel investigation agents...
-[Phase 2] Synthesizing investigation results...
-[Phase 3] Running live validation...        (or: Skipping live validation.)
-[Phase 4] Writing test case...
-[Phase 4.5] Running quality review...
-[Stage 3] Generating reports...
-```
-
-### Gate rules:
-
-1. **A phase CANNOT be marked complete without executing it.**
-2. **Phase 4.5 is a HARD STOP.** Launch the quality-reviewer agent. If it returns NEEDS_FIXES, fix the issues in the test case and re-run the reviewer. Loop until all blocking issues are resolved. Do NOT proceed to Stage 3 before this passes.
-3. **Never skip Phase 3** when a `--cluster-url` was provided. If the cluster is unreachable, log why and note it (don't silently skip).
-4. **Phase 4 MUST complete before Phase 4.5.** Write the document first, then review it.
-
-### STOP checkpoints (print these to terminal):
-
-- **After Phase 2:** `"Investigation complete. [N] test scenarios identified. Starting [live validation | test case writing]."`
-- **After Phase 4:** `"Test case written: [filename] ([N] steps, [complexity]). Running quality review."`
-- **After Phase 4.5 pass:** `"Quality review PASSED. Generating reports."`
-
----
-
-## Pipeline Execution UX (MANDATORY)
-
-When a user asks to generate a test case, **do NOT delegate the entire pipeline to a single agent**. The user must see phase-by-phase progress in their terminal. Run each phase yourself in the main conversation with visible status updates.
-
-**Required behavior:**
-
-1. **Phase 0 + Stage 1** -- Ask missing questions, then run `gather.py`. Show what was collected.
-2. **Phase 1** -- Launch 3 investigation agents in parallel. Show what each discovered.
-3. **Phase 2** -- Synthesize all investigation outputs into a `SYNTHESIZED CONTEXT` block (three raw agent outputs + your TEST PLAN). Show the plan. If agents disagree: trust UI Discovery for UI elements, Feature Investigator for requirements, Code Change Analyzer for what changed.
-4. **Phase 3** -- Run live validation if applicable. Show results or explain why skipped.
-5. **Phase 4** -- Launch test-case-generator agent. Show what was produced.
-6. **Phase 4.5** -- Launch quality-reviewer agent. Show verdict. Fix and re-run if needed.
-7. **Stage 3** -- Run `report.py`. Show summary and output files.
-
----
-
-## ASK QUESTIONS FIRST
-
-Before starting the pipeline, check if critical information is missing. If any of these are not provided via CLI args or inferable from the JIRA ticket, ask the user:
-
-| Category | Question | Required? |
-|----------|----------|-----------|
-| **JIRA Ticket** | "What's the JIRA ticket? (ACM-XXXXX)" | Always required |
-| **ACM Version** | "Which ACM version? (e.g., 2.16, 2.17)" | Required (can detect from JIRA fix_versions) |
-| **CNV Version** | "What CNV version on spoke?" | Only for Fleet Virt features |
-| **Environment** | "Hub cluster console URL for live validation?" | Optional (skip live validation if not provided) |
-| **Feature Scope** | "What specific flow/scenario to cover?" | Ask if JIRA has multiple ACs |
-| **Test Users** | "What test user? Any RBAC requirements?" | Ask if RBAC-related |
-| **Existing Coverage** | "Related test cases to reference or avoid duplicating?" | Optional |
-
-Only ask for what's genuinely missing. If the JIRA ticket + CLI args provide enough, proceed directly.
+The pipeline is invoked via `/generate`. See `.claude/skills/generate/SKILL.md` for the full execution procedure, phase gates, question-asking protocol, and STOP checkpoints. For batch runs: `/batch`. For standalone reviews: `/review`.
 
 ---
 
@@ -157,29 +96,7 @@ Six agents, each with a dedicated role in the pipeline:
 | **Test Case Generator** | `.claude/agents/test-case-generator.md` | Phase 4 | Write test case markdown from synthesized investigation context |
 | **Quality Reviewer** | `.claude/agents/quality-reviewer.md` | Phase 4.5 | Validate conventions, verify discovered vs assumed, AC vs implementation, scope alignment, numeric thresholds, peer consistency, PASS/NEEDS_FIXES |
 
-### Phase 1: Parallel Agent Launch
-
-Launch three agents **simultaneously** -- do not wait for one to finish before starting the next:
-
-```
-Agent A: feature-investigator  (input: JIRA ID)
-Agent B: code-change-analyzer  (input: PR number, repo, ACM version)
-Agent C: ui-discovery           (input: ACM version, CNV version, feature name, area)
-```
-
-Wait for all three to return, then proceed to Phase 2 synthesis.
-
-### Phase 4.5: Quality Review Loop
-
-```
-1. Launch quality-reviewer with (file path, version, area)
-2. If verdict = PASS -> proceed to Stage 3
-3. If verdict = NEEDS_FIXES:
-   a. Fix all BLOCKING issues in the test case
-   b. Re-launch quality-reviewer
-   c. Repeat until PASS
-4. Maximum 3 review iterations; if still failing, show issues to user
-```
+Agent launch procedures (Phase 1 parallel launch, Phase 4.5 quality review loop) are in `.claude/skills/generate/SKILL.md`.
 
 ---
 
@@ -266,13 +183,11 @@ knowledge/
     sample-test-case.md      # Convention-compliant sample (fallback when no peers)
   patterns/                  # Agent-written: grows from successful runs
     README.md
-  diagnostics/               # Known quality issues
-    common-mistakes.md       # Frequent test case errors
 ```
 
 **Reading rules**: Always read conventions before generating. Read architecture for the relevant area. Read patterns for successful past runs in the same area.
 
-**Writing rules**: Only write to `patterns/` and `diagnostics/`. Never modify `conventions/` or `architecture/` programmatically.
+**Writing rules**: Only write to `patterns/`. Never modify `conventions/` or `architecture/` programmatically.
 
 **Persistent knowledge** (planned): After a successful run, the test-case-generator agent may write area-specific patterns to `knowledge/patterns/<area>-patterns.json` with discovered selectors, routes, translations, and common test structures. When present, read these at the start of future runs for the same area.
 
@@ -409,6 +324,11 @@ Test cases are validated against these criteria (Phase 4.5 + Stage 3):
 - `knowledge/conventions/polarion-html-templates.md` -- Polarion HTML rules
 - `knowledge/conventions/area-naming-patterns.md` -- Title patterns by area
 - `knowledge/conventions/cli-in-steps-rules.md` -- When CLI allowed in test steps
+- `.claude/skills/generate/SKILL.md` -- Pipeline orchestration skill (Phase 0 through Stage 3)
+- `.claude/skills/generate/phase-gates.md` -- Phase tracking and gate enforcement rules
+- `.claude/skills/generate/synthesis-template.md` -- Phase 2 synthesis context template
+- `.claude/skills/review/SKILL.md` -- Test case quality review skill
+- `.claude/skills/batch/SKILL.md` -- Batch generation skill
 - `.claude/agents/feature-investigator.md` -- Phase 1: JIRA deep dive
 - `.claude/agents/code-change-analyzer.md` -- Phase 1: PR diff analysis
 - `.claude/agents/ui-discovery.md` -- Phase 1: ACM UI source discovery

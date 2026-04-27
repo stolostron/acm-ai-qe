@@ -682,13 +682,19 @@ class TestDetectMissingOverlay:
     def test_detects_missing_overlay(self):
         """Returns filename when overlay doesn't exist."""
         service = FeatureKnowledgeService()
-        result = service.detect_missing_overlay('2.17')
-        assert result == 'acm-2.17.yaml'
+        result = service.detect_missing_overlay('2.99')
+        assert result == 'acm-2.99.yaml'
 
-    def test_existing_overlay(self):
-        """Returns None when overlay exists."""
+    def test_existing_overlay_216(self):
+        """Returns None when acm-2.16 overlay exists."""
         service = FeatureKnowledgeService()
         result = service.detect_missing_overlay('2.16')
+        assert result is None
+
+    def test_existing_overlay_217(self):
+        """Returns None when acm-2.17 overlay exists."""
+        service = FeatureKnowledgeService()
+        result = service.detect_missing_overlay('2.17')
         assert result is None
 
     def test_no_version(self):
@@ -782,3 +788,134 @@ class TestRunGapDetection:
         # Search has 0 matches for this error
         assert result['match_rates']['Search']['matched_count'] == 0
         assert 'Search' in result['gap_areas']
+
+
+class TestDeepMergeProfile:
+    """Test version overlay deep-merge into base profiles."""
+
+    def test_new_profile_added_directly(self, playbook_dir):
+        """Profiles only in the version overlay are added directly."""
+        service = FeatureKnowledgeService(data_dir=playbook_dir)
+        profiles = service.load_playbooks(acm_version='2.16')
+        assert 'RBAC' in profiles
+        assert profiles['RBAC']['display_name'] == 'Fine-Grained RBAC'
+
+    def test_base_profiles_preserved_when_no_overlay(self, playbook_dir):
+        """Base profiles not mentioned in the overlay stay unchanged."""
+        service = FeatureKnowledgeService(data_dir=playbook_dir)
+        profiles = service.load_playbooks(acm_version='2.16')
+        assert 'Search' in profiles
+        assert profiles['Search']['display_name'] == 'Search & Discovery'
+        assert len(profiles['Search']['failure_paths']) == 3
+
+    def test_deep_merge_appends_failure_paths(self):
+        """Version overlay appends new failure paths to existing profile."""
+        base = {
+            'display_name': 'Search',
+            'failure_paths': [
+                {'id': 'search-disabled', 'classification': 'NO_BUG'},
+            ],
+        }
+        overlay = {
+            'failure_paths': [
+                {'id': 'search-wal-pressure', 'classification': 'INFRASTRUCTURE'},
+            ],
+        }
+        merged = FeatureKnowledgeService._deep_merge_profile(base, overlay)
+        assert len(merged['failure_paths']) == 2
+        ids = [fp['id'] for fp in merged['failure_paths']]
+        assert 'search-disabled' in ids
+        assert 'search-wal-pressure' in ids
+
+    def test_deep_merge_replaces_by_id(self):
+        """Version overlay replaces failure paths with matching id."""
+        base = {
+            'failure_paths': [
+                {'id': 'search-disabled', 'classification': 'NO_BUG',
+                 'confidence': 0.95},
+            ],
+        }
+        overlay = {
+            'failure_paths': [
+                {'id': 'search-disabled', 'classification': 'INFRASTRUCTURE',
+                 'confidence': 0.80},
+            ],
+        }
+        merged = FeatureKnowledgeService._deep_merge_profile(base, overlay)
+        assert len(merged['failure_paths']) == 1
+        assert merged['failure_paths'][0]['classification'] == 'INFRASTRUCTURE'
+        assert merged['failure_paths'][0]['confidence'] == 0.80
+
+    def test_deep_merge_architecture_fields(self):
+        """Architecture dict is shallow-merged (overlay fields override)."""
+        base = {
+            'architecture': {
+                'summary': 'Original summary',
+                'key_insight': 'Original insight',
+                'data_flow': ['step1'],
+            },
+        }
+        overlay = {
+            'architecture': {
+                'key_insight': 'Updated insight for 2.17',
+            },
+        }
+        merged = FeatureKnowledgeService._deep_merge_profile(base, overlay)
+        assert merged['architecture']['summary'] == 'Original summary'
+        assert merged['architecture']['key_insight'] == 'Updated insight for 2.17'
+        assert merged['architecture']['data_flow'] == ['step1']
+
+    def test_deep_merge_scalar_override(self):
+        """Scalar fields in overlay replace base values."""
+        base = {'display_name': 'Search', 'docs_ref': 'old-ref'}
+        overlay = {'display_name': 'Search (2.17)'}
+        merged = FeatureKnowledgeService._deep_merge_profile(base, overlay)
+        assert merged['display_name'] == 'Search (2.17)'
+        assert merged['docs_ref'] == 'old-ref'
+
+    def test_deep_merge_prerequisites_by_id(self):
+        """Prerequisites merge by id like failure_paths."""
+        base = {
+            'prerequisites': [
+                {'id': 'search-mch', 'type': 'mch_component',
+                 'description': 'original'},
+            ],
+        }
+        overlay = {
+            'prerequisites': [
+                {'id': 'search-mch', 'type': 'mch_component',
+                 'description': 'updated for 2.17'},
+                {'id': 'new-prereq', 'type': 'crd',
+                 'description': 'new in 2.17'},
+            ],
+        }
+        merged = FeatureKnowledgeService._deep_merge_profile(base, overlay)
+        assert len(merged['prerequisites']) == 2
+        original = next(p for p in merged['prerequisites'] if p['id'] == 'search-mch')
+        assert original['description'] == 'updated for 2.17'
+        new = next(p for p in merged['prerequisites'] if p['id'] == 'new-prereq')
+        assert new['type'] == 'crd'
+
+    def test_deep_merge_dependencies_replaced(self):
+        """Dependencies list is replaced entirely by overlay."""
+        base = {'dependencies': ['Infrastructure']}
+        overlay = {'dependencies': ['Infrastructure', 'Console']}
+        merged = FeatureKnowledgeService._deep_merge_profile(base, overlay)
+        assert merged['dependencies'] == ['Infrastructure', 'Console']
+
+    def test_real_217_overlay_merges_into_search(self):
+        """The real acm-2.17.yaml adds a failure path to Search from base."""
+        service = FeatureKnowledgeService()
+        base_profiles = service.load_playbooks()
+        base_search_paths = len(base_profiles.get('Search', {}).get('failure_paths', []))
+
+        service2 = FeatureKnowledgeService()
+        merged_profiles = service2.load_playbooks(acm_version='2.17')
+        merged_search_paths = len(merged_profiles.get('Search', {}).get('failure_paths', []))
+
+        assert merged_search_paths == base_search_paths + 1
+        new_path = next(
+            fp for fp in merged_profiles['Search']['failure_paths']
+            if fp['id'] == 'search-postgres-wal-pressure'
+        )
+        assert new_path['classification'] == 'INFRASTRUCTURE'

@@ -10,6 +10,16 @@ Claude Code-powered tools for ACM (Advanced Cluster Management) quality engineer
 | [Z-Stream Analysis](apps/z-stream-analysis/) | Classify Jenkins pipeline failures (product bug, automation bug, infra) using 12-layer diagnostic investigation (v4.0) with root-cause-first analysis. Stage 1.5 cluster-diagnostic agent produces structured health data (environment_health_score, operator_health, health_depth). v4.0 adds context signals (PR-7), Polarion expected-behavior check (PR-6b), symmetric counterfactual (D-V5c/D-V5e), and layer discrepancy detection. Environment Oracle, per-group investigation agents, and knowledge database (61 files: architecture, data-flow, failure-signatures across 12 ACM subsystems + diagnostics methodology including 12-layer model + healthy baselines + addon catalog + webhook registry + diagnostic traps + learned patterns). | Active |
 | [Test Case Generator](apps/test-case-generator/) | Generate Polarion-ready test cases from JIRA tickets. 6-phase subagent pipeline: deterministic data gathering (gh CLI), parallel AI investigation (3 subagents: feature-investigator, code-change-analyzer, ui-discovery), synthesis with scope gating and AC cross-referencing, optional live validation (browser + oc + acm-search + acm-kubectl), AI-powered test case writing, mandatory quality review gate (AC vs implementation, scope alignment, numeric thresholds), and deterministic report/validation with Polarion HTML output. 6 specialized agents, 7 MCP integrations (JIRA, Polarion, ACM UI, Neo4j, ACM Search, ACM Kubectl, Playwright). Supports 9 console areas (Governance, RBAC, Fleet Virt, CCLM, MTV, Clusters, Search, Applications, Credentials). Session tracing via Claude Code hooks. | Active |
 
+## Quick Start (Recommended)
+
+```bash
+git clone <repo-url>
+cd ai_systems_v2
+claude
+```
+
+Then type `/onboard` -- the interactive setup detects your environment, explains the apps, and guides MCP server configuration with credential setup.
+
 ## Prerequisites
 
 All apps require:
@@ -70,10 +80,12 @@ cd apps/z-stream-analysis
 claude
 ```
 
-Then paste a Jenkins URL:
+Then use the slash command:
 ```
-Analyze this run: https://jenkins.example.com/job/pipeline/123/
+/analyze https://jenkins.example.com/job/pipeline/123/
 ```
+
+Other commands: `/gather <URL>` (Stage 1 only), `/quick <URL>` (skip cluster diagnostic).
 
 Or run the pipeline manually:
 ```bash
@@ -182,6 +194,7 @@ ai_systems_v2/
 │       ├── jenkins-mcp/       #   from redhat-community-ai-tools/jenkins-mcp
 │       ├── knowledge-graph/   #   from stolostron/knowledge-graph
 │       └── acm-mcp-server/    #   from stolostron/acm-mcp-server
+├── AGENTS.md                  # Agent reference (tool-agnostic, for external AI tools)
 ├── CLAUDE.md                  # Claude Code agent instructions
 └── README.md                  # This file
 ```

@@ -26,11 +26,6 @@ Per-area domain knowledge. Covers component architecture, common patterns, and a
 ### patterns/ (agent-written, grows over time)
 Learned patterns from successful test case generation runs. The agent writes here after producing validated test cases.
 
-### diagnostics/ (curated)
-Known quality issues and common mistakes to avoid.
-
-- `common-mistakes.md` -- Frequent test case errors and how to fix them
-
 ## Usage Rules
 
 - **Always** read `conventions/test-case-format.md` before generating any test case

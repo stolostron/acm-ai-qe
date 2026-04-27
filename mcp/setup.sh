@@ -59,66 +59,94 @@ needs_mcp() {
     esac
 }
 
-# -----------------------------------------------
-# App Selection Menu
-# -----------------------------------------------
-echo ""
-echo -e "${BOLD}============================================${NC}"
-echo -e "${BOLD}  MCP Server Setup -- AI Systems Suite${NC}"
-echo -e "${BOLD}============================================${NC}"
-echo ""
-echo "  Which app(s) would you like to configure?"
-echo ""
-echo -e "    ${CYAN}1)${NC} ACM Hub Health Agent"
-echo -e "       Needs: acm-ui, neo4j-rhacm, acm-search"
-echo ""
-echo -e "    ${CYAN}2)${NC} Z-Stream Pipeline Analysis"
-echo -e "       Needs: acm-ui, jira, jenkins, polarion, neo4j-rhacm"
-echo ""
-echo -e "    ${CYAN}3)${NC} Test Case Generator"
-echo -e "       Needs: acm-ui, jira, polarion, neo4j-rhacm, acm-search, acm-kubectl, playwright"
-echo ""
-echo -e "    ${CYAN}4)${NC} All apps"
-echo -e "       Sets up all MCP servers for all apps"
-echo ""
-
-while true; do
-    read -p "  Select [1/2/3/4]: " APP_CHOICE
-    case "$APP_CHOICE" in
+# Apply an app selection choice (1-4)
+apply_selection() {
+    case "$1" in
         1)
             SELECTED_APPS="$APP_HUB_HEALTH_DIR"
             SELECTED_MCPS="$APP_HUB_HEALTH_MCPS"
-            echo ""
             ok "Selected: ACM Hub Health Agent"
-            break
             ;;
         2)
             SELECTED_APPS="$APP_ZSTREAM_DIR"
             SELECTED_MCPS="$APP_ZSTREAM_MCPS"
-            echo ""
             ok "Selected: Z-Stream Pipeline Analysis"
-            break
             ;;
         3)
             SELECTED_APPS="$APP_TESTCASE_GEN_DIR"
             SELECTED_MCPS="$APP_TESTCASE_GEN_MCPS"
-            echo ""
             ok "Selected: Test Case Generator"
-            break
             ;;
         4)
             SELECTED_APPS="$APP_HUB_HEALTH_DIR $APP_ZSTREAM_DIR $APP_TESTCASE_GEN_DIR"
-            # Union of all app MCPs (no single app is the superset anymore)
             SELECTED_MCPS="acm-ui jira jenkins polarion neo4j-rhacm acm-search acm-kubectl playwright"
-            echo ""
             ok "Selected: All apps"
-            break
             ;;
         *)
-            echo -e "  ${RED}Invalid choice. Enter 1, 2, 3, or 4.${NC}"
+            return 1
+            ;;
+    esac
+}
+
+# -----------------------------------------------
+# App Selection (CLI argument or interactive menu)
+# -----------------------------------------------
+
+# Parse --app flag for non-interactive mode (used by /onboard skill)
+CLI_APP_CHOICE=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --app)
+            CLI_APP_CHOICE="$2"
+            shift 2
+            ;;
+        *)
+            shift
             ;;
     esac
 done
+
+if [ -n "$CLI_APP_CHOICE" ]; then
+    echo ""
+    echo -e "${BOLD}============================================${NC}"
+    echo -e "${BOLD}  MCP Server Setup -- AI Systems Suite${NC}"
+    echo -e "${BOLD}============================================${NC}"
+    echo ""
+    if ! apply_selection "$CLI_APP_CHOICE"; then
+        fail "Invalid --app value: $CLI_APP_CHOICE (expected 1, 2, 3, or 4)"
+        exit 1
+    fi
+else
+    echo ""
+    echo -e "${BOLD}============================================${NC}"
+    echo -e "${BOLD}  MCP Server Setup -- AI Systems Suite${NC}"
+    echo -e "${BOLD}============================================${NC}"
+    echo ""
+    echo "  Which app(s) would you like to configure?"
+    echo ""
+    echo -e "    ${CYAN}1)${NC} ACM Hub Health Agent"
+    echo -e "       Needs: acm-ui, neo4j-rhacm, acm-search"
+    echo ""
+    echo -e "    ${CYAN}2)${NC} Z-Stream Pipeline Analysis"
+    echo -e "       Needs: acm-ui, jira, jenkins, polarion, neo4j-rhacm"
+    echo ""
+    echo -e "    ${CYAN}3)${NC} Test Case Generator"
+    echo -e "       Needs: acm-ui, jira, polarion, neo4j-rhacm, acm-search, acm-kubectl, playwright"
+    echo ""
+    echo -e "    ${CYAN}4)${NC} All apps"
+    echo -e "       Sets up all MCP servers for all apps"
+    echo ""
+
+    while true; do
+        read -p "  Select [1/2/3/4]: " APP_CHOICE
+        echo ""
+        if apply_selection "$APP_CHOICE"; then
+            break
+        else
+            echo -e "  ${RED}Invalid choice. Enter 1, 2, 3, or 4.${NC}"
+        fi
+    done
+fi
 
 # Count MCPs for progress indicator
 TOTAL_MCPS=$(echo $SELECTED_MCPS | wc -w | tr -d ' ')

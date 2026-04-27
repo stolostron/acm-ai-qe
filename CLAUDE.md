@@ -15,6 +15,8 @@ Five-stage pipeline:
 2. **AI Analysis** — 12-layer diagnostic investigation: groups tests by shared signals, traces root cause through infrastructure layers (Compute→UI), classifies based on WHO caused breakage. Per-group investigation agents for deeper analysis. Produces `analysis-results.json` with `root_cause_layer` per test.
 3. **report.py** — Generates `Detailed-Analysis.md` + `analysis-report.html` from analysis results
 
+3 slash commands: `/analyze` (full pipeline), `/gather` (Stage 1 only), `/quick` (skip cluster diagnostic). 4 agents in `.claude/agents/` (analysis, cluster-diagnostic, data-collector, investigation-agent). Session tracing via Claude Code hooks captures all tool calls, MCP interactions, prompts, and subagent operations to structured JSONL files (`.claude/traces/`) with pipeline-specific enrichment (oc command parsing, pipeline stage detection, knowledge read categorization, session-level aggregate stats).
+
 See `apps/z-stream-analysis/CLAUDE.md` for schema requirements, classification guide, and MCP tool reference.
 
 ### ACM Hub Health Agent (`apps/acm-hub-health/`) — Active
@@ -25,7 +27,13 @@ Usage: `cd apps/acm-hub-health && bash setup.sh && oc login <hub> && claude`
 
 ### Test Case Generator (`apps/test-case-generator/`) — Active
 
-Generates Polarion-ready test cases for ACM Console features from JIRA tickets. 6-phase subagent pipeline: deterministic data gathering (gh CLI), parallel AI investigation (3 subagents: feature-investigator, code-change-analyzer, ui-discovery), synthesis with scope gating and AC cross-referencing, optional live validation (browser + oc + acm-search + acm-kubectl), AI-powered test case writing, mandatory quality review gate (AC vs implementation check, scope alignment, numeric threshold validation), and deterministic report/validation with Polarion HTML output. 6 specialized agents, 7 MCP integrations (JIRA, Polarion, ACM UI, Neo4j, ACM Search, ACM Kubectl, Playwright). Supports 9 console areas (Governance, RBAC, Fleet Virt, CCLM, MTV, Clusters, Search, Applications, Credentials). Session tracing via Claude Code hooks captures all tool calls, MCP interactions, prompts, subagent launches, and errors to structured JSONL files (`.claude/traces/`) with pipeline-specific enrichment (phase detection, command type inference, oc command parsing, MCP server extraction, session-level aggregate stats).
+Generates Polarion-ready test cases for ACM Console features from JIRA tickets. 6-phase subagent pipeline: deterministic data gathering (gh CLI), parallel AI investigation (3 subagents: feature-investigator, code-change-analyzer, ui-discovery), synthesis with scope gating and AC cross-referencing, optional live validation (browser + oc + acm-search + acm-kubectl), AI-powered test case writing, mandatory quality review gate (AC vs implementation check, scope alignment, numeric threshold validation), and deterministic report/validation with Polarion HTML output. 6 specialized agents, 7 MCP integrations (JIRA, Polarion, ACM UI, Neo4j, ACM Search, ACM Kubectl, Playwright). Supports 9 console areas (Governance, RBAC, Fleet Virt, CCLM, MTV, Clusters, Search, Applications, Credentials). 3 skills in `.claude/skills/`: `/generate` (full pipeline with phase gates and synthesis template), `/review` (standalone quality review), `/batch` (multi-ticket generation). Session tracing via Claude Code hooks captures all tool calls, MCP interactions, prompts, subagent launches, and errors to structured JSONL files (`.claude/traces/`) with pipeline-specific enrichment (phase detection, command type inference, oc command parsing, MCP server extraction, session-level aggregate stats).
+
+## Getting Started
+
+New to this repo? Run `/onboard` for interactive setup -- it detects your environment, explains the apps, and guides MCP server configuration with credential setup. Works for both new team members and fresh AI agent sessions.
+
+For manual setup: `bash mcp/setup.sh`
 
 ## CodeRabbit Review Policy
 
@@ -44,11 +52,15 @@ On review results — **do NOT blindly implement suggestions**:
 
 ## Running Z-Stream Analysis
 
-Open Claude Code in this repository (root or `apps/z-stream-analysis/`) and ask:
+Open Claude Code in this repository (root or `apps/z-stream-analysis/`) and use:
 
 ```
-Analyze this run: <JENKINS_URL>
+/analyze <JENKINS_URL>
 ```
+
+Or use natural language: `Analyze this run: <JENKINS_URL>`
+
+Other commands: `/gather <URL>` (Stage 1 only), `/quick <URL>` (skip cluster diagnostic for fast triage).
 
 Claude Code runs each stage with visible progress updates — do NOT delegate the entire pipeline to a single agent. See `apps/z-stream-analysis/CLAUDE.md` "Pipeline Execution UX" section.
 
@@ -105,6 +117,7 @@ ai_systems_v2/
 │   ├── polarion/              # Our code: Polarion wrapper
 │   ├── jenkins-acm-tools.py   # Our code: ACM-specific Jenkins analysis tools
 │   └── .external/             # Cloned at setup time (gitignored)
+├── AGENTS.md                  # Agent reference (tool-agnostic, for external AI tools)
 ├── CLAUDE.md                  # This file — Claude Code agent instructions
 └── README.md                  # User-facing setup and onboarding guide
 ```

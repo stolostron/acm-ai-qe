@@ -129,7 +129,7 @@ test-case-generator/
 │   └── unit/                # Unit tests (3 files, 34 tests)
 ├── .claude/
 │   ├── agents/              # 6 agent definitions
-│   ├── commands/            # 3 slash commands (generate, review, batch)
+│   ├── skills/              # 3 skill definitions (generate, review, batch)
 │   ├── hooks/               # Session tracing hook
 │   ├── traces/              # Session trace JSONL files (gitignored)
 │   └── settings.json        # Permissions + hooks config
@@ -137,8 +137,7 @@ test-case-generator/
 │   ├── conventions/         # Test case format rules (4 files)
 │   ├── architecture/        # Per-area domain knowledge (7 files)
 │   ├── examples/            # Sample test case (1 file)
-│   ├── patterns/            # Learned patterns from runs (planned)
-│   └── diagnostics/         # Common test case mistakes (1 file)
+│   └── patterns/            # Learned patterns from runs (planned)
 ├── runs/                    # Pipeline output (gitignored)
 ├── docs/                    # This documentation
 ├── CLAUDE.md                # App constitution

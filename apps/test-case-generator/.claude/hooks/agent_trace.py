@@ -136,8 +136,6 @@ def _detect_phase_from_read(file_path):
         return "architecture"
     if "patterns/" in file_path:
         return "patterns"
-    if "diagnostics/" in file_path:
-        return "diagnostics"
     if "examples/" in file_path:
         return "examples"
     return None

@@ -1,4 +1,54 @@
-# /generate -- Generate a test case from a JIRA ticket
+---
+description: |
+  Generate a Polarion-ready test case from a JIRA ticket using a 6-phase
+  subagent pipeline: gather, parallel investigation (3 agents), synthesis,
+  optional live validation, test case writing, mandatory quality review,
+  and deterministic report generation.
+when_to_use: |
+  When the user wants to generate a test case from a JIRA ticket, or asks
+  to run the pipeline, or says "generate", "create test case", "write test
+  case for ACM-XXXXX", or provides a JIRA ticket and asks for test coverage.
+argument-hint: "<JIRA_ID> [--version <VERSION>] [--pr <PR_NUMBER>] [--area <AREA>] [--skip-live] [--cluster-url <URL>] [--repo <REPO>]"
+disable-model-invocation: true
+allowed-tools:
+  - Read
+  - Write
+  - Edit
+  - Glob
+  - Grep
+  - Agent
+  - Bash(python -m src.scripts.gather:*)
+  - Bash(python -m src.scripts.report:*)
+  - Bash(python:*)
+  - Bash(python3:*)
+  - Bash(gh:*)
+  - Bash(git:*)
+  - Bash(ls:*)
+  - Bash(cat:*)
+  - Bash(mkdir:*)
+  - Bash(jq:*)
+  - Bash(head:*)
+  - Bash(tail:*)
+  - Bash(grep:*)
+  - Bash(find:*)
+  - Bash(wc:*)
+  - Bash(echo:*)
+  - Bash(date:*)
+  - Bash(basename:*)
+  - Bash(dirname:*)
+  - Bash(realpath:*)
+  - mcp__acm-ui__set_acm_version
+  - mcp__acm-ui__set_cnv_version
+  - mcp__acm-ui__get_routes
+  - mcp__acm-ui__search_translations
+  - mcp__jira__get_issue
+  - mcp__jira__search_issues
+  - mcp__polarion__get_polarion_work_items
+  - mcp__polarion__get_polarion_test_case_summary
+  - mcp__polarion__check_polarion_status
+---
+
+# Generate a test case from a JIRA ticket
 
 Usage: `/generate <JIRA_ID> [--version <VERSION>] [--pr <PR_NUMBER>] [--area <AREA>] [--skip-live] [--cluster-url <URL>] [--repo <REPO>]`
 
@@ -22,6 +72,10 @@ Before running the pipeline, check if critical information is missing:
 4. If the JIRA ticket has multiple acceptance criteria with distinct flows, ask: "Which specific flow/scenario should this test case cover?"
 
 If all info is available (from args or inferable from JIRA), proceed without asking.
+
+Before executing the pipeline, read these supporting files:
+- [phase-gates.md](phase-gates.md) -- Phase tracking format, gate rules, STOP checkpoints
+- [synthesis-template.md](synthesis-template.md) -- Phase 2 synthesis template and scope gating
 
 ## Stage 1: Gather
 
@@ -70,67 +124,9 @@ Wait for all three to return. Show a brief summary of what each discovered.
 [Phase 2] Synthesizing investigation results...
 ```
 
-Merge all three agent outputs into a single **SYNTHESIZED CONTEXT** block. This block is the primary input to Phase 4 (test-case-generator agent). Format:
+Read [synthesis-template.md](synthesis-template.md) for the SYNTHESIZED CONTEXT block template, scope gating rules, and AC vs implementation cross-reference procedure.
 
-```
-SYNTHESIZED CONTEXT
-===================
-
---- FEATURE INVESTIGATION ---
-[paste full output from feature-investigator agent]
-
---- CODE CHANGE ANALYSIS ---
-[paste full output from code-change-analyzer agent]
-
---- UI DISCOVERY RESULTS ---
-[paste full output from ui-discovery agent]
-
---- TEST PLAN ---
-Scenarios: [N]
-Steps: [estimated count, typically 5-10 for medium complexity]
-Setup: [prerequisites, test users, resources needed]
-Per-step validations: [what each step validates — UI action + expected result]
-CLI checkpoints: [where backend validation is needed mid-test]
-Teardown: [resources to clean up]
-
-Conflict resolution (if agents disagree):
-- UI elements (labels, routes, selectors): trust UI Discovery (reads source directly)
-- Business requirements (ACs, scope): trust Feature Investigator (reads JIRA)
-- What changed (files, diff): trust Code Change Analyzer (reads the diff)
-```
-
-The TEST PLAN section is written by you (the orchestrator) based on the three investigation blocks.
-
-### Scope Gating (CRITICAL)
-
-When creating the TEST PLAN, apply this scope filter:
-
-1. Extract the target JIRA story's Acceptance Criteria from the FEATURE INVESTIGATION output (if ACs are not present there, retrieve them via JIRA MCP `get_issue`)
-2. For each planned test step, verify it maps to at least one AC bullet from the target story
-3. If a step tests functionality from a DIFFERENT story (even if delivered in the same PR):
-   - Do NOT include it as a test step
-   - DO mention it in the Notes section as "Related but not tested here: [description] (covered by [other-story])"
-4. The test case title should reflect the target story's scope, not the PR's scope
-
-### AC vs Implementation Cross-Reference (MANDATORY)
-
-After merging investigation outputs, cross-reference the JIRA ACs against the code behavior:
-
-1. Extract each numbered AC bullet from the FEATURE INVESTIGATION output
-2. For each AC, find the corresponding code behavior from the CODE CHANGE ANALYSIS output
-3. If they AGREE: no action needed
-4. If they DISAGREE (AC says X, code does Y):
-   - Add to the SYNTHESIZED CONTEXT a section:
-     ```
-     AC-IMPLEMENTATION DISCREPANCIES:
-     - AC: "[exact AC text]"
-       Code: "[what the code actually does]"
-       Source: [file:line or diff reference]
-     ```
-   - The test-case-generator agent MUST include a Note about each discrepancy
-   - The test case MUST validate against the IMPLEMENTATION (what users actually see), not the AC (what was planned)
-
-Show the plan to the user.
+After building the synthesized context, show the plan to the user.
 
 **STOP checkpoint:**
 ```

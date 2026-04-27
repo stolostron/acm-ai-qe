@@ -284,8 +284,6 @@ reviews:
           sample-test-case.md — fallback format reference when no peer test cases
         knowledge/patterns/ (agent-written):
           Area-specific learned patterns from successful runs
-        knowledge/diagnostics/ (read-only):
-          common-mistakes.md — frequent test case errors
 
         === AGENTS (6) ===
 
@@ -366,16 +364,18 @@ reviews:
         - Agent instructions that read the JSON
         - CLAUDE.md run directory layout
 
-    - path: "apps/test-case-generator/.claude/commands/*.md"
+    - path: "apps/test-case-generator/.claude/skills/**/*.md"
       instructions: |
-        Slash command definitions:
-        - generate.md: Full 6-phase pipeline orchestration. Documents parallel
-          agent launch, SYNTHESIZED CONTEXT format, review loop with max 3
-          iterations, STOP checkpoints.
-        - batch.md: Wraps /generate for multiple JIRA IDs (comma-separated).
-        - review.md: Post-hoc quality review of existing test case files.
+        Skill definitions (migrated from .claude/commands/):
+        - generate/SKILL.md: Full 6-phase pipeline orchestration with
+          allowed-tools frontmatter. Supporting files: phase-gates.md
+          (gate enforcement), synthesis-template.md (Phase 2 template).
+        - batch/SKILL.md: Wraps /generate for multiple JIRA IDs.
+        - review/SKILL.md: Post-hoc quality review of existing test cases.
         Phase labels must match CLAUDE.md phase tracker format.
         [Phase N] for agent phases, [Stage N] for Python script stages.
+        allowed-tools frontmatter pre-approves Agent, gather.py, report.py,
+        and MCP tools scoped to when the skill is active.
 
     - path: "apps/*/.claude/agents/*.md"
       instructions: |

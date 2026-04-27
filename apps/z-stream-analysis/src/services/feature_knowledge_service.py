@@ -106,7 +106,7 @@ class FeatureKnowledgeService:
             except Exception as e:
                 self.logger.warning(f"Failed to load base playbooks: {e}")
 
-        # Load version overlay
+        # Load version overlay (deep-merge into base profiles)
         if acm_version:
             version_path = self.data_dir / f'acm-{acm_version}.yaml'
             if version_path.exists():
@@ -114,8 +114,13 @@ class FeatureKnowledgeService:
                     with open(version_path, 'r') as f:
                         version_data = yaml.safe_load(f) or {}
                     version_profiles = version_data.get('profiles', {})
-                    # Version profiles override/add to base
-                    self.profiles.update(version_profiles)
+                    for name, version_profile in version_profiles.items():
+                        if name in self.profiles:
+                            self.profiles[name] = self._deep_merge_profile(
+                                self.profiles[name], version_profile
+                            )
+                        else:
+                            self.profiles[name] = version_profile
                     self.logger.info(
                         f"Loaded {len(version_profiles)} profiles from acm-{acm_version}.yaml"
                     )
@@ -444,6 +449,49 @@ class FeatureKnowledgeService:
     def to_dict(self, obj) -> dict:
         """Convert dataclass to dict for serialization."""
         return dataclass_to_dict(obj)
+
+    # ── Profile Merging ──
+
+    @staticmethod
+    def _deep_merge_profile(base: dict, overlay: dict) -> dict:
+        """
+        Deep-merge a version overlay into a base profile.
+
+        Merge rules:
+        - Scalar fields (display_name, docs_ref): overlay wins
+        - architecture dict: overlay fields override base fields
+        - prerequisites list: merge by 'id' — overlay entries with the
+          same id replace base entries; new entries are appended
+        - failure_paths list: same merge-by-id logic as prerequisites
+        - dependencies list: overlay replaces base entirely
+        - Any other keys: overlay wins
+        """
+        merged = dict(base)
+
+        for key, value in overlay.items():
+            if key == 'architecture' and isinstance(value, dict):
+                merged_arch = dict(merged.get('architecture', {}))
+                merged_arch.update(value)
+                merged['architecture'] = merged_arch
+
+            elif key in ('prerequisites', 'failure_paths') and isinstance(value, list):
+                base_list = list(merged.get(key, []))
+                base_ids = {item.get('id'): i for i, item in enumerate(base_list)
+                            if isinstance(item, dict) and 'id' in item}
+                for overlay_item in value:
+                    if not isinstance(overlay_item, dict):
+                        continue
+                    item_id = overlay_item.get('id')
+                    if item_id and item_id in base_ids:
+                        base_list[base_ids[item_id]] = overlay_item
+                    else:
+                        base_list.append(overlay_item)
+                merged[key] = base_list
+
+            else:
+                merged[key] = value
+
+        return merged
 
     # ── Gap Detection Methods (v4.0) ──
 

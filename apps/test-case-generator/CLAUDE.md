@@ -112,7 +112,7 @@ Agent launch procedures (Phase 1 parallel launch, Phase 4.5 quality review loop)
 | acm-kubectl | 3 | Multicluster kubectl: list clusters, run commands on hub/spokes | Live Validator |
 | playwright | 24 | Browser automation: navigate, snapshot, interact, screenshot, verify | UI Discovery (conditional), Live Validator |
 
-Setup: `bash mcp/setup.sh` from repo root, select "Test Case Generator".
+First-time setup: from the repo root, run `claude` then `/onboard`.
 
 ### MCP Usage Rules
 

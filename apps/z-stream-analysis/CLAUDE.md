@@ -146,7 +146,7 @@ Use extracted_context first. Only access repos/ if insufficient.
 
 ## MCP Servers Available
 
-Five MCP servers provide tools during Stage 2 (AI Analysis). Run `bash mcp/setup.sh` from the repo root to configure. See `docs/05-MCP-INTEGRATION.md` for setup details, credential configuration, and full tool reference.
+Five MCP servers provide tools during Stage 2 (AI Analysis). First-time setup: from the repo root, run `claude` then `/onboard`. See `docs/05-MCP-INTEGRATION.md` for setup details, credential configuration, and full tool reference.
 
 | Server | Tools | Purpose |
 |--------|-------|---------|

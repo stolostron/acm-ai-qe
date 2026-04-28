@@ -199,7 +199,7 @@ Each of the 12 subsystems has `architecture.md`, `data-flow.md`, and `failure-si
 | Polarion | 25 | Test case content and dependency discovery |
 | Neo4j | 2 | Component dependency analysis via Cypher |
 
-Setup: `bash mcp/setup.sh` from the repo root.
+First-time setup: from the repo root, run `claude` then `/onboard`.
 
 </details>
 

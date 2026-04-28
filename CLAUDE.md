@@ -23,7 +23,7 @@ See `apps/z-stream-analysis/CLAUDE.md` for schema requirements, classification g
 
 AI-powered diagnostic and remediation agent for ACM hub clusters. Uses Claude Code with embedded ACM domain knowledge to perform health checks at any depth -- from quick sanity checks to deep component-level investigations. Natural language driven, no dependencies beyond `oc` + `claude`. Diagnosis is read-only; cluster fixes are executed only after presenting a structured remediation plan and getting explicit user approval. Includes structured knowledge database (`knowledge/`) with baseline, dependency chains (12 cascade paths with layer annotations), 12-layer diagnostic model (vertical root cause tracing), webhooks, certificates, addon catalog, and 14 diagnostic traps. Phase 3 uses layer-organized health checks (foundational layers first, then component layers). Phase 5 traces both horizontally (dependency chains) and vertically (12 infrastructure layers). Uses the ACM search database MCP (`acm-search`) for fleet-wide spoke-side resource queries across all managed clusters. Falls back to cluster metadata introspection (8 live metadata sources) and the Neo4j knowledge graph MCP (`neo4j-rhacm`) for dependency analysis when the curated knowledge doesn't cover a component or path. Optional CLI wrapper (`acm-hub`) enables running diagnostics from any terminal without launching an interactive session. Session tracing via Claude Code hooks captures all tool calls, MCP interactions, prompts, and errors to structured JSONL files (`.claude/traces/`) with diagnostic-specific enrichment (oc command parsing, phase inference, mutation detection, session-level aggregate stats).
 
-Usage: `cd apps/acm-hub-health && bash setup.sh && oc login <hub> && claude`
+Usage: `cd apps/acm-hub-health && oc login <hub> && claude`
 
 ### Test Case Generator (`apps/test-case-generator/`) — Active
 
@@ -33,7 +33,7 @@ Generates Polarion-ready test cases for ACM Console features from JIRA tickets. 
 
 New to this repo? Run `/onboard` for interactive setup -- it detects your environment, explains the apps, and guides MCP server configuration with credential setup. Works for both new team members and fresh AI agent sessions.
 
-For manual setup: `bash mcp/setup.sh`
+For manual setup: launch `claude` from the repo root and run `/onboard`.
 
 ## CodeRabbit Review Policy
 
@@ -85,7 +85,7 @@ python -m src.scripts.report runs/<run_dir>
 
 ## MCP Servers (`mcp/`)
 
-Run `bash mcp/setup.sh` from repo root. The script prompts you to select which app(s) to configure, clones external MCP servers, and installs dependencies.
+From the repo root, launch `claude` and run `/onboard`. It detects your environment, prompts for credentials, configures MCP servers, and generates `.mcp.json` for the selected app(s).
 
 | Server | Tools | Source | Purpose |
 |--------|-------|--------|---------|

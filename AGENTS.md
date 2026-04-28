@@ -15,13 +15,17 @@ python -m pytest tests/ -q --timeout=300
 
 ## Setup
 
-```bash
-# MCP servers (required before first run)
-bash mcp/setup.sh
+From the repo root, launch Claude Code and run the onboarding skill:
 
-# Python dependencies
-cd apps/z-stream-analysis && pip install -r requirements.txt
+```bash
+claude
 ```
+
+```
+/onboard
+```
+
+This detects your environment, configures MCP servers, prompts for credentials, and generates `.mcp.json` for each app.
 
 ## Architecture
 
@@ -81,7 +85,7 @@ Run `bash mcp/setup.sh` to configure. External MCPs are cloned into `mcp/.extern
 ## Known Gotchas
 
 - **VPN required** for integration tests (Jenkins access)
-- **MCP setup required** before first run (`bash mcp/setup.sh`)
+- **MCP setup required** before first run (run `/onboard` in Claude Code from the repo root)
 - **Neo4j optional** — Podman container `neo4j-rhacm` auto-starts if available
 - **Cluster access** — z-stream Stage 1.5 and hub-health require `oc login` to a hub cluster
 - **Version overlays** — playbook overlays deep-merge by `id` field; new IDs append, matching IDs replace

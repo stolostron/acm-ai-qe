@@ -14,7 +14,6 @@
 
 ```bash
 cd acm-hub-health
-bash setup.sh         # one-time setup
 oc login <hub-api>    # login to your hub
 claude                # start the agent
 ```
@@ -22,6 +21,9 @@ claude                # start the agent
 ```
 /health-check
 ```
+
+> [!NOTE]
+> First-time setup: from the repo root, run `claude` then `/onboard`. It configures MCP servers and credentials automatically.
 
 Other commands: `/sanity` (30s pulse), `/deep` (full audit), `/investigate <area>`, `/learn`.
 
@@ -247,7 +249,7 @@ python -m knowledge.refresh    # requires Python 3 + PyYAML
 | Neo4j RHACM | 2 | Component dependency analysis via Cypher (370 nodes, 541 relationships) |
 | ACM Search | 5 | Fleet-wide spoke-side resource queries via search-postgres |
 
-Setup: `bash setup.sh` (or `bash mcp/setup.sh` from repo root).
+First-time setup: from the repo root, run `claude` then `/onboard`.
 
 The agent also supports self-healing knowledge: when a component isn't covered by the knowledge base, it reverse-engineers dependencies from 8 live cluster metadata sources (owner refs, OLM labels, CSVs, env vars, webhooks, ConsolePlugins, APIServices, annotations).
 

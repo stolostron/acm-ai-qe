@@ -45,21 +45,27 @@ The setup script handles this automatically -- select your app and it installs o
 
 ## Quick Setup
 
-From the repository root, run:
+From the repository root, launch Claude Code and run the onboarding skill:
 
 ```bash
-bash mcp/setup.sh
+claude
 ```
 
-The script:
-1. Checks prerequisites (Python, `gh` CLI, `uvx`)
-2. Clones external MCP servers (jira, jenkins) into `mcp/.external/` (gitignored)
-3. Creates Python virtual environments for each server
-4. Installs dependencies into each venv
-5. Prompts for credentials (API tokens, emails) -- press Enter to skip any
-6. Generates `.mcp.json` for the selected app(s)
+```
+/onboard
+```
 
-Re-running the script updates the clones and re-checks credentials.
+The onboarding skill detects your environment, walks you through MCP server
+configuration and credential setup, and generates `.mcp.json` for the selected
+app(s). It is idempotent -- run it again anytime to check or update your setup.
+
+Under the hood, `/onboard` handles:
+1. Prerequisite checks (Python, `gh` CLI, `uvx`, Node.js, Podman)
+2. Cloning external MCP servers into `mcp/.external/` (gitignored)
+3. Creating Python virtual environments for each server
+4. Installing dependencies into each venv
+5. Credential prompts (API tokens, emails)
+6. Generating `.mcp.json` for the selected app(s)
 
 ## Architecture
 
@@ -89,7 +95,8 @@ mcp/
 \-- .external/                       <-- Cloned at setup time (gitignored)
     |-- jira-mcp-server/             <-- From stolostron/jira-mcp-server
     |-- jenkins-mcp/                 <-- From redhat-community-ai-tools/jenkins-mcp
-    \-- acm-mcp-server/              <-- From stolostron/acm-mcp-server (acm-search + acm-kubectl)
+    |-- acm-mcp-server/              <-- From stolostron/acm-mcp-server (acm-search + acm-kubectl)
+    \-- knowledge-graph/             <-- From stolostron/knowledge-graph (Neo4j Cypher data)
 ```
 
 ### External MCP Sources
@@ -101,6 +108,7 @@ External MCPs are cloned from forks with pending upstream PRs. Once merged,
 |-----|----------------|-------------|
 | JIRA | [atifshafi/jira-mcp-server@feat/redhat-fields](https://github.com/atifshafi/jira-mcp-server/tree/feat/redhat-fields) | [stolostron/jira-mcp-server#24](https://github.com/stolostron/jira-mcp-server/pull/24) |
 | Jenkins | [atifshafi/jenkins-mcp@fix/auth-logs-paths](https://github.com/atifshafi/jenkins-mcp/tree/fix/auth-logs-paths) | [redhat-community-ai-tools/jenkins-mcp#13](https://github.com/redhat-community-ai-tools/jenkins-mcp/pull/13) |
+| Knowledge Graph | [atifshafi/knowledge-graph@atif-depth-improvements](https://github.com/atifshafi/knowledge-graph/tree/atif-depth-improvements) | [stolostron/knowledge-graph#19](https://github.com/stolostron/knowledge-graph/pull/19) |
 
 ### Credential storage
 
@@ -108,7 +116,7 @@ External MCPs are cloned from forks with pending upstream PRs. Once merged,
 |--------|----------------|-------------|
 | acm-ui | `gh auth` (system) | N/A |
 | jira | `mcp/.external/jira-mcp-server/.env` | Yes (entire `.external/` dir) |
-| jenkins | `~/.jenkins/config.json` | N/A (home dir) |
+| jenkins | `mcp/.external/jenkins-mcp/.env` | Yes (entire `.external/` dir) |
 | polarion | `mcp/polarion/.env` | Yes (`*.env`) |
 | neo4j-rhacm | None (local container) | N/A |
 | acm-search | None (reads from cluster secret) | N/A |

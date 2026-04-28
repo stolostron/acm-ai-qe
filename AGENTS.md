@@ -5,12 +5,20 @@ Multi-app repository for ACM quality engineering tools built on Claude Code.
 ## Build and Test
 
 ```bash
-# Z-stream analysis (fast suite, 703 tests, no external deps)
+# Z-stream analysis (fast suite, 686 tests, no external deps)
 cd apps/z-stream-analysis
 python -m pytest tests/unit/ tests/regression/ -q
 
-# Full suite (748 tests, requires Jenkins VPN for integration)
+# Full suite (731 tests, requires Jenkins VPN for integration)
 python -m pytest tests/ -q --timeout=300
+
+# Hub health (22 regression tests, no external deps)
+cd apps/acm-hub-health
+python -m pytest tests/regression/ -q
+
+# Test case generator (38 unit tests, no external deps)
+cd apps/test-case-generator
+python -m pytest tests/unit/ -q
 ```
 
 ## Setup

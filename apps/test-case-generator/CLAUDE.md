@@ -234,6 +234,17 @@ runs/ACM-30459/ACM-30459-2026-04-08T12-00-00/
 
 ---
 
+## Tests
+
+```bash
+# Unit tests (38 tests, no external deps):
+python -m pytest tests/unit/ -q
+```
+
+Test structure: `tests/unit/test_convention_validator.py` (convention validation rules), `tests/unit/test_models.py` (analysis result model fields), `tests/unit/test_file_service.py` (file operations). No cluster access, MCP, or JIRA credentials required.
+
+---
+
 ## Session Tracing
 
 Claude Code hooks capture every tool call, MCP interaction, prompt, subagent launch, and error into structured JSONL trace files. This provides full observability across all pipeline phases, including the AI agent phases (1-4.5) that the Python telemetry doesn't cover.

@@ -1,5 +1,9 @@
 {
   "anti_simulation": {
     "enforce_workspace_policy": true
+  },
+  "statusLine": {
+    "type": "command",
+    "command": ".claude/statusline.sh"
   }
 }

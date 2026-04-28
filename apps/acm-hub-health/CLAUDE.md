@@ -430,6 +430,17 @@ Unquoted brackets cause `no matches found` errors in zsh.
 
 ---
 
+## Tests
+
+```bash
+# Regression tests (22 tests, no external deps, < 0.5s):
+python -m pytest tests/regression/ -q
+```
+
+Test structure: `tests/regression/test_consistency_enforcement.py` (22 tests) -- drift detection across CLAUDE.md, docs/, knowledge/, and slash commands. Validates knowledge file reference integrity, count consistency (layers, chains, traps, phases, issue fields), report format consistency, and slash command integrity. No cluster access or MCP required.
+
+---
+
 ## Change Impact Checklist
 
 When making changes, update ALL touchpoints. Run

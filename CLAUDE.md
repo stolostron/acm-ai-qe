@@ -50,6 +50,17 @@ On review results — **do NOT blindly implement suggestions**:
 3. Only implement findings confirmed by your own investigation. Skip false positives.
 4. After implementing confirmed fixes, re-run `/coderabbit:review uncommitted` to confirm no regressions.
 
+## Git Discipline
+
+Commit messages use conventional format: `type: concise description`
+
+**Types**: `feat` (new capability), `fix` (bug fix), `docs` (documentation only), `chore` (maintenance, config), `refactor` (no behavior change), `test` (test-only changes).
+
+**Rules:**
+- Subject line under 72 characters, lowercase after the type prefix
+- Body (optional) explains WHY, not what -- the diff shows the what
+- Do not amend published commits on shared branches
+
 ## Running Z-Stream Analysis
 
 Open Claude Code in this repository (root or `apps/z-stream-analysis/`) and use:
@@ -128,12 +139,16 @@ ai_systems_v2/
 ## Tests
 
 ```bash
-# Z-stream analysis tests (from app directory)
+# Z-stream analysis (from app directory)
 cd apps/z-stream-analysis/
+python -m pytest tests/unit/ tests/regression/ -q    # 686 tests, no external deps
+python -m pytest tests/ -q --timeout=300             # 731 tests (requires Jenkins VPN)
 
-# Fast — unit + regression (686 tests, no external deps):
-python -m pytest tests/unit/ tests/regression/ -q
+# Hub health (from app directory)
+cd apps/acm-hub-health/
+python -m pytest tests/regression/ -q                # 22 tests, no external deps
 
-# Full suite (731 tests, requires Jenkins VPN for integration):
-python -m pytest tests/ -q --timeout=300
+# Test case generator (from app directory)
+cd apps/test-case-generator/
+python -m pytest tests/unit/ -q                      # 38 tests, no external deps
 ```

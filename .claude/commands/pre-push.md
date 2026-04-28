@@ -20,7 +20,7 @@ For each app with changes, run its test suite:
 
 Skip apps with no changes. If any test fails, STOP -- fix the failure before proceeding.
 
-## Step 3: Check for credential leaks
+## Step 3: Check for credential leaks in staged files
 
 ```bash
 git diff --cached --name-only | grep -iE '\.env$|credentials|\.pem$|\.key$' || echo "Clean"
@@ -28,12 +28,12 @@ git diff --cached --name-only | grep -iE '\.env$|credentials|\.pem$|\.key$' || e
 
 If any matches found, STOP and warn the user. Do not proceed.
 
-## Step 4: Check for forbidden files
+## Step 4: Check for forbidden files in staged files
 
 Confirm none of these are staged: `.mcp.json`, `settings.local.json`, files under `runs/`, `.claude/traces/`, `.external/`.
 
 ```bash
-git diff --cached --name-only | grep -iE 'settings\.local\.json|\.mcp\.json|\.claude/traces/|/runs/|\.external/' || echo "Clean"
+git diff --cached --name-only | grep -iE 'settings\.local\.json|\.mcp\.json|\.claude/traces/|runs/|\.external/' || echo "Clean"
 ```
 
 If any matches found, STOP and warn the user.

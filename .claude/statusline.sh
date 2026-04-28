@@ -5,6 +5,7 @@ input=$(cat)
 MODEL=$(echo "$input" | jq -r '.model.display_name // "unknown"')
 BRANCH=$(git branch --show-current 2>/dev/null || echo "detached")
 PCT=$(echo "$input" | jq -r '.context_window.used_percentage // 0' | cut -d. -f1)
+PCT=${PCT:-0}
 COST=$(echo "$input" | jq -r '.cost.total_cost_usd // 0')
 DURATION_MS=$(echo "$input" | jq -r '.cost.total_duration_ms // 0')
 

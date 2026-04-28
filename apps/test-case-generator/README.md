@@ -12,6 +12,11 @@ v2.0 &mdash; 6-phase subagent pipeline &mdash; 7 MCP integrations &mdash; 16 kno
 
 ## Quick Start
 
+```bash
+cd apps/test-case-generator
+claude
+```
+
 ```
 /generate ACM-30459
 ```
@@ -19,6 +24,9 @@ v2.0 &mdash; 6-phase subagent pipeline &mdash; 7 MCP integrations &mdash; 16 kno
 Options: `--version 2.17`, `--pr 5790`, `--area governance`, `--skip-live`, `--cluster-url <URL>`
 
 Other commands: `/batch ACM-30459,ACM-30460` (multi-ticket), `/review path/to/test-case.md` (standalone review).
+
+> [!NOTE]
+> First-time setup: from the repo root, run `claude` then `/onboard`. It configures MCP servers and credentials automatically.
 
 > [!TIP]
 > Or just say: `Generate a test case for ACM-30459 targeting version 2.17`

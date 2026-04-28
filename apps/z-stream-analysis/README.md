@@ -12,11 +12,19 @@ v4.0 &mdash; 12-layer diagnostic investigation &mdash; 5 MCP integrations &mdash
 
 ## Quick Start
 
+```bash
+cd apps/z-stream-analysis
+claude
+```
+
 ```
 /analyze https://jenkins.example.com/job/pipeline/123/
 ```
 
 Other commands: `/gather <URL>` (data only), `/quick <URL>` (skip cluster diagnostic).
+
+> [!NOTE]
+> First-time setup: from the repo root, run `claude` then `/onboard`. It configures MCP servers and credentials automatically.
 
 > [!TIP]
 > Or just say: `Analyze this run: <JENKINS_URL>`
@@ -55,31 +63,43 @@ The AI traces each failure from symptom down through 12 infrastructure layers to
 
 ```mermaid
 block-beta
-    columns 4
+    columns 2
 
-    block:upper:4
-        columns 4
-        L12["12 UI / Plugin"]
-        L11["11 Data Flow"]
-        L10["10 Cross-Cluster"]
-        L9["9 Operator"]
-    end
+    L12["12  UI / Plugin"]:1
+    D12["ConsolePlugins, routes, selectors, browser rendering"]:1
 
-    block:mid:4
-        columns 4
-        L8["8 API / Service"]
-        L7["7 RBAC / AuthZ"]
-        L6["6 Auth / Identity"]
-        L5["5 Config / State"]
-    end
+    L11["11  Data Flow"]:1
+    D11["API responses, search results, data pipelines"]:1
 
-    block:lower:4
-        columns 4
-        L4["4 Storage"]
-        L3["3 Network"]
-        L2["2 Control Plane"]
-        L1["1 Compute"]
-    end
+    L10["10  Cross-Cluster"]:1
+    D10["ManagedClusters, klusterlet, addons, hub-spoke leases"]:1
+
+    L9["9  Operator"]:1
+    D9["Deployments, operator pods, reconciliation loops"]:1
+
+    L8["8  API / Webhook"]:1
+    D8["CRDs, ValidatingWebhooks, APIServices"]:1
+
+    L7["7  RBAC / AuthZ"]:1
+    D7["ClusterRoles, RoleBindings, ManagedClusterSets"]:1
+
+    L6["6  Auth / Identity"]:1
+    D6["OAuth, certificates, ServiceAccounts, kubeconfigs"]:1
+
+    L5["5  Config / State"]:1
+    D5["MCH component overrides, OLM Subscriptions, ConfigMaps"]:1
+
+    L4["4  Storage"]:1
+    D4["PVCs, emptyDir, StatefulSets, S3 secrets"]:1
+
+    L3["3  Network"]:1
+    D3["NetworkPolicies, Services, Endpoints, Routes"]:1
+
+    L2["2  Control Plane"]:1
+    D2["etcd, kube-apiserver, kube-scheduler, ClusterOperators"]:1
+
+    L1["1  Compute"]:1
+    D1["Nodes, pod scheduling, resources, taints, OOMKilled"]:1
 
     style L12 fill:#4a90d9,color:#fff
     style L11 fill:#4a90d9,color:#fff
@@ -93,6 +113,19 @@ block-beta
     style L3 fill:#b8a038,color:#fff
     style L2 fill:#c97a4a,color:#fff
     style L1 fill:#c97a4a,color:#fff
+
+    style D12 fill:transparent,stroke:#4a90d9,color:#ccc
+    style D11 fill:transparent,stroke:#4a90d9,color:#ccc
+    style D10 fill:transparent,stroke:#5ba5c9,color:#ccc
+    style D9 fill:transparent,stroke:#5ba5c9,color:#ccc
+    style D8 fill:transparent,stroke:#6bb5a0,color:#ccc
+    style D7 fill:transparent,stroke:#6bb5a0,color:#ccc
+    style D6 fill:transparent,stroke:#6bb5a0,color:#ccc
+    style D5 fill:transparent,stroke:#7cba6e,color:#ccc
+    style D4 fill:transparent,stroke:#b8a038,color:#ccc
+    style D3 fill:transparent,stroke:#b8a038,color:#ccc
+    style D2 fill:transparent,stroke:#c97a4a,color:#ccc
+    style D1 fill:transparent,stroke:#c97a4a,color:#ccc
 ```
 
 The root cause layer determines who owns the fix: layers 1-5 = **Platform Team**, layers 6-9 = **Product/Operator Team**, layers 10-12 = **Automation or Product Team** depending on evidence.

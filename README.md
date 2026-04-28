@@ -122,6 +122,10 @@ ai_systems_v2/
 │   ├── verify.py              # Standalone health checker (run anytime)
 │   ├── acm-ui-mcp-server/     # ACM Console source search
 │   └── polarion/              # Polarion test case access
+├── .claude/                   # Claude Code configuration
+│   ├── commands/pre-push.md   # /pre-push quality gate
+│   ├── skills/onboard/        # /onboard interactive setup
+│   └── statusline.sh          # Status line (model, branch, context %)
 ├── AGENTS.md                  # Agent reference for external AI tools
 ├── CLAUDE.md                  # Claude Code instructions
 └── README.md                  # You are here

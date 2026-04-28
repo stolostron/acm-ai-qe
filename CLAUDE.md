@@ -60,6 +60,7 @@ Commit messages use conventional format: `type: concise description`
 - Subject line under 72 characters, lowercase after the type prefix
 - Body (optional) explains WHY, not what -- the diff shows the what
 - Do not amend published commits on shared branches
+- Before pushing, run `/pre-push` to verify tests pass, no credentials are staged, and no forbidden files are included
 
 ## Running Z-Stream Analysis
 
@@ -131,6 +132,11 @@ ai_systems_v2/
 │   ├── polarion/              # Our code: Polarion wrapper
 │   ├── jenkins-acm-tools.py   # Our code: ACM-specific Jenkins analysis tools
 │   └── .external/             # Cloned at setup time (gitignored)
+├── .claude/
+│   ├── commands/pre-push.md   # /pre-push quality gate slash command
+│   ├── skills/onboard/        # /onboard interactive setup skill
+│   ├── statusline.sh          # Status line script (model, branch, context %)
+│   └── settings.json          # Root-level Claude Code settings
 ├── AGENTS.md                  # Agent reference (tool-agnostic, for external AI tools)
 ├── CLAUDE.md                  # This file — Claude Code agent instructions
 └── README.md                  # User-facing setup and onboarding guide

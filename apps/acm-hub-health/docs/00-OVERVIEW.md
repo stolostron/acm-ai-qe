@@ -28,7 +28,7 @@ a structured remediation plan and getting explicit user approval.
                            │                                  │
   User ────────────────────►  Slash Commands                  │
   "check my hub"           │  /sanity, /health-check,         │
-  "/investigate search"    │  /investigate, /learn             │
+  "/investigate search"    │  /deep, /investigate, /learn     │
   "/learn"                 │                                  │
                            └──────────┬───────────────────────┘
                                       │
@@ -201,6 +201,7 @@ acm-hub-health/
 │   ├── failure-patterns.md             ← Cross-component failure signatures
 │   ├── healthy-baseline.yaml           ← Expected pod counts, deployment states, conditions
 │   ├── dependency-chains.yaml          ← Structured YAML complement to diagnostics/ chains
+│   ├── service-map.yaml                ← Critical Service-to-Pod mappings for connectivity diagnosis
 │   ├── webhook-registry.yaml           ← Validating/mutating webhooks and their impact
 │   ├── certificate-inventory.yaml      ← TLS secrets, rotation, and corruption impact
 │   ├── addon-catalog.yaml              ← Addon health checks, dependencies, expectations
@@ -221,12 +222,15 @@ acm-hub-health/
 │   │   ├── addon-framework/            ← architecture.md, data-flow.md, known-issues.md
 │   │   ├── networking/                 ← architecture.md, data-flow.md, known-issues.md
 │   │   └── infrastructure/             ← architecture.md, data-flow.md, known-issues.md, post-upgrade-patterns.md
-│   ├── diagnostics/                    ← Health check methodology
+│   ├── diagnostics/                    ← Health check methodology (8 files)
 │   │   ├── diagnostic-layers.md        ← 12-layer investigation framework
 │   │   ├── dependency-chains.md        ← 12 critical cascade paths (narrative)
 │   │   ├── common-diagnostic-traps.md  ← 14 patterns where obvious diagnosis is wrong
 │   │   ├── evidence-tiers.md           ← Evidence weighting rules
-│   │   └── diagnostic-playbooks.md     ← Per-subsystem investigation procedures
+│   │   ├── diagnostic-playbooks.md     ← Per-subsystem investigation procedures
+│   │   ├── cluster-introspection.md    ← 8 metadata sources for reverse-engineering deps
+│   │   ├── neo4j-reference.md          ← Knowledge graph Cypher queries reference
+│   │   └── acm-search-reference.md     ← Search MCP tool parameters and query patterns
 │   └── learned/                        ← Agent-discovered knowledge (grows over time)
 │       └── <topic>.md                  ← Written by agent during self-healing
 │

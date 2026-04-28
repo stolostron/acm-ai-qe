@@ -34,7 +34,7 @@ core-data.json ──► AI Agent ──► analysis-results.json
      ┌────────┬───────┼───────┬──────────┐
      ▼        ▼       ▼       ▼          ▼
   ACM-UI   Jenkins   JIRA  Polarion  Knowledge
-  (19)     (11)     (25)   (25)     Graph MCP
+  (20)     (11)     (25)   (25)     Graph MCP
 ```
 
 ### Full Investigation Flow
@@ -111,10 +111,17 @@ core-data.json ──► AI Agent ──► analysis-results.json
 │  │                  │                  │     UNKNOWN      │         │
 │  └──────────────────┴──────────────────┴──────────────────┘         │
 │                                                                     │
-│  D-V5: Expanded counterfactual verification (v3.9, MANDATORY)       │
+│  D-V5: Expanded counterfactual verification (v3.9/v4.0, MANDATORY)  │
 │       └── 9 templates: selector, button-disabled, timeout,          │
 │           data-assertion, blank-page, CSS, NetworkPolicy,           │
 │           operator, ResourceQuota                                   │
+│       └── Symmetric validation (v4.0):                              │
+│           D-V5c: AUTOMATION_BUG — "does backend confirm test        │
+│                  expectation?" If backend disagrees, reconsider.    │
+│           D-V5e: PRODUCT_BUG — "is product behavior actually        │
+│                  correct?" If product works as designed, reconsider.│
+│       └── Layer discrepancy (v4.0): lower layer healthy but higher  │
+│           layer defective = Tier 1 PRODUCT_BUG evidence             │
 │       └── Evidence duplication: 5+ identical → flag & verify 2      │
 │       └── Per-test evidence: cluster-wide-only → confidence ≤ 0.60 │
 │  D4: Final validation (confirm classification, calc confidence)     │
@@ -159,6 +166,20 @@ The agent reads `core-data.json` which contains:
 | `feature_grounding` | Tests grouped by feature area with subsystem/component context | Phase A |
 | `feature_knowledge` | Playbook readiness, prerequisites, failure paths, KG dependency context, KG status | Phase A, B, D |
 | `cluster_access` | API URL, username, `kubeconfig_path`, `mch_namespace` for re-authentication | Phase A (cluster login) |
+| `cluster_oracle` | Feature context: dependency health, knowledge context, Polarion discovery, overall feature health | Phase A, B, D |
+| `cluster_health` | Deferred to Stage 1.5 (`cluster-diagnosis.json`) | Phase A-0 |
+
+The agent also reads `cluster-diagnosis.json` (Stage 1.5 output):
+
+| Key | Contents | Used In |
+|-----|----------|---------|
+| `environment_health_score` | Float 0.0-1.0, weighted penalty formula | Phase A1 |
+| `subsystem_health` | Per-subsystem status, root cause, evidence tier, traps checked | Phase A-0, B, D |
+| `operator_health` | Per-operator desired/available replicas, status | Phase A-0, B |
+| `infrastructure_issues` | Node pressure, NetworkPolicy, ResourceQuota, cert expiry, tampered image | Phase A-0, D |
+| `classification_guidance` | Pre-classified INFRASTRUCTURE, confirmed healthy areas | Phase A-0, D |
+| `counter_signals` | Potential false INFRASTRUCTURE, dead selectors, context notes | Phase D |
+| `image_integrity` | Console image validation against expected registries | Phase B, D |
 
 ---
 
@@ -167,7 +188,13 @@ The agent reads `core-data.json` which contains:
 **Purpose:** Ground analysis in feature areas, detect global patterns, check cluster health before analyzing individual tests.
 
 ```
-core-data.json
+core-data.json + cluster-diagnosis.json
+      │
+      ├── A-0: Read cluster diagnostic (v4.0)
+      │   Read cluster-diagnosis.json for environment_health_score,
+      │   subsystem_health, operator_health, infrastructure_issues,
+      │   classification_guidance, counter_signals, image_integrity
+      │   Map infrastructure issues to affected feature areas
       │
       ├── A-1: Cluster re-authentication (v3.5)
       │   Read cluster_access.kubeconfig_path from core-data.json
@@ -403,13 +430,18 @@ If Polarion test case setup describes expected behavior AND the subsystem is hea
                     └──────┬──────┘
                            │
                     ┌──────┴──────┐
-                    │PR-6: Probe  │
-                    │source-truth │◄── Deterministic K8s-vs-console routing (v3.4)
+                    │PR-6:Backend│
+                    │health check│◄── Via cluster-diagnosis.json (v4.0)
                     └──────┬──────┘
                            │
                     ┌──────┴──────┐
-                    │PR-7: Oracle │
-                    │ dependency  │◄── Broken dependency → INFRASTRUCTURE (v3.5)
+                    │PR-6b:Polar- │
+                    │ion expected │◄── PRODUCT_BUG fast-path (v4.0)
+                    └──────┬──────┘
+                           │
+                    ┌──────┴──────┐
+                    │PR-7:Context │
+                    │  signals   │◄── ADDITIVE, not binding (v4.0)
                     └──────┬──────┘
                            │
                     ┌──────┴──────┐
@@ -456,7 +488,7 @@ If Polarion test case setup describes expected behavior AND the subsystem is hea
 
 ### Path B1 — Timeout (Non-Selector)
 
-Uses per-feature-area health scores from `ClusterInvestigationService.get_feature_area_health()` for graduated confidence (v3.3). Replaces the binary 0.5 infrastructure threshold.
+Uses per-feature-area health from `cluster-diagnosis.json` subsystem_health for graduated confidence (v4.0). Replaces the binary 0.5 infrastructure threshold.
 
 | Evidence | Classification | Confidence |
 |----------|---------------|------------|
@@ -578,7 +610,7 @@ E6: Create/link issues (optional)
   "analysis_metadata": {
     "jenkins_url": "https://jenkins.example.com/job/acm-e2e/123/",
     "analyzed_at": "2026-02-05T12:30:00Z",
-    "analyzer_version": "3.9.0"
+    "analyzer_version": "4.0.0"
   },
   "investigation_phases_completed": ["A", "B", "C", "D", "E"],
   "per_test_analysis": [

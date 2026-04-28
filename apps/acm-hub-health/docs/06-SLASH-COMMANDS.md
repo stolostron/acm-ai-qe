@@ -254,6 +254,9 @@ checking health, focuses on discovering and documenting what's deployed:
    - Check if it exists in static knowledge (`knowledge/component-registry.md`)
    - If not, or if details differ, investigate it:
      - Collect detailed info from the cluster (`oc describe`, labels, owner refs)
+     - Reverse-engineer dependencies from cluster metadata (owner refs, OLM
+       labels, CSV metadata, env vars, webhooks, ConsolePlugins, APIServices)
+     - Cross-reference with `neo4j-rhacm` MCP for broader dependency coverage
      - Search `docs/rhacm-docs/` for documentation
      - Use `acm-ui` MCP to search source code
    - Write findings to `knowledge/learned/`

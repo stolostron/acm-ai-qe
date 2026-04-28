@@ -154,9 +154,9 @@ flowchart LR
 
 | Agent | What it discovers | MCP tools |
 |-------|-------------------|-----------|
-| **Feature Investigator** | JIRA story, comments, linked tickets, Polarion coverage | jira, polarion, neo4j |
-| **Code Change Analyzer** | Changed components, new UI elements, architecture impact | acm-ui, neo4j |
-| **UI Discovery** | Selectors, translations, routes, wizard steps, test IDs | acm-ui, playwright (optional) |
+| **Feature Investigator** | JIRA story, comments, linked tickets, Polarion coverage | jira, polarion, neo4j, bash |
+| **Code Change Analyzer** | Changed components, new UI elements, architecture impact | acm-ui, neo4j, bash |
+| **UI Discovery** | Selectors, translations, routes, wizard steps, test IDs | acm-ui, neo4j, playwright (optional), bash |
 
 ## Supported Areas
 
@@ -190,7 +190,7 @@ Two independent validation layers. Both must pass before delivery:
 | **Phase 4.5** (Quality Reviewer agent) | Before Stage 3 | MCP verification of UI elements, AC vs implementation, scope alignment, numeric thresholds, discovered vs assumed |
 | **Stage 3** (`report.py`) | After Phase 4.5 | Title pattern, metadata fields, section order, step format, entry point, teardown |
 
-The quality reviewer loops: if it returns `NEEDS_FIXES`, Phase 4 re-generates the test case and Phase 4.5 reviews again until `PASS`.
+The quality reviewer loops: if it returns `NEEDS_FIXES`, the orchestrator fixes the issues and re-runs the reviewer until `PASS` (max 3 iterations).
 
 <details>
 <summary><b>Pipeline Details</b></summary>
@@ -281,7 +281,7 @@ Returns `PASS` or `NEEDS_FIXES` with specific issues. On `NEEDS_FIXES`, loops ba
 </details>
 
 <details>
-<summary><b>MCP Servers</b> &mdash; 7 servers, 82 tools</summary>
+<summary><b>MCP Servers</b> &mdash; 7 servers, 104 tools</summary>
 
 | Server | Tools | Purpose |
 |--------|:-----:|---------|

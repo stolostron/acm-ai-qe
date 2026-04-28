@@ -101,9 +101,9 @@ From the repo root, launch `claude` and run `/onboard`. It detects your environm
 External MCPs (JIRA, Jenkins, Knowledge Graph, ACM Search, ACM Kubectl) are cloned at setup time into `mcp/.external/` (gitignored).
 This repo only contains our original MCP code: ACM UI, Polarion wrapper, Jenkins ACM tools.
 
-**Jenkins Setup:** Run `bash mcp/setup.sh` and provide your Jenkins username and API token when prompted. Credentials are stored in `mcp/.external/jenkins-mcp/.env` and injected into `.mcp.json` automatically. Requires Red Hat VPN for internal Jenkins access.
+**Jenkins Setup:** Run `/onboard` and provide your Jenkins username and API token when prompted. Credentials are stored in `mcp/.external/jenkins-mcp/.env` and injected into `.mcp.json` automatically. Requires Red Hat VPN for internal Jenkins access.
 
-**JIRA Cloud Setup:** Run `bash mcp/setup.sh` and provide credentials when prompted, or create `mcp/.external/jira-mcp-server/.env` with your Jira Cloud credentials after setup. Get a token at https://id.atlassian.com/manage-profile/security/api-tokens.
+**JIRA Cloud Setup:** Run `/onboard` and provide credentials when prompted, or create `mcp/.external/jira-mcp-server/.env` with your Jira Cloud credentials after setup. Get a token at https://id.atlassian.com/manage-profile/security/api-tokens.
 
 ## Directory Structure
 

@@ -194,7 +194,6 @@ graph TD
     S7E --> S7F["6. Failure Mode Category\nClassify: render_failure, element_missing,\ndata_incorrect, timeout_general,\nassertion_logic, server_error, unknown"]:::clickable
     S7F --> S7OUT["extracted_context per test:\ntest_file, page_objects,\nconsole_search, recent_selector_changes,\nassertion_analysis, failure_mode_category,\ntemporal_summary"]:::clickable
 
-    style CACHE fill:#0f1320,stroke:#fbbf24,color:#d8dce8
     style LOOP fill:#0f1320,stroke:#38bdf8,stroke-width:3px,color:#d8dce8
     style S7A fill:#0f1320,stroke:#38bdf8,color:#d8dce8
     style S7B fill:#0f1320,stroke:#f472b6,color:#d8dce8
@@ -479,8 +478,8 @@ const DATA = {
     title: 'Step 5: Environment Oracle (v3.5)',
     html: `
       <div class="detail-section">
-        <h4>6-phase knowledge database builder</h4>
-        <div class="value">EnvironmentOracleService runs 6 chained phases to build a comprehensive knowledge database about the feature, its dependencies, and their live cluster state. See <strong>Diagram 2b</strong> for the full internal pipeline.</div>
+        <h4>5-phase feature context builder</h4>
+        <div class="value">EnvironmentOracleService runs 5 chained phases to build feature context about the feature, its dependencies, and their live cluster state. See <strong>Diagram 2b</strong> for the full internal pipeline.</div>
         <div class="label">Data flow:</div>
         <div class="value">Phase 1 (Identify) &rarr; Phase 2 (Polarion) &rarr; Phase 3 (Learn Feature) &rarr; Phase 4 (Learn Dependencies) &rarr; Phase 5 (Synthesize)</div>
         <div class="label">Output stored in:</div>
@@ -1007,7 +1006,7 @@ component_details per area</pre><div class="value">Skipped when Neo4j MCP is una
   Stage 2 must verify per-test via D-V5</span>
 
 <span class="key">6.2</span> Write cluster-diagnosis.json
-  13 structured sections (see output panel)
+  23 data sections (16 investigative + 7 structured health)
 
 <span class="key">6.3</span> Overall verdict
   HEALTHY: all subsystems OK, no traps
@@ -1082,7 +1081,7 @@ component_details per area</pre><div class="value">Skipped when Neo4j MCP is una
 
 <span class="key">classification_guidance</span>
   Pre-classified INFRASTRUCTURE, confirmed healthy,
-  partial impact, diagnostic traps applied (all 13)
+  partial impact, diagnostic traps applied (all 14 + Trap 1b)
 
 <span class="key">counter_signals</span>
   Potential false INFRASTRUCTURE (dead selectors),
@@ -1305,7 +1304,7 @@ No CSV found but pods Running &rarr; "healthy" (not "missing")
         <div class="label">Kubeconfig persistence:</div>
         <div class="value">After environment validation, creates <code>cluster.kubeconfig</code> in the run directory. Stage 2 uses <code>--kubeconfig</code> on all <code>oc</code> commands instead of re-authenticating with the (masked) password.</div>
         <div class="label">Services used:</div>
-        <div class="value">JenkinsAPIClient, JenkinsIntelligenceService, StackTraceParser, EnvironmentValidationService, ClusterInvestigationService, EnvironmentOracleService, RepositoryAnalysisService, TimelineComparisonService (with 200-commit selector drift detection), ComponentExtractor, FeatureAreaService, FeatureKnowledgeService, KnowledgeGraphClient, ACMUIMCPClient</div>
+        <div class="value">JenkinsAPIClient, JenkinsIntelligenceService, StackTraceParser, EnvironmentValidationService, ClusterInvestigationService, EnvironmentOracleService, RepositoryAnalysisService, TimelineComparisonService, ComponentExtractor, FeatureAreaService, FeatureKnowledgeService, KnowledgeGraphClient, ACMUIMCPClient</div>
       </div>
     `
   },

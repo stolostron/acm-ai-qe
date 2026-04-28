@@ -79,9 +79,12 @@ MCP tools are accessed differently depending on the stage:
 
 | Stage | Access Method | MCP Servers Used | Purpose |
 |-------|---------------|------------------|---------|
-| Stage 1 | Python classes (`ACMUIMCPClient`, `KnowledgeGraphClient`) | ACM-UI | Pre-compute CNV version |
-| Stage 2 | Claude Code native (`mcp__<server>__<tool>`) | All five (ACM-UI, Jenkins, JIRA, Polarion, Knowledge Graph) | Active investigation during analysis |
+| Stage 1 | Python classes (`ACMUIMCPClient`, `KnowledgeGraphClient`) | ACM-UI, Knowledge Graph | Pre-compute CNV version, dependency queries |
+| Stage 1.5 | Claude Code native (cluster-diagnostic agent) | ACM Search, ACM Kubectl | Fleet-wide resource queries, spoke cluster access |
+| Stage 2 | Claude Code native (analysis + investigation agents) | ACM-UI, Jenkins, JIRA, Polarion, Knowledge Graph, ACM Search, ACM Kubectl | Active investigation during analysis |
 | Stage 3 | None | None | Report generation uses no MCP tools |
+
+**Note:** The five primary MCP servers (ACM-UI, Jenkins, JIRA, Polarion, Knowledge Graph) are used directly by the analysis agent. Two additional servers (ACM Search, ACM Kubectl) are used by the cluster-diagnostic agent (Stage 1.5) and investigation agents (spawned per group during Stage 2) for fleet-wide resource queries across managed clusters and multicluster kubectl access. See the parent repo's `CLAUDE.md` for full server documentation.
 
 ---
 

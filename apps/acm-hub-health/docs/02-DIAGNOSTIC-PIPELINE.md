@@ -565,7 +565,11 @@ documented procedure:
 | Console & UI | Check console pods, ConsolePlugin CRs, routes, OAuth |
 | Node & Infrastructure | Check node conditions, resource usage, etcd |
 | Certificates | Check TLS secrets, expiration dates, webhook configs |
-| Add-ons | Check addon status, ClusterManagementAddon, addon-manager |
+| Add-ons (General) | Check addon status, ClusterManagementAddon, addon-manager |
+| Networking / Submariner | Check addon, operator, broker, gateway, tunnels, OCP compat, DNS |
+| RBAC / User Management | Check FG-RBAC enabled, MCRA controller, ClusterPermission, acm-roles addon |
+| Addon Framework Deep | Check addon-manager health, CMA registrations, ManifestWork, work-agent, finalizers |
+| Hive / Cluster Provisioning | Check Hive operator, ClusterDeployment, provision jobs, cloud creds, webhook |
 
 ### Data Flow Tracing
 

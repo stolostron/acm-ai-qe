@@ -38,7 +38,7 @@ If JIRA has multiple acceptance criteria with distinct flows: ask which to cover
 
 | Step | Action | Tool | Output Field |
 |------|--------|------|-------------|
-| 1 | Search for PR by JIRA ID | `gh pr list --search` | `pr_data.number` |
+| 1 | Search for PR by JIRA ID | `gh search prs` | `pr_data.number` |
 | 2 | Fetch PR metadata | `gh pr view --json` | `pr_data` (title, files, additions, deletions) |
 | 3 | Download full PR diff | `gh pr diff` | `pr-diff.txt` file |
 | 4 | Auto-detect area from file paths | Python (path patterns) | `area` |
@@ -103,7 +103,9 @@ Returns up to 3 test cases matching the area and version.
     "skip_live": false,
     "cluster_url": null,
     "repo": "stolostron/console"
-  }
+  },
+  "test_files": ["frontend/src/routes/Governance/PolicyDetails.test.tsx"],
+  "production_files": ["frontend/src/routes/Governance/PolicyDetails.tsx"]
 }
 ```
 
@@ -154,14 +156,15 @@ Three agents run in parallel. Each receives specific inputs from `gather-output.
 
 ### Agent C: UI Discovery
 
-**Input:** ACM version, CNV version (if Fleet Virt), feature name, area
-**MCP:** acm-ui, neo4j-rhacm
+**Input:** ACM version, CNV version (if Fleet Virt), feature name, area, cluster URL (optional)
+**MCP:** acm-ui, neo4j-rhacm, playwright (conditional — only with cluster URL), bash (oc CLI for cluster auth)
 **Output:** `UI DISCOVERY RESULTS` block containing:
 - Translations (key → UI string)
 - Routes (route name → path pattern)
 - Selectors (component → CSS selector)
 - Test IDs
 - Component structure
+- Live verification status (if cluster URL provided)
 
 ---
 
@@ -354,17 +357,21 @@ See [05-QUALITY-GATES.md](05-QUALITY-GATES.md) for the full checklist.
 
 ### Structural Validation
 
-`convention_validator.py` checks (298 lines, 7 validation rules):
+`convention_validator.py` checks (319 lines, 11 validation checks):
 
-| Rule | Severity | Pattern |
-|------|----------|---------|
-| Title pattern | Blocking | `^# RHACM4K-\d+ - \[.+\] .+ - .+$` |
-| Metadata fields | Blocking | All 4 metadata lines present |
+| Check | Severity | Pattern |
+|-------|----------|---------|
+| Title pattern | Blocking | `# RHACM4K-XXXXX - [Tag-Version] Area - Name` + area tag match |
+| Metadata fields | Blocking | All 4 metadata lines present (Polarion ID, Status, Created, Updated) |
 | Polarion fields | Blocking | All 10 `## Field: Value` lines present |
-| Section order | Blocking | Description before Setup before Steps before Teardown |
-| Step format | Blocking | H3 heading + `**Expected Result:**` per step |
-| Entry point | Warning | `**Entry Point:**` in Description |
-| Teardown quality | Warning | `--ignore-not-found` on `oc delete` commands |
+| Type field value | Warning | Must be "Test Case" |
+| Test Steps header | Warning | `## Test Steps` section header required |
+| Section order | Warning | Description before Setup before Test Steps before Teardown |
+| Description present | Blocking | `## Description` section required |
+| Entry point | Warning | `Entry Point` in Description |
+| JIRA coverage | Warning | `Dev JIRA Coverage` in Description |
+| Step format | Blocking | H3 heading + `Expected Result` per step + numbered actions + CLI check + separators |
+| Teardown + Setup | Warning | `--ignore-not-found` on deletes, `# Expected:` on setup commands |
 
 ### Polarion HTML Generation
 

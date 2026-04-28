@@ -27,11 +27,12 @@ The knowledge database (`knowledge/`) provides domain reference data that the AI
                     │   dependencies.yaml   │◄─────│   corrections.yaml  │
                     │   failure-patterns.yaml│      │   new-patterns.yaml │
                     │   version-constraints │      │   selector-changes  │
-                    │   selectors.yaml      │      │                     │
-                    │   api-endpoints.yaml  │      │   (agent writes,    │
-                    │   feature-areas.yaml  │      │    refresh.py       │
-                    │   test-mapping.yaml   │      │    promotes)         │
-                    │                       │      │                     │
+                    │   selectors.yaml      │      │   feature-gaps.yaml │
+                    │   api-endpoints.yaml  │      │   flux-operator.md  │
+                    │   feature-areas.yaml  │      │                     │
+                    │   test-mapping.yaml   │      │   (agent writes,    │
+                    │   + 6 more .yaml      │      │    refresh.py       │
+                    │                       │      │    promotes)         │
                     └───────────┬───────────┘      └─────────────────────┘
                                 │
                     ┌───────────▼───────────┐
@@ -89,7 +90,8 @@ The knowledge database (`knowledge/`) provides domain reference data that the AI
 | `addon-catalog.yaml` | 18 addons | Addon health checks, dependencies, classification impact + 17 ClusterManagementAddon CRs | Manual + cluster audit |
 | `webhook-registry.yaml` | 19 webhooks | Expected webhooks with criticality and failure policies | Cluster snapshot via refresh.py |
 | `prerequisites.yaml` | 34 definitions | Machine-checkable feature prerequisites (mch_component, addon, operator, crd, informational) | Extracted from playbooks + live cluster |
-| `learned/` | 3+ files | Agent-contributed knowledge (self-healing) | AI agent writes |
+| `certificate-inventory.yaml` | 30+ secrets | TLS secret inventory with roles, rotation expectations, and failure impact per namespace | Cluster snapshot via refresh.py |
+| `learned/` | 5 files | Agent-contributed knowledge (self-healing) | AI agent writes |
 | `refresh.py` | — | Updates knowledge from live sources | — |
 
 ---
@@ -400,7 +402,7 @@ suites:
 
 ## learned/ Directory
 
-Agent-contributed knowledge accumulated across analysis runs. Three files:
+Agent-contributed knowledge accumulated across analysis runs. Five files:
 
 ### learned/corrections.yaml
 
@@ -446,6 +448,37 @@ changes:
     feature_area: Console
     component: "All dropdown components"
     acm_version: "2.17"
+```
+
+### learned/feature-gaps.yaml
+
+When the data-collector agent detects gaps in feature playbooks (unmatched error patterns, missing failure paths), it records proposed entries here for review and promotion:
+
+```yaml
+gaps:
+  - date: "2026-04-13"
+    trigger: unmatched_error
+    feature_area: Console
+    gap_type: missing_failure_path
+    proposed_entry:
+      id: perspective-switcher-race-condition
+      description: "header.js openMenu() races with async rendering on OCP 4.20+"
+      classification: AUTOMATION_BUG
+      confidence: 0.90
+    source: knowledge/architecture/console/failure-signatures.md
+    evidence: "9 tests failed with cluster-dropdown-toggle not found"
+```
+
+### learned/flux-operator.md
+
+Free-form notes about non-ACM operators discovered on the cluster during Stage 1.5 diagnostics. Records operator details, ACM integration status, and classification impact so future runs can skip re-investigation:
+
+```markdown
+# Flux Operator
+Discovered: 2026-04-09
+- CSV: flux.v2.3.0
+- ACM Integration: None detected
+- Classification Impact: No direct impact on ACM test failure classification
 ```
 
 ---
@@ -542,6 +575,7 @@ The AI agent reads `knowledge/` files at the start of analysis:
 6. `api-endpoints.yaml` — backend API endpoint reference for investigation
 7. `feature-areas.yaml` — cross-referencing feature area mappings
 8. `test-mapping.yaml` — scoping investigation to relevant areas
+9. `certificate-inventory.yaml` — TLS secret lookup for certificate-related failures
 
 ### Between Runs — Learning Loop
 
@@ -676,6 +710,37 @@ Add new constraints after discovering version-dependent misclassifications:
     confidence: 0.80
     diagnostic: "How to verify"
 ```
+
+---
+
+## certificate-inventory.yaml
+
+TLS secret inventory across ACM namespaces. Documents each secret's role, managing controller, rotation expectations, and the user-visible impact when corrupted.
+
+### Structure
+
+```yaml
+acm_version: "2.16.0"
+last_refreshed: "2026-04-03"
+
+certificates:
+  mch_namespace:
+    secrets:
+      - secret: console-chart-console-certs
+        used_by: console-chart-console-v2
+        managed_by: service-ca-operator
+        rotation: "Automatic by service-ca, ~2 year validity"
+        if_corrupted: "Console plugin fails to load. OCP console loses ACM navigation."
+```
+
+### How the Agent Uses It
+
+During certificate-related failure investigation (e.g., TLS handshake errors, x509 validation failures), the agent:
+
+1. Identifies the failing component from the error
+2. Looks up the TLS secret in `certificate-inventory.yaml`
+3. Checks `managed_by` to determine if rotation is automatic or manual
+4. Uses `if_corrupted` to understand blast radius
 
 ---
 

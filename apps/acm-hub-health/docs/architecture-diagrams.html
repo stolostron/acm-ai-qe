@@ -153,7 +153,7 @@ graph TD
   <p class="desc">The agent consults multiple knowledge layers during diagnosis. Knowledge defines what correct behavior looks like (ground truth); the cluster shows current state. Click any layer to see what it contains.</p>
   <div class="mermaid">
 graph TD
-    ARCH["ARCHITECTURE KNOWLEDGE\nknowledge/architecture/\n12 component directories\narchitecture.md, data-flow.md,\nknown-issues.md per component"]:::clickable --> DIAGK["DIAGNOSTIC KNOWLEDGE\nknowledge/diagnostics/\ndiagnostic-layers.md (12 layers)\ndependency-chains.md (12 chains)\ncommon-diagnostic-traps.md (14)\nevidence-tiers.md\ndiagnostic-playbooks.md (14)"]:::clickable
+    ARCH["ARCHITECTURE KNOWLEDGE\nknowledge/architecture/\n12 component directories\narchitecture.md, data-flow.md,\nknown-issues.md per component"]:::clickable --> DIAGK["DIAGNOSTIC KNOWLEDGE\nknowledge/diagnostics/ (8 files)\ndiagnostic-layers.md (12 layers)\ndependency-chains.md (12 chains)\ncommon-diagnostic-traps.md (14 traps)\nevidence-tiers.md, playbooks.md (14)\ncluster-introspection.md (8 sources)\nneo4j-reference.md, acm-search-ref.md"]:::clickable
     YAML["STRUCTURED YAML DATA\nknowledge/*.yaml\nhealthy-baseline.yaml\ndependency-chains.yaml\nservice-map.yaml\nwebhook-registry.yaml\ncertificate-inventory.yaml\naddon-catalog.yaml\nversion-constraints.yaml"]:::clickable --> CROSS["CROSS-CUTTING KNOWLEDGE\nknowledge/\ncomponent-registry.md\nfailure-patterns.md"]:::clickable
     ARCH --> LEARNED["LEARNED KNOWLEDGE\nknowledge/learned/\nAgent-discovered knowledge\nWritten during self-healing\nVersion + cluster specific"]:::clickable
     DIAGK --> LEARNED
@@ -245,7 +245,7 @@ graph LR
     FINDINGS["Phase 1-6\nFindings"]:::clickable --> VERDICT["VERDICT ENGINE\nAll OK &rarr; HEALTHY\nAny WARN &rarr; DEGRADED\nAny CRIT &rarr; CRITICAL"]:::clickable
     VERDICT --> HEADER["REPORT HEADER\nCluster name\nOverall verdict\n2-3 sentence summary"]:::clickable
     HEADER --> TABLE["COMPONENT TABLE\n| Component | Status | Details |\nMCH, MCE, OCP, Nodes,\nClusters, per-component"]:::clickable
-    TABLE --> ISSUES["ISSUES FOUND\n[CRITICAL] / [WARNING]\nWhat, Evidence, Root Cause,\nKnown Issue, Fix Version,\nCluster-Fixable, Action"]:::clickable
+    TABLE --> ISSUES["ISSUES FOUND\n[CRITICAL] / [WARNING]\nWhat, Evidence, Root Cause,\nLayer, Known Issue, Fix Version,\nCluster-Fixable, Impact, Action"]:::clickable
     ISSUES --> OVERVIEW["CLUSTER OVERVIEW\nACM/OCP/MCE versions\nNode count, cluster count\nEnabled components"]:::clickable
 
     classDef clickable cursor:pointer
@@ -368,7 +368,7 @@ Targeted  <span class="green">YES</span>  <span class="green">YES</span>  <span 
         <h4>How the Agent Operates</h4>
         <div class="value">The agent is a Claude Code session with three configuration layers:</div>
         <div class="separator"></div>
-        <div class="label">CLAUDE.md (998 lines):</div>
+        <div class="label">CLAUDE.md (474 lines):</div>
         <div class="value">The agent's methodology. Contains safety constraints, remediation protocol, 6-phase pipeline procedure, depth router rules, knowledge system usage instructions, self-healing process (8 cluster introspection sources), MCP integration guidance, output format specification, 8 key principles, and session tracing configuration.</div>
         <div class="label">Slash Commands (.claude/commands/):</div>
 <pre class="data-block"><span class="key">sanity.md</span>       &rarr; Phase 1 only, ~30s
@@ -438,8 +438,8 @@ Targeted  <span class="green">YES</span>  <span class="green">YES</span>  <span 
         <div class="value">Per-component directories with <code>architecture.md</code>, <code>data-flow.md</code>, <code>known-issues.md</code>. Covers 12 subsystems: search, governance, observability, cluster-lifecycle, console, application-lifecycle, virtualization, RBAC, automation, addon-framework, networking, infrastructure. Plus platform-level <code>acm-platform.md</code> and <code>kubernetes-fundamentals.md</code>, plus <code>cluster-lifecycle/health-patterns.md</code> and <code>infrastructure/post-upgrade-patterns.md</code>.</div>
         <div class="label">Layer 2: Structured YAML (7 files)</div>
         <div class="value">Quantitative baselines: <code>healthy-baseline.yaml</code>, <code>dependency-chains.yaml</code>, <code>service-map.yaml</code>, <code>webhook-registry.yaml</code>, <code>certificate-inventory.yaml</code>, <code>addon-catalog.yaml</code>, <code>version-constraints.yaml</code></div>
-        <div class="label">Layer 3: Diagnostics (5 files)</div>
-        <div class="value">Methodology: <code>diagnostic-layers.md</code> (12-layer framework), <code>dependency-chains.md</code> (12 cascade paths), <code>common-diagnostic-traps.md</code> (14 diagnostic traps), <code>evidence-tiers.md</code> (Tier 1/2/3 rules), <code>diagnostic-playbooks.md</code> (14 per-subsystem procedures)</div>
+        <div class="label">Layer 3: Diagnostics (8 files)</div>
+        <div class="value">Methodology: <code>diagnostic-layers.md</code> (12-layer framework), <code>dependency-chains.md</code> (12 cascade paths), <code>common-diagnostic-traps.md</code> (14 diagnostic traps), <code>evidence-tiers.md</code> (Tier 1/2/3 rules), <code>diagnostic-playbooks.md</code> (14 per-subsystem procedures), <code>cluster-introspection.md</code> (8 metadata sources for self-healing), <code>neo4j-reference.md</code> (knowledge graph queries), <code>acm-search-reference.md</code> (search MCP reference)</div>
         <div class="label">Layer 4: Cross-Cutting (2 files)</div>
         <div class="value"><code>component-registry.md</code> (master inventory), <code>failure-patterns.md</code> (symptom-to-root-cause correlations)</div>
         <div class="label">Layer 5: Learned (grows over time)</div>
@@ -524,10 +524,12 @@ Targeted  <span class="green">YES</span>  <span class="green">YES</span>  <span 
 - <span class="key">What</span>: search-postgres-0 has 47 restarts
 - <span class="key">Evidence</span>: <span class="str">Tier 1: OOMKilled in previous logs</span>
 - <span class="key">Root Cause</span>: Memory limit too low (85% conf)
+- <span class="key">Layer</span>: Layer 4 &rarr; Layer 9
 - <span class="key">Known Issue</span>: <span class="str">ACM-28445</span>
 - <span class="key">Fix Version</span>: <span class="str">2.17.1</span>
 - <span class="key">Cluster-Fixable</span>: <span class="bool">Yes</span>
-- <span class="key">Action</span>: <span class="str">Increase memory limit</span></pre>
+- <span class="key">Impact</span>: <span class="str">Console Search non-functional</span>
+- <span class="key">Recommended Action</span>: <span class="str">Increase memory limit</span></pre>
       </div>
     `
   },
@@ -779,6 +781,7 @@ Targeted  <span class="green">YES</span>  <span class="green">YES</span>  <span 
 <span class="str">"context deadline exceeded"</span>          Backend connectivity failure
 <span class="str">"conflict"</span>                           Concurrent update conflict
 <span class="str">"nil pointer"</span>                        Uninstall race condition
+<span class="str">"template-error"</span>                     Policy template namespace mismatch
 <span class="str">"OOMKilled"</span> or exit code <span class="num">137</span>         Memory pressure
 Rapid entries for same resource       Reconciliation hot-loop</pre>
         <div class="label">Per-Component Verdict:</div>
@@ -930,7 +933,7 @@ Rapid entries for same resource       Reconciliation hot-loop</pre>
     `
   },
   'diag-knowledge': {
-    title: 'Diagnostic Knowledge (5 Files)',
+    title: 'Diagnostic Knowledge (8 Files)',
     html: `
       <div class="detail-section">
         <h4>Health Check Methodology</h4>
@@ -960,11 +963,17 @@ Rapid entries for same resource       Reconciliation hot-loop</pre>
   Tier 3 alone = <span class="red">INSUFFICIENT</span></pre>
         <div class="label">diagnostic-playbooks.md (14 playbooks):</div>
         <div class="value">Per-subsystem investigation procedures with ordered steps and specific commands. Covers MCH/MCE, managed clusters, Search, Observability, Governance, App Lifecycle, Console, Nodes, Certificates, Add-ons, Networking/Submariner, RBAC, Addon Framework, Hive.</div>
+        <div class="label">cluster-introspection.md (8 sources):</div>
+        <div class="value">8 metadata sources for reverse-engineering component dependencies from live cluster state: owner references, OLM labels, CSV metadata, Kubernetes labels, env vars/volumes, webhooks, ConsolePlugins, APIServices. Self-healing fallback that works for any operator.</div>
+        <div class="label">neo4j-reference.md:</div>
+        <div class="value">Knowledge graph Cypher query reference for the neo4j-rhacm MCP. Covers availability checks, dependency queries (direct, transitive, common root cause), and the discovery chain (curated &rarr; introspection &rarr; graph).</div>
+        <div class="label">acm-search-reference.md:</div>
+        <div class="value">Search MCP tool reference for the acm-search MCP. Covers tool parameters, query patterns for fleet-wide spoke health, capabilities (cross-cluster addon/pod verification), and limitations (search lag, hub-side gaps).</div>
       </div>
     `
   },
   'yaml-knowledge': {
-    title: 'Structured YAML Data (6 Files)',
+    title: 'Structured YAML Data (7 Files)',
     html: `
       <div class="detail-section">
         <h4>Quantitative Baselines</h4>
@@ -974,6 +983,8 @@ Rapid entries for same resource       Reconciliation hot-loop</pre>
         <div class="value">Expected pod counts per namespace (30-40 MCH, 30-40 MCE), critical deployments with minimum replicas, node thresholds, managed cluster conditions, addon expectations.</div>
         <div class="label">dependency-chains.yaml:</div>
         <div class="value">Same 12 chains as the markdown file, in structured YAML for programmatic lookups. Includes impact descriptions and cross-chain symptom patterns.</div>
+        <div class="label">service-map.yaml:</div>
+        <div class="value">Critical Service-to-Pod mappings for connectivity diagnosis. Maps Kubernetes Services to their backing pods, ports, and protocols for tracing network-layer failures.</div>
         <div class="label">webhook-registry.yaml:</div>
         <div class="value">25 webhook entries with owner, failure policy, critical operations, impact when broken, and check commands.</div>
         <div class="label">certificate-inventory.yaml:</div>
@@ -1568,7 +1579,7 @@ Available. ACM 2.17.0 on OCP 4.21.5.</pre>
     html: `
       <div class="detail-section">
         <h4>Issue Detail Fields</h4>
-        <div class="value">Each issue includes up to 7 fields:</div>
+        <div class="value">Each issue includes 9 required fields:</div>
 <pre class="data-block"><span class="key">### [CRITICAL] search-postgres CrashLoopBackOff</span>
 
 - <span class="key">What</span>: search-postgres-0 in CrashLoopBackOff,
@@ -1581,11 +1592,16 @@ Available. ACM 2.17.0 on OCP 4.21.5.</pre>
 - <span class="key">Root Cause</span>: Memory limit insufficient for
   current index size (85% confidence)
 
+- <span class="key">Layer</span>: Layer 4 (Storage) &rarr; Layer 9 (Operator)
+
 - <span class="key">Known Issue</span>: <span class="str">ACM-28445</span>
 
 - <span class="key">Fix Version</span>: <span class="str">2.17.1</span>
 
 - <span class="key">Cluster-Fixable</span>: <span class="bool">Yes</span> &mdash; increase memory limit
+
+- <span class="key">Impact</span>: Console Search, Fleet Virt UI, and any
+  feature depending on search-api are non-functional
 
 - <span class="key">Recommended Action</span>:
   Patch search-postgres StatefulSet to increase

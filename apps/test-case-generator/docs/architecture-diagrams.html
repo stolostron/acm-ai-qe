@@ -121,7 +121,7 @@ graph LR
   <p class="desc">Deterministic Python script that collects PR data, conventions, and area knowledge via gh CLI and local file reads. No LLM or MCP calls.</p>
   <div class="mermaid">
 graph TD
-    G1["Step 1: Search PR\ngh pr list --search JIRA-ID\nOutput: PR number"]:::clickable --> G2["Step 2: PR Metadata\ngh pr view --json\nOutput: title, files, additions"]:::clickable
+    G1["Step 1: Search PR\ngh search prs JIRA-ID\nOutput: PR number"]:::clickable --> G2["Step 2: PR Metadata\ngh pr view --json\nOutput: title, files, additions, state"]:::clickable
     G2 --> G3["Step 3: PR Diff\ngh pr diff\nOutput: pr-diff.txt"]:::clickable
     G3 --> G4["Step 4: Detect Area\nFile path patterns\nOutput: area (governance, rbac, ...)"]:::clickable
     G4 --> G5["Step 5: Peer Test Cases\nFilesystem glob\nOutput: existing_test_cases[]"]:::clickable
@@ -156,7 +156,7 @@ graph TD
 graph TD
     INPUT["gather-output.json"]:::clickable --> A["Agent A: Feature Investigator\nJIRA deep dive\nMCP: jira, polarion, neo4j, bash\nOutput: ACs, linked tickets, coverage"]:::clickable
     INPUT --> B["Agent B: Code Change Analyzer\nPR diff analysis\nMCP: acm-ui, neo4j, bash\nOutput: UI elements, routes, interaction models"]:::clickable
-    INPUT --> C["Agent C: UI Discovery\nACM Console source\nMCP: acm-ui, neo4j\nOutput: selectors, translations, routes"]:::clickable
+    INPUT --> C["Agent C: UI Discovery\nACM Console source\nMCP: acm-ui, neo4j, playwright, bash\nOutput: selectors, translations, routes"]:::clickable
     A --> MERGE["Phase 2: Synthesize\nMerge + Scope Gate + AC Check"]:::clickable
     B --> MERGE
     C --> MERGE
@@ -210,10 +210,10 @@ graph LR
   <p class="desc">Two independent validation layers. Phase 4.5 (AI reviewer) checks semantic correctness. Stage 3 (Python validator) checks structural correctness. Both must pass.</p>
   <div class="mermaid">
 graph TD
-    TC["test-case.md"]:::clickable --> QR["Phase 4.5: Quality Reviewer\n7 checks: structure, UI verify,\nAC check, Polarion, peers\nVerdict: PASS / NEEDS_FIXES"]:::clickable
+    TC["test-case.md"]:::clickable --> QR["Phase 4.5: Quality Reviewer\n8 checks: structure, UI verify,\nAC check, knowledge xref,\nPolarion, peers, HTML\nVerdict: PASS / NEEDS_FIXES"]:::clickable
     QR -->|NEEDS_FIXES| FIX["Fix Issues\n(orchestrator)"]:::clickable
     FIX --> QR
-    QR -->|PASS| CV["Stage 3: convention_validator.py\n7 rules: title, metadata,\nsections, steps, teardown\nVerdict: PASS / FAIL"]:::clickable
+    QR -->|PASS| CV["Stage 3: convention_validator.py\n11 checks: title, metadata,\nfields, sections, steps, teardown\nVerdict: PASS / FAIL"]:::clickable
     CV --> HTML["html_generator.py\nPolarion setup + steps HTML"]:::clickable
     HTML --> DONE["SUMMARY.txt\nreview-results.json\ntest-case-setup.html\ntest-case-steps.html"]:::clickable
 
@@ -281,7 +281,7 @@ graph LR
   <div class="mermaid">
 graph TD
     CONV["conventions/\n4 files\ntest-case-format.md\narea-naming-patterns.md\ncli-in-steps-rules.md\npolarion-html-templates.md"]:::clickable --> WRITER["Phase 4: Writer\nReads before writing"]
-    ARCH["architecture/\n7 files\ngovernance.md, rbac.md\nfleet-virt.md, clusters.md\nsearch.md, apps.md, creds.md"]:::clickable --> GATHER["Stage 1: Gather\nLoaded into gather-output"]
+    ARCH["architecture/\n9 files\ngovernance.md, rbac.md\nfleet-virt.md, clusters.md\nsearch.md, applications.md\ncredentials.md, cclm.md, mtv.md"]:::clickable --> GATHER["Stage 1: Gather\nLoaded into gather-output"]
     EXAMPLES["examples/\nsample-test-case.md\nFormat fallback"]:::clickable --> WRITER
     CONV --> REVIEWER["Phase 4.5: Reviewer\nValidation reference"]
 
@@ -356,11 +356,11 @@ const DATA = {
       <div class="detail-section">
         <h4>Deterministic Data Gathering</h4>
         <div class="label">Script:</div>
-        <div class="value"><code>src/scripts/gather.py</code> (180 lines)</div>
+        <div class="value"><code>src/scripts/gather.py</code> (192 lines)</div>
         <div class="label">Duration:</div>
         <div class="value">~2-5 seconds</div>
         <div class="label">What it collects:</div>
-        <div class="value">&bull; PR discovery via <code>gh pr list --search JIRA-ID</code><br>&bull; PR metadata via <code>gh pr view --json</code><br>&bull; Full PR diff via <code>gh pr diff</code><br>&bull; Area detection from file paths<br>&bull; Peer test cases from filesystem<br>&bull; Conventions and area knowledge from <code>knowledge/</code></div>
+        <div class="value">&bull; PR discovery via <code>gh search prs JIRA-ID</code><br>&bull; PR metadata via <code>gh pr view --json</code><br>&bull; Full PR diff via <code>gh pr diff</code><br>&bull; Area detection from file paths<br>&bull; Test vs production file classification<br>&bull; Peer test cases from filesystem<br>&bull; Conventions and area knowledge from <code>knowledge/</code></div>
         <div class="label">No LLM or MCP calls:</div>
         <div class="value">This stage is fully deterministic. Uses only <code>gh</code> CLI and local file reads.</div>
       </div>
@@ -371,7 +371,7 @@ const DATA = {
     html: `
       <div class="detail-section">
         <h4>Stage 1 Output</h4>
-        <div class="label">Schema (GatherOutput model):</div>
+        <div class="label">Schema (GatherOutput Pydantic model):</div>
 <pre class="data-block">{
   <span class="key">"jira_id"</span>: <span class="str">"ACM-30459"</span>,
   <span class="key">"acm_version"</span>: <span class="str">"2.17"</span>,
@@ -379,13 +379,21 @@ const DATA = {
   <span class="key">"pr_data"</span>: {
     <span class="key">"number"</span>: <span class="num">5790</span>,
     <span class="key">"title"</span>: <span class="str">"Implement labels for discovered policies..."</span>,
+    <span class="key">"repo"</span>: <span class="str">"stolostron/console"</span>,
+    <span class="key">"state"</span>: <span class="str">"merged"</span>,
     <span class="key">"files"</span>: [<span class="str">"frontend/src/routes/Governance/..."</span>],
     <span class="key">"additions"</span>: <span class="num">1238</span>,
-    <span class="key">"deletions"</span>: <span class="num">16</span>
+    <span class="key">"deletions"</span>: <span class="num">16</span>,
+    <span class="key">"diff_file"</span>: <span class="str">"pr-diff.txt"</span>
   },
   <span class="key">"existing_test_cases"</span>: [<span class="str">"peer1.md"</span>, <span class="str">"peer2.md"</span>],
   <span class="key">"conventions"</span>: <span class="str">"# Test Case Conventions..."</span>,
-  <span class="key">"area_knowledge"</span>: <span class="str">"# Governance Area Knowledge..."</span>
+  <span class="key">"area_knowledge"</span>: <span class="str">"# Governance Area Knowledge..."</span>,
+  <span class="key">"html_templates"</span>: <span class="str">"# Polarion HTML Templates..."</span>,
+  <span class="key">"run_dir"</span>: <span class="str">"runs/ACM-30459/..."</span>,
+  <span class="key">"options"</span>: { <span class="key">"skip_live"</span>: <span class="bool">false</span>, <span class="key">"cluster_url"</span>: <span class="null">null</span>, <span class="key">"repo"</span>: <span class="str">"stolostron/console"</span> },
+  <span class="key">"test_files"</span>: [<span class="str">".test.tsx files..."</span>],
+  <span class="key">"production_files"</span>: [<span class="str">"production .tsx files..."</span>]
 }</pre>
       </div>
     `
@@ -398,7 +406,7 @@ const DATA = {
         <div class="label">Duration:</div>
         <div class="value">~30-60 seconds (all three run simultaneously)</div>
         <div class="label">Agents:</div>
-        <div class="value"><span class="tag tag-agent">feature-investigator</span> JIRA deep dive (jira, polarion, neo4j, bash)<br><span class="tag tag-agent">code-change-analyzer</span> PR diff analysis (acm-ui, neo4j, bash)<br><span class="tag tag-agent">ui-discovery</span> ACM source search (acm-ui, neo4j)</div>
+        <div class="value"><span class="tag tag-agent">feature-investigator</span> JIRA deep dive (jira, polarion, neo4j, bash)<br><span class="tag tag-agent">code-change-analyzer</span> PR diff analysis (acm-ui, neo4j, bash)<br><span class="tag tag-agent">ui-discovery</span> ACM source search (acm-ui, neo4j, playwright, bash)</div>
         <div class="label">Key principle:</div>
         <div class="value">Each agent investigates from a different angle. Feature Investigator reads the <em>requirements</em>. Code Analyzer reads the <em>implementation</em>. UI Discovery reads the <em>current source</em>. Phase 2 merges and cross-references.</div>
       </div>
@@ -435,12 +443,12 @@ const DATA = {
     html: `
       <div class="detail-section">
         <h4>ACM Console Source Discovery</h4>
-        <div class="label">MCP tools (acm-ui):</div>
-        <div class="value">set_acm_version, set_cnv_version, search_code, get_component_source, search_translations, get_routes, get_wizard_steps, get_acm_selectors, get_fleet_virt_selectors, find_test_ids, get_patternfly_selectors</div>
+        <div class="label">MCP tools:</div>
+        <div class="value"><span class="tag tag-mcp">acm-ui</span> set_acm_version, set_cnv_version, search_code, get_component_source, search_translations, get_routes, get_wizard_steps, get_acm_selectors, get_fleet_virt_selectors, find_test_ids, get_patternfly_selectors, get_component_types<br><span class="tag tag-mcp">neo4j</span> read_neo4j_cypher (architecture context)<br><span class="tag tag-mcp">playwright</span> browser_navigate, browser_snapshot, browser_take_screenshot (conditional: only with cluster URL)<br><span class="tag tag-mcp">bash</span> oc login, oc whoami, oc get mch -A (cluster auth before browser verification)</div>
         <div class="label">Must call first:</div>
         <div class="value"><code>set_acm_version("2.17")</code> before any other acm-ui call. For Fleet Virt, also <code>set_cnv_version</code>.</div>
         <div class="label">Output includes:</div>
-        <div class="value">&bull; Translations (key &rarr; UI string)<br>&bull; Routes (name &rarr; path pattern)<br>&bull; Selectors (component &rarr; CSS/data-test)<br>&bull; Test IDs<br>&bull; Component structure</div>
+        <div class="value">&bull; Translations (key &rarr; UI string)<br>&bull; Routes (name &rarr; path pattern)<br>&bull; Selectors (component &rarr; CSS/data-test)<br>&bull; Test IDs<br>&bull; Component structure<br>&bull; Live verification status (if cluster URL provided)</div>
       </div>
     `
   },
@@ -553,7 +561,7 @@ const DATA = {
         <div class="label">Agent:</div>
         <div class="value"><span class="tag tag-agent">quality-reviewer</span></div>
         <div class="label">Checks:</div>
-        <div class="value">&bull; Structural validation (title, metadata, sections, steps)<br>&bull; Discovered vs assumed (MCP spot-check)<br>&bull; AC vs implementation (JIRA ACs match expected results)<br>&bull; Scope alignment (steps match target story)<br>&bull; Polarion duplicate check<br>&bull; Peer consistency</div>
+        <div class="value">&bull; Structural validation (title, metadata, sections, steps)<br>&bull; Discovered vs assumed (MCP spot-check, min 3 verifications)<br>&bull; AC vs implementation (JIRA ACs match expected results)<br>&bull; Knowledge file cross-reference (area knowledge verification)<br>&bull; Scope alignment (steps match target story)<br>&bull; Polarion duplicate check<br>&bull; Peer consistency<br>&bull; HTML check (post-hoc /review only)</div>
         <div class="label">Loop behavior:</div>
         <div class="value">If NEEDS_FIXES: orchestrator fixes issues, re-runs reviewer. Max 3 iterations. If still failing, shows remaining issues to user.</div>
       </div>
@@ -563,11 +571,11 @@ const DATA = {
     title: 'Phase 4.5: Quality Reviewer',
     html: `
       <div class="detail-section">
-        <h4>7-Step Review Process</h4>
+        <h4>8-Step Review Process</h4>
         <div class="label">Steps:</div>
-        <div class="value">1. Read test case<br>2. Read conventions (3 files)<br>3. Structural validation <span class="tag tag-fail">BLOCKING</span><br>4. Discovered vs assumed (MCP) <span class="tag tag-fail">BLOCKING</span><br>4.5. AC vs implementation <span class="tag tag-fail">BLOCKING</span><br>5. Polarion coverage check<br>6. Peer consistency check<br>7. HTML check (post-hoc only)</div>
+        <div class="value">1. Read test case<br>2. Read conventions (3 files)<br>3. Structural validation <span class="tag tag-fail">BLOCKING</span><br>4. Discovered vs assumed (MCP, min 3 verifications) <span class="tag tag-fail">BLOCKING</span><br>4.5. AC vs implementation check <span class="tag tag-fail">BLOCKING</span><br>4.6. Knowledge file cross-reference <span class="tag tag-fail">BLOCKING</span><br>5. Polarion coverage check<br>6. Peer consistency check<br>7. HTML check (post-hoc only)</div>
         <div class="label">MCP tools used:</div>
-        <div class="value"><span class="tag tag-mcp">acm-ui</span> set_acm_version, search_translations, get_routes<br><span class="tag tag-mcp">polarion</span> get_polarion_work_items</div>
+        <div class="value"><span class="tag tag-mcp">acm-ui</span> set_acm_version, search_translations, get_routes, get_wizard_steps, get_component_source<br><span class="tag tag-mcp">polarion</span> get_polarion_work_items, get_polarion_work_item, get_polarion_test_case_summary</div>
       </div>
     `
   },
@@ -581,9 +589,9 @@ const DATA = {
       <div class="detail-section">
         <h4>Structural Validation</h4>
         <div class="label">Script:</div>
-        <div class="value"><code>src/services/convention_validator.py</code> (299 lines)</div>
-        <div class="label">7 validation rules:</div>
-        <div class="value">1. Title pattern: <code>^# RHACM4K-\\d+ - \\[.+\\] .+ - .+$</code><br>2. Metadata: 4 required fields<br>3. Polarion fields: 10 required <code>## Field: Value</code> lines<br>4. Section order: Description &rarr; Setup &rarr; Steps &rarr; Teardown<br>5. Step format: H3 heading + <code>**Expected Result:**</code><br>6. Entry point: <code>**Entry Point:**</code> in Description<br>7. Teardown: <code>--ignore-not-found</code> on deletes</div>
+        <div class="value"><code>src/services/convention_validator.py</code> (319 lines)</div>
+        <div class="label">11 validation checks:</div>
+        <div class="value">1. Title pattern: <code>^# RHACM4K-\\d+ - \\[.+\\] .+ - .+$</code> + area tag match<br>2. Metadata: 4 required fields (Polarion ID, Status, Created, Updated)<br>3. Polarion fields: 10 required <code>## Field: Value</code> lines<br>4. Type field value: must be "Test Case"<br>5. Test Steps section header: <code>## Test Steps</code> required<br>6. Section order: Description &rarr; Setup &rarr; Test Steps &rarr; Teardown<br>7. Description: mandatory section<br>8. Entry point: <code>Entry Point</code> in Description<br>9. JIRA coverage: <code>Dev JIRA Coverage</code> in Description<br>10. Step format: H3 heading + Expected Result + numbered actions + CLI check + separators<br>11. Teardown + Setup: <code>--ignore-not-found</code> on deletes, <code># Expected:</code> on setup commands</div>
       </div>
     `
   },
@@ -593,7 +601,7 @@ const DATA = {
       <div class="detail-section">
         <h4>Polarion HTML Generation</h4>
         <div class="label">Script:</div>
-        <div class="value"><code>src/services/html_generator.py</code> (196 lines)</div>
+        <div class="value"><code>src/services/html_generator.py</code> (210 lines)</div>
         <div class="label">Produces:</div>
         <div class="value">&bull; <code>test-case-setup.html</code> &mdash; Prerequisites, environment, bash commands<br>&bull; <code>test-case-steps.html</code> &mdash; Two-column table (Step | Expected Result)</div>
         <div class="label">Template rules:</div>
@@ -607,7 +615,7 @@ const DATA = {
       <div class="detail-section">
         <h4>Report Generation</h4>
         <div class="label">Script:</div>
-        <div class="value"><code>src/scripts/report.py</code> (200 lines)</div>
+        <div class="value"><code>src/scripts/report.py</code> (200 lines). Also uses <code>src/scripts/log_phase.py</code> (87 lines) for AI phase telemetry.</div>
         <div class="label">Process:</div>
         <div class="value">1. Find test case file in run directory<br>2. Run structural validation (<code>convention_validator.py</code>)<br>3. Generate Polarion HTML (<code>html_generator.py</code>)<br>4. Write <code>SUMMARY.txt</code><br>5. Log telemetry events</div>
       </div>
@@ -619,15 +627,21 @@ const DATA = {
       <div class="detail-section">
         <h4>Run Directory Contents</h4>
 <pre class="data-block">runs/ACM-30459/ACM-30459-2026-04-18T02-00-46/
-  <span class="key">gather-output.json</span>        <span class="null"># Stage 1</span>
-  <span class="key">pr-diff.txt</span>               <span class="null"># Stage 1</span>
-  <span class="str">test-case.md</span>              <span class="null"># Phase 4 (primary deliverable)</span>
-  <span class="key">analysis-results.json</span>     <span class="null"># Phase 4</span>
-  <span class="key">test-case-setup.html</span>      <span class="null"># Stage 3 (Polarion)</span>
-  <span class="key">test-case-steps.html</span>      <span class="null"># Stage 3 (Polarion)</span>
-  <span class="key">review-results.json</span>       <span class="null"># Stage 3</span>
-  <span class="key">SUMMARY.txt</span>               <span class="null"># Stage 3</span>
-  <span class="key">pipeline.log.jsonl</span>        <span class="null"># All stages</span></pre>
+  <span class="key">gather-output.json</span>              <span class="null"># Stage 1</span>
+  <span class="key">pr-diff.txt</span>                     <span class="null"># Stage 1</span>
+  <span class="key">phase1-feature-investigation.md</span>  <span class="null"># Phase 1</span>
+  <span class="key">phase1-code-change-analysis.md</span>  <span class="null"># Phase 1</span>
+  <span class="key">phase1-ui-discovery.md</span>          <span class="null"># Phase 1</span>
+  <span class="key">phase2-synthesized-context.md</span>   <span class="null"># Phase 2</span>
+  <span class="key">phase3-live-validation.md</span>       <span class="null"># Phase 3</span>
+  <span class="str">test-case.md</span>                    <span class="null"># Phase 4 (primary deliverable)</span>
+  <span class="key">analysis-results.json</span>           <span class="null"># Phase 4</span>
+  <span class="key">phase4.5-quality-review.md</span>      <span class="null"># Phase 4.5</span>
+  <span class="key">test-case-setup.html</span>            <span class="null"># Stage 3 (Polarion)</span>
+  <span class="key">test-case-steps.html</span>            <span class="null"># Stage 3 (Polarion)</span>
+  <span class="key">review-results.json</span>             <span class="null"># Stage 3</span>
+  <span class="key">SUMMARY.txt</span>                     <span class="null"># Stage 3</span>
+  <span class="key">pipeline.log.jsonl</span>              <span class="null"># All stages + phases</span></pre>
       </div>
     `
   },
@@ -644,8 +658,8 @@ const DATA = {
     title: 'gather-output.json',
     html: `<div class="detail-section"><h4>Input to Phase 1</h4><div class="value">All gathered data from Stage 1: JIRA ID, PR metadata, area, conventions, peer test cases. See gather-output.json detail for schema.</div></div>`
   },
-  'G1': { title: 'Step 1: Search PR', html: `<div class="detail-section"><h4>PR Discovery</h4><div class="label">Command:</div><div class="value"><code>gh pr list --search "JIRA-ID" --repo stolostron/console --json number --limit 1</code></div><div class="label">Output:</div><div class="value">PR number (e.g., 5790)</div></div>` },
-  'G2': { title: 'Step 2: PR Metadata', html: `<div class="detail-section"><h4>PR Details</h4><div class="label">Command:</div><div class="value"><code>gh pr view 5790 --repo stolostron/console --json title,body,files,additions,deletions,mergedAt</code></div><div class="label">Output:</div><div class="value">PRData model: title, file list (11 files), additions (1238), deletions (16), merge date</div></div>` },
+  'G1': { title: 'Step 1: Search PR', html: `<div class="detail-section"><h4>PR Discovery</h4><div class="label">Command:</div><div class="value"><code>gh search prs JIRA-ID --repo stolostron/console --json number,title,state --limit 5</code></div><div class="label">Output:</div><div class="value">PR number (e.g., 5790) &mdash; first result from up to 5 matches</div></div>` },
+  'G2': { title: 'Step 2: PR Metadata', html: `<div class="detail-section"><h4>PR Details</h4><div class="label">Command:</div><div class="value"><code>gh pr view 5790 --repo stolostron/console --json title,body,files,additions,deletions,mergedAt,state</code></div><div class="label">Output:</div><div class="value">PRData model: title, file list (11 files), additions (1238), deletions (16), merge date, state</div></div>` },
   'G3': { title: 'Step 3: PR Diff', html: `<div class="detail-section"><h4>Full Diff Download</h4><div class="label">Command:</div><div class="value"><code>gh pr diff 5790 --repo stolostron/console</code></div><div class="label">Output:</div><div class="value"><code>pr-diff.txt</code> file in run directory (used by Code Change Analyzer in Phase 1)</div></div>` },
   'G4': { title: 'Step 4: Detect Area', html: `<div class="detail-section"><h4>Area Auto-Detection</h4><div class="label">Method:</div><div class="value"><code>detect_area_from_files()</code> in <code>github_service.py</code></div><div class="label">Pattern matching:</div><div class="value">&bull; <code>routes/Governance/</code> &rarr; governance<br>&bull; <code>routes/Infrastructure/Clusters/</code> &rarr; clusters<br>&bull; <code>routes/Applications/</code> &rarr; applications<br>&bull; <code>routes/Credentials/</code> &rarr; credentials</div></div>` },
   'G5': { title: 'Step 5: Peer Test Cases', html: `<div class="detail-section"><h4>Peer Discovery</h4><div class="label">Search order:</div><div class="value">1. External automation workspace (area-aware)<br>2. Previous pipeline runs (<code>runs/</code>)<br>3. Sample (<code>knowledge/examples/sample-test-case.md</code>)</div><div class="label">Returns:</div><div class="value">Up to 3 test cases matching area and version</div></div>` },
@@ -655,16 +669,16 @@ const DATA = {
   'JIRA': { title: 'jira MCP Server', html: `<div class="detail-section"><h4>JIRA Ticket Investigation</h4><div class="label">Tools:</div><div class="value"><span class="num">3</span> tools: get_issue, search_issues, get_project_components</div><div class="label">Source:</div><div class="value">Cloned from stolostron/jira-mcp-server</div><div class="label">Credentials:</div><div class="value"><code>mcp/.external/jira-mcp-server/.env</code> (JIRA email + API token)</div><div class="label">Used by:</div><div class="value">Feature Investigator</div></div>` },
   'POL': { title: 'polarion MCP Server', html: `<div class="detail-section"><h4>Polarion Test Coverage</h4><div class="label">Tools:</div><div class="value"><span class="num">7</span> tools</div><div class="label">Source:</div><div class="value">This repo (<code>mcp/polarion/</code>)</div><div class="label">Project ID:</div><div class="value">Always <code>RHACM4K</code></div><div class="label">Credentials:</div><div class="value"><code>mcp/polarion/.env</code> (Polarion JWT token, requires VPN)</div><div class="label">Used by:</div><div class="value">Feature Investigator, Quality Reviewer</div></div>` },
   'NEO': { title: 'neo4j-rhacm MCP Server', html: `<div class="detail-section"><h4>Component Dependency Graph</h4><div class="label">Tools:</div><div class="value"><span class="num">2</span> tools: get_neo4j_schema, read_neo4j_cypher</div><div class="label">Data:</div><div class="value">339+ components, 479+ relationships</div><div class="label">Requires:</div><div class="value">Podman with <code>neo4j-rhacm</code> container running</div><div class="label">Used by:</div><div class="value">Feature Investigator, Code Change Analyzer, UI Discovery</div></div>` },
-  'PW': { title: 'playwright MCP Server', html: `<div class="detail-section"><h4>Browser Automation</h4><div class="label">Tools:</div><div class="value"><span class="num">24</span> tools</div><div class="label">Source:</div><div class="value"><code>@playwright/mcp</code> (npm), runs via <code>npx @playwright/mcp@latest</code></div><div class="label">Key tools:</div><div class="value">browser_navigate, browser_snapshot, browser_click, browser_fill_form, browser_take_screenshot, browser_console_messages, browser_network_requests</div><div class="label">Used by:</div><div class="value">Live Validator (Phase 3 only)</div></div>` },
+  'PW': { title: 'playwright MCP Server', html: `<div class="detail-section"><h4>Browser Automation</h4><div class="label">Tools:</div><div class="value"><span class="num">24</span> tools</div><div class="label">Source:</div><div class="value"><code>@playwright/mcp</code> (npm), runs via <code>npx @playwright/mcp@latest</code></div><div class="label">Key tools:</div><div class="value">browser_navigate, browser_snapshot, browser_click, browser_fill_form, browser_take_screenshot, browser_console_messages, browser_network_requests</div><div class="label">Used by:</div><div class="value">Live Validator (Phase 3), UI Discovery (Phase 1, conditional &mdash; only when cluster URL provided)</div></div>` },
   'SEARCH': { title: 'acm-search MCP Server', html: `<div class="detail-section"><h4>Fleet-Wide Resource Queries</h4><div class="label">Tools:</div><div class="value"><span class="num">5</span> tools: find_resources, query_database, list_tables, get_database_stats, search_tables</div><div class="label">Deployment:</div><div class="value">On-cluster pod, accessed via SSE + mcp-remote bridge</div><div class="label">Used by:</div><div class="value">Live Validator (Phase 3 only)</div></div>` },
   'KCTL': { title: 'acm-kubectl MCP Server', html: `<div class="detail-section"><h4>Multicluster Kubectl</h4><div class="label">Tools:</div><div class="value"><span class="num">3</span> tools: clusters, kubectl, connect_cluster</div><div class="label">Source:</div><div class="value"><code>acm-mcp-server</code> (npm), runs via <code>npx -y acm-mcp-server@latest</code></div><div class="label">Used by:</div><div class="value">Live Validator (Phase 3 only)</div></div>` },
   'CONV': { title: 'conventions/', html: `<div class="detail-section"><h4>Test Case Format Rules</h4><div class="label">4 files:</div><div class="value">&bull; <code>test-case-format.md</code> &mdash; Section order, naming, 85-case conventions<br>&bull; <code>area-naming-patterns.md</code> &mdash; Title tag by area ([GRC-X.XX], [FG-RBAC-X.XX])<br>&bull; <code>cli-in-steps-rules.md</code> &mdash; CLI only for backend validation<br>&bull; <code>polarion-html-templates.md</code> &mdash; HTML generation templates</div><div class="label">Read by:</div><div class="value">Phase 4 (writer), Phase 4.5 (reviewer), Stage 3 (html_generator.py)</div></div>` },
-  'ARCH': { title: 'architecture/', html: `<div class="detail-section"><h4>Per-Area Domain Knowledge</h4><div class="label">7 files:</div><div class="value">&bull; governance.md &mdash; Policy types, discovered vs managed, system labels<br>&bull; rbac.md &mdash; FG-RBAC, MCRA, scopes<br>&bull; fleet-virt.md &mdash; Tree view, VM actions, KubeVirt<br>&bull; clusters.md &mdash; Cluster lifecycle, import/detach<br>&bull; search.md &mdash; Search API, global queries<br>&bull; applications.md &mdash; ALC, subscriptions<br>&bull; credentials.md &mdash; Provider credentials</div><div class="label">Read by:</div><div class="value">Stage 1 (loaded into gather-output.json), Phase 4 (area context)</div></div>` },
+  'ARCH': { title: 'architecture/', html: `<div class="detail-section"><h4>Per-Area Domain Knowledge</h4><div class="label">9 files:</div><div class="value">&bull; governance.md &mdash; Policy types, discovered vs managed, system labels<br>&bull; rbac.md &mdash; FG-RBAC, MCRA, scopes<br>&bull; fleet-virt.md &mdash; Tree view, VM actions, KubeVirt<br>&bull; cclm.md &mdash; Cross-cluster live migration<br>&bull; mtv.md &mdash; Migration toolkit for virtualization<br>&bull; clusters.md &mdash; Cluster lifecycle, import/detach<br>&bull; search.md &mdash; Search API, global queries<br>&bull; applications.md &mdash; ALC, subscriptions<br>&bull; credentials.md &mdash; Provider credentials</div><div class="label">Read by:</div><div class="value">Stage 1 (loaded into gather-output.json), Phase 4 (area context), Phase 4.5 (knowledge file cross-reference)</div></div>` },
   'EXAMPLES': { title: 'examples/', html: `<div class="detail-section"><h4>Sample Test Case</h4><div class="value"><code>sample-test-case.md</code> &mdash; Convention-compliant sample used as format fallback when no peer test cases exist for the area/version.</div></div>` },
-  'HOOKS': { title: 'Claude Code Hooks', html: `<div class="detail-section"><h4>6 Event Types</h4><div class="label">Hook script:</div><div class="value"><code>.claude/hooks/agent_trace.py</code> (473 lines)</div><div class="label">Events captured:</div><div class="value">&bull; <strong>PreToolUse</strong> (Bash, mcp__.*, Agent, Read, Write, Edit)<br>&bull; <strong>PostToolUse</strong> (Bash, mcp__.*)<br>&bull; <strong>PostToolUseFailure</strong> (mcp__.*, Bash)<br>&bull; <strong>UserPromptSubmit</strong> (all prompts)<br>&bull; <strong>SubagentStop</strong> (all subagents)<br>&bull; <strong>Stop</strong> (turn completion)</div></div>` },
+  'HOOKS': { title: 'Claude Code Hooks', html: `<div class="detail-section"><h4>6 Event Types</h4><div class="label">Hook script:</div><div class="value"><code>.claude/hooks/agent_trace.py</code> (471 lines)</div><div class="label">Events captured:</div><div class="value">&bull; <strong>PreToolUse</strong> (Bash, mcp__.*, Agent, Read, Write, Edit)<br>&bull; <strong>PostToolUse</strong> (Bash, mcp__.*)<br>&bull; <strong>PostToolUseFailure</strong> (mcp__.*, Bash)<br>&bull; <strong>UserPromptSubmit</strong> (all prompts)<br>&bull; <strong>SubagentStop</strong> (all subagents)<br>&bull; <strong>Stop</strong> (turn completion)</div></div>` },
   'TRACE': { title: 'Session Trace File', html: `<div class="detail-section"><h4>Per-Session JSONL</h4><div class="label">Location:</div><div class="value"><code>.claude/traces/&lt;session_id&gt;.jsonl</code></div><div class="label">Enrichment:</div><div class="value">&bull; Pipeline command detection (generate/review/batch)<br>&bull; Pipeline phase from subagent type<br>&bull; Knowledge category from file path<br>&bull; oc command parsing (verb, resource, namespace)<br>&bull; MCP server/tool extraction</div></div>` },
   'INDEX': { title: 'Session Index', html: `<div class="detail-section"><h4>One-Line Summary per Session</h4><div class="label">Location:</div><div class="value"><code>.claude/traces/sessions.jsonl</code></div><div class="label">Fields:</div><div class="value">pipeline_command, phases_seen, duration_sec, prompts, tool_calls, subagent_launches, mcp_calls, oc_commands, mutations, knowledge_reads, pattern_writes, pipeline_outputs, errors</div></div>` },
-  'PY': { title: 'Pipeline Telemetry', html: `<div class="detail-section"><h4>Python Script Telemetry</h4><div class="label">Class:</div><div class="value"><code>PipelineTelemetry</code> in <code>src/services/telemetry.py</code> (70 lines)</div><div class="label">Events:</div><div class="value">pipeline_start, stage_start, stage_end (with metadata), pipeline_end, error</div><div class="label">Covers:</div><div class="value">Stage 1 (gather) and Stage 3 (report) only. AI phases are covered by session tracing.</div></div>` },
+  'PY': { title: 'Pipeline Telemetry', html: `<div class="detail-section"><h4>Python Script Telemetry</h4><div class="label">Class:</div><div class="value"><code>PipelineTelemetry</code> in <code>src/services/telemetry.py</code> (69 lines)</div><div class="label">Events:</div><div class="value">pipeline_start, stage_start, stage_end (with metadata), pipeline_end, error</div><div class="label">Phase logging:</div><div class="value"><code>src/scripts/log_phase.py</code> (87 lines) &mdash; CLI utility called by the orchestrator after each AI phase (Phases 1&ndash;4.5). Logs phase_end events with metadata to <code>pipeline.log.jsonl</code>.</div><div class="label">Covers:</div><div class="value">Stage 1 + Stage 3 via PipelineTelemetry class. Phases 1&ndash;4.5 via log_phase.py. Hook-based session tracing covers all phases independently.</div></div>` },
   'PLOG': { title: 'pipeline.log.jsonl', html: `<div class="detail-section"><h4>Per-Run Telemetry</h4><div class="label">Location:</div><div class="value"><code>runs/&lt;run-dir&gt;/pipeline.log.jsonl</code></div><div class="label">Stage 1 metadata:</div><div class="value">pr_found, pr_number, area, existing_test_cases_count, conventions_loaded, elapsed_seconds</div><div class="label">Stage 3 metadata:</div><div class="value">verdict, total_steps, blocking_issues, warnings, html_generated, elapsed_seconds</div></div>` }
 };
 

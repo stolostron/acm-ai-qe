@@ -66,13 +66,13 @@ gather.py, then spawns the data-collector agent to enrich the output.
 
 ## Step 2: Fetch and Parse Console Log
 
-**Service:** `JenkinsIntelligenceService.analyze_jenkins_url()` (via `_fetch_console_log()` + `_analyze_failure_patterns()`)
+**Service:** `JenkinsAPIClient.get_console_output()` (primary), `JenkinsIntelligenceService._fetch_console_log()` (fallback)
 
 **API:** `GET <jenkins_url>/consoleText` (authenticated)
 
 The raw console output (can be 10MB+) is saved to `console-log.txt` and parsed for error patterns using regex.
 
-### Regex Patterns
+### Regex Patterns (in JenkinsIntelligenceService, used during Step 3 test report analysis)
 
 **Timeout patterns:**
 ```python
@@ -104,9 +104,9 @@ network_patterns = [
 ]
 ```
 
-### Failure Type Classification
+### Failure Type Classification (Step 3)
 
-`_classify_failure_type()` returns a factual error type (not a bug classification):
+`_classify_failure_type()` in `JenkinsIntelligenceService` returns a factual error type (not a bug classification). This runs during Step 3 test report processing, not Step 2:
 
 ```python
 def _classify_failure_type(self, error_text: str) -> str:
@@ -140,26 +140,25 @@ def _classify_failure_type(self, error_text: str) -> str:
 
 ```python
 {
-    'patterns': {
-        'timeout_errors': ['timed out after 30000', ...],
-        'element_not_found': ['Expected to find element: #create-btn'],
-        'network_errors': [],
-        'assertion_failures': ['expected 3 to equal 5'],
-        'build_failures': [],
-        'environment_issues': []
-    },
-    'total_failures': 4,
-    'primary_failure_type': 'timeout_errors'
+    'file_path': 'console-log.txt',
+    'total_lines': 12500,
+    'error_lines_count': 42,
+    'key_errors': ['first 20 lines containing error or fail...'],
+    'error_patterns': {
+        'has_500_errors': False,
+        'has_network_errors': False,
+        'has_timeout_mentions': True
+    }
 }
 ```
 
-**Output files:** `console-log.txt` (raw), error patterns embedded in `core-data.json`
+**Output files:** `console-log.txt` (raw), error patterns embedded in `core-data.json` under `console_log`
 
 ---
 
 ## Step 3: Fetch Test Report
 
-**Service:** `JenkinsIntelligenceService.analyze_jenkins_url()` (via `_fetch_and_analyze_test_report()`)
+**Service:** `JenkinsIntelligenceService._fetch_and_analyze_test_report()`
 
 **API:** `GET <jenkins_url>/testReport/api/json` (JUnit format)
 
@@ -212,7 +211,7 @@ OUTPUT:
 
 ---
 
-## Step 4: Cluster Login + Landscape + Backend Probes
+## Step 4: Cluster Login + Landscape
 
 **Services:** `EnvironmentValidationService` (login + kubeconfig persist), `ClusterInvestigationService` (landscape)
 
@@ -251,7 +250,7 @@ Extract cluster URL from Jenkins parameters
 | `oc api-resources` | `oc scale`, `oc rollout` |
 | `kubectl get`, `kubectl describe` | Any write operation |
 
-### Cluster Access Persistence (v3.1, updated v4.1)
+### Cluster Access Persistence (v3.1, updated v4.0)
 
 Part of `_login_to_cluster()` (Step 4a). Extracts cluster credentials with two-tier lookup: Jenkins build parameters first, then console log fallback (for pipelines that use Jenkins Password Parameter types concealed from the REST API). After login, creates a persistent `cluster.kubeconfig` in the run directory. The `credential_source` field records which method succeeded (`jenkins_parameters` or `console_log_fallback`). Passwords are masked in `core-data.json` — the kubeconfig provides authentication without needing the raw password.
 
@@ -260,17 +259,18 @@ Part of `_login_to_cluster()` (Step 4a). Extracts cluster credentials with two-t
   "cluster_access": {
     "api_url": "https://api.cluster.example.com:6443",
     "username": "kubeadmin",
-    "has_credentials": "***MASKED***",
+    "has_credentials": true,
     "password": "****masked****",
     "kubeconfig_path": "runs/<dir>/cluster.kubeconfig",
-    "credential_source": "jenkins_parameters"
+    "credential_source": "jenkins_parameters",
+    "mch_namespace": "open-cluster-management"
   }
 }
 ```
 
 The `kubeconfig_path` is also set on `env_service.kubeconfig` so subsequent gather steps (cluster landscape, oracle) use the same authenticated kubeconfig.
 
-**Output files:** `environment-status.json`, `cluster.kubeconfig`, `cluster_access` key in `core-data.json`
+**Output files:** `cluster.kubeconfig`, `cluster_access` and `cluster_landscape` keys in `core-data.json`
 
 ---
 
@@ -491,20 +491,19 @@ repos/
 
 **Method:** `DataGatherer._extract_complete_test_context()`
 
-For each failed test, extracts three categories of context and additional metadata. This is the key v2.4 feature — providing AI with complete context upfront rather than requiring file reads during analysis.
+For each failed test, extracts test code and failure metadata. Fields that require AI code analysis (`page_objects`, `console_search`, `recent_selector_changes`, `temporal_summary`) are initialized as empty/null and populated later by the data-collector agent.
 
 ```
 For each failed test:
      │
      ├── Sub-step 7a: Read test file content
-     ├── Sub-step 7b: Extract page objects
-     ├── Sub-step 7c: Search console repository
+     ├── Sub-step 7b: Initialize page_objects placeholder (populated by agent)
+     ├── Sub-step 7c: Initialize console_search placeholder (populated by agent)
      ├── Sub-step 7d: Parse assertion analysis (v3.3)
-     ├── Sub-step 7e: Categorize failure mode (v3.3)
-     ├── Timeline evidence
-     ├── Component extraction
-     └── Temporal summary injection
+     └── Sub-step 7e: Categorize failure mode (v3.3)
 ```
+
+Note: `detected_components` extraction happens in Step 3 (test report parsing), not Step 7. Timeline evidence (`recent_selector_changes`, `temporal_summary`) is populated by the data-collector agent after gather.py completes.
 
 ### Sub-step 7a: Read Test File
 
@@ -617,21 +616,6 @@ Assigns a high-level failure mode category to each test based on its `failure_ty
 | `server_error` | 500/502/503 in error message |
 | `unknown` | No pattern matched |
 
-### Timeline Evidence
-
-**Service:** `TimelineComparisonService.compare_timelines(selector)`
-
-Compares git modification dates between automation and product repos:
-
-| Output Field | Meaning |
-|---|---|
-| `element_never_existed` | Selector was never in product code |
-| `element_removed` | Selector existed but was deleted |
-| `stale_test_signal` | Product changed after automation last touched selector |
-| `product_commit_type` | Type of last product change (rename, refactor, etc.) |
-
-**Limitation:** The `compare_timelines` method only works for ID-based selectors (`data-testid`, `id`). It returns null for CSS class selectors, role-based selectors, and text-based selectors. For broader coverage, use the git diff approach below.
-
 ### Recent Selector Changes (data-collector agent)
 
 Selector timeline analysis is handled by the **data-collector agent** after gather.py completes. The agent uses git history analysis (`git log -S`) on both the product and automation repos to determine whether a selector was recently changed, whether the change was intentional (planned refactor) or accidental (side effect), and what the replacement selector is.
@@ -648,14 +632,15 @@ gather.py initializes the field as `null`. The agent produces enriched output:
 | `classification_hint` | `AUTOMATION_BUG`, `PRODUCT_BUG`, or `null` |
 | `reasoning` | Human-readable explanation for Stage 2 |
 
-### Component Extraction
+### Component Extraction (Step 3, not Step 7)
 
-**Service:** `ComponentExtractor.extract_all_from_test_failure(error, stack, console)`
+**Service:** `ComponentExtractor.extract_all_from_test_failure(error_message, stack_trace)`
 
-Extracts ACM component names from error messages. Each component includes:
+Component extraction runs during Step 3 (test report parsing) via `_extract_components_from_failure()`, not during Step 7. Each failed test's `detected_components` list is populated at that point. Each component includes:
 - `name`: Component identifier (e.g., `search-api`)
 - `subsystem`: Parent subsystem (e.g., `Search`)
-- `source`: Where it was found (error_message, stack_trace, console_log)
+- `source`: Where it was found (error_message, stack_trace)
+- `context`: Snippet of surrounding text (truncated to 100 chars)
 
 ### Temporal Summary (data-collector agent)
 
@@ -825,7 +810,7 @@ All collected data is written to the run directory.
 | `console-log.txt` | Full Jenkins console output | gather.py |
 | `jenkins-build-info.json` | Build metadata (credentials masked) | gather.py |
 | `test-report.json` | Per-test failure details | gather.py |
-| `environment-status.json` | Cluster health data | gather.py |
+| `pipeline.log.jsonl` | Structured service logs (DEBUG-level) | gather.py (via logging_config) |
 | `repos/` | Cloned repositories | gather.py |
 
 ### core-data.json Complete Schema
@@ -1045,7 +1030,7 @@ being tested, its dependencies, and their health state.
 }
 ```
 
-#### 11. `repositories` — Cloned repo metadata (Script, Step 6)
+#### 10. `repositories` — Cloned repo metadata (Script, Step 6)
 
 ```json
 {
@@ -1077,7 +1062,7 @@ being tested, its dependencies, and their health state.
 Automation repo URL is detected dynamically from the Jenkins pipeline.
 kubevirt-plugin is only cloned when VM/virt tests are detected.
 
-#### 12. `feature_grounding` — Test-to-subsystem mapping (Script, Step 8)
+#### 11. `feature_grounding` — Test-to-subsystem mapping (Script, Step 8)
 
 ```json
 {
@@ -1096,7 +1081,7 @@ kubevirt-plugin is only cloned when VM/virt tests are detected.
 }
 ```
 
-#### 13. `feature_knowledge` — Playbooks and KG context (Script, Step 9)
+#### 12. `feature_knowledge` — Playbooks and KG context (Script, Step 9)
 
 ```json
 {
@@ -1121,11 +1106,19 @@ kubevirt-plugin is only cloned when VM/virt tests are detected.
     }
   },
   "kg_dependency_context": {},
-  "kg_status": { "available": false, "error": "", "impact": "", "remediation": "" }
+  "kg_status": { "available": false, "error": "", "impact": "", "remediation": "" },
+  "gap_detection": {
+    "stale_components": [],
+    "hardcoded_namespaces": [],
+    "missing_overlay": "",
+    "overall_match_rate": 0.0,
+    "gap_areas": [],
+    "match_rates": {}
+  }
 }
 ```
 
-#### 14. `errors` — Errors encountered during gathering (Script, throughout)
+#### 13. `errors` — Errors encountered during gathering (Script, throughout)
 
 ```json
 ["Knowledge Graph unavailable: ...", "..."]
@@ -1139,15 +1132,14 @@ kubevirt-plugin is only cloned when VM/virt tests are detected.
 |---------|------|---------|
 | `JenkinsAPIClient` | 1-3 | Jenkins REST API calls |
 | `JenkinsIntelligenceService` | 1-3 | Build info, console parsing, test report |
-| `StackTraceParser` | 3 | JS/TS stack trace → file:line |
+| `StackTraceParser` | 3, 7 | Stack trace parsing (Step 3), assertion value extraction (Step 7) |
 | `EnvironmentValidationService` | 4 | Cluster health checks + kubeconfig persistence |
 | `ClusterInvestigationService` | 4 | Cluster landscape snapshot (v3.0) |
-| `DataGatherer._probe_backend_apis` | 4c | Backend API endpoint probing (v3.3) |
 | `EnvironmentOracleService` | 5 | Feature-aware dependency health checking (v3.5) |
 | `RepositoryAnalysisService` | 6 | Git clone, repo inference |
-| `TimelineComparisonService` | 7 | Git date comparison |
-| `ComponentExtractor` | 7 | Error → component names |
-| `ACMConsoleKnowledge` | 7 | Directory structure mapping |
+| `TimelineComparisonService` | 6 | Console + kubevirt repo cloning |
+| `ACMConsoleKnowledge` | 6 | PatternFly version, structure validation, kubevirt repo detection |
+| `ComponentExtractor` | 3 | Error → component names (detected_components) |
 | `FeatureAreaService` | 8 | Test-to-feature-area mapping (v3.0) |
 | `FeatureKnowledgeService` | 9 | Playbook loading, prerequisite checks, symptom matching (v3.1) |
 | `KnowledgeGraphClient` | 9 | Neo4j dependency queries for kg_dependency_context (v3.2) |

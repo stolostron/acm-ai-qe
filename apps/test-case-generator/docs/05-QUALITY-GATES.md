@@ -105,7 +105,7 @@ Reads 2-3 existing test cases from the same area and compares:
 
 ### Validation Rules
 
-The validator (`validate_test_case()`, 298 lines) applies 7 categories of structural checks:
+The validator (`validate_test_case()`, 319 lines) applies 11 structural checks across 7 categories:
 
 #### 1. Title Pattern
 
@@ -150,21 +150,41 @@ Verifies sections appear in the correct order:
 - Setup before Test Steps
 - Test Steps before Teardown
 
-#### 5. Step Format
+#### 5. Type Field Value
+
+Checks the `## Type:` field contains "Test Case". Warning if different.
+
+#### 6. Test Steps Section Header
+
+Checks for `## Test Steps` section header before step definitions. Warning if missing but steps exist.
+
+#### 7. Step Format
 
 For each `### Step N:` heading, verifies:
-- An `**Expected Result:**` section exists within the step
-- Steps are not empty
+- An `**Expected Result:**` section exists within the step (blocking)
+- Numbered actions present (warning)
+- CLI commands in action area flagged for review (warning)
+- `---` separators between consecutive steps (warning)
 
 Missing expected results are blocking issues.
 
-#### 6. Entry Point
+#### 8. Entry Point
 
-Checks for `**Entry Point:**` in the Description section. Warning if missing.
+Checks for `Entry Point` in the Description section. Warning if missing.
 
-#### 7. Teardown Quality
+#### 9. JIRA Coverage
+
+Checks for `Dev JIRA Coverage` or `JIRA Coverage` in Description. Warning if missing.
+
+#### 10. Teardown Quality
 
 Checks `oc delete` commands in the Teardown section for `--ignore-not-found` flag. Warning if missing on any delete command.
+
+#### 11. Setup Commands
+
+Checks the Setup section for:
+- Bash code blocks present (warning)
+- `# Expected:` comments on setup commands (warning)
 
 ### Output Model
 

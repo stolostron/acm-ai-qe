@@ -14,28 +14,29 @@ it triggers a self-healing process to investigate, learn, and record findings.
 │                          Knowledge System                                  │
 │                                                                            │
 │  ┌────────────────────────────┐  ┌───────────────────────────────────────┐ │
-│  │ Architecture Knowledge     │  │ Diagnostic Knowledge                  │ │
+│  │ Architecture Knowledge     │  │ Diagnostic Knowledge (8 files)        │ │
 │  │ knowledge/architecture/    │  │ knowledge/diagnostics/                │ │
 │  │                            │  │                                       │ │
-│  │ Per-component directories: │  │ dependency-chains.md                  │ │
-│  │   architecture.md          │  │   12 critical cascade paths           │ │
-│  │   data-flow.md             │  │ evidence-tiers.md                     │ │
-│  │   known-issues.md          │  │   How to weight evidence (Tier 1/2/3) │ │
-│  │                            │  │ diagnostic-playbooks.md               │ │
-│  │ + kubernetes-fundamentals  │  │   Per-subsystem investigation steps   │ │
-│  │ + acm-platform.md          │  │                                       │ │
+│  │ Per-component directories: │  │ diagnostic-layers.md (12 layers)      │ │
+│  │   architecture.md          │  │ dependency-chains.md (12 chains)      │ │
+│  │   data-flow.md             │  │ common-diagnostic-traps.md (14 traps) │ │
+│  │   known-issues.md          │  │ evidence-tiers.md (Tier 1/2/3)        │ │
+│  │                            │  │ diagnostic-playbooks.md (14)          │ │
+│  │ + kubernetes-fundamentals  │  │ cluster-introspection.md (8 sources)  │ │
+│  │ + acm-platform.md          │  │ neo4j-reference.md, acm-search-ref   │ │
 │  └────────────────────────────┘  └───────────────────────────────────────┘ │
 │                                                                            │
 │  ┌────────────────────────────┐  ┌───────────────────────────────────────┐ │
-│  │ Cross-Cutting Knowledge    │  │ Structured Operational Data (YAML)    │ │
+│  │ Cross-Cutting Knowledge    │  │ Structured Operational Data (7 YAML)  │ │
 │  │ knowledge/                 │  │ knowledge/*.yaml                      │ │
 │  │                            │  │                                       │ │
 │  │ component-registry.md      │  │ healthy-baseline.yaml                 │ │
 │  │   Master inventory of ACM  │  │ dependency-chains.yaml                │ │
-│  │   components, CRDs, NS     │  │ webhook-registry.yaml                 │ │
-│  │ failure-patterns.md        │  │ certificate-inventory.yaml            │ │
-│  │   Common failure signatures│  │ addon-catalog.yaml                    │ │
-│  │   mapped to root causes    │  │                                       │ │
+│  │   components, CRDs, NS     │  │ service-map.yaml                      │ │
+│  │ failure-patterns.md        │  │ webhook-registry.yaml                 │ │
+│  │   Common failure signatures│  │ certificate-inventory.yaml            │ │
+│  │   mapped to root causes    │  │ addon-catalog.yaml                    │ │
+│  │                            │  │ version-constraints.yaml              │ │
 │  └────────────────────────────┘  └───────────────────────────────────────┘ │
 │                                                                            │
 │  ┌────────────────────────────────────────────────────────────────────────┐ │
@@ -215,6 +216,7 @@ These complement the narrative documentation with machine-readable reference dat
 |------|---------|---------|
 | `healthy-baseline.yaml` | Expected pod counts, deployment states, node thresholds | Phase 3 (Check) -- compare actual vs expected |
 | `dependency-chains.yaml` | 12 cascade paths in structured YAML | Phase 5 (Correlate) -- structured lookups |
+| `service-map.yaml` | Critical Service-to-Pod mappings for connectivity diagnosis | Phase 3 (Check), Phase 6 (Deep) -- network-layer tracing |
 | `webhook-registry.yaml` | Validating/mutating webhooks, failure policies | Phase 3 (Check) -- detect missing webhooks |
 | `certificate-inventory.yaml` | TLS secrets, rotation, impact when corrupted | Phase 6 (Deep) -- cert investigation |
 | `addon-catalog.yaml` | All addons, health checks, dependencies | Phase 3 (Check) -- addon health audit |

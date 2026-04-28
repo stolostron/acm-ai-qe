@@ -12,7 +12,7 @@ Seven MCP servers provide external data access for the pipeline. Four are used d
 | neo4j-rhacm | 2 | [mcp-neo4j-cypher](https://pypi.org/project/mcp-neo4j-cypher/) (PyPI) | 1 | Podman container |
 | acm-search | 5 | [stolostron/acm-mcp-server](https://github.com/stolostron/acm-mcp-server) | 3 | On-cluster SSE + mcp-remote |
 | acm-kubectl | 3 | [stolostron/acm-mcp-server](https://github.com/stolostron/acm-mcp-server) | 3 | npx |
-| playwright | 24 | [@playwright/mcp](https://www.npmjs.com/package/@playwright/mcp) (npm) | 3 | npx |
+| playwright | 24 | [@playwright/mcp](https://www.npmjs.com/package/@playwright/mcp) (npm) | 1 (conditional), 3 | npx |
 
 ## Setup
 
@@ -212,7 +212,7 @@ Runs via `npx -y acm-mcp-server@latest`. Requires Node.js 18+ and KUBECONFIG poi
 
 **Tools:** 24
 **Source:** [@playwright/mcp](https://www.npmjs.com/package/@playwright/mcp) (npm)
-**Used by:** Live Validator (Phase 3 only)
+**Used by:** UI Discovery (Phase 1, conditional — only when cluster URL provided), Live Validator (Phase 3)
 
 Browser automation for live UI validation. Opens a real browser, navigates pages, takes snapshots of the accessibility tree, clicks elements, fills forms, and takes screenshots.
 

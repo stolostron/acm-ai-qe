@@ -29,6 +29,49 @@ Other commands: `/gather <URL>` (data only), `/quick <URL>` (skip cluster diagno
 > [!TIP]
 > Or just say: `Analyze this run: <JENKINS_URL>`
 
+## Example
+
+```
+Analyze this run: https://jenkins.example.com/job/acm-qe-pipeline/142/
+```
+
+The pipeline gathers data from Jenkins, investigates the cluster, and classifies each failed test with evidence:
+
+<details open>
+<summary><b>Analysis Output</b></summary>
+
+```
+Stage 1: Gathered 47 failed tests across 6 feature areas, 3 managed clusters
+Stage 1.5: Cluster verdict DEGRADED — search-postgres OOMKilled, 2 subsystems affected
+Stage 2: Classified 47 tests (12-layer diagnostic investigation)
+Stage 3: Reports generated
+```
+
+**Classification Breakdown:**
+
+| Classification | Count | Owner |
+|:-:|:-:|---|
+| AUTOMATION_BUG | 28 | Automation Team |
+| INFRASTRUCTURE | 12 | Platform Team |
+| NO_BUG | 5 | N/A (cascading hook failure) |
+| PRODUCT_BUG | 2 | Product Team |
+
+**Per-Test Results** (excerpt):
+
+| Test | Classification | Root Cause | Layer |
+|------|:-:|---|:-:|
+| GRC / policy-compliance-history-page | INFRASTRUCTURE | search-postgres OOMKilled, empty query results | 4 |
+| GRC / policy-automation-details | AUTOMATION_BUG | Stale selector `[data-testid="auto-btn"]` removed in console#8821 | 12 |
+| Search / search-filter-cluster | INFRASTRUCTURE | search-postgres OOMKilled, no indexed data | 4 |
+| CLC / create-cluster-aws-wizard | AUTOMATION_BUG | Timeout waiting for `[data-testid="next-btn"]`, changed to `[data-testid="wizard-next"]` | 12 |
+| Observability / grafana-dashboard | PRODUCT_BUG | Thanos query returns HTTP 503, confirmed via JIRA ACM-45123 | 9 |
+
+Each test includes an evidence chain with 2+ sources, ruled-out alternatives, and a confidence score.
+
+</details>
+
+Output files: `Detailed-Analysis.md` (full report), `analysis-report.html` (interactive), `per-test-breakdown.json` (structured data).
+
 ## How It Works
 
 ```mermaid

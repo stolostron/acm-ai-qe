@@ -30,6 +30,66 @@ Other commands: `/sanity` (30s pulse), `/deep` (full audit), `/investigate <area
 > [!TIP]
 > Or just say: `Why are my managed clusters Unknown?`
 
+## Example
+
+```
+Run a deep investigation of my hub cluster
+```
+
+The agent runs all 6 diagnostic phases, traces root causes across dependency chains, and presents findings with evidence and a fix plan:
+
+<details open>
+<summary><b>Health Report</b></summary>
+
+```
+Hub Health Report: hub-prod-east
+Overall Verdict: DEGRADED
+```
+
+**Component Status:**
+
+| Component | Status | Details |
+|-----------|:------:|---------|
+| MCH | OK | v2.12.0, Running, all components enabled |
+| MCE | OK | v2.12.0, Available |
+| Nodes | OK | 3 control + 3 worker, all Ready |
+| Search | CRIT | search-postgres OOMKilled, 4 restarts in 2h |
+| Observability | WARN | thanos-query slow (>5s p99), S3 bucket 92% full |
+| Managed Clusters | OK | 12/12 Available |
+
+**Issues Found:**
+
+```
+[CRITICAL] search-postgres OOMKilled — data loss on restart
+  Root Cause: Layer 4 (Storage) — emptyDir wiped on pod restart, 0 indexed resources
+  Evidence:   Pod restartCount=4, search-api returns empty results (Tier 1)
+  Known Issue: ACM-45678 (fixed in 2.12.1)
+  Cluster-Fixable: Workaround — delete pod to re-trigger collector sync
+  Impact: Search, Console overview, Governance policy status
+
+[WARNING] Observability S3 bucket nearing capacity
+  Root Cause: Layer 4 (Storage) — retention policy set to 365d, bucket at 92%
+  Evidence:   thanos-compact logs show slow compaction cycles (Tier 2)
+  Cluster-Fixable: Yes — reduce retention to 90d
+  Impact: Metrics ingestion will halt when bucket is full
+```
+
+**Remediation Plan:**
+
+```
+Fix 1: Restart search-postgres to trigger re-sync
+  Command: oc delete pod search-postgres-0 -n open-cluster-management
+  Risk:    Low (pod restarts with fresh emptyDir, collectors re-sync)
+
+Fix 2: Reduce observability retention to 90 days
+  Command: oc patch mco observability -p '{"spec":{"retentionResolution1h":"90d"}}' --type=merge
+  Risk:    Medium (historical data beyond 90d will be compacted)
+
+Should I proceed? (yes/no)
+```
+
+</details>
+
 ## How It Works
 
 ```mermaid

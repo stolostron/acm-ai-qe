@@ -31,6 +31,60 @@ Other commands: `/batch ACM-30459,ACM-30460` (multi-ticket), `/review path/to/te
 > [!TIP]
 > Or just say: `Generate a test case for ACM-30459 targeting version 2.17`
 
+## Example
+
+```
+Generate a test case for ACM-12345
+```
+
+The pipeline investigates the JIRA story, discovers UI selectors from source code, writes the test case, and validates it through a quality review gate. Output is a Polarion-ready markdown file:
+
+<details open>
+<summary><b>Generated Test Case</b></summary>
+
+```markdown
+# RHACM4K-12345 - [GRC-2.17] Governance - Policy Violation Summary on Details Page
+
+Polarion ID: RHACM4K-12345
+Level: System | Component: Governance | Importance: High
+Automation: Not Automated | Release: 2.17
+```
+
+**Description** — Validates that the violation summary card on the policy details
+page displays accurate compliance counts across managed clusters, and that clicking
+a compliance status filters the Clusters tab.
+
+**Setup** — Prereqs and environment preparation:
+
+```bash
+# Verify ACM version
+oc get mch -A -o jsonpath='{.items[0].status.currentVersion}'
+# Expected: 2.17.x
+
+# Verify managed clusters
+oc get managedclusters --no-headers | wc -l
+# Expected: >= 2
+
+# Create test policy targeting both clusters
+oc apply -f test-policy.yaml
+```
+
+**Test Steps:**
+
+| # | Action | Expected Result |
+|:-:|--------|-----------------|
+| 1 | Navigate to Governance > Policies > test-policy > Details | Policy details page loads with violation summary card visible |
+| 2 | Verify the violation summary shows total, compliant, and non-compliant counts | Counts match actual cluster compliance: 1 compliant, 1 non-compliant |
+| 3 | Click the "Non-compliant" count link | Clusters tab opens filtered to non-compliant clusters only |
+| 4 | Return to Details tab and propagate policy to a third cluster | Summary card updates within 30s to reflect the new cluster count |
+| 5 | Delete the test policy and verify cleanup | Policy removed, no orphaned PlacementBindings remain |
+
+**Teardown** — `oc delete policy test-policy -n default --ignore-not-found`
+
+</details>
+
+The pipeline also generates `test-case-setup.html` and `test-case-steps.html` for direct import into Polarion.
+
 ## How It Works
 
 ```mermaid

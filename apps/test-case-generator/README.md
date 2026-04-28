@@ -67,6 +67,7 @@ Options:
 python -m src.scripts.gather ACM-30459 --version 2.17
 
 # Phases 1-4.5: AI investigation + generation + quality review (interactive in Claude Code)
+# Phase telemetry logged via: python -m src.scripts.log_phase <run-dir> <phase> [--key value]
 
 # Stage 3: Generate reports
 python -m src.scripts.report runs/ACM-30459/<run-dir>
@@ -78,15 +79,21 @@ Each run produces artifacts under `runs/<JIRA_ID>/<timestamp>/`:
 
 | File | Phase | Description |
 |------|-------|-------------|
-| `gather-output.json` | Stage 1 | All gathered data (PR, conventions, knowledge) |
+| `gather-output.json` | Stage 1 | All gathered data (PR, conventions, file classification) |
 | `pr-diff.txt` | Stage 1 | Full PR diff |
+| `phase1-feature-investigation.md` | Phase 1 | Feature investigator agent output |
+| `phase1-code-change-analysis.md` | Phase 1 | Code change analyzer agent output |
+| `phase1-ui-discovery.md` | Phase 1 | UI discovery agent output |
+| `phase2-synthesized-context.md` | Phase 2 | Merged investigation + test plan |
+| `phase3-live-validation.md` | Phase 3 | Live validation output (or skip note) |
 | `test-case.md` | Phase 4 | Primary deliverable: Polarion test case |
 | `analysis-results.json` | Phase 4 | Investigation metadata |
+| `phase4.5-quality-review.md` | Phase 4.5 | Quality review with MCP verification evidence |
 | `test-case-setup.html` | Stage 3 | Polarion setup section HTML |
 | `test-case-steps.html` | Stage 3 | Polarion steps table HTML |
 | `review-results.json` | Stage 3 | Structural validation results |
 | `SUMMARY.txt` | Stage 3 | Human-readable summary |
-| `pipeline.log.jsonl` | All | Pipeline telemetry |
+| `pipeline.log.jsonl` | All | Full pipeline telemetry (stages + phases via log_phase.py) |
 
 ## Pipeline Architecture
 

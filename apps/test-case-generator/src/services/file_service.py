@@ -40,15 +40,15 @@ def read_area_knowledge(area: str) -> Optional[str]:
 
 
 AREA_TO_COMPONENT_DIRS = {
-    "governance": ["virt", "rbac"],
-    "rbac": ["rbac", "auth"],
+    "governance": ["grc"],
+    "rbac": ["rbac"],
     "fleet-virt": ["virt"],
     "clusters": ["clc", "bm"],
-    "search": ["virt"],
+    "search": ["search"],
     "applications": ["alc"],
-    "credentials": ["auth"],
-    "cclm": ["rbac"],
-    "mtv": ["mtv", "virt"],
+    "credentials": ["clc"],
+    "cclm": ["virt"],
+    "mtv": ["mtv"],
 }
 
 

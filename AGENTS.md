@@ -65,6 +65,8 @@ Generates Polarion-ready test cases from JIRA tickets. 6-phase subagent pipeline
 | Polarion | 25 | Test case access |
 | Neo4j RHACM | 2 | Component dependency graph (optional) |
 | ACM Search | 5 | Fleet-wide spoke resource queries |
+| ACM Kubectl | 3 | Multicluster kubectl for hub and spoke clusters |
+| Playwright | 24 | Browser automation for live UI validation |
 
 Run `bash mcp/setup.sh` to configure. External MCPs are cloned into `mcp/.external/` (gitignored).
 
@@ -94,6 +96,7 @@ ai_systems_v2/
 │   └── test-case-generator/   # Test case generation
 ├── mcp/
 │   ├── setup.sh               # Interactive MCP setup
+│   ├── verify.py              # Standalone health checker
 │   ├── acm-ui-mcp-server/     # ACM Console source search
 │   ├── polarion/              # Polarion wrapper
 │   └── jenkins-acm-tools.py   # ACM-specific Jenkins tools

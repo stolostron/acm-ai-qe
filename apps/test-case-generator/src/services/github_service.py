@@ -94,12 +94,12 @@ def detect_area_from_files(files: list[str]) -> Optional[str]:
         "governance": ["Governance", "governance", "policy", "Policy"],
         "rbac": ["rbac", "RBAC", "RoleAssignment", "ClusterPermission", "user-management"],
         "fleet-virt": ["Virtualization", "virtualization", "kubevirt", "fleet-virt"],
-        "cclm": ["CCLM", "cclm", "LiveMigration", "live-migration"],
-        "mtv": ["MTV", "mtv", "forklift", "migration-toolkit"],
+        "cclm": ["CCLM", "cclm", "LiveMigration", "live-migration", "CrossClusterMigration"],
+        "mtv": ["MTV", "mtv", "forklift", "migration-toolkit", "ForkliftController"],
         "clusters": ["Clusters", "clusters", "ClusterSet", "ClusterDeployment", "ClusterPool"],
-        "search": ["Search", "search"],
+        "search": ["Search", "search", "SearchInput", "SearchRelated", "search-api"],
         "applications": ["Applications", "applications", "Subscription", "Channel"],
-        "credentials": ["Credentials", "credentials"],
+        "credentials": ["Credentials", "credentials", "CredentialsForm", "ProviderConnection"],
     }
 
     area_scores: dict[str, int] = {}

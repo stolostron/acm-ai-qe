@@ -95,8 +95,10 @@ Run `bash mcp/setup.sh` from repo root. The script prompts you to select which a
 | Neo4j RHACM | 2 | [mcp-neo4j-cypher](https://pypi.org/project/mcp-neo4j-cypher/) (PyPI) | Component dependency analysis via Cypher queries (optional) |
 | ACM Search | 5 | [stolostron/acm-mcp-server](https://github.com/stolostron/acm-mcp-server) | Fleet-wide resource queries via search-postgres (spoke-side visibility) |
 | Polarion (`mcp/polarion/`) | 25 | This repo | Polarion test case access (optional) |
+| ACM Kubectl | 3 | [stolostron/acm-mcp-server](https://github.com/stolostron/acm-mcp-server) | Multicluster kubectl for hub and spoke clusters |
+| Playwright | 24 | [@playwright/mcp](https://www.npmjs.com/package/@anthropic-ai/playwright-mcp) (npm) | Browser automation for live UI validation |
 
-External MCPs (JIRA, Jenkins, Knowledge Graph, ACM Search) are cloned at setup time into `mcp/.external/` (gitignored).
+External MCPs (JIRA, Jenkins, Knowledge Graph, ACM Search, ACM Kubectl) are cloned at setup time into `mcp/.external/` (gitignored).
 This repo only contains our original MCP code: ACM UI, Polarion wrapper, Jenkins ACM tools.
 
 **Jenkins Setup:** Run `bash mcp/setup.sh` and provide your Jenkins username and API token when prompted. Credentials are stored in `mcp/.external/jenkins-mcp/.env` and injected into `.mcp.json` automatically. Requires Red Hat VPN for internal Jenkins access.
@@ -113,6 +115,7 @@ ai_systems_v2/
 │   └── test-case-generator/   # Active — Polarion-ready test case generation from JIRA tickets
 ├── mcp/
 │   ├── setup.sh               # Interactive setup (clones external MCPs, creates venvs)
+│   ├── verify.py              # Standalone health checker (run anytime)
 │   ├── acm-ui-mcp-server/     # Our code: ACM Console source search
 │   ├── polarion/              # Our code: Polarion wrapper
 │   ├── jenkins-acm-tools.py   # Our code: ACM-specific Jenkins analysis tools
@@ -128,9 +131,9 @@ ai_systems_v2/
 # Z-stream analysis tests (from app directory)
 cd apps/z-stream-analysis/
 
-# Fast — unit + regression (713 tests, no external deps):
+# Fast — unit + regression (686 tests, no external deps):
 python -m pytest tests/unit/ tests/regression/ -q
 
-# Full suite (758 tests, requires Jenkins VPN for integration):
+# Full suite (731 tests, requires Jenkins VPN for integration):
 python -m pytest tests/ -q --timeout=300
 ```

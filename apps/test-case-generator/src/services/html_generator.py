@@ -14,7 +14,7 @@ from typing import Optional
 
 BASE_STYLE = 'font-size:11pt;font-family:Arial,Helvetica,sans-serif;color:#000000;line-height:1.5'
 BOLD_STYLE = f'{BASE_STYLE};font-weight:bold'
-CODE_STYLE = 'background-color:#f4f4f4;padding:10px;border:1px solid #ddd;border-radius:4px;font-family:monospace;font-size:10pt;white-space:pre-wrap;overflow-x:auto'
+CODE_STYLE = 'font-family:Consolas,Monaco,monospace;font-size:10pt;background-color:#f5f5f5;padding:10px;border:1px solid #ccc;overflow-x:auto'
 
 
 def _escape_html(text: str) -> str:
@@ -138,11 +138,21 @@ def generate_steps_html(content: str) -> str:
         else:
             actions_text = step_content
 
-        # Format actions
+        # Format actions — render code blocks as inline monospace (no <pre> in td cells)
+        MONO_STYLE = 'font-family:Consolas,Monaco,monospace;font-size:10pt'
         action_lines = []
         action_lines.append(f'<span style="font-weight:bold;">Step {step_num}: {_escape_html(step_title)}</span><br><br>')
+        in_code = False
         for line in actions_text.split("\n"):
             stripped = line.strip()
+            if stripped == "---":
+                continue
+            if stripped.startswith("```"):
+                in_code = not in_code
+                continue
+            if in_code:
+                action_lines.append(f'<span style="{MONO_STYLE}">{_escape_html(stripped)}</span><br>')
+                continue
             if stripped and not stripped.startswith("**Actions"):
                 action_lines.append(f"{_escape_html(stripped)}<br>")
         actions_html = "\n".join(action_lines)
@@ -151,6 +161,10 @@ def generate_steps_html(content: str) -> str:
         expected_lines = []
         for line in expected_text.split("\n"):
             stripped = line.strip()
+            if stripped == "---":
+                continue
+            if stripped.startswith("```"):
+                continue
             if stripped.startswith("- "):
                 expected_lines.append(f"&bull; {_escape_html(stripped[2:])}<br>")
             elif stripped:

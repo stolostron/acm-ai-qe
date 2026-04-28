@@ -134,7 +134,7 @@ Requires Red Hat VPN. Project ID is always `RHACM4K`.
 **Source:** [mcp-neo4j-cypher](https://pypi.org/project/mcp-neo4j-cypher/) (PyPI via uvx)
 **Used by:** Feature Investigator, Code Change Analyzer, UI Discovery
 
-RHACM component dependency graph with 339+ components and 479+ relationships. Runs as a Podman container.
+RHACM component dependency graph. Runs as a Podman container. Component and relationship counts depend on the loaded graph extensions (base graph has ~291 nodes).
 
 ### Tools
 
@@ -216,24 +216,34 @@ Runs via `npx -y acm-mcp-server@latest`. Requires Node.js 18+ and KUBECONFIG poi
 
 Browser automation for live UI validation. Opens a real browser, navigates pages, takes snapshots of the accessibility tree, clicks elements, fills forms, and takes screenshots.
 
-### Key Tools
+### Tools (all 24)
 
 | Tool | Purpose |
 |------|---------|
 | `browser_navigate(url)` | Navigate to URL |
+| `browser_navigate_back()` | Go back in history |
 | `browser_snapshot()` | Get accessibility tree (elements, roles, refs) |
 | `browser_click(ref)` | Click element by ref |
-| `browser_fill_form(ref, value)` | Fill input field |
 | `browser_type(ref, value)` | Type into field |
+| `browser_fill_form(ref, value)` | Fill input field |
 | `browser_take_screenshot()` | Capture current state |
 | `browser_console_messages()` | Check for JS errors |
 | `browser_network_requests()` | Inspect API calls |
+| `browser_tabs(action)` | List, open, close, or select tabs |
 | `browser_wait_for(ms)` | Wait for page changes |
 | `browser_hover(ref)` | Hover element |
 | `browser_press_key(key)` | Press keyboard key |
 | `browser_select_option(ref, values)` | Select dropdown option |
+| `browser_handle_dialog(accept)` | Accept or dismiss dialog |
+| `browser_resize(width, height)` | Resize browser window |
+| `browser_close()` | Close the page |
+| `browser_evaluate(function)` | Evaluate JavaScript on page |
+| `browser_generate_locator(ref)` | Generate a Playwright locator |
 | `browser_verify_text_visible(text)` | Verify text on page |
 | `browser_verify_element_visible(selector)` | Verify element exists |
+| `browser_drag(start, end)` | Drag and drop between elements |
+| `browser_file_upload(paths)` | Upload files |
+| `browser_run_code(code)` | Run Playwright code snippet |
 
 ### Usage Pattern
 
@@ -270,6 +280,9 @@ UI Discovery:
   acm-ui    -> set_acm_version, set_cnv_version, search_code, get_component_source,
                search_translations, get_wizard_steps, get_routes, get_acm_selectors,
                get_fleet_virt_selectors, find_test_ids, get_patternfly_selectors
+  playwright -> browser_navigate, browser_snapshot, browser_take_screenshot
+               (conditional: only when cluster URL provided, for live element verification)
+  bash       -> oc login, oc whoami, oc get mch -A (cluster auth for browser verification)
 
 Live Validator:
   playwright -> browser_navigate, browser_snapshot, browser_click, browser_fill_form,

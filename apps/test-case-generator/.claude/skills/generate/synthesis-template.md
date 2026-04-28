@@ -29,9 +29,14 @@ Conflict resolution (if agents disagree):
 - UI elements (labels, routes, selectors): trust UI Discovery (reads source directly)
 - Business requirements (ACs, scope): trust Feature Investigator (reads JIRA)
 - What changed (files, diff): trust Code Change Analyzer (reads the diff)
+- **Knowledge file authority:** if ANY agent's findings contradict `knowledge/architecture/<area>.md` on field order, filtering behavior, or component structure, flag the contradiction and mark the knowledge file version as the default until MCP verification resolves the conflict
 ```
 
 The TEST PLAN section is written by the orchestrator based on the three investigation blocks.
+
+## Test File Data Warning
+
+If any investigation agent derived behavioral claims from test files (`.test.tsx`, `.test.ts`), mark those claims in the SYNTHESIZED CONTEXT as: "FROM TEST MOCK DATA — VERIFY AGAINST PRODUCTION CODE." Test mock data (jest.mock returns, fixture objects) does NOT represent what the UI renders. Phase 4 and Phase 4.5 agents must verify these claims via `get_component_source()` before using them in the test case.
 
 ## Scope Gating (CRITICAL)
 

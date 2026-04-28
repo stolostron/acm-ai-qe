@@ -18,6 +18,7 @@ allowed-tools:
   - Grep
   - Agent
   - Bash(python -m src.scripts.gather:*)
+  - Bash(python -m src.scripts.log_phase:*)
   - Bash(python -m src.scripts.report:*)
   - Bash(python:*)
   - Bash(python3:*)
@@ -112,11 +113,20 @@ Launch three agents **in parallel** (do not wait for one to finish before starti
 - Output: CODE CHANGE ANALYSIS block (changed components, new UI elements, routes, translations, test scenarios)
 
 ### Agent C: UI Discovery
-- Input: ACM version, CNV version (if Fleet Virt), feature name, area
+- Input: ACM version, CNV version (if Fleet Virt), feature name, area, cluster URL (if `--cluster-url` provided), credentials
 - Agent file: `.claude/agents/ui-discovery.md`
-- Output: UI DISCOVERY RESULTS block (selectors, translations, routes, wizard steps)
+- Output: UI DISCOVERY RESULTS block (selectors, translations, routes, wizard steps, live verification status)
+- If `--cluster-url` was provided, include the cluster URL and credentials in the agent prompt so it can perform Step 9 (live browser verification). The agent will verify that discovered UI elements actually render on the cluster.
 
-Wait for all three to return. Show a brief summary of what each discovered.
+Wait for all three to return. **Save each agent's full output to the run directory:**
+
+```
+Write agent A output -> <run-dir>/phase1-feature-investigation.md
+Write agent B output -> <run-dir>/phase1-code-change-analysis.md
+Write agent C output -> <run-dir>/phase1-ui-discovery.md
+```
+
+Show a brief summary of what each discovered.
 
 ## Phase 2: Synthesize
 
@@ -126,7 +136,13 @@ Wait for all three to return. Show a brief summary of what each discovered.
 
 Read [synthesis-template.md](synthesis-template.md) for the SYNTHESIZED CONTEXT block template, scope gating rules, and AC vs implementation cross-reference procedure.
 
-After building the synthesized context, show the plan to the user.
+After building the synthesized context, **save it to the run directory:**
+
+```
+Write synthesized context -> <run-dir>/phase2-synthesized-context.md
+```
+
+Show the plan to the user.
 
 **STOP checkpoint:**
 ```
@@ -144,11 +160,13 @@ If `--skip-live` is NOT set and a cluster URL is available:
 - Launch the live-validator agent with: console URL, feature path, steps to verify
 - Agent file: `.claude/agents/live-validator.md`
 - Output: LIVE VALIDATION RESULTS (confirmed behavior, discrepancies, screenshots)
+- **Save the agent's full output:** `Write -> <run-dir>/phase3-live-validation.md`
 
 If `--skip-live` IS set or no cluster URL:
 ```
 [Phase 3] Skipping live validation. (reason: [--skip-live | no cluster URL])
 ```
+Write a brief note: `Write "Live validation skipped: [reason]" -> <run-dir>/phase3-live-validation.md`
 
 ## Phase 4: Generate Test Case
 
@@ -183,17 +201,56 @@ Launch the quality-reviewer agent with:
 
 Agent file: `.claude/agents/quality-reviewer.md`
 
-**Review loop:**
-1. If verdict = **PASS** -> proceed to Stage 3
-2. If verdict = **NEEDS_FIXES**:
+**Review loop with enforcement:**
+
+After the quality reviewer returns, **save its full output:**
+```
+Write reviewer output -> <run-dir>/phase4.5-quality-review.md
+```
+
+Then BEFORE accepting the verdict:
+
+1. **Check the JSON verification block.** The reviewer's output MUST start with a JSON block containing `mcp_verifications`. Parse it and check:
+   - `mcp_verifications` array has at least 3 entries
+   - `ac_vs_implementation_checked` is true
+   - `knowledge_file_cross_referenced` is true
+   If the JSON block is missing or any check fails, override the verdict to `NEEDS_FIXES` and re-launch with: "Your review is missing mandatory MCP verifications. You MUST: (1) call at least 3 MCP tools and list results in the JSON block, (2) check AC vs implementation, (3) cross-reference knowledge file."
+
+2. If verdict = **PASS** (and JSON checks pass) -> proceed to Stage 3
+3. If verdict = **NEEDS_FIXES**:
    a. Fix all BLOCKING issues in the test case markdown
    b. Re-launch quality-reviewer with the same inputs PLUS the previous review output (so it can use the re-review protocol to check only previously reported issues)
    c. Repeat until PASS (max 3 iterations)
-3. If still failing after 3 iterations, show the remaining issues to the user
+4. If still failing after 3 iterations, show the remaining issues to the user
 
 ```
 Quality review PASSED. Generating reports.
 ```
+
+## Phase Telemetry
+
+After each AI phase completes, run `log_phase` to write a telemetry entry to `pipeline.log.jsonl`:
+
+```bash
+# After Phase 1:
+python -m src.scripts.log_phase <run-dir> phase_1 --agents 3
+
+# After Phase 2:
+python -m src.scripts.log_phase <run-dir> phase_2 --scenarios N
+
+# After Phase 3:
+python -m src.scripts.log_phase <run-dir> phase_3 --live true --cluster_version 2.17.x
+# Or if skipped:
+python -m src.scripts.log_phase <run-dir> phase_3 --live false --reason skipped
+
+# After Phase 4:
+python -m src.scripts.log_phase <run-dir> phase_4 --steps N --complexity medium
+
+# After Phase 4.5:
+python -m src.scripts.log_phase <run-dir> phase_4_5 --verdict PASS --mcp_verifications N --iterations 1
+```
+
+This is a deterministic Python script — it ALWAYS writes, regardless of what the AI agent does. It fills the telemetry gap between Stage 1 (gather.py) and Stage 3 (report.py).
 
 ## Stage 3: Report
 

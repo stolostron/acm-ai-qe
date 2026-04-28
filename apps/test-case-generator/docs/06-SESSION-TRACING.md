@@ -259,17 +259,35 @@ On each `Stop` event, the hook reads back the entire trace file and writes a one
 
 ## Pipeline Telemetry
 
-The Python scripts (`gather.py`, `report.py`) use `PipelineTelemetry` (70 lines, `src/services/telemetry.py`) to write events to `pipeline.log.jsonl` in each run directory.
+Three Python scripts write events to `pipeline.log.jsonl` in each run directory:
+
+- **`gather.py`** and **`report.py`** use `PipelineTelemetry` (69 lines, `src/services/telemetry.py`) for Stage 1 and Stage 3
+- **`log_phase.py`** (`src/scripts/log_phase.py`) writes `phase_end` events for AI phases (1-4.5), called by the orchestrator after each phase completes
 
 ### Events
 
-| Event | Fields | When |
-|-------|--------|------|
-| `pipeline_start` | `jira_id` | Script initialization |
-| `stage_start` | `stage` | Stage begins |
-| `stage_end` | `stage`, `elapsed_seconds`, custom metadata | Stage completes |
-| `pipeline_end` | `total_elapsed_seconds`, `verdict` | Script finishes |
-| `error` | `stage`, `error` | Error occurs |
+| Event | Source | Fields | When |
+|-------|--------|--------|------|
+| `pipeline_start` | `gather.py` | `jira_id` | Script initialization |
+| `stage_start` | `gather.py`/`report.py` | `stage` | Stage begins |
+| `stage_end` | `gather.py`/`report.py` | `stage`, `elapsed_seconds`, custom metadata | Stage completes |
+| `phase_end` | `log_phase.py` | `phase`, custom metadata (agents, verdict, etc.) | AI phase completes |
+| `pipeline_end` | `report.py` | `total_elapsed_seconds`, `verdict` | Script finishes |
+| `error` | `gather.py`/`report.py` | `stage`, `error` | Error occurs |
+
+### Phase Telemetry (log_phase.py)
+
+```bash
+python -m src.scripts.log_phase <run-dir> <phase> [--key value ...]
+```
+
+Writes one JSONL entry per call. Reads `jira_id` from `gather-output.json` automatically.
+
+Example output:
+```json
+{"timestamp": "2026-04-28T03:55:10Z", "event": "phase_end", "jira_id": "ACM-30459", "phase": "phase_1", "agents": 3}
+{"timestamp": "2026-04-28T03:56:20Z", "event": "phase_end", "jira_id": "ACM-30459", "phase": "phase_4_5", "verdict": "PASS", "mcp_verifications": 5}
+```
 
 ### Stage 1 Metadata
 
@@ -303,7 +321,7 @@ The Python scripts (`gather.py`, `report.py`) use `PipelineTelemetry` (70 lines,
 
 ## Implementation
 
-**Hook script:** `.claude/hooks/agent_trace.py` (473 lines)
+**Hook script:** `.claude/hooks/agent_trace.py` (471 lines)
 **Trace directory:** `.claude/traces/` (gitignored)
 **Session index:** `.claude/traces/sessions.jsonl`
 

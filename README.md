@@ -119,6 +119,7 @@ ai_systems_v2/
 │   └── test-case-generator/   # JIRA-to-Polarion test cases
 ├── mcp/                       # MCP server code + setup
 │   ├── setup.sh               # Automated MCP setup (also used by /onboard)
+│   ├── verify.py              # Standalone health checker (run anytime)
 │   ├── acm-ui-mcp-server/     # ACM Console source search
 │   └── polarion/              # Polarion test case access
 ├── AGENTS.md                  # Agent reference for external AI tools
@@ -130,7 +131,7 @@ ai_systems_v2/
 
 ```bash
 cd apps/z-stream-analysis
-python -m pytest tests/unit/ tests/regression/ -q    # 713 tests, no external deps
+python -m pytest tests/unit/ tests/regression/ -q    # 686 tests, no external deps
 ```
 
 See each app's `CLAUDE.md` for architecture details and development conventions.

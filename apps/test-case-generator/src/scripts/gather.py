@@ -133,6 +133,16 @@ def main() -> None:
         else:
             print(f"  No architecture knowledge found for area: {area}")
 
+    # --- Classify PR files as test vs production ---
+    test_files: list[str] = []
+    production_files: list[str] = []
+    if pr_data and pr_data.files:
+        for f in pr_data.files:
+            if ".test." in f or ".spec." in f or "/tests/" in f or "/__tests__/" in f:
+                test_files.append(f)
+            else:
+                production_files.append(f)
+
     # --- Build Output ---
     output = GatherOutput(
         jira_id=jira_id,
@@ -149,6 +159,8 @@ def main() -> None:
             cluster_url=args.cluster_url,
             repo=args.repo,
         ),
+        test_files=test_files,
+        production_files=production_files,
     )
 
     # --- Write Output ---

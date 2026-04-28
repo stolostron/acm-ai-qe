@@ -28,6 +28,7 @@ allowed-tools:
   - Bash(bash mcp/setup.sh *)
   - Bash(echo *)
   - Bash(command *)
+  - Bash(python3 mcp/verify.py *)
 ---
 
 # Onboard — AI Systems Suite Setup
@@ -240,7 +241,18 @@ Show the setup.sh output to the user.
 
 ## Step 5: Verify and Next Steps
 
-Re-run the state detection from Step 2. Print the updated status table.
+Run the verification script with the app number from Step 3:
+
+```bash
+python3 mcp/verify.py --app <N>
+```
+
+Where N is the mapped number from Step 3 (1=Hub Health, 2=Z-Stream, 3=Test Case Gen).
+If "All apps" was selected, run without `--app` to check everything.
+
+Print the verify.py output to the user.
+
+If any checks show FAIL, explain the specific fix. If only WARN, explain the reduced functionality.
 
 Then print next steps:
 

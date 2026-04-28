@@ -231,10 +231,11 @@ reviews:
         === DATA CONTRACTS ===
 
         gather-output.json (Pydantic: src/models/gather_output.py):
-          Required keys (all 11): jira_id, acm_version (optional str),
+          Required keys (all 13): jira_id, acm_version (optional str),
           area (optional str), pr_data (optional), existing_test_cases (list),
           conventions (str), area_knowledge (optional str), html_templates (str),
-          run_dir (str), timestamp (str), options
+          run_dir (str), timestamp (str), options,
+          test_files (list of str), production_files (list of str)
           options keys: skip_live (bool), cluster_url (optional str), repo (str)
           pr_data keys when present: number, title, repo, state, body, files,
           additions, deletions, merged_at, diff_file
@@ -264,6 +265,8 @@ reviews:
           Area tag: validated against AREA_TAG_PATTERNS when area is provided
           Metadata: 4 required fields (Polarion ID, Status, Created, Updated)
           Polarion fields: all 10 must be present (Type through Release)
+          Type field value: warns if not "Test Case" (e.g., "Functional")
+          Test Steps header: warns if ## Test Steps missing before ### Step N:
           Section order: Description → Setup → Test Steps → Teardown
           Per-step expected result: each ### Step N: must have Expected Result
           Step separators: --- between consecutive steps
@@ -278,8 +281,8 @@ reviews:
         knowledge/conventions/ (read-only, 4 files):
           test-case-format.md, polarion-html-templates.md,
           area-naming-patterns.md, cli-in-steps-rules.md
-        knowledge/architecture/ (read-only, 7 files):
-          governance, rbac, fleet-virt, clusters, search, applications, credentials
+        knowledge/architecture/ (read-only, 9 files):
+          governance, rbac, fleet-virt, cclm, mtv, clusters, search, applications, credentials
         knowledge/examples/ (read-only, 1 file):
           sample-test-case.md — fallback format reference when no peer test cases
         knowledge/patterns/ (agent-written):
@@ -288,11 +291,24 @@ reviews:
         === AGENTS (6) ===
 
         feature-investigator.md: Phase 1 — JIRA MCP + Polarion MCP + Neo4j + gh CLI
-        code-change-analyzer.md: Phase 1 — gh CLI + acm-ui MCP + Neo4j
-        ui-discovery.md: Phase 1 — acm-ui MCP (all tools) + Neo4j
+        code-change-analyzer.md: Phase 1 — gh CLI + acm-ui MCP + Neo4j.
+          Must read primary file via get_component_source (not just diff).
+          Must distinguish test files from production code.
+          Must cross-reference with knowledge/architecture/<area>.md.
+          Trusts MCP source over PR diff when they disagree.
+        ui-discovery.md: Phase 1 — acm-ui MCP (all tools) + Neo4j +
+          Playwright (conditional: live browser verification when cluster URL provided) +
+          bash (oc login for cluster auth)
         live-validator.md: Phase 3 — Playwright (24 tools) + oc CLI + acm-search + acm-kubectl
-        test-case-generator.md: Phase 4 — acm-ui MCP (spot-check only: 3 tools)
-        quality-reviewer.md: Phase 4.5 — acm-ui MCP + Polarion MCP
+        test-case-generator.md: Phase 4 — acm-ui MCP (spot-check + source verification).
+          Must read knowledge/architecture/<area>.md as constraints (Step 1.5).
+          Must verify filtering functions via get_component_source (Step 3).
+          Trusts MCP source over PR diff for filter rules.
+        quality-reviewer.md: Phase 4.5 — acm-ui MCP + Polarion MCP.
+          Min 3 MCP verifications required (fewer = NEEDS_FIXES).
+          Must call get_component_source on primary file (Step 4).
+          Must cross-reference knowledge/architecture/<area>.md (Step 4.6).
+          Must verify AC discrepancy Notes via source code (Step 4.5).
 
         === KEY CONVENTIONS ===
 
@@ -329,6 +345,14 @@ reviews:
         Writes review-results.json + HTML files + SUMMARY.txt.
         Does NOT consume Phase 4.5 quality-reviewer output — they are
         independent validation layers (Phase 4.5 = semantic, Stage 3 = structural).
+
+    - path: "apps/test-case-generator/src/scripts/log_phase.py"
+      instructions: |
+        Phase telemetry logger. Called by the orchestrator after each AI
+        phase (1-4.5) completes. Writes a single phase_end event to
+        pipeline.log.jsonl. Reads jira_id from gather-output.json.
+        CLI: python -m src.scripts.log_phase <run-dir> <phase> [--key value]
+        This fills the telemetry gap between gather.py and report.py.
 
     - path: "apps/test-case-generator/src/services/convention_validator.py"
       instructions: |
@@ -392,7 +416,7 @@ reviews:
         Agents in test-case-generator:
         - feature-investigator.md: Phase 1 JIRA deep dive (jira, polarion, neo4j, gh CLI)
         - code-change-analyzer.md: Phase 1 PR diff analysis (gh CLI, acm-ui, neo4j)
-        - ui-discovery.md: Phase 1 source code discovery (acm-ui, neo4j)
+        - ui-discovery.md: Phase 1 source code discovery (acm-ui, neo4j, playwright conditional, bash)
         - live-validator.md: Phase 3 live cluster verification (playwright, oc, acm-search, acm-kubectl)
         - test-case-generator.md: Phase 4 test case writer (acm-ui spot-check only)
         - quality-reviewer.md: Phase 4.5 quality gate (acm-ui, polarion)
@@ -528,14 +552,14 @@ reviews:
         Test files. Structure varies by app:
 
         Z-stream-analysis tests:
-        - tests/unit/ (642 tests): No network access. Test individual services.
+        - tests/unit/ (625 tests): No network access. Test individual services.
         - tests/regression/ (61 tests): Cross-module consistency checks,
           schema coverage, field name alignment across services.
         - tests/integration/ (45 tests): Require Jenkins VPN. Test full pipeline.
         - tests/fixtures/: Synthetic analysis-results.json for testing.
 
         Test-case-generator tests:
-        - tests/unit/ (34 tests): Convention validator (valid/invalid cases,
+        - tests/unit/ (38 tests): Convention validator (valid/invalid cases,
           area tag validation, per-step checks, teardown checks), file service
           (knowledge loading, peer discovery, sample fallback), Pydantic models
           (GatherOutput, ReviewResult, AnalysisResult schema enforcement).
@@ -1030,10 +1054,15 @@ reviews:
         - mcp/polarion/: Polarion test case access wrapper. 25 tools.
         - mcp/jenkins-acm-tools.py: ACM-specific analysis tools added to
           upstream Jenkins MCP. 4 tools.
+        - mcp/verify.py: Standalone health checker for MCP setup. 3 tiers:
+          prerequisites, artifacts, connectivity (--live). No pip deps.
 
         External MCPs cloned at setup time into mcp/.external/ (gitignored):
         - jenkins-mcp (upstream): 7 tools
         - jira-mcp-server (stolostron): 25 tools
+        - acm-mcp-server (stolostron): acm-search (5 tools) + acm-kubectl (3 tools)
+
+        Playwright (24 tools) runs via npx — no local code in this repo.
 
         Do NOT modify files in mcp/.external/.
 

@@ -18,6 +18,8 @@ Per-area domain knowledge. Covers component architecture, common patterns, and a
 - `governance.md` -- Policy types, discovered vs managed policies, label filtering
 - `rbac.md` -- FG-RBAC, MCRA, ClusterPermission, scope types
 - `fleet-virt.md` -- Fleet Virtualization tree view, VM actions
+- `cclm.md` -- Cross-cluster live migration wizard, kubevirt-plugin
+- `mtv.md` -- Migration toolkit for virtualization, fleet migration status
 - `clusters.md` -- Cluster lifecycle, cluster sets, import
 - `search.md` -- Search API, managed hub clusters
 - `applications.md` -- ALC, subscriptions, channels
@@ -30,6 +32,7 @@ Learned patterns from successful test case generation runs. The agent writes her
 
 - **Always** read `conventions/test-case-format.md` before generating any test case
 - **Always** read `conventions/area-naming-patterns.md` to get the correct title tag
-- **Read** `architecture/{area}.md` for domain context relevant to the feature
+- **Read** `architecture/{area}.md` for domain context AND as validation constraints (field order, filtering, empty states are authoritative)
 - **Write** to `patterns/` after a successful run with new discoveries
 - **Never** modify `conventions/` or `architecture/` programmatically
+- **Validation authority**: If agent analysis contradicts an architecture file, trust the architecture file and verify via `get_component_source()` before overriding

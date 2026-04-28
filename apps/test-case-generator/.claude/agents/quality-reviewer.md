@@ -77,13 +77,16 @@ Check each section against conventions:
 
 ### Step 4: Discovered vs Assumed (MCP Verification)
 
-Use MCP to spot-check UI elements mentioned in the test case:
+Use MCP to spot-check UI elements mentioned in the test case. **Minimum 3 MCP verifications required** — if you perform fewer than 3, the verdict MUST be `NEEDS_FIXES`.
 
 1. `set_acm_version(<version>)` on acm-ui MCP
 2. Check 2-3 UI labels via `search_translations` -- verify they match what the test case says
 3. Check entry point route via `get_routes` -- verify the navigation path exists
 4. If wizard steps are mentioned, verify via `get_wizard_steps`
-5. Flag any UI element that cannot be verified as "POTENTIALLY ASSUMED"
+5. **MANDATORY: Read the primary changed component source** via `get_component_source()` for the main file from the JIRA story. Verify at least ONE factual claim in the test case (field order, filtering behavior, empty state behavior, conditional rendering) against the actual source code. If the source contradicts the test case, flag as BLOCKING.
+6. Flag any UI element that cannot be verified as "POTENTIALLY ASSUMED"
+
+Each MCP verification MUST be listed in the "Assumed vs Discovered" section of your output with the tool used, query, result, and whether it matches the test case.
 
 ### Step 4.5: AC vs Implementation Check
 
@@ -94,9 +97,17 @@ If the test case targets a specific JIRA story:
 3. For each AC bullet, check if the test case's expected results are consistent with it
 4. If an AC says behavior X but the test expects behavior Y:
    - Check if a Note in the test case explains the discrepancy
-   - If a Note exists and cites source code: PASS
+   - If a Note exists and cites source code: verify the cited behavior is accurate by calling `get_component_source()`. If the Note claims "implementation does X" but the source shows "implementation does Y", flag as BLOCKING
    - If no Note exists: flag as BLOCKING: "AC states '[X]' but test expects '[Y]' — add a Note explaining the discrepancy and which behavior is correct"
 5. Check that the test case scope matches the target JIRA story's ACs, not the broader PR scope. If the test includes steps for functionality from other stories in the same PR, flag as BLOCKING: "Step N tests [functionality] which belongs to [other-story], not [target-story] — move to Notes or remove from test case"
+
+### Step 4.6: Knowledge File Cross-Reference
+
+Read `knowledge/architecture/<area>.md` for the test case's area. Verify:
+1. Any field order claims in the test case match the knowledge file's field order
+2. Any filtering behavior claims match the knowledge file's description
+3. Any component names or CRD references are consistent
+4. Flag any contradiction as BLOCKING: "Test case claims [X] but knowledge file states [Y] — verify via get_component_source() and correct the test case"
 
 ### Step 5: Polarion Coverage Check
 
@@ -110,7 +121,7 @@ Use Polarion MCP to verify metadata accuracy:
 
 Read 2-3 existing test cases from the same area for consistency:
 - Look in `gather-output.json` `existing_test_cases` field (area-aware, filtered by Stage 1)
-- If `existing_test_cases` is empty, read `knowledge/examples/sample-test-case.md` as the format reference
+- If `existing_test_cases` is empty or has fewer than 2 entries, read `knowledge/examples/sample-test-case.md` as the format reference and focus peer review on structural format (section order, step format, metadata) rather than area-specific content patterns
 
 Compare:
 - Similar section structure and formatting?
@@ -133,7 +144,22 @@ If test-case-setup.html or test-case-steps.html exist in the run directory:
 
 ## Output
 
-Return a structured review:
+**MANDATORY: Start your response with this JSON verification block.** The orchestrator will parse this block to enforce minimum verification. If this block is missing or has fewer than 3 entries in `mcp_verifications`, the orchestrator will automatically reject the verdict and re-launch the review.
+
+```json
+{
+  "mcp_verifications": [
+    {"step": "4.1", "tool": "search_translations", "query": "<query>", "result_summary": "<what MCP returned>", "matches_test_case": true},
+    {"step": "4.2", "tool": "get_routes", "query": "<area>", "result_summary": "<route found>", "matches_test_case": true},
+    {"step": "4.3", "tool": "get_component_source", "path": "<file>", "claim_verified": "<what was checked>", "result_summary": "<what source shows>", "matches_test_case": true}
+  ],
+  "ac_vs_implementation_checked": true,
+  "knowledge_file_cross_referenced": true,
+  "verdict": "PASS"
+}
+```
+
+Then return the full text review:
 
 ```
 TEST CASE REVIEW

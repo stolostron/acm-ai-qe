@@ -15,6 +15,8 @@ knowledge/
 │   ├── governance.md               # Policy types, discovered vs managed
 │   ├── rbac.md                     # FG-RBAC, MCRA, scopes
 │   ├── fleet-virt.md               # Tree view, VM actions, KubeVirt
+│   ├── cclm.md                     # Cross-cluster live migration wizard
+│   ├── mtv.md                      # Migration toolkit for virtualization
 │   ├── clusters.md                 # Cluster lifecycle, import/detach
 │   ├── search.md                   # Search API
 │   ├── applications.md             # ALC, subscriptions
@@ -32,9 +34,13 @@ Agents read knowledge at specific pipeline phases:
 | Phase | What is read | Why |
 |-------|-------------|-----|
 | Stage 1 | `conventions/test-case-format.md`, `conventions/polarion-html-templates.md`, `architecture/<area>.md` | Loaded into `gather-output.json` for downstream agents |
-| Phase 4 (writer) | All conventions files, peer test cases from `examples/`, patterns for the area | Format reference before writing |
-| Phase 4.5 (reviewer) | Conventions files, common mistakes checklist (built into agent) | Validation reference |
+| Phase 4 (writer) | All conventions files, `architecture/<area>.md` (constraints), peer test cases, patterns | Format and behavioral constraints before writing |
+| Phase 4.5 (reviewer) | Conventions files, `architecture/<area>.md` (cross-reference), common mistakes (built into agent) | Validation reference + knowledge cross-reference |
 | Stage 3 | `conventions/polarion-html-templates.md` (baked into `html_generator.py`) | HTML generation rules |
+
+## Validation Authority
+
+Architecture knowledge files serve as **validation constraints**, not just context. When an agent's analysis of a PR diff contradicts a knowledge file on field order, filtering behavior, or empty state rendering, the knowledge file is the default authority. Agents must verify via `get_component_source()` before overriding a knowledge file claim.
 
 ## Writing Rules
 
@@ -77,6 +83,9 @@ Maps console areas to Polarion title tag patterns and component/subcomponent fie
 | Governance | `[GRC-X.XX]` | Governance | Discovered Policies |
 | RBAC | `[FG-RBAC-X.XX]` | Virtualization | RBAC |
 | Fleet Virt | `[FG-RBAC-X.XX] Fleet Virtualization UI` | Virtualization | Fleet Virtualization |
+| CCLM | `[FG-RBAC-X.XX] CCLM` | Virtualization | CCLM |
+| MTV | `[MTV-X.XX]` | Virtualization | MTV |
+| Search | `[FG-RBAC-X.XX] Search` | Search | Search |
 | Clusters | `[Clusters-X.XX]` | Cluster Lifecycle | Clusters |
 | Applications | `[Apps-X.XX]` | Application Lifecycle | Applications |
 | Credentials | `[Credentials-X.XX]` | Cluster Lifecycle | Credentials |
@@ -108,7 +117,9 @@ Fixed HTML templates for Polarion import:
 
 ## Architecture Knowledge
 
-Per-area domain knowledge files that help agents understand the feature context. Each file covers:
+Per-area domain knowledge files that help agents understand the feature context. All nine supported areas have architecture files.
+
+Each file covers:
 - Component names and paths in the ACM Console source
 - Navigation routes and entry points
 - Translation keys for UI labels
@@ -126,6 +137,14 @@ FG-RBAC feature, ManagedClusterRoleAssignment (MCRA), scope management, DirectAu
 ### fleet-virt.md
 
 Fleet Virtualization tree view, VM actions (start, stop, pause, restart, migrate), KubeVirt integration, spoke cluster virtual machine management.
+
+### cclm.md
+
+Cross-Cluster Live Migration: wizard for migrating VMs between managed clusters, kubevirt-plugin components, target cluster/namespace selection, migration status monitoring. Requires `repo="kubevirt"` for MCP searches.
+
+### mtv.md
+
+Migration Toolkit for Virtualization (Forklift): fleet-level visibility of MTV migration plans across managed clusters, provider types (VMware, RHV, OpenStack, OVA), migration plan status monitoring. ACM provides fleet visibility, not plan management. Requires `repo="kubevirt"` for MCP searches.
 
 ### clusters.md
 
@@ -157,7 +176,7 @@ The sample uses governance area conventions (`[GRC-2.17]` tag, Governance compon
 
 ## Diagnostics
 
-Common mistakes are now built into the quality-reviewer agent (`.claude/agents/quality-reviewer.md`, "Common Mistakes to Flag" section) rather than stored as a separate knowledge file.
+Common mistake checks are built into the quality-reviewer agent definition (`.claude/agents/quality-reviewer.md`, "Common Mistakes to Flag" section) rather than stored as a separate knowledge file. The reviewer also reads conventions files directly during its validation process (see Step 2 in the agent definition).
 
 ---
 

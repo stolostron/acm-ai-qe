@@ -8,7 +8,7 @@ Six specialized agents, each with a dedicated role in the pipeline. Agent defini
 |-------|------|-------|-------|-------|--------|
 | Feature Investigator | `feature-investigator.md` | 1 (parallel) | jira, polarion, neo4j-rhacm, bash | JIRA ID | FEATURE INVESTIGATION block |
 | Code Change Analyzer | `code-change-analyzer.md` | 1 (parallel) | acm-ui, neo4j-rhacm, bash | PR number, repo, version | CODE CHANGE ANALYSIS block |
-| UI Discovery | `ui-discovery.md` | 1 (parallel) | acm-ui, neo4j-rhacm | Version, area, feature name | UI DISCOVERY RESULTS block |
+| UI Discovery | `ui-discovery.md` | 1 (parallel) | acm-ui, neo4j-rhacm, playwright (conditional), bash | Version, area, feature name, cluster URL (optional) | UI DISCOVERY RESULTS block (+ live verification) |
 | Live Validator | `live-validator.md` | 3 | playwright, acm-search, acm-kubectl, bash | Console URL, feature path | LIVE VALIDATION RESULTS block |
 | Test Case Generator | `test-case-generator.md` | 4 | acm-ui | Run dir, synthesized context | `test-case.md`, `analysis-results.json` |
 | Quality Reviewer | `quality-reviewer.md` | 4.5 | acm-ui, polarion | test-case.md path, version, area | PASS or NEEDS_FIXES |
@@ -82,10 +82,13 @@ Reads the full PR diff to understand what changed and what needs testing. Identi
 2. Read the full PR diff from `pr-diff.txt`
 3. Set ACM version in acm-ui MCP
 4. For each changed file, identify: new UI components, modified elements, new routes, API interactions, conditional logic, error handling, translation strings, UI interaction model
-5. Read full component source for key files via `get_component_source`
-6. Check component dependencies via Neo4j
-7. Verify UI strings via `search_translations`
-8. Map changes to test scenarios
+5. **MANDATORY: Read full source of PRIMARY target file** via `get_component_source` (not just the diff)
+6. For multi-story PRs: tag each file with its story, focus output on target story
+7. Distinguish test files (`.test.tsx`) from production code — mark test-derived claims as "FROM TEST MOCK DATA"
+8. Cross-reference findings with `knowledge/architecture/<area>.md` — flag contradictions
+9. Check component dependencies via Neo4j
+10. Verify UI strings via `search_translations`
+11. Map changes to test scenarios
 
 ### UI Interaction Model Identification
 
@@ -129,11 +132,11 @@ Test Scenarios from Code Changes:
 
 **Phase:** 1 (parallel)
 **File:** `.claude/agents/ui-discovery.md`
-**Tools:** acm-ui, neo4j-rhacm
+**Tools:** acm-ui, neo4j-rhacm, playwright (conditional), bash
 
 ### Purpose
 
-Discovers UI selectors, translations, routes, wizard steps, and test IDs from the ACM Console source code via the acm-ui MCP server.
+Discovers UI selectors, translations, routes, wizard steps, and test IDs from the ACM Console source code via the acm-ui MCP server. When a cluster URL is provided, performs optional live browser verification (Step 9) to confirm that discovered elements actually render on a real cluster.
 
 ### MCP Tool Usage
 
@@ -231,6 +234,7 @@ Writes the Polarion-ready test case markdown from the synthesized investigation 
 **Phase:** 4.5
 **File:** `.claude/agents/quality-reviewer.md`
 **Tools:** acm-ui, polarion
+**Knowledge dependencies:** Reads `knowledge/conventions/test-case-format.md`, `knowledge/conventions/area-naming-patterns.md`, `knowledge/conventions/cli-in-steps-rules.md` as validation reference. Also reads peer test cases from `gather-output.json` `existing_test_cases` field (or `knowledge/examples/sample-test-case.md` as fallback).
 
 ### Purpose
 
@@ -243,8 +247,9 @@ Validates the generated test case against conventions, verifies UI elements were
 | 1 | Read the test case | — |
 | 2 | Read conventions (3 files) | — |
 | 3 | Structural validation (title, metadata, sections, steps, teardown) | Blocking/Warning |
-| 4 | Discovered vs assumed (MCP spot-check of routes, translations) | Blocking |
-| 4.5 | AC vs implementation (JIRA ACs consistent with expected results, scope alignment) | Blocking |
+| 4 | Discovered vs assumed (min 3 MCP checks; mandatory `get_component_source()` on primary file) | Blocking |
+| 4.5 | AC vs implementation (JIRA ACs consistent with expected results, scope alignment, verify cited discrepancies via source) | Blocking |
+| 4.6 | Knowledge file cross-reference (field order, filtering, component names vs `knowledge/architecture/<area>.md`) | Blocking |
 | 5 | Polarion coverage check (search for duplicates) | Info |
 | 6 | Peer consistency check (compare with existing test cases) | Info |
 | 7 | Polarion HTML check (only on `/review`, not during `/generate`) | Warning |

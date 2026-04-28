@@ -33,6 +33,18 @@ ok()    { echo -e "${GREEN}[OK]${NC} $1"; }
 warn()  { echo -e "${YELLOW}[WARN]${NC} $1"; }
 fail()  { echo -e "${RED}[FAIL]${NC} $1"; }
 
+# Version comparison: returns 0 if $actual >= $minimum
+check_version_floor() {
+    local actual="$1" minimum="$2"
+    actual="${actual#v}"
+    minimum="${minimum#v}"
+    if printf '%s\n%s' "$minimum" "$actual" | sort -V | head -1 | grep -qx "$minimum"; then
+        return 0
+    else
+        return 1
+    fi
+}
+
 # -----------------------------------------------
 # App / MCP Definitions
 # -----------------------------------------------
@@ -50,6 +62,7 @@ APP_TESTCASE_GEN_DIR="test-case-generator"
 # Track which MCPs and apps to set up
 SELECTED_MCPS=""
 SELECTED_APPS=""
+APP_CHOICE_NUM=""
 
 # Portable helper: check if an MCP is in the selected list (bash 3.x safe)
 needs_mcp() {
@@ -61,6 +74,7 @@ needs_mcp() {
 
 # Apply an app selection choice (1-4)
 apply_selection() {
+    APP_CHOICE_NUM="$1"
     case "$1" in
         1)
             SELECTED_APPS="$APP_HUB_HEALTH_DIR"
@@ -164,10 +178,15 @@ echo ""
 # -----------------------------------------------
 info "Checking prerequisites..."
 
-# Python
+# Python (3.10+ required)
 if command -v python3 &>/dev/null; then
     PY_VERSION=$(python3 --version 2>&1 | awk '{print $2}')
-    ok "Python $PY_VERSION"
+    if check_version_floor "$PY_VERSION" "3.10"; then
+        ok "Python $PY_VERSION"
+    else
+        fail "Python $PY_VERSION is too old. Need 3.10+. Upgrade: brew install python3 (macOS) or sudo dnf install python3 (Fedora/RHEL)"
+        exit 1
+    fi
 else
     fail "Python 3.10+ is required. Install: brew install python3 (macOS) or sudo dnf install python3 (Fedora/RHEL)"
     exit 1
@@ -200,12 +219,17 @@ if needs_mcp "acm-ui"; then
     fi
 fi
 
-# Node.js (needed for acm-search, acm-kubectl, playwright)
+# Node.js 18+ (needed for acm-search, acm-kubectl, playwright)
 if needs_mcp "acm-search" || needs_mcp "acm-kubectl" || needs_mcp "playwright"; then
     if command -v node &>/dev/null; then
-        ok "Node.js $(node --version)"
+        NODE_VER=$(node --version 2>&1)
+        if check_version_floor "$NODE_VER" "18.0.0"; then
+            ok "Node.js $NODE_VER"
+        else
+            warn "Node.js $NODE_VER is too old. Need 18+. Upgrade: brew install node (macOS) or sudo dnf install nodejs (Fedora/RHEL)"
+        fi
     else
-        warn "Node.js not found. Install: brew install node (macOS) or sudo dnf install nodejs (Fedora/RHEL)"
+        warn "Node.js 18+ not found. Install: brew install node (macOS) or sudo dnf install nodejs (Fedora/RHEL)"
         echo "  Node.js is needed for acm-search (mcp-remote), acm-kubectl, and playwright."
     fi
 fi
@@ -236,6 +260,17 @@ if needs_mcp "polarion" || needs_mcp "neo4j-rhacm"; then
     else
         warn "uvx not found. Install: pip install uv"
         echo "  Some servers use uvx and may not work until it's installed."
+    fi
+fi
+
+# oc CLI (needed for acm-search and acm-kubectl cluster access)
+if needs_mcp "acm-search" || needs_mcp "acm-kubectl"; then
+    if command -v oc &>/dev/null; then
+        OC_VER=$(oc version --client 2>&1 | head -1 | awk '{print $NF}')
+        ok "oc CLI $OC_VER"
+    else
+        warn "oc CLI not found. Some MCP servers need cluster access."
+        echo "  Install: https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest/"
     fi
 fi
 
@@ -1174,3 +1209,12 @@ echo ""
 echo "  If you update credentials in .env files later,"
 echo "  re-run this script to regenerate .mcp.json."
 echo ""
+
+# Post-setup verification
+echo -e "${BOLD}  Running post-setup verification...${NC}"
+echo ""
+if [ "$APP_CHOICE_NUM" = "4" ]; then
+    python3 "$SCRIPT_DIR/verify.py" 2>&1 || true
+else
+    python3 "$SCRIPT_DIR/verify.py" --app "$APP_CHOICE_NUM" 2>&1 || true
+fi

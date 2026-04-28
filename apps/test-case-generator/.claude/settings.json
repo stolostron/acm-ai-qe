@@ -13,6 +13,7 @@
       "Bash(python:*)",
       "Bash(python3:*)",
       "Bash(python -m src.scripts.gather:*)",
+      "Bash(python -m src.scripts.log_phase:*)",
       "Bash(python -m src.scripts.report:*)",
       "Bash(python -m pytest:*)",
       "Bash(pytest:*)",

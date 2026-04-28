@@ -47,13 +47,14 @@ The pipeline has two independent validation systems. Both must pass before a tes
 
 #### Step 4: Discovered vs Assumed (MCP Verification)
 
-The reviewer spot-checks 2-3 UI elements via MCP:
+The reviewer performs **minimum 3 MCP verifications**. Fewer than 3 = automatic `NEEDS_FIXES`.
 
 1. `set_acm_version(<version>)` on acm-ui
 2. Check UI labels via `search_translations` — verify they match test case
 3. Check entry point via `get_routes` — verify navigation path exists
 4. If wizard steps mentioned: verify via `get_wizard_steps`
-5. Flag any unverifiable element as `POTENTIALLY ASSUMED`
+5. **MANDATORY: Read primary changed component** via `get_component_source()` — verify at least one behavioral claim (field order, filtering, empty state) against actual source code
+6. Flag any unverifiable element as `POTENTIALLY ASSUMED`
 
 #### Step 4.5: AC vs Implementation Check
 
@@ -63,10 +64,18 @@ If the test case targets a specific JIRA story:
 2. For each AC bullet, check if test expected results are consistent
 3. If AC says behavior X but test expects behavior Y:
    - Check if a Note explains the discrepancy (citing source code)
-   - If Note exists: PASS
+   - If Note exists: verify the cited behavior is accurate via `get_component_source()`
    - If no Note: flag as BLOCKING
 4. Check test scope matches target story, not broader PR
    - Flag out-of-scope steps as BLOCKING
+
+#### Step 4.6: Knowledge File Cross-Reference
+
+Read `knowledge/architecture/<area>.md` and verify:
+1. Field order claims match the knowledge file
+2. Filtering behavior claims match the knowledge file
+3. Component names and CRD references are consistent
+4. Flag contradictions as BLOCKING
 
 #### Step 5: Polarion Coverage Check
 
@@ -106,13 +115,16 @@ TITLE_PATTERN = re.compile(r"^# RHACM4K-\d+ - \[.+\] .+ - .+$|^# RHACM4K-XXXXX -
 
 Checks that the H1 title matches the convention pattern. Placeholder `XXXXX` is accepted for new test cases.
 
-If an `area` is provided, also checks the tag pattern:
+If an `area` is provided, also checks the tag pattern against `AREA_TAG_PATTERNS` (all 9 areas):
 
 | Area | Expected Tag |
 |------|-------------|
 | governance | `[GRC-` |
 | rbac | `[FG-RBAC-` |
 | fleet-virt | `[FG-RBAC-` + `Fleet Virtualization` |
+| cclm | `[FG-RBAC-` + `CCLM` |
+| mtv | `[MTV-` |
+| search | `[FG-RBAC-` + `Search` |
 | clusters | `[Clusters-` |
 | applications | `[Apps-` |
 | credentials | `[Credentials-` |
@@ -183,6 +195,16 @@ class ValidationIssue(BaseModel):
 - **FAIL:** One or more blocking issues
 
 Warnings do not cause FAIL but are reported in `SUMMARY.txt`.
+
+### Phase 4.5 Enforcement
+
+The quality reviewer must start its output with a JSON verification block containing:
+- `mcp_verifications` (array of verification entries, min 3)
+- `ac_vs_implementation_checked` (boolean)
+- `knowledge_file_cross_referenced` (boolean)
+- `verdict` ("PASS" or "NEEDS_FIXES")
+
+The orchestrator validates this block before accepting the verdict. If the block is missing or `mcp_verifications` has fewer than 3 entries, the verdict is automatically overridden to `NEEDS_FIXES` and the reviewer is re-launched.
 
 ---
 

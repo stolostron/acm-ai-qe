@@ -40,3 +40,5 @@ class GatherOutput(BaseModel):
     run_dir: str
     timestamp: str = Field(default_factory=lambda: datetime.now().isoformat())
     options: GatherOptions = Field(default_factory=GatherOptions)
+    test_files: list[str] = Field(default_factory=list)
+    production_files: list[str] = Field(default_factory=list)

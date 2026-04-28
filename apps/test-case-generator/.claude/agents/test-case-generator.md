@@ -41,6 +41,16 @@ Before writing, read:
 - `knowledge/conventions/cli-in-steps-rules.md` -- when CLI is allowed in steps
 - 2-3 peer test cases from `existing_test_cases` paths for format consistency (if empty, read `knowledge/examples/sample-test-case.md` as the format reference)
 
+### Step 1.5: Read Area Knowledge and Extract Constraints
+
+Read `knowledge/architecture/<area>.md` for the feature's area. Extract any:
+- **Field order** in description lists or tables (e.g., "Name, Engine, Cluster, Kind, API version, Labels")
+- **Filtering behavior** (e.g., "system labels filtered via isUserDefinedPolicyLabel()")
+- **Empty state behavior** (e.g., "shows '-' when empty" vs "field hidden when empty")
+- **Component patterns** (e.g., "AcmLabels in full mode, no isCompact prop")
+
+These are **CONSTRAINTS** that the test case MUST follow. If the synthesized context from Phase 2 contradicts the knowledge file on any of these points, **trust the knowledge file** and flag the discrepancy in the Notes section. The knowledge file reflects verified behavior; the synthesized context may contain errors from diff misreading.
+
 ### Step 2: Plan the Test Case
 
 **SCOPE GATE:** Before planning steps, extract the target JIRA story's Acceptance Criteria from the FEATURE INVESTIGATION block (if ACs are not present there, retrieve them via JIRA MCP `get_issue` using the `jira_id` from `gather-output.json`). Only plan steps that validate these specific ACs. If the PR covers multiple stories, filter to only the target story's scope. Steps that test other stories in the same PR should be mentioned in Notes as "Related functionality delivered in same PR but scoped to [other-story]".
@@ -61,7 +71,10 @@ Before writing, verify a few critical elements via MCP to ensure investigation d
 2. `get_routes()` -- verify the entry point route still exists. Find the specific route(s) that render the primary component under test (not just the area-level route). Include the full parameterized route pattern and route key in the Entry Point. If the feature is accessible via multiple routes (e.g., discovered vs managed), list all applicable routes.
 3. `search_translations("<key label>")` -- spot-check 1-2 key labels
 
-This is a quick sanity check, not full investigation (that was done in Phase 1).
+4. `get_component_source("<primary-file>")` -- read the primary changed component (named in JIRA technical details, or the file with the most significant behavioral changes from CODE CHANGE ANALYSIS) and verify key behavioral claims from the synthesized context: field order, filtering logic, empty state rendering. If the source contradicts the synthesized context, use the source code behavior and note the discrepancy.
+5. For any filtering functions referenced in the synthesized context, also call `get_component_source()` on the utility file that defines the function and extract the exact filter rules. Do NOT copy filter rules from the PR diff — the merged source may differ.
+
+This is a focused verification step, not full investigation (that was done in Phase 1). But it MUST catch factual errors before they reach the test case.
 
 ### Step 4: Write the Test Case
 

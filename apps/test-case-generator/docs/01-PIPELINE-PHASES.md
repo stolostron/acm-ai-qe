@@ -127,6 +127,8 @@ stage_end       {"stage": "gather", "elapsed_seconds": 1.72, "pr_found": true, "
 
 Three agents run in parallel. Each receives specific inputs from `gather-output.json` and returns a structured block. See [02-AGENTS.md](02-AGENTS.md) for detailed agent specifications.
 
+**Artifact persistence:** Each agent's full output is saved to the run directory (`phase1-feature-investigation.md`, `phase1-code-change-analysis.md`, `phase1-ui-discovery.md`). Phase telemetry logged via `python -m src.scripts.log_phase <run-dir> phase_1 --agents 3`.
+
 ### Agent A: Feature Investigator
 
 **Input:** JIRA ID

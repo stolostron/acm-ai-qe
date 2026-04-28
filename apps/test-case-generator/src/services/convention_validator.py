@@ -127,6 +127,27 @@ def validate_test_case(file_path: str, area: str | None = None) -> ReviewResult:
             ))
             metadata_complete = False
 
+    # --- Type field value validation ---
+    type_line = next((l for l in lines if l.startswith("## Type:")), None)
+    if type_line:
+        type_value = type_line.split(":", 1)[1].strip().lower().replace(" ", "")
+        if type_value not in ("testcase",):
+            issues.append(ValidationIssue(
+                severity="warning",
+                category="metadata",
+                message=f"Type field should be 'Test Case', found: '{type_line.split(':', 1)[1].strip()}'",
+            ))
+
+    # --- Test Steps section header ---
+    if "## Test Steps" not in content:
+        step_pattern_found = re.search(r"^### Step \d+:", content, re.MULTILINE)
+        if step_pattern_found:
+            issues.append(ValidationIssue(
+                severity="warning",
+                category="structure",
+                message="Missing '## Test Steps' section header before step definitions",
+            ))
+
     # --- Section order validation ---
     section_order_valid = True
     expected_sections = ["Description", "Setup", "Test Steps", "Teardown"]

@@ -35,10 +35,22 @@ You receive a JIRA ticket ID (e.g., ACM-30459) and optionally an ACM version.
 ```
 search_issues(jql='summary ~ "[QE] --- ACM-XXXXX"')                    # QE tracking ticket
 search_issues(jql='parent = ACM-XXXXX')                                 # Sub-tasks
-search_issues(jql='project = ACM AND fixVersion = "ACM 2.16.0" AND component = "Virtualization" AND summary ~ "keyword"')  # Related stories
+search_issues(jql='project = ACM AND fixVersion = "ACM 2.16.0" AND component = "<COMPONENT>" AND summary ~ "keyword"')  # Related stories
 search_issues(jql='project = ACM AND summary ~ "keyword" AND type = Bug AND status != Closed')  # Existing bugs
 search_issues(jql='project = ACM AND labels = "QE" AND fixVersion = "ACM 2.16.0"')             # QE tasks for same release
 ```
+
+**Component values by area** — substitute into the `<COMPONENT>` placeholder in JQL patterns above:
+
+| Area | JIRA Component |
+|------|---------------|
+| Governance | `Governance` |
+| RBAC, Fleet Virt, CCLM, MTV | `Virtualization` |
+| Clusters, Credentials | `Cluster Lifecycle` |
+| Search | `Search` |
+| Applications | `Application Lifecycle` |
+
+Fallback: if the area is not in this table, use the component from the source JIRA ticket's `components` field (returned by `get_issue`).
 
 ### Polarion MCP -- Check existing coverage
 

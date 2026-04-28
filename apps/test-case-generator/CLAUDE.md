@@ -91,7 +91,7 @@ Six agents, each with a dedicated role in the pipeline:
 |-------|------|---------------|------|
 | **Feature Investigator** | `.claude/agents/feature-investigator.md` | Phase 1 (parallel) | Deep JIRA investigation: story, comments, linked tickets, Polarion coverage, PR discovery |
 | **Code Change Analyzer** | `.claude/agents/code-change-analyzer.md` | Phase 1 (parallel) | PR diff analysis: changed components, new UI elements, Neo4j impact, test scenarios |
-| **UI Discovery** | `.claude/agents/ui-discovery.md` | Phase 1 (parallel) | Source code discovery: selectors, translations, routes, wizard steps, test IDs |
+| **UI Discovery** | `.claude/agents/ui-discovery.md` | Phase 1 (parallel) | Source code discovery: selectors, translations, routes, wizard steps, test IDs + optional live browser verification |
 | **Live Validator** | `.claude/agents/live-validator.md` | Phase 3 | Live cluster verification: browser UI, oc CLI, acm-search, acm-kubectl |
 | **Test Case Generator** | `.claude/agents/test-case-generator.md` | Phase 4 | Write test case markdown from synthesized investigation context |
 | **Quality Reviewer** | `.claude/agents/quality-reviewer.md` | Phase 4.5 | Validate conventions, verify discovered vs assumed, AC vs implementation, scope alignment, numeric thresholds, peer consistency, PASS/NEEDS_FIXES |
@@ -110,7 +110,7 @@ Agent launch procedures (Phase 1 parallel launch, Phase 4.5 quality review loop)
 | neo4j-rhacm | 2 | Architecture dependencies: component relationships, subsystem impact | Feature Investigator, Code Analyzer, UI Discovery |
 | acm-search | ~5 | Live cluster resources: search K8s resources across clusters | Live Validator |
 | acm-kubectl | 3 | Multicluster kubectl: list clusters, run commands on hub/spokes | Live Validator |
-| playwright | 24 | Browser automation: navigate, snapshot, interact, screenshot, verify | Live Validator |
+| playwright | 24 | Browser automation: navigate, snapshot, interact, screenshot, verify | UI Discovery (conditional), Live Validator |
 
 Setup: `bash mcp/setup.sh` from repo root, select "Test Case Generator".
 
@@ -143,6 +143,8 @@ UI Discovery:
   acm-ui    -> set_acm_version, set_cnv_version, search_code, get_component_source,
                search_translations, get_wizard_steps, get_routes, get_acm_selectors,
                get_fleet_virt_selectors, find_test_ids, get_patternfly_selectors
+  playwright -> browser_navigate, browser_snapshot, browser_take_screenshot (conditional: only when cluster URL provided)
+  bash       -> oc login, oc whoami, oc get mch -A (for cluster auth before browser verification)
 
 Live Validator:
   playwright -> browser_navigate, browser_snapshot, browser_click, browser_fill_form,
@@ -199,15 +201,21 @@ Each run produces artifacts under `runs/<JIRA_ID>/<JIRA_ID>-<timestamp>/`:
 
 ```
 runs/ACM-30459/ACM-30459-2026-04-08T12-00-00/
-  gather-output.json        # Stage 1: all gathered data
-  pr-diff.txt               # Stage 1: full PR diff (if PR found)
-  test-case.md              # Phase 4: primary deliverable
-  analysis-results.json     # Phase 4: investigation metadata (audit/debugging — not consumed by downstream stages)
-  test-case-setup.html      # Stage 3: Polarion setup section HTML
-  test-case-steps.html      # Stage 3: Polarion steps table HTML
-  review-results.json       # Stage 3: structural validation
-  SUMMARY.txt               # Stage 3: human-readable summary
-  pipeline.log.jsonl        # All stages: telemetry
+  gather-output.json                 # Stage 1: all gathered data
+  pr-diff.txt                        # Stage 1: full PR diff (if PR found)
+  phase1-feature-investigation.md    # Phase 1: feature investigator agent output
+  phase1-code-change-analysis.md     # Phase 1: code change analyzer agent output
+  phase1-ui-discovery.md             # Phase 1: UI discovery agent output
+  phase2-synthesized-context.md      # Phase 2: merged investigation + test plan
+  phase3-live-validation.md          # Phase 3: live validator agent output (or skip note)
+  test-case.md                       # Phase 4: primary deliverable
+  analysis-results.json              # Phase 4: investigation metadata (audit/debugging)
+  phase4.5-quality-review.md         # Phase 4.5: quality reviewer agent output (JSON block + review)
+  test-case-setup.html               # Stage 3: Polarion setup section HTML
+  test-case-steps.html               # Stage 3: Polarion steps table HTML
+  review-results.json                # Stage 3: structural validation
+  SUMMARY.txt                        # Stage 3: human-readable summary
+  pipeline.log.jsonl                 # All stages + phases: telemetry (gather, log_phase, report)
 ```
 
 ---
@@ -220,6 +228,9 @@ runs/ACM-30459/ACM-30459-2026-04-08T12-00-00/
 4. **Convention compliance**: Output must pass structural validation in Stage 3 and quality review in Phase 4.5
 5. **File isolation**: Only write to `runs/` directory and `knowledge/patterns/`
 6. **Quality gate**: NEVER deliver a test case that has not passed Phase 4.5 quality review
+7. **Knowledge file authority**: Area knowledge files (`knowledge/architecture/<area>.md`) define verified behavior (field order, filtering, empty states). If agent analysis contradicts a knowledge file, trust the knowledge file and verify via `get_component_source()` before overriding
+8. **Mandatory source verification**: Phase 4 (writer) and Phase 4.5 (reviewer) must each call `get_component_source()` on the primary changed file to verify at least one behavioral claim against actual source code
+9. **Test vs production code**: Data from `.test.tsx`/`.test.ts` files (mock objects, fixture data) is NOT rendering behavior. Mark any claim derived from test files as "FROM TEST MOCK DATA"
 
 ---
 
@@ -298,8 +309,8 @@ Test cases are validated against these criteria (Phase 4.5 + Stage 3):
 | Governance | `[GRC-X.XX]` | `architecture/governance.md` |
 | RBAC | `[FG-RBAC-X.XX]` | `architecture/rbac.md` |
 | Fleet Virtualization | `[FG-RBAC-X.XX] Fleet Virtualization UI` | `architecture/fleet-virt.md` |
-| CCLM | `[FG-RBAC-X.XX] CCLM` | -- (limited: no area knowledge) |
-| MTV | `[MTV-X.XX]` | -- (limited: no area knowledge) |
+| CCLM | `[FG-RBAC-X.XX] CCLM` | `architecture/cclm.md` |
+| MTV | `[MTV-X.XX]` | `architecture/mtv.md` |
 | Search | `[FG-RBAC-X.XX] Search` | `architecture/search.md` |
 | Clusters | `[Clusters-X.XX]` | `architecture/clusters.md` |
 | Applications | `[Apps-X.XX]` | `architecture/applications.md` |

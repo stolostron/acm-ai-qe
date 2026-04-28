@@ -121,6 +121,18 @@ flowchart LR
 | **4.5** | Quality review gate (mandatory) | Quality Reviewer agent (loop until PASS) |
 | **Stage 3** | Generate Polarion output | `report.py` (validation + HTML) |
 
+## Skills
+
+The entire pipeline is orchestrated by [Claude Code Skills](https://docs.anthropic.com/en/docs/claude-code/skills) &mdash; reusable slash commands that define multi-step procedures with phase gates, agent launches, and tool permissions. When you type `/generate`, you're invoking a skill that drives the full pipeline end-to-end: it runs scripts, spawns subagents in parallel, enforces stop-checkpoints between phases, and loops the quality reviewer until it passes.
+
+| Skill | Command | What it does |
+|-------|---------|-------------|
+| **Generate** | `/generate ACM-XXXXX` | Full pipeline: gather &rarr; 3 parallel investigation agents &rarr; synthesis with scope gating &rarr; optional live validation &rarr; test case writing &rarr; quality review loop (max 3 iterations) &rarr; Polarion HTML. Includes STOP checkpoints after Phase 2 and Phase 4 for user review. |
+| **Review** | `/review path/to/test-case.md` | Standalone quality review: loads an existing test case and runs the quality-reviewer agent against it. Returns PASS or NEEDS_FIXES with specific issues. |
+| **Batch** | `/batch ACM-1,ACM-2,ACM-3` | Multi-ticket generation: runs `/generate` sequentially for each JIRA ID. Continues on failure. Produces a summary table with status, step count, and output path per ticket. |
+
+Skills are defined in `.claude/skills/` with supporting files for phase gate enforcement (`phase-gates.md`) and the Phase 2 synthesis template (`synthesis-template.md`).
+
 ## Phase 1: Parallel Investigation
 
 Three agents investigate simultaneously, each with distinct MCP tools:

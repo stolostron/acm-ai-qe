@@ -14,6 +14,7 @@ reviews:
     - "apps/*/.claude/**"
     - "apps/*/tests/**"
     - "mcp/**/*.py"
+    - ".claude/**"
     # Skip these
     - "!apps/*/runs/**"
     - "!apps/*/knowledge/**/*.yaml"
@@ -845,6 +846,7 @@ reviews:
         - permissions.allow: Read-only oc commands + MCP tools (auto-approved for diagnosis)
           Includes mcp__acm-ui__*, mcp__neo4j-rhacm__*, mcp__acm-search__*
         - hooks: 6 event types triggering agent_trace.py
+        - statusLine: command-based status bar (shared script at ../../.claude/statusline.sh)
 
         Review rules:
         - NEVER auto-approve mutation commands (patch, scale, delete,

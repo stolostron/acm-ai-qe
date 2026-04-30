@@ -77,6 +77,7 @@ at setup time from their upstream repositories:
 ```
 mcp/
 |-- setup.sh                        <-- Run this to set up everything
+|-- deploy-acm-search.sh            <-- Deploy ACM Search MCP to a cluster (oc login first)
 |-- README.md                       <-- This file
 |
 |-- acm-ui-mcp-server/              <-- Our code: ACM Console source search (20 tools)
@@ -121,7 +122,7 @@ External MCPs are cloned from forks with pending upstream PRs. Once merged,
 | jenkins | `mcp/.external/jenkins-mcp/.env` | Yes (entire `.external/` dir) |
 | polarion | `mcp/polarion/.env` | Yes (`*.env`) |
 | neo4j-rhacm | None (local container) | N/A |
-| acm-search | None (reads from cluster secret) | N/A |
+| acm-search | None (reads from cluster secret via `deploy-acm-search.sh`) | N/A |
 | acm-kubectl | None (uses `oc login`) | N/A |
 | playwright | None (browser automation) | N/A |
 
@@ -148,6 +149,16 @@ To test individual servers, ask the AI agent:
 - "Get all Jenkins jobs" -- tests jenkins
 - "Query the knowledge graph: MATCH (n) RETURN count(n)" -- tests neo4j-rhacm
 - "Get search database stats" -- tests acm-search
+
+## ACM Search Deployment
+
+The ACM Search MCP runs as a pod on the ACM hub cluster, accessed via SSE through an OpenShift route. Deploy it after `oc login`:
+
+```bash
+bash mcp/deploy-acm-search.sh
+```
+
+This auto-discovers the ACM namespace, deploys the server pod, extracts the route and token, and updates all `.mcp.json` files. Re-run after cluster rotation.
 
 ## After a reboot
 

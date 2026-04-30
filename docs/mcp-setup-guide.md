@@ -31,7 +31,7 @@ Run `/onboard` in Claude Code to configure everything interactively.
 - **Recommended:** neo4j-rhacm (dependency analysis)
 - **Optional:** acm-search (fleet-wide spoke queries)
 
-### For Z-Stream Analysis (future)
+### For Z-Stream Analysis
 - **Required:** acm-ui, jira, jenkins, polarion
 - **Recommended:** neo4j-rhacm
 - **Optional:** acm-search, acm-kubectl

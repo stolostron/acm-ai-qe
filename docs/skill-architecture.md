@@ -1,6 +1,6 @@
 # Skill Architecture
 
-How all 13 portable ACM skills fit together.
+How all 18 portable ACM skills fit together.
 
 ## Skill Inventory
 

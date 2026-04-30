@@ -102,9 +102,15 @@ podman --version 2>&1 || echo "NOT FOUND"
 
 ### MCP Server State
 
-Check each app's `.mcp.json` and related venvs/credentials:
+Check root-level and app-level `.mcp.json` files, venvs, and credentials:
 
 ```bash
+# Root-level MCP config (needed for skills to access MCPs)
+test -f .mcp.json && echo "root .mcp.json: configured" || echo "root .mcp.json: MISSING"
+
+# If root .mcp.json exists, count MCP servers in it
+test -f .mcp.json && python3 -c "import json; d=json.load(open('.mcp.json')); print(f'root MCP servers: {len(d.get(\"mcpServers\", {}))}')" 2>/dev/null
+
 # App-level MCP configs
 test -f apps/z-stream-analysis/.mcp.json && echo "z-stream: configured" || echo "z-stream: not configured"
 test -f apps/acm-hub-health/.mcp.json && echo "hub-health: configured" || echo "hub-health: not configured"
@@ -147,6 +153,9 @@ MCP Servers:
   neo4j-rhacm: running        OK (optional)
   acm-search:  not deployed   OPTIONAL
 
+Skills Config:
+  root .mcp.json:        exists     OK     (8 MCP servers)
+
 App Configs:
   z-stream-analysis:     .mcp.json exists   OK
   acm-hub-health:        .mcp.json exists   OK
@@ -157,7 +166,7 @@ Mark items as OK, MISSING, or OPTIONAL. Use OK for present, MISSING for required
 
 ## Step 3: Ask What to Set Up
 
-If ALL app `.mcp.json` files exist and all required venvs are present, print:
+If ALL app `.mcp.json` files exist AND root `.mcp.json` exists AND all required venvs are present, print:
 
 ```
 All apps and skills are already configured. No setup needed.
@@ -165,7 +174,16 @@ All apps and skills are already configured. No setup needed.
 
 And stop here (idempotent behavior).
 
-Otherwise, ask the user what they want to configure. Present the options:
+If app configs exist but root `.mcp.json` is MISSING, print:
+
+```
+App configs exist but skills don't have MCP access.
+Creating root .mcp.json from existing app configs...
+```
+
+Then generate the root `.mcp.json` by merging app configs (see Step 4 merge procedure) and proceed to Step 5. Do NOT re-run setup.sh or ask what to configure.
+
+Otherwise (missing app configs or venvs), ask the user what they want to configure. Present the options:
 
 **Skills (portable):**
 - Test Case Generator skills (needs: acm-ui, jira, polarion; recommended: neo4j-rhacm; optional: acm-search, acm-kubectl, playwright)
@@ -263,6 +281,31 @@ Where N is the mapped number from Step 3. This will:
 
 Show the setup.sh output to the user.
 
+### Generate root `.mcp.json`
+
+After `setup.sh` completes (or when the Step 3 short-circuit detects app configs exist but root is missing), merge all app-level MCP configs into a single root `.mcp.json`:
+
+```bash
+python3 -c "
+import json
+from pathlib import Path
+
+merged = {'mcpServers': {}}
+for app_config in ['apps/test-case-generator/.mcp.json', 'apps/z-stream-analysis/.mcp.json', 'apps/acm-hub-health/.mcp.json']:
+    p = Path(app_config)
+    if p.exists():
+        data = json.loads(p.read_text())
+        merged['mcpServers'].update(data.get('mcpServers', {}))
+
+Path('.mcp.json').write_text(json.dumps(merged, indent=2))
+print(f'Root .mcp.json created with {len(merged[\"mcpServers\"])} MCP servers: {list(merged[\"mcpServers\"].keys())}')
+"
+```
+
+This gives all skills at the repo root access to every MCP server. The root `.mcp.json` is the UNION of all app-level configs — every MCP that any skill might need.
+
+Print: `Root .mcp.json created with N MCP servers.`
+
 ## Step 5: Verify and Next Steps
 
 Run the verification script with the app number from Step 3:
@@ -284,19 +327,27 @@ Then print next steps:
 Setup complete. Next steps:
 
 1. Restart Claude Code to pick up the new MCP configuration
-2. Navigate to an app directory and start working:
 
-   Z-Stream Analysis:
-     cd apps/z-stream-analysis && claude
-     /analyze <JENKINS_URL>
+2. Use portable skills (from the repo root):
 
-   ACM Hub Health:
-     cd apps/acm-hub-health && oc login <hub> && claude
-     /health-check
+   Generate a test case:
+     claude
+     "Generate a test case for ACM-XXXXX"
 
-   Test Case Generator:
-     cd apps/test-case-generator && claude
-     /generate ACM-XXXXX
+   Check hub health:
+     oc login <hub>
+     claude
+     "How's my hub health?"
+
+   Analyze Jenkins failures:
+     claude
+     "Analyze this Jenkins run: <URL>"
+
+3. Or use Claude Code apps (from app directories):
+
+   Z-Stream:     cd apps/z-stream-analysis && claude && /analyze <URL>
+   Hub Health:   cd apps/acm-hub-health && claude && /health-check
+   TC Generator: cd apps/test-case-generator && claude && /generate ACM-XXXXX
 
 To verify MCP connections: claude mcp list
 To re-run this setup: /onboard

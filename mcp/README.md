@@ -57,7 +57,8 @@ claude
 
 The onboarding skill detects your environment, walks you through MCP server
 configuration and credential setup, and generates `.mcp.json` for the selected
-app(s). It is idempotent -- run it again anytime to check or update your setup.
+app(s) plus a root `.mcp.json` so portable skills have full MCP access from the
+repo root. It is idempotent -- run it again anytime to check or update your setup.
 
 Under the hood, `/onboard` handles:
 1. Prerequisite checks (Python, `gh` CLI, `uvx`, Node.js, Podman)
@@ -66,6 +67,7 @@ Under the hood, `/onboard` handles:
 4. Installing dependencies into each venv
 5. Credential prompts (API tokens, emails)
 6. Generating `.mcp.json` for the selected app(s)
+7. Merging all app configs into a root `.mcp.json` (union of all MCP servers, gitignored)
 
 ## Architecture
 

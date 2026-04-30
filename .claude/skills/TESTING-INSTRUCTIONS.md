@@ -6,7 +6,7 @@
 
 ## What Was Built
 
-13 portable skills under `.claude/skills/acm-*/` converting the test-case-generator and acm-hub-health apps into Anthropic-compliant skill packs.
+18 portable ACM skills under `.claude/skills/acm-*/` converting the test-case-generator, acm-hub-health, and z-stream-analysis apps into Anthropic-compliant skill packs.
 
 ### Shared Skills (6)
 - `acm-knowledge-base` -- Domain knowledge (9 area files, 4 convention files)

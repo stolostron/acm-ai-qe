@@ -420,3 +420,71 @@ gaps:
       rendered at runtime, VM may not exist on the page or VM details page not reached
   source: knowledge/architecture/virtualization/failure-signatures.md
   evidence: 2 tests failed with actions-dropdown button not found
+- date: '2026-04-28'
+  trigger: unmatched_error
+  feature_area: Application
+  gap_type: missing_failure_path
+  proposed_entry:
+    id: app-not-ready-timeout
+    description: Application readiness check times out waiting for subscription-based
+      app deployment
+    category: data_flow
+    symptoms:
+    - (?i)Application is not ready within time limit
+    classification: INFRASTRUCTURE
+    confidence: 0.80
+    explanation: Subscription Reconciliation Timeout — controllers healthy per cluster
+      diagnostic, failure is in downstream deployment chain (channel, external service,
+      ManifestWork delivery)
+  source: knowledge/architecture/application-lifecycle/failure-signatures.md
+  evidence: 1 Application test failed with 'Application is not ready within time limit'
+- date: '2026-04-28'
+  trigger: unmatched_error
+  feature_area: Application
+  gap_type: missing_failure_path
+  proposed_entry:
+    id: argocd-appset-wizard-timeout
+    description: ArgoCD AppSet wizard test times out waiting for resource creation
+    category: data_flow
+    symptoms:
+    - (?i)Timed out retrying
+    classification: INFRASTRUCTURE
+    confidence: 0.70
+    explanation: Generic timeout from cypress-wait-until during Argo appset wizard, matches
+      ArgoCD Sync Stuck pattern
+  source: knowledge/architecture/application-lifecycle/failure-signatures.md
+  evidence: 1 Application test failed with generic Timed out retrying in ArgoCD wizard
+- date: '2026-04-28'
+  trigger: unmatched_error
+  feature_area: CLC
+  gap_type: missing_failure_path
+  proposed_entry:
+    id: corrupted-bash-cy-exec
+    description: cy.exec() fails due to corrupted bash which function on CI runner
+    category: configuration
+    symptoms:
+    - (?i)/usr/bin/bash:.*which.*syntax error
+    - (?i)error importing function definition for.*which
+    classification: INFRASTRUCTURE
+    confidence: 0.90
+    explanation: CI runner bash has corrupted which function definition, cy.exec() commands
+      inherit this environment
+  source: knowledge/architecture/cluster-lifecycle/failure-signatures.md
+  evidence: 2 CLC tests failed with corrupted bash which function in cy.exec()
+- date: '2026-04-28'
+  trigger: unmatched_error
+  feature_area: CLC
+  gap_type: missing_failure_path
+  proposed_entry:
+    id: subscription-ns-not-found
+    description: oc get subscription fails because application namespace does not exist
+    category: data_flow
+    symptoms:
+    - (?i)cy\.exec.*oc.*get subscription.*failed.*non-zero
+    - (?i)Error from server.*NotFound.*namespaces
+    classification: INFRASTRUCTURE
+    confidence: 0.80
+    explanation: Subscription namespace never created because upstream deployment failed
+      (channel connectivity or placement issue)
+  source: knowledge/architecture/application-lifecycle/failure-signatures.md
+  evidence: 2 CLC tests failed with namespace NotFound when checking subscription

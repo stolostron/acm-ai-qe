@@ -1,0 +1,264 @@
+# ACM Addon Catalog
+# All managed cluster addons, their deployment expectations, and health checks.
+# Use this to systematically verify addon health across managed clusters.
+#
+# Populated by: refresh.py (oc get managedclusteraddons -A, oc get clustermanagementaddons)
+# Refresh frequency: after ACM version upgrade
+
+acm_version: 2.16.0
+last_refreshed: '2026-04-03'
+addons:
+- name: acm-roles
+  display_name: ACM Roles
+  required: false
+  required_for: [fine-grained-rbac]
+  default_enabled: false
+  note: "Only deployed when fine-grained-rbac is enabled"
+  subsystem: rbac
+  spoke_namespace: open-cluster-management-agent-addon
+  description: "Deploys and manages RBAC roles on spoke clusters for fine-grained access control. Propagates ClusterPermission CRs as ManifestWorks."
+  health_check: oc get managedclusteraddon acm-roles -n {cluster}
+  healthy_conditions:
+    - type: Available
+      status: "True"
+  if_unhealthy: "RBAC roles not propagated to this spoke. Users with fine-grained role assignments cannot access spoke resources."
+  depends_on:
+  - work-manager
+- name: application-manager
+  display_name: Application Manager
+  required: false
+  required_for:
+  - app-lifecycle
+  default_enabled: true
+  subsystem: application-lifecycle
+  spoke_namespace: open-cluster-management-agent-addon
+  description: Manages application resources on spoke. Validates via webhooks.
+  health_check: oc get managedclusteraddon application-manager -n {cluster}
+  if_unhealthy: Application subscriptions not deployed to this spoke.
+  depends_on:
+  - work-manager
+- name: cert-policy-controller
+  display_name: Certificate Policy Controller
+  required: false
+  required_for:
+  - grc
+  default_enabled: true
+  subsystem: governance
+  spoke_namespace: open-cluster-management-agent-addon
+  description: Enforces CertificatePolicy on spoke.
+  health_check: oc get managedclusteraddon cert-policy-controller -n {cluster}
+  if_unhealthy: Certificate policies not evaluated.
+  depends_on:
+  - governance-policy-framework
+- name: cluster-proxy
+  display_name: Cluster Proxy
+  required: false
+  default_enabled: false
+  subsystem: infrastructure
+  spoke_namespace: open-cluster-management-agent-addon
+  description: Enables proxy access to spoke API server from hub.
+  health_check: oc get managedclusteraddon cluster-proxy -n {cluster}
+  if_unhealthy: Proxy access to spoke API unavailable.
+  depends_on:
+  - work-manager
+- name: config-policy-controller
+  display_name: Config Policy Controller
+  required: false
+  required_for:
+  - grc
+  default_enabled: true
+  subsystem: governance
+  spoke_namespace: open-cluster-management-agent-addon
+  description: Enforces ConfigurationPolicy on spoke.
+  health_check: oc get managedclusteraddon config-policy-controller -n {cluster}
+  healthy_conditions:
+  - type: Available
+    status: 'True'
+  if_unhealthy: ConfigurationPolicies not evaluated on this spoke.
+  depends_on:
+  - governance-policy-framework
+- name: governance-policy-framework
+  display_name: Governance Policy Framework
+  required: false
+  required_for:
+  - grc
+  default_enabled: true
+  subsystem: governance
+  spoke_namespace: open-cluster-management-agent-addon
+  description: Core policy framework on spoke. Runs Spec/Template/Status/Secret/Gatekeeper
+    sync controllers.
+  health_check: oc get managedclusteraddon governance-policy-framework -n {cluster}
+  healthy_conditions:
+  - type: Available
+    status: 'True'
+  if_unhealthy: Policies not synced to this spoke. Compliance status Unknown.
+  depends_on:
+  - work-manager
+- name: hypershift-addon
+  display_name: HyperShift Addon
+  required: false
+  default_enabled: false
+  subsystem: cluster-lifecycle
+  spoke_namespace: open-cluster-management-agent-addon
+  description: Manages hosted cluster import and lifecycle.
+  health_check: oc get managedclusteraddon hypershift-addon -n {cluster}
+  if_unhealthy: Hosted cluster import/management fails.
+  depends_on:
+  - work-manager
+  known_issues:
+  - Auto-import can recreate ManagedCluster after HostedCluster destroy (ACM-20695)
+  - Detach can destroy hosted cluster namespace (ACM-15018)
+- name: iam-policy-controller
+  display_name: IAM Policy Controller
+  required: false
+  required_for:
+  - grc
+  default_enabled: true
+  subsystem: governance
+  spoke_namespace: open-cluster-management-agent-addon
+  description: Enforces IAM policies on spoke.
+  health_check: oc get managedclusteraddon iam-policy-controller -n {cluster}
+  if_unhealthy: IAM policies not evaluated.
+  depends_on:
+  - governance-policy-framework
+  note: "Deprecated in ACM 2.16 -- not deployed. Was part of governance on older versions."
+- name: kubevirt-hyperconverged
+  display_name: KubeVirt HyperConverged
+  required: false
+  required_for: [virtualization]
+  default_enabled: false
+  note: "Only deployed when cnv-mtv-integrations is enabled and CNV is on spoke"
+  subsystem: virtualization
+  spoke_namespace: openshift-cnv
+  description: "Manages the HyperConverged Cluster Operator (HCO) on spoke clusters. HCO orchestrates KubeVirt, CDI, SSP, and CNAO operators for VM workloads."
+  health_check: oc get managedclusteraddon kubevirt-hyperconverged -n {cluster}
+  healthy_conditions:
+    - type: Available
+      status: "True"
+  if_unhealthy: "CNV/KubeVirt not managed on this spoke. VM lifecycle operations may fail or be unmanaged."
+  depends_on:
+  - work-manager
+- name: managed-serviceaccount
+  display_name: Managed Service Account
+  required: false
+  default_enabled: false
+  subsystem: infrastructure
+  spoke_namespace: open-cluster-management-agent-addon
+  description: Creates and manages service accounts on spoke clusters.
+  health_check: oc get managedclusteraddon managed-serviceaccount -n {cluster}
+  if_unhealthy: Managed service account creation/rotation fails.
+  depends_on:
+  - work-manager
+- name: mtv-operator
+  display_name: MTV Operator (Forklift)
+  required: false
+  required_for: [virtualization]
+  default_enabled: false
+  note: "Only deployed when cnv-mtv-integrations is enabled. Manages Migration Toolkit for Virtualization."
+  subsystem: virtualization
+  spoke_namespace: openshift-mtv
+  description: "Deploys and manages the Migration Toolkit for Virtualization (Forklift) on spoke clusters. Enables VM migration from VMware, RHV, OpenStack to OpenShift Virtualization."
+  health_check: oc get managedclusteraddon mtv-operator -n {cluster}
+  healthy_conditions:
+    - type: Available
+      status: "True"
+  if_unhealthy: "MTV/Forklift not operational on this spoke. VM migrations from external platforms cannot run."
+  depends_on:
+  - work-manager
+  - kubevirt-hyperconverged
+- name: observability-controller
+  display_name: Observability Controller
+  required: false
+  required_for:
+  - observability
+  default_enabled: false
+  note: Only deployed when MultiClusterObservability CR exists
+  subsystem: observability
+  spoke_namespace: open-cluster-management-addon-observability
+  description: Manages metrics-collector on spoke. Deploys collector that scrapes
+    Prometheus.
+  health_check: oc get managedclusteraddon observability-controller -n {cluster}
+  if_unhealthy: No metrics from this spoke. Grafana dashboards missing data for this
+    cluster.
+  depends_on:
+  - work-manager
+- name: search-collector
+  display_name: Search Collector
+  required: false
+  required_for:
+  - search
+  default_enabled: true
+  subsystem: search
+  spoke_namespace: open-cluster-management-agent-addon
+  description: Indexes spoke resources for cross-cluster search.
+  health_check: oc get managedclusteraddon search-collector -n {cluster}
+  healthy_conditions:
+  - type: Available
+    status: 'True'
+  if_unhealthy: Resources from this spoke not in search results. No error -- just
+    missing data.
+  depends_on:
+  - work-manager
+- name: submariner
+  display_name: Submariner
+  required: false
+  default_enabled: false
+  subsystem: networking
+  spoke_namespace: submariner-operator
+  description: Cross-cluster networking for service discovery and connectivity.
+  health_check: oc get managedclusteraddon submariner -n {cluster}
+  if_unhealthy: Cross-cluster networking unavailable. Service discovery fails.
+  depends_on:
+  - work-manager
+  note: "Addon registered (ClusterManagementAddon exists) but no SubmarinerConfig deployed -- addon enabled but unused on this cluster."
+- name: volsync
+  display_name: VolSync
+  required: false
+  default_enabled: false
+  note: "Only deployed when volsync component is enabled"
+  subsystem: infrastructure
+  spoke_namespace: open-cluster-management-agent-addon
+  description: "Manages VolSync addon for PVC replication across clusters. Enables persistent volume data protection and migration."
+  health_check: oc get managedclusteraddon volsync -n {cluster}
+  healthy_conditions:
+    - type: Available
+      status: "True"
+  if_unhealthy: "VolSync not operational on this spoke. PVC replication and data protection unavailable."
+  depends_on:
+  - work-manager
+- name: work-manager
+  display_name: Work Manager
+  required: true
+  default_enabled: true
+  subsystem: infrastructure
+  spoke_namespace: open-cluster-management-agent-addon
+  description: Delivers ManifestWorks from hub to spoke. Core infrastructure addon.
+  health_check: oc get managedclusteraddon work-manager -n {cluster}
+  healthy_conditions:
+  - type: Available
+    status: 'True'
+  if_unhealthy: ManifestWork delivery fails. All addon deployments and workload delivery
+    to this spoke stop.
+  depends_on:
+  - klusterlet
+addon_check_commands:
+  list_all: oc get managedclusteraddons -A
+  check_cluster: oc get managedclusteraddons -n {cluster}
+  check_management: oc get clustermanagementaddons
+  addon_health_summary: 'oc get managedclusteraddons -A -o json | jq -r ''.items[]
+    | select(.status.conditions[]? | select(.type=="Available" and .status!="True"))
+    | "\(.metadata.namespace)/\(.metadata.name): \(.status.conditions[] | select(.type=="Available")
+    | .status)"'''
+health_check_methodology:
+- step: List all addons across clusters
+  command: oc get managedclusteraddons -A
+  look_for: Any addon not showing Available=True
+- step: Check ClusterManagementAddon CRs
+  command: oc get clustermanagementaddons
+  look_for: Missing ClusterManagementAddon (hub-side config for addon)
+- step: Check addon-manager health
+  command: oc get pods -n {mch-ns} -l app=addon-manager
+  look_for: addon-manager pod not Running -- all addon deployment stops
+- step: Per-cluster addon audit
+  command: oc get managedclusteraddons -n {cluster}
+  look_for: Expected addons missing from this cluster

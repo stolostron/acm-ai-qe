@@ -1,4 +1,67 @@
-# App Summaries and MCP Requirements
+# App and Skill Summaries with MCP Requirements
+
+## Portable Skills (`.claude/skills/`)
+
+### Test Case Generator Skills
+
+The test case generation capability is available as a portable skill pack (10 skills) that works on Claude.ai, Claude Code, and API. The orchestrator skill (`acm-test-case-generator`) coordinates the pipeline.
+
+**MCP servers needed:**
+- Required: acm-ui, jira, polarion
+- Recommended: neo4j-rhacm (architecture dependency analysis)
+- Optional: acm-search (live cluster queries), acm-kubectl (spoke access), playwright (browser validation)
+
+**Credentials needed:** JIRA (email + API token), Polarion (JWT token)
+
+**Additional requirements:** GitHub CLI (`gh`) authenticated
+
+**Usage:** Claude loads the `acm-test-case-generator` skill automatically when you ask to generate a test case. It orchestrates the other skills (acm-jira-client, acm-code-analyzer, acm-ui-source, etc.) sequentially.
+
+---
+
+### Hub Health Diagnostic Skills
+
+The hub health diagnostic capability is available as a portable skill pack (3 skills + shared skills) that works on Claude.ai, Claude Code, and API. The orchestrator skill (`acm-hub-health-check`) drives the 6-phase diagnostic pipeline.
+
+**Skills:**
+- `acm-hub-health-check` -- Orchestrator: 6-phase diagnosis with 4 depth modes (quick/standard/deep/targeted)
+- `acm-cluster-remediation` -- Cluster mutations with structured approval workflow (separate from diagnosis)
+- `acm-knowledge-learner` -- Discover unknown components, learn from cluster state, refresh baselines
+
+**MCP servers needed:**
+- Required: None (uses `oc` CLI directly)
+- Recommended: neo4j-rhacm (architecture dependency analysis)
+- Optional: acm-search (fleet-wide spoke queries)
+
+**Credentials needed:** `oc login` to the ACM hub cluster
+
+**Usage:** Claude loads the `acm-hub-health-check` skill automatically when you ask about hub health, cluster status, or ACM diagnostics. Say "check my hub health" or "how's my cluster."
+
+---
+
+### Z-Stream Pipeline Analysis Skills
+
+The z-stream failure analysis capability is available as a portable skill pack (5 skills + shared skills). The orchestrator skill (`acm-z-stream-analyzer`) drives the 4-stage pipeline.
+
+**Skills:**
+- `acm-z-stream-analyzer` -- Orchestrator: gather -> cluster diagnostic -> AI classification -> report
+- `acm-failure-classifier` -- Core 5-phase classification engine (PRODUCT_BUG, AUTOMATION_BUG, INFRASTRUCTURE, NO_BUG)
+- `acm-cluster-investigator` -- Per-group 12-layer root cause investigation
+- `acm-data-enricher` -- Data enrichment (selector verification, timeline analysis, knowledge gaps)
+- `acm-jenkins-client` -- Jenkins CI interface
+
+**MCP servers needed:**
+- Required: acm-ui, jira, jenkins, polarion
+- Recommended: neo4j-rhacm (dependency analysis)
+- Optional: acm-search (fleet queries), acm-kubectl (spoke access)
+
+**Credentials needed:** JIRA (email + API token), Jenkins (username + API token), Polarion (JWT token)
+
+**Usage:** Claude loads the `acm-z-stream-analyzer` skill automatically when you ask to analyze a Jenkins run or classify test failures. Say "analyze this Jenkins run: <URL>".
+
+---
+
+## Claude Code Apps (`apps/`)
 
 ## Z-Stream Analysis (`apps/z-stream-analysis/`)
 

@@ -1,0 +1,1837 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ACM Hub Health Agent &mdash; Interactive Architecture</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<style>
+:root { --bg: #080b14; --surface: #0f1320; --surface2: #141a2e; --border: #1e2640; --text: #d8dce8; --dim: #7a84a0; --accent: #38bdf8; --accent2: #f472b6; --green: #4ade80; --amber: #fbbf24; --red: #f87171; --purple: #a78bfa; --teal: #2dd4bf; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; display: flex; min-height: 100vh; }
+#main { flex: 1; padding: 40px 40px 40px 40px; overflow-y: auto; max-width: 65%; transition: max-width 0.3s; }
+#main.full { max-width: 100%; }
+#detail-panel { width: 35%; min-width: 35%; background: var(--surface); border-left: 2px solid var(--border); overflow-y: auto; position: sticky; top: 0; height: 100vh; transition: all 0.3s; }
+#detail-panel.hidden { width: 0; min-width: 0; border: none; overflow: hidden; }
+#detail-header { padding: 20px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; background: var(--surface); z-index: 10; }
+#detail-header h3 { font-size: 1rem; color: var(--accent); font-family: 'JetBrains Mono', monospace; }
+#detail-close { background: none; border: 1px solid var(--border); color: var(--dim); padding: 4px 12px; border-radius: 6px; cursor: pointer; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; }
+#detail-close:hover { color: var(--red); border-color: var(--red); }
+#detail-body { padding: 24px; }
+.detail-section { margin-bottom: 24px; }
+.detail-section h4 { font-size: 0.85rem; color: var(--accent2); text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 8px; font-family: 'JetBrains Mono', monospace; }
+.detail-section .label { font-size: 0.78rem; color: var(--dim); margin-bottom: 4px; font-family: 'JetBrains Mono', monospace; }
+.detail-section .value { font-size: 0.88rem; color: var(--text); margin-bottom: 12px; line-height: 1.5; }
+pre.data-block { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px; font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; color: var(--green); overflow-x: auto; white-space: pre-wrap; word-break: break-all; margin: 8px 0 16px 0; line-height: 1.6; }
+pre.data-block .key { color: var(--accent); }
+pre.data-block .str { color: var(--green); }
+pre.data-block .num { color: var(--amber); }
+pre.data-block .bool { color: var(--purple); }
+pre.data-block .null { color: var(--dim); }
+pre.data-block .cmd { color: var(--teal); }
+.tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; font-family: 'JetBrains Mono', monospace; font-weight: 700; }
+.tag-ok { background: rgba(74,222,128,0.15); color: var(--green); border: 1px solid rgba(74,222,128,0.3); }
+.tag-warn { background: rgba(251,191,36,0.15); color: var(--amber); border: 1px solid rgba(251,191,36,0.3); }
+.tag-crit { background: rgba(248,113,113,0.15); color: var(--red); border: 1px solid rgba(248,113,113,0.3); }
+.tag-phase { background: rgba(56,189,248,0.15); color: var(--accent); border: 1px solid rgba(56,189,248,0.3); }
+.tag-tier { background: rgba(167,139,250,0.15); color: var(--purple); border: 1px solid rgba(167,139,250,0.3); }
+.tag-cmd { background: rgba(45,212,191,0.15); color: var(--teal); border: 1px solid rgba(45,212,191,0.3); }
+.arrow-trail { display: flex; align-items: center; gap: 8px; margin: 12px 0; flex-wrap: wrap; }
+.arrow-step { padding: 6px 12px; border-radius: 6px; font-size: 0.78rem; font-family: 'JetBrains Mono', monospace; border: 1px solid var(--border); background: var(--surface2); }
+.arrow-step.active { border-color: var(--accent); color: var(--accent); }
+.arrow-sep { color: var(--dim); }
+h1 { font-size: 2.4rem; font-weight: 800; margin-bottom: 8px; background: linear-gradient(135deg, var(--accent), var(--green)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.sub { color: var(--dim); font-size: 0.95rem; margin-bottom: 40px; font-family: 'JetBrains Mono', monospace; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 32px; margin-bottom: 48px; }
+.card h2 { font-size: 1.4rem; font-weight: 700; color: var(--accent); margin-bottom: 4px; }
+.card .desc { color: var(--dim); margin-bottom: 20px; font-size: 0.92rem; }
+.mermaid { display: flex; justify-content: center; overflow-x: auto; padding: 16px 0; }
+.click-hint { color: var(--accent2); font-size: 0.78rem; font-family: 'JetBrains Mono', monospace; margin-top: 12px; opacity: 0.7; }
+.example-banner { background: linear-gradient(135deg, rgba(56,189,248,0.08), rgba(74,222,128,0.08)); border: 1px solid rgba(56,189,248,0.2); border-radius: 10px; padding: 16px 20px; margin-bottom: 32px; }
+.example-banner h3 { color: var(--accent); font-size: 1rem; margin-bottom: 6px; }
+.example-banner p { color: var(--dim); font-size: 0.88rem; line-height: 1.5; }
+.example-banner code { background: rgba(56,189,248,0.1); padding: 2px 6px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; color: var(--accent); }
+.separator { height: 1px; background: var(--border); margin: 16px 0; }
+</style>
+</head>
+<body>
+
+<div id="main" class="full">
+
+<h1>ACM Hub Health Agent</h1>
+<p class="sub">Interactive Architecture &mdash; Click any box to see what happens at each stage</p>
+
+<div class="example-banner">
+  <h3>Diagnostic &amp; Remediation Agent for ACM Hub Clusters</h3>
+  <p>AI-powered health diagnostician built on Claude Code. The agent understands ACM architecture at the engineering level &mdash; operators, addon framework, dependency chains, known bugs with JIRA references &mdash; and uses that knowledge to diagnose root causes, not just report symptoms. Diagnosis is strictly <strong>read-only</strong>. When cluster-fixable issues are found, the agent presents a structured remediation plan and asks for explicit approval before making any changes.</p>
+  <p style="margin-top:8px;font-size:0.82rem;color:var(--dim)"><strong>Key capabilities:</strong> 6-phase diagnostic pipeline, 4 depth levels (quick pulse to deep audit), 59 knowledge files covering 12 ACM subsystems, 12-layer diagnostic model (vertical root cause tracing), 12 dependency chain traces, 14 diagnostic trap guards, cluster introspection (8 live metadata sources for reverse-engineering dependencies from any operator), version-aware known-issue matching, self-healing knowledge discovery, evidence-based diagnosis with confidence levels. Phase 1 checks operator deployment health (catches MCH operator at 0 replicas). Phase 3 uses layer-organized health checks &mdash; foundational layers (network, storage) are checked BEFORE component layers (operators, pods) to catch root causes before symptoms mislead. Phase 5 traces both horizontally (dependency chains) and vertically (12 infrastructure layers). Phase 6 uses layer-based fallback when no playbook matches.</p>
+</div>
+
+<!-- DIAGRAM 1: HIGH-LEVEL ARCHITECTURE -->
+<div id="d1" class="card">
+  <h2>Diagram 1: High-Level Architecture</h2>
+  <p class="desc">How the agent works end-to-end. Click any box to see details.</p>
+  <div class="mermaid">
+graph LR
+    USER["USER INPUT\nacm-hub CLI wrapper\n/slash commands\nnatural language"]:::clickable --> ROUTER["DEPTH ROUTER\nInterpret user intent\nSelect phase depth:\nQuick | Standard | Deep | Targeted"]:::clickable
+    ROUTER --> CLAUDE["CLAUDE CODE CLI\nCLAUDE.md methodology\n+ slash commands\n+ settings.json safety"]:::clickable
+    CLAUDE --> OC["oc CLI\nDiagnosis: get, describe,\nlogs, exec, adm top\nRemediation: patch, scale,\nrollout restart (w/approval)"]:::clickable
+    CLAUDE --> KB["KNOWLEDGE SYSTEM\n59 files\narchitecture, diagnostics,\nYAML baselines, learned"]:::clickable
+    CLAUDE --> EXT["EXTERNAL SOURCES\nacm-ui MCP (20 tools)\nneo4j-rhacm MCP (KG)\nacm-search MCP (fleet)\nrhacm-docs (AsciiDoc)"]:::clickable
+    CLAUDE --> REPORT["HEALTH REPORT\nVerdict: HEALTHY |\nDEGRADED | CRITICAL\nEvidence-based findings"]:::clickable
+    classDef clickable cursor:pointer
+    click USER showDetail
+    click ROUTER showDetail
+    click CLAUDE showDetail
+    click OC showDetail
+    click KB showDetail
+    click EXT showDetail
+    click REPORT showDetail
+  </div>
+  <p class="click-hint">Click any box to see what it does</p>
+</div>
+
+<!-- DIAGRAM 2: DEPTH ROUTER -->
+<div id="d2" class="card">
+  <h2>Diagram 2: Depth Router &mdash; How User Intent Maps to Phases</h2>
+  <p class="desc">The agent interprets natural language to select which phases to run. No mode names to remember. Click each depth level to see what it checks.</p>
+  <div class="mermaid">
+graph TD
+    INPUT["User Input\nnatural language or\nslash command"]:::clickable --> Q1{"Contains depth\nkeyword?"}:::clickable
+    Q1 -->|"sanity, quick,\nalive, pulse"| QUICK["QUICK PULSE\n/sanity\nPhase 1 only\n~30 seconds"]:::clickable
+    Q1 -->|"No"| Q2{"Names specific\ncomponent or\nsymptom?"}
+    Q2 -->|"search, observ,\ngovernance, why X"| TARGET["TARGETED\n/investigate target\nAll 6 phases scoped\nvaries"]:::clickable
+    Q2 -->|"No"| Q3{"Contains deep\nkeyword?"}
+    Q3 -->|"deep, thorough,\nfull, comprehensive"| DEEP["DEEP AUDIT\n/deep\nAll 6 phases\n~5-10 min"]:::clickable
+    Q3 -->|"No"| STD["STANDARD CHECK\n/health-check (default)\nPhases 1-4\n~2-3 min"]:::clickable
+
+    classDef clickable cursor:pointer
+    click INPUT showDetail
+    click Q1 showDetail
+    click QUICK showDetail
+    click TARGET showDetail
+    click DEEP showDetail
+    click STD showDetail
+  </div>
+  <p class="click-hint">Click any depth level to see what it checks</p>
+</div>
+
+<!-- DIAGRAM 3: 6-PHASE PIPELINE -->
+<div id="d3" class="card">
+  <h2>Diagram 3: 6-Phase Diagnostic Pipeline</h2>
+  <p class="desc">Each phase builds on the previous one's findings. Quick Pulse runs Phase 1 only. Standard runs 1-4. Deep/Targeted runs all 6. Click any phase to see its procedure.</p>
+  <div class="mermaid">
+graph TD
+    P1["PHASE 1: DISCOVER\n(Always Run)\nInventory MCH, MCE, nodes,\nclusters, CSVs, components\nIdentify MCH namespace\n+ Operator deployment health"]:::clickable --> P2["PHASE 2: LEARN\n(Standard+)\nRead architecture knowledge\nCheck learned/ entries\nLoad healthy-baseline.yaml\nLoad diagnostic traps + layers\n+ health-patterns.md\nSelf-heal if mismatch"]:::clickable
+    P2 --> P3["PHASE 3: CHECK\n(Standard+)\nLayer-organized health checks:\nL1-2 Compute (from Phase 1)\nL3 Network/Infra guards FIRST\nL4 Storage, L5-8 Config/Auth\nL9 Operators + pod health\nL10-12 Cross-cluster, Data, UI"]:::clickable
+    P3 --> P4["PHASE 4: PATTERN MATCH\n(Standard+)\nMatch symptoms to known bugs\nVersion-aware JIRA matching\nFix version + cluster-fixable\n+ Post-upgrade pattern check"]:::clickable
+    P4 --> P5["PHASE 5: CORRELATE\n(Deep / Targeted)\nHorizontal: 12 dependency chains\nVertical: 12-layer tracing\n+ neo4j-rhacm KG fallback\nEvidence tier weighting\n+ Diagnostic trap verification"]:::clickable
+    P5 --> P6["PHASE 6: DEEP INVESTIGATE\n(Deep / Targeted)\nPod logs + previous crashes\nNamespace events\nStorage, networking, data flow\n+ Layer-based fallback\nwhen no playbook matches"]:::clickable
+
+    style P1 fill:#0f1320,stroke:#38bdf8,color:#d8dce8
+    style P2 fill:#0f1320,stroke:#a78bfa,color:#d8dce8
+    style P3 fill:#0f1320,stroke:#4ade80,color:#d8dce8
+    style P4 fill:#0f1320,stroke:#fbbf24,color:#d8dce8
+    style P5 fill:#0f1320,stroke:#f472b6,color:#d8dce8
+    style P6 fill:#0f1320,stroke:#f87171,color:#d8dce8
+
+    classDef clickable cursor:pointer
+    click P1 showDetail
+    click P2 showDetail
+    click P3 showDetail
+    click P4 showDetail
+    click P5 showDetail
+    click P6 showDetail
+  </div>
+  <p class="click-hint">Click any phase to see its procedure and commands</p>
+</div>
+
+<!-- DIAGRAM 4: KNOWLEDGE SYSTEM -->
+<div id="d4" class="card">
+  <h2>Diagram 4: Knowledge System &mdash; Layered Architecture</h2>
+  <p class="desc">The agent consults multiple knowledge layers during diagnosis. Knowledge defines what correct behavior looks like (ground truth); the cluster shows current state. Click any layer to see what it contains.</p>
+  <div class="mermaid">
+graph TD
+    ARCH["ARCHITECTURE KNOWLEDGE\nknowledge/architecture/\n12 component directories\narchitecture.md, data-flow.md,\nknown-issues.md per component"]:::clickable --> DIAGK["DIAGNOSTIC KNOWLEDGE\nknowledge/diagnostics/ (8 files)\ndiagnostic-layers.md (12 layers)\ndependency-chains.md (12 chains)\ncommon-diagnostic-traps.md (14 traps)\nevidence-tiers.md, playbooks.md (14)\ncluster-introspection.md (8 sources)\nneo4j-reference.md, acm-search-ref.md"]:::clickable
+    YAML["STRUCTURED YAML DATA\nknowledge/*.yaml\nhealthy-baseline.yaml\ndependency-chains.yaml\nservice-map.yaml\nwebhook-registry.yaml\ncertificate-inventory.yaml\naddon-catalog.yaml\nversion-constraints.yaml"]:::clickable --> CROSS["CROSS-CUTTING KNOWLEDGE\nknowledge/\ncomponent-registry.md\nfailure-patterns.md"]:::clickable
+    ARCH --> LEARNED["LEARNED KNOWLEDGE\nknowledge/learned/\nAgent-discovered knowledge\nWritten during self-healing\nVersion + cluster specific"]:::clickable
+    DIAGK --> LEARNED
+    YAML --> LEARNED
+    CROSS --> LEARNED
+    LEARNED --> CLUSTER["LIVE CLUSTER\noc CLI (read-only)\nShows current state (what IS)\nKnowledge defines correct\nbehavior (what SHOULD BE)"]:::clickable
+
+    style CLUSTER fill:#141a2e,stroke:#4ade80,stroke-width:3px,color:#4ade80
+
+    classDef clickable cursor:pointer
+    click ARCH showDetail
+    click DIAGK showDetail
+    click YAML showDetail
+    click CROSS showDetail
+    click LEARNED showDetail
+    click CLUSTER showDetail
+  </div>
+  <p class="click-hint">Click any knowledge layer to see its contents</p>
+</div>
+
+<!-- DIAGRAM 5: SELF-HEALING PROCESS -->
+<div id="d5" class="card">
+  <h2>Diagram 5: Self-Healing Knowledge Process</h2>
+  <p class="desc">When the agent encounters something not in its knowledge base, it investigates, learns, and records findings for future runs. Click each step.</p>
+  <div class="mermaid">
+graph TD
+    MISMATCH["MISMATCH DETECTED\nComponent not in knowledge,\nnamespace differs, new CRD,\nunfamiliar health signal"]:::clickable --> S1["Step 1: CLUSTER EVIDENCE\noc describe, labels,\nannotations, owner refs,\nevents, namespace check"]:::clickable
+    S1 --> S1B["Step 2: CLUSTER\nINTROSPECTION\nReverse-engineer deps from\nowner refs, OLM labels, CSVs,\nenv vars, webhooks,\nConsolePlugins, APIServices\n(always available)"]:::clickable
+    S1B --> S2["Step 3: KNOWLEDGE GRAPH\nneo4j-rhacm MCP\nCross-reference and supplement\ncluster-derived dependency map\n(skipped if unavailable)"]:::clickable
+    S2 --> S3["Step 4: UNDERSTAND DEPS\nFor each dep from Steps 2-3:\nacm-ui MCP: source code,\ndata flow, integration\nrhacm-docs: intended behavior"]:::clickable
+    S3 --> S4["Step 5: SYNTHESIZE\nCombine introspection + graph +\nsource + docs evidence\nClassify: gap, drift,\nversion change, or issue"]:::clickable
+    S4 --> S5["Step 6: WRITE LEARNED\nknowledge/learned/topic.md\nStandard format with\nversion, trigger, evidence,\nhealth signals"]:::clickable
+    S5 --> S6["Step 7: CONTINUE\nUse new knowledge for\nremaining health check\nphases"]:::clickable
+
+    style MISMATCH fill:#141a2e,stroke:#f87171,stroke-width:2px,color:#f87171
+
+    classDef clickable cursor:pointer
+    click MISMATCH showDetail
+    click S1 showDetail
+    click S1B showDetail
+    click S2 showDetail
+    click S3 showDetail
+    click S4 showDetail
+    click S5 showDetail
+    click S6 showDetail
+  </div>
+  <p class="click-hint">Click any step to see what happens</p>
+</div>
+
+<!-- DIAGRAM 6: DEPENDENCY CHAINS -->
+<div id="d6" class="card">
+  <h2>Diagram 6: Dependency Chain Tracing</h2>
+  <p class="desc">Phase 5 (Correlate) traces dependencies using three layers. <strong>Layer 1:</strong> 12 curated chains (8 core shown below + app-lifecycle, virtualization, submariner, cluster-provisioning) cover ACM subsystems with hand-written impact analysis, tracing procedures, and JIRA references. <strong>Layer 2:</strong> Cluster introspection discovers chains dynamically from live metadata &mdash; works for any operator, not just ACM. <strong>Layer 3:</strong> The knowledge graph (neo4j-rhacm) provides 370 components and 541 dependency relationships. Real clusters have far more dependency paths than these 12 &mdash; the curated chains are the starting point, not the limit.</p>
+  <div class="mermaid">
+graph LR
+    subgraph curated["Core Curated Chains (8 of 12 &mdash; hand-written, with impact analysis)"]
+    C1["Chain 1\nConsole &rarr; Search\n&rarr; Managed Clusters"]:::clickable
+    C2["Chain 2\nGovernance &rarr; Framework\nAddon &rarr; Config Policy"]:::clickable
+    C3["Chain 3\nMCH Operator &rarr; Backplane\n&rarr; Component Operators"]:::clickable
+    C4["Chain 4\nHyperShift Addon &rarr;\nImport Controller &rarr; Klusterlet"]:::clickable
+    C5["Chain 5\nMCRA &rarr; ClusterPermission\n&rarr; ManifestWork &rarr; RBAC"]:::clickable
+    C6["Chain 6\nObservability Operator\n&rarr; Addon &rarr; Thanos"]:::clickable
+    C7["Chain 7\nAddon Manager &rarr;\nAddon Framework &rarr;\nSpoke Addon Pods"]:::clickable
+    C8["Chain 8\nStorageClass &rarr; CSI\n&rarr; PV &rarr; PVC &rarr; Pod"]:::clickable
+    end
+    DYNAMIC["Beyond these 8 core:\nCluster Introspection\n(owner refs, env vars,\nwebhooks, CSVs, OLM labels)\n+ Knowledge Graph\n(370 components, 541 relationships)\ndiscover chains dynamically"]:::clickable
+
+    classDef clickable cursor:pointer
+    style DYNAMIC fill:#141a2e,stroke:#2dd4bf,stroke-width:2px,color:#2dd4bf
+    click C1 showDetail
+    click C2 showDetail
+    click C3 showDetail
+    click C4 showDetail
+    click C5 showDetail
+    click C6 showDetail
+    click C7 showDetail
+    click C8 showDetail
+    click DYNAMIC showDetail
+  </div>
+  <p class="click-hint">Click any chain to see its cascade path, or click the dynamic box to see how chains are discovered at runtime</p>
+</div>
+
+<!-- DIAGRAM 7: OUTPUT FORMAT -->
+<div id="d7" class="card">
+  <h2>Diagram 7: Output &mdash; Health Report Structure</h2>
+  <p class="desc">Every health check produces a structured report with verdicts, evidence, and recommended actions. Click to see each section.</p>
+  <div class="mermaid">
+graph LR
+    FINDINGS["Phase 1-6\nFindings"]:::clickable --> VERDICT["VERDICT ENGINE\nAll OK &rarr; HEALTHY\nAny WARN &rarr; DEGRADED\nAny CRIT &rarr; CRITICAL"]:::clickable
+    VERDICT --> HEADER["REPORT HEADER\nCluster name\nOverall verdict\n2-3 sentence summary"]:::clickable
+    HEADER --> TABLE["COMPONENT TABLE\n| Component | Status | Details |\nMCH, MCE, OCP, Nodes,\nClusters, per-component"]:::clickable
+    TABLE --> ISSUES["ISSUES FOUND\n[CRITICAL] / [WARNING]\nWhat, Evidence, Root Cause,\nLayer, Known Issue, Fix Version,\nCluster-Fixable, Impact, Action"]:::clickable
+    ISSUES --> OVERVIEW["CLUSTER OVERVIEW\nACM/OCP/MCE versions\nNode count, cluster count\nEnabled components"]:::clickable
+
+    classDef clickable cursor:pointer
+    click FINDINGS showDetail
+    click VERDICT showDetail
+    click HEADER showDetail
+    click TABLE showDetail
+    click ISSUES showDetail
+    click OVERVIEW showDetail
+  </div>
+  <p class="click-hint">Click any section to see example output</p>
+</div>
+
+<!-- DIAGRAM 8: SAFETY MODEL -->
+<div id="d8" class="card">
+  <h2>Diagram 8: Safety Model &mdash; Diagnose First, Fix With Approval</h2>
+  <p class="desc">Diagnosis is always read-only. Remediation only happens after structured approval. Click each stage.</p>
+  <div class="mermaid">
+graph LR
+    DIAG["DIAGNOSTIC MODE\n(Phases 1-6)\nStrictly read-only\nNo mutations allowed"]:::clickable --> PLAN["REMEDIATION PLAN\nPresent all issues +\nroot causes + fixes\nAsk: Should I proceed?"]:::clickable
+    PLAN -->|"User approves"| FIX["EXECUTE FIXES\noc patch, scale,\nrollout restart, delete pod,\nannotate, label, apply"]:::clickable
+    PLAN -->|"User declines"| STOP["STOP\nUser handles\nfixes manually"]:::clickable
+    FIX --> VERIFY["POST-FIX VERIFY\nRe-check affected\ncomponents\nReport before/after"]:::clickable
+
+    style DIAG fill:#141a2e,stroke:#4ade80,stroke-width:2px,color:#4ade80
+    style PLAN fill:#141a2e,stroke:#fbbf24,stroke-width:2px,color:#fbbf24
+    style FIX fill:#141a2e,stroke:#38bdf8,stroke-width:2px,color:#38bdf8
+    style STOP fill:#141a2e,stroke:#7a84a0,stroke-width:2px,color:#7a84a0
+    style VERIFY fill:#141a2e,stroke:#a78bfa,stroke-width:2px,color:#a78bfa
+
+    classDef clickable cursor:pointer
+    click DIAG showDetail
+    click PLAN showDetail
+    click FIX showDetail
+    click STOP showDetail
+    click VERIFY showDetail
+  </div>
+  <p class="click-hint">Click any stage to see the rules</p>
+</div>
+
+</div><!-- /main -->
+
+<!-- DETAIL PANEL (right side) -->
+<div id="detail-panel" class="hidden">
+  <div id="detail-header">
+    <h3 id="detail-title">Select a component</h3>
+    <button id="detail-close" onclick="hideDetail()">Close</button>
+  </div>
+  <div id="detail-body"></div>
+</div>
+
+<script>
+const DATA = {
+  // === DIAGRAM 1: HIGH-LEVEL ===
+  'user-input': {
+    title: 'User Input (Three Methods)',
+    html: `
+      <div class="detail-section">
+        <h4>How Users Interact</h4>
+        <div class="value">The agent can be invoked three ways. All produce the same diagnosis.</div>
+        <div class="separator"></div>
+        <div class="label">1. CLI Wrapper (from any terminal):</div>
+<pre class="data-block"><span class="cmd">acm-hub sanity</span>               Quick pulse (~30s)
+<span class="cmd">acm-hub check</span>                Standard check (~2-3 min)
+<span class="cmd">acm-hub deep</span>                 Full deep audit (~5-10 min)
+<span class="cmd">acm-hub investigate</span> <span class="str">target</span>  Targeted investigation
+<span class="cmd">acm-hub learn</span> <span class="str">[area]</span>         Knowledge refresh
+<span class="cmd">acm-hub check -i</span>             Interactive (can approve fixes)</pre>
+        <div class="value">Works from any directory. Requires one-time symlink setup:<br><code>ln -s /path/to/acm-hub-health/acm-hub ~/.local/bin/acm-hub</code></div>
+        <div class="separator"></div>
+        <div class="label">2. Slash Commands (inside Claude Code):</div>
+<pre class="data-block"><span class="cmd">/sanity</span>                  Quick pulse (~30s)
+<span class="cmd">/health-check</span>            Standard check (~2-3 min)
+<span class="cmd">/deep</span>                    Full deep audit (~5-10 min)
+<span class="cmd">/investigate</span> <span class="str">target</span>      Targeted deep dive (all 6 phases)
+<span class="cmd">/learn</span> <span class="str">[area]</span>            Knowledge building session</pre>
+        <div class="label">3. Natural Language (inside Claude Code):</div>
+<pre class="data-block"><span class="str">"Is my hub alive?"</span>              &rarr; Quick Pulse
+<span class="str">"Health check"</span>                  &rarr; Standard
+<span class="str">"Do a thorough deep dive"</span>       &rarr; Deep Audit
+<span class="str">"Why are clusters Unknown?"</span>     &rarr; Targeted
+<span class="str">"Investigate observability"</span>     &rarr; Targeted</pre>
+        <div class="label">Prerequisites:</div>
+        <div class="value"><code>oc</code> CLI logged into an ACM hub cluster + <code>claude</code> CLI installed. CLI wrapper additionally requires a PATH symlink.</div>
+      </div>
+    `
+  },
+  'depth-router': {
+    title: 'Depth Router',
+    html: `
+      <div class="detail-section">
+        <h4>Intent-Based Depth Selection</h4>
+        <div class="value">The router interprets natural language to select which diagnostic phases to run. Users describe what they want; the router maps intent to depth. No mode names to remember.</div>
+        <div class="separator"></div>
+        <div class="label">Routing Logic:</div>
+<pre class="data-block"><span class="key">1.</span> Contains quick keyword? &rarr; <span class="str">Quick Pulse</span> (Phase 1)
+<span class="key">2.</span> Names a component/symptom? &rarr; <span class="str">Targeted</span> (All 6, scoped)
+<span class="key">3.</span> Contains deep keyword? &rarr; <span class="str">Deep Audit</span> (All 6)
+<span class="key">4.</span> Default &rarr; <span class="str">Standard Check</span> (Phases 1-4)</pre>
+        <div class="label">CLI &harr; Slash Command Mapping:</div>
+<pre class="data-block"><span class="cmd">acm-hub sanity</span>        &harr;  <span class="cmd">/sanity</span>
+<span class="cmd">acm-hub check</span>         &harr;  <span class="cmd">/health-check</span>
+<span class="cmd">acm-hub deep</span>          &harr;  <span class="cmd">/deep</span>
+<span class="cmd">acm-hub investigate X</span> &harr;  <span class="cmd">/investigate X</span>
+<span class="cmd">acm-hub learn X</span>       &harr;  <span class="cmd">/learn X</span></pre>
+        <div class="label">Phase Matrix:</div>
+<pre class="data-block">           P1   P2   P3   P4   P5   P6
+Quick     <span class="green">YES</span>
+Standard  <span class="green">YES</span>  <span class="green">YES</span>  <span class="green">YES</span>  <span class="green">YES</span>
+Deep      <span class="green">YES</span>  <span class="green">YES</span>  <span class="green">YES</span>  <span class="green">YES</span>  <span class="green">YES</span>  <span class="green">YES</span>
+Targeted  <span class="green">YES</span>  <span class="green">YES</span>  <span class="green">YES</span>  <span class="green">YES</span>  <span class="green">YES</span>  <span class="green">YES</span>
+                                   (scoped to target)</pre>
+      </div>
+    `
+  },
+  'claude-cli': {
+    title: 'Claude Code CLI (Agent Brain)',
+    html: `
+      <div class="detail-section">
+        <h4>How the Agent Operates</h4>
+        <div class="value">The agent is a Claude Code session with three configuration layers:</div>
+        <div class="separator"></div>
+        <div class="label">CLAUDE.md (474 lines):</div>
+        <div class="value">The agent's methodology. Contains safety constraints, remediation protocol, 6-phase pipeline procedure, depth router rules, knowledge system usage instructions, self-healing process (8 cluster introspection sources), MCP integration guidance, output format specification, 8 key principles, and session tracing configuration.</div>
+        <div class="label">Slash Commands (.claude/commands/):</div>
+<pre class="data-block"><span class="key">sanity.md</span>       &rarr; Phase 1 only, ~30s
+<span class="key">health-check.md</span> &rarr; Phases 1-4, full report
+<span class="key">deep.md</span>         &rarr; All 6 phases, full audit
+<span class="key">investigate.md</span>  &rarr; All 6 phases, scoped to $ARGUMENTS
+<span class="key">learn.md</span>        &rarr; Knowledge discovery session</pre>
+        <div class="label">settings.json:</div>
+        <div class="value">Auto-approves read-only <code>oc</code> commands for diagnosis (<code>oc get</code>, <code>oc describe</code>, <code>oc logs</code>, etc.), text processing tools, file reads, <code>knowledge/learned/*</code> writes, all acm-ui MCP tools, all neo4j-rhacm MCP tools (read-only Cypher queries), and all acm-search MCP tools (read-only search database queries). Remediation commands (<code>oc patch</code>, <code>oc scale</code>, <code>oc rollout restart</code>, etc.) are NOT auto-approved &mdash; Claude Code prompts the user for permission on each one, providing a second safety layer on top of the CLAUDE.md Remediation Protocol.</div>
+        <div class="label">CLI Wrapper (<code>acm-hub</code>):</div>
+        <div class="value">Optional shell script that invokes Claude Code with the correct project directory. Enables running diagnostics from any terminal without <code>cd</code>-ing into the app directory. Supports print mode (default) and interactive mode (<code>-i</code>).</div>
+        <div class="label">No Custom Runtime:</div>
+        <div class="value">The agent is pure Claude Code &mdash; no custom application server or framework. Two Python scripts support it: <code>.claude/hooks/agent_trace.py</code> (session tracing hook, stdlib only, runs automatically via Claude Code hooks) and <code>knowledge/refresh.py</code> (optional, for updating YAML baselines from a live cluster, requires PyYAML). The <code>acm-hub</code> wrapper is a thin shell script that calls <code>claude</code>.</div>
+      </div>
+    `
+  },
+  'oc-cli': {
+    title: 'oc CLI (Diagnostic + Remediation)',
+    html: `
+      <div class="detail-section">
+        <h4>Cluster Access</h4>
+        <div class="value">The agent uses <code>oc</code> CLI for both read-only diagnosis and post-approval remediation.</div>
+        <div class="separator"></div>
+        <div class="label">Diagnostic Commands (always available):</div>
+<pre class="data-block"><span class="cmd">oc get</span>            Resources, pods, nodes, CRDs
+<span class="cmd">oc describe</span>       Detailed resource info
+<span class="cmd">oc logs</span>           Pod logs (current + previous)
+<span class="cmd">oc api-resources</span>  API discovery
+<span class="cmd">oc version</span>        Cluster version
+<span class="cmd">oc whoami</span>         Identity + server URL
+<span class="cmd">oc cluster-info</span>   Cluster connectivity
+<span class="cmd">oc adm top</span>        Resource usage (CPU/memory)
+<span class="cmd">oc exec</span>           Read-only pod commands (psql, nc)
+<span class="cmd">oc auth</span>           RBAC verification (can-i)
+<span class="cmd">kubectl get</span>       Kubernetes-native queries
+<span class="cmd">kubectl describe</span>  Kubernetes-native details</pre>
+        <div class="label">Remediation Commands (only after user approval):</div>
+<pre class="data-block"><span class="cmd">oc patch</span>            Update resource specs
+<span class="cmd">oc scale</span>            Scale deployments
+<span class="cmd">oc rollout restart</span>  Restart deployments
+<span class="cmd">oc delete pod</span>      Restart stuck pods
+<span class="cmd">oc annotate</span>        Add/update annotations
+<span class="cmd">oc label</span>           Add/update labels
+<span class="cmd">oc apply</span>           Apply configuration</pre>
+        <div class="label">Key Discovery Commands (Phase 1):</div>
+<pre class="data-block"><span class="cmd">oc get mch -A -o yaml</span>
+  &rarr; MCH namespace, version, phase, components
+
+<span class="cmd">oc get multiclusterengines -A -o yaml</span>
+  &rarr; MCE status, version
+
+<span class="cmd">oc get managedclusters</span>
+  &rarr; Fleet: which clusters are Available/Joined</pre>
+        <div class="label">Critical First Step:</div>
+        <div class="value">MCH namespace is NOT always <code>open-cluster-management</code> &mdash; it can be <code>ocm</code> or custom. The agent discovers the actual namespace from <code>oc get mch -A</code> and uses it for all subsequent checks.</div>
+      </div>
+    `
+  },
+  'knowledge-system': {
+    title: 'Knowledge System (59 Files)',
+    html: `
+      <div class="detail-section">
+        <h4>Layered Knowledge Architecture</h4>
+        <div class="value">The agent has deep engineering-level knowledge about every ACM subsystem. The knowledge defines what correct behavior looks like (ground truth for health). The cluster provides current state. The gap between them is what the agent diagnoses.</div>
+        <div class="separator"></div>
+        <div class="label">Layer 1: Architecture Knowledge (40 files)</div>
+        <div class="value">Per-component directories with <code>architecture.md</code>, <code>data-flow.md</code>, <code>known-issues.md</code>. Covers 12 subsystems: search, governance, observability, cluster-lifecycle, console, application-lifecycle, virtualization, RBAC, automation, addon-framework, networking, infrastructure. Plus platform-level <code>acm-platform.md</code> and <code>kubernetes-fundamentals.md</code>, plus <code>cluster-lifecycle/health-patterns.md</code> and <code>infrastructure/post-upgrade-patterns.md</code>.</div>
+        <div class="label">Layer 2: Structured YAML (7 files)</div>
+        <div class="value">Quantitative baselines: <code>healthy-baseline.yaml</code>, <code>dependency-chains.yaml</code>, <code>service-map.yaml</code>, <code>webhook-registry.yaml</code>, <code>certificate-inventory.yaml</code>, <code>addon-catalog.yaml</code>, <code>version-constraints.yaml</code></div>
+        <div class="label">Layer 3: Diagnostics (8 files)</div>
+        <div class="value">Methodology: <code>diagnostic-layers.md</code> (12-layer framework), <code>dependency-chains.md</code> (12 cascade paths), <code>common-diagnostic-traps.md</code> (14 diagnostic traps), <code>evidence-tiers.md</code> (Tier 1/2/3 rules), <code>diagnostic-playbooks.md</code> (14 per-subsystem procedures), <code>cluster-introspection.md</code> (8 metadata sources for self-healing), <code>neo4j-reference.md</code> (knowledge graph queries), <code>acm-search-reference.md</code> (search MCP reference)</div>
+        <div class="label">Layer 4: Cross-Cutting (2 files)</div>
+        <div class="value"><code>component-registry.md</code> (master inventory), <code>failure-patterns.md</code> (symptom-to-root-cause correlations)</div>
+        <div class="label">Layer 5: Learned (grows over time)</div>
+        <div class="value">Agent-discovered knowledge written during health checks when mismatches are detected. Version- and cluster-specific discoveries.</div>
+      </div>
+    `
+  },
+  'external-sources': {
+    title: 'External Sources',
+    html: `
+      <div class="detail-section">
+        <h4>ACM-UI MCP Server (20 Tools)</h4>
+        <div class="value">Access to stolostron/console and kubevirt-plugin source code via GitHub. Used during self-healing to understand component integration.</div>
+        <div class="label">Key Tools:</div>
+<pre class="data-block"><span class="cmd">search_code</span>          Search across console codebase
+<span class="cmd">search_component</span>     Find React component by name
+<span class="cmd">get_component_source</span> Full source of a component
+<span class="cmd">get_routes</span>           Route definitions and navigation
+<span class="cmd">set_acm_version</span>      Set version context for searches
+<span class="cmd">get_acm_selectors</span>    Find data-testid attributes</pre>
+        <div class="label">Version-Scoped Searches:</div>
+        <div class="value">The MCP server supports version-scoped searches. The agent sets the version context from <code>oc get mch</code> before searching, ensuring results match the code running on the cluster.</div>
+        <div class="separator"></div>
+        <h4>Neo4j RHACM Knowledge Graph (2 Tools)</h4>
+        <div class="value">Read-only Cypher query access to a Neo4j graph database with 370 ACM components and 541 dependency relationships. Fallback for dependency analysis when the 12 curated chains don&rsquo;t cover the component.</div>
+        <div class="label">Key Queries:</div>
+<pre class="data-block"><span class="cmd">Direct dependencies</span>     What does component X depend on?
+<span class="cmd">Transitive dependents</span>   What breaks if X fails? (up to 3 hops)
+<span class="cmd">Common root cause</span>       Shared upstream for multiple failures
+<span class="cmd">Subsystem listing</span>       All components in a subsystem</pre>
+        <div class="label">When Used:</div>
+        <div class="value">Phase 5 (Correlate) when curated chains don&rsquo;t cover the affected component. Self-healing when an unknown component is encountered. Skipped silently if the Neo4j container is not running.</div>
+        <div class="label">Setup:</div>
+<pre class="data-block"><span class="cmd">bash mcp/setup.sh</span>  <span class="dim"># creates Neo4j container, loads graph</span></pre>
+        <div class="separator"></div>
+        <h4>ACM Search Database MCP (5 Tools)</h4>
+        <div class="value">Fleet-wide resource queries across all managed clusters via the search-postgres database. Runs as a pod on the ACM hub cluster, accessed via SSE over an OpenShift route. <code>mcp-remote</code> bridges stdio to SSE. Provides spoke-side visibility into pods, deployments, and addons running on managed clusters &mdash; resources that <code>oc</code> commands (hub-only) cannot see.</div>
+        <div class="label">Key Tools:</div>
+<pre class="data-block"><span class="cmd">find_resources</span>       Cross-cluster resource search
+<span class="cmd">get_database_stats</span>   Search database health check
+<span class="cmd">query_database</span>       Raw SQL for complex queries
+<span class="cmd">list_tables</span>          Search schema discovery
+<span class="cmd">search_tables</span>        Find tables by keyword</pre>
+        <div class="label">When Used:</div>
+        <div class="value">Phase 3 Layer 10 (spoke-side addon and pod verification), Phase 5 (spoke-side chain verification across managed clusters), Phase 6 (spoke-side triage on specific clusters). Requires search-postgres to be healthy (checked at Layer 9 first).</div>
+        <div class="label">Setup:</div>
+<pre class="data-block"><span class="cmd">bash setup.sh</span>  <span class="dim"># deploys on-cluster, extracts route + token, configures mcp-remote</span></pre>
+        <div class="separator"></div>
+        <h4>Official ACM Documentation (Optional)</h4>
+        <div class="value">If <code>docs/rhacm-docs/</code> is cloned, the agent searches it during self-healing: <code>grep -r "keyword" docs/rhacm-docs/ --include="*.adoc" -l</code></div>
+        <div class="label">Setup:</div>
+<pre class="data-block"><span class="cmd">bash setup.sh</span>  <span class="dim"># clones rhacm-docs automatically</span></pre>
+      </div>
+    `
+  },
+  'health-report': {
+    title: 'Health Report (Output)',
+    html: `
+      <div class="detail-section">
+        <h4>Structured Health Report</h4>
+        <div class="value">Every health check produces a structured report. Format varies by depth:</div>
+        <div class="label">Quick Pulse:</div>
+        <div class="value">Compact component table + verdict. No issue details unless something is clearly wrong.</div>
+        <div class="label">Standard / Deep:</div>
+        <div class="value">Full report with summary, component table, detailed issues with evidence, and cluster overview.</div>
+        <div class="label">Targeted:</div>
+        <div class="value">Narrative format focused on what was checked, found, and what to do about it.</div>
+        <div class="separator"></div>
+        <div class="label">Example:</div>
+<pre class="data-block"><span class="key"># Hub Health Report: my-acm-hub</span>
+<span class="key">## Overall Verdict:</span> <span class="str">DEGRADED</span>
+
+<span class="key">## Component Status</span>
+| Component | Status | Details |
+|-----------|--------|---------|
+| MCH       | <span class="green">OK</span>   | Running, v2.17.0 |
+| Search    | <span class="amber">WARN</span> | search-postgres high restarts |
+| Governance| <span class="green">OK</span>   | All policies compliant |
+
+<span class="key">## Issues Found</span>
+<span class="key">### [WARNING] Search postgres restart loop</span>
+- <span class="key">What</span>: search-postgres-0 has 47 restarts
+- <span class="key">Evidence</span>: <span class="str">Tier 1: OOMKilled in previous logs</span>
+- <span class="key">Root Cause</span>: Memory limit too low (85% conf)
+- <span class="key">Layer</span>: Layer 4 &rarr; Layer 9
+- <span class="key">Known Issue</span>: <span class="str">ACM-28445</span>
+- <span class="key">Fix Version</span>: <span class="str">2.17.1</span>
+- <span class="key">Cluster-Fixable</span>: <span class="bool">Yes</span>
+- <span class="key">Impact</span>: <span class="str">Console Search non-functional</span>
+- <span class="key">Recommended Action</span>: <span class="str">Increase memory limit</span></pre>
+      </div>
+    `
+  },
+
+  // === DIAGRAM 2: DEPTH ROUTER ===
+  'input-detail': {
+    title: 'User Input Processing',
+    html: `
+      <div class="detail-section">
+        <h4>How Input is Processed</h4>
+        <div class="value">The agent receives input three ways:</div>
+        <div class="label">1. CLI Wrapper (<code>acm-hub</code>):</div>
+        <div class="value">The <code>acm-hub</code> script translates CLI commands into Claude Code slash commands. <code>acm-hub sanity</code> becomes <code>/sanity</code>, <code>acm-hub deep</code> becomes <code>/deep</code>, <code>acm-hub investigate X</code> becomes <code>/investigate X</code>. Runs in print mode by default (streams output, exits). Add <code>-i</code> for interactive.</div>
+        <div class="label">2. Slash Commands:</div>
+        <div class="value">Claude Code reads the command file from <code>.claude/commands/</code> and executes the instructions. The <code>$ARGUMENTS</code> placeholder captures any additional text.</div>
+        <div class="label">3. Natural Language:</div>
+        <div class="value">CLAUDE.md's depth router section guides the agent to interpret intent. This is not keyword matching &mdash; "My search isn't returning results" triggers a targeted search investigation even without the word "investigate."</div>
+      </div>
+    `
+  },
+  'routing-logic': {
+    title: 'Routing Decision Flow',
+    html: `
+      <div class="detail-section">
+        <h4>Three Decision Points</h4>
+<pre class="data-block"><span class="key">Decision 1:</span> Quick keywords present?
+  <span class="str">"sanity"</span>, <span class="str">"quick"</span>, <span class="str">"alive"</span>, <span class="str">"pulse"</span>
+  &rarr; Quick Pulse (Phase 1 only, ~30s)
+
+<span class="key">Decision 2:</span> Specific component or symptom?
+  <span class="str">"search"</span>, <span class="str">"observability"</span>, <span class="str">"governance"</span>
+  <span class="str">"why are clusters Unknown"</span>
+  &rarr; Targeted Investigation (All 6, scoped)
+
+<span class="key">Decision 3:</span> Deep keywords present?
+  <span class="str">"deep dive"</span>, <span class="str">"thorough"</span>, <span class="str">"full audit"</span>
+  &rarr; Deep Audit (All 6 phases, ~5-10 min)
+
+<span class="key">Default:</span> No depth indicators
+  &rarr; Standard Check (Phases 1-4, ~2-3 min)</pre>
+      </div>
+    `
+  },
+  'quick-pulse': {
+    title: 'Quick Pulse (/sanity)',
+    html: `
+      <div class="detail-section">
+        <h4>Phase 1 Only &mdash; ~30 Seconds</h4>
+        <div class="value">Minimum checks to determine if the hub is fundamentally alive.</div>
+        <div class="separator"></div>
+        <div class="label">What it checks:</div>
+<pre class="data-block"><span class="cmd">oc get mch -A -o yaml</span>        MCH phase, components
+<span class="cmd">oc get multiclusterengines -A</span> MCE phase
+<span class="cmd">oc get nodes</span>                  All nodes Ready?
+<span class="cmd">oc get clusterversion</span>         OCP upgrade status
+<span class="cmd">oc get managedclusters</span>        Fleet connectivity
+<span class="cmd">oc get csv -n ...</span>             Operator status
+<span class="cmd">oc whoami --show-server</span>       Connectivity confirmed</pre>
+        <div class="label">What it does NOT check:</div>
+        <div class="value">Individual pod health, logs, events, storage, addon status on spokes, known issue matching, cross-component correlation.</div>
+        <div class="label">Output:</div>
+        <div class="value">Compact component status table with overall verdict.</div>
+        <div class="label">When to use:</div>
+        <div class="value">Morning pulse check, post-maintenance verification, quick yes/no on hub health.</div>
+      </div>
+    `
+  },
+  'standard-check': {
+    title: 'Standard Check (/health-check)',
+    html: `
+      <div class="detail-section">
+        <h4>Phases 1-4 &mdash; ~2-3 Minutes</h4>
+        <div class="value">The default depth. Discovers, learns, checks, and pattern-matches.</div>
+        <div class="separator"></div>
+        <div class="label">What it adds over Quick Pulse:</div>
+<pre class="data-block"><span class="key">Component discovery</span>
+  MCH .spec.overrides.components &rarr; what's enabled
+
+<span class="key">Architecture knowledge</span>
+  Reads knowledge/architecture/&lt;component&gt;/
+
+<span class="key">Self-healing</span>
+  Investigates unknown components
+
+<span class="key">Layer-organized health checks</span>
+  L3 Network/Infra guards FIRST (NetworkPolicy, ResourceQuota)
+  L4 Storage (PVCs, search-postgres integrity)
+  L9 Operators + pod health (in context of L3 findings)
+  L10-12 Cross-cluster, data flow, UI/plugins
+
+<span class="key">Operator log scanning</span>
+  7 error patterns (OOM, nil pointer, hot-loop, etc.)
+
+<span class="key">Addon status</span>
+  oc get managedclusteraddons -A
+
+<span class="key">Known issue matching</span>
+  Symptoms vs known-issues.md per component
+
+<span class="key">Version-aware diagnosis</span>
+  Exact ACM/MCE version vs fix versions</pre>
+        <div class="label">Output:</div>
+        <div class="value">Full health report with component table, issues with JIRA references, and cluster overview.</div>
+      </div>
+    `
+  },
+  'deep-audit': {
+    title: 'Deep Audit',
+    html: `
+      <div class="detail-section">
+        <h4>All 6 Phases &mdash; ~5-10 Minutes</h4>
+        <div class="value">Complete pipeline including correlation and deep investigation. Use <code>/deep</code> slash command or natural language ("deep dive", "thorough check").</div>
+        <div class="separator"></div>
+        <div class="label">What it adds over Standard:</div>
+<pre class="data-block"><span class="key">Phase 5: Correlate</span>
+  Horizontal: trace 12 dependency chains
+  Vertical: trace 12 infrastructure layers
+    &mdash; find LOWEST affected layer across findings
+  Weight evidence (Tier 1/2/3)
+  Cross-component root cause analysis
+
+<span class="key">Phase 6: Deep Investigate</span>
+  Pod logs: <span class="cmd">oc logs pod --tail=100</span>
+  Previous crash: <span class="cmd">oc logs pod --previous</span>
+  Events: <span class="cmd">oc get events --sort-by=.lastTimestamp</span>
+  Storage: <span class="cmd">oc get pvc -n ns</span>
+  Resources: <span class="cmd">oc adm top pods/nodes</span>
+  Data flow tracing via component data-flow.md
+  Diagnostic playbook procedures
+  Layer-based fallback when no playbook matches</pre>
+        <div class="label">Output:</div>
+        <div class="value">Full report with evidence-based findings, confidence levels, cross-component correlation, and dependency chain analysis.</div>
+      </div>
+    `
+  },
+  'targeted-invest': {
+    title: 'Targeted Investigation (/investigate)',
+    html: `
+      <div class="detail-section">
+        <h4>All 6 Phases, Scoped &mdash; Varies</h4>
+        <div class="value">Focuses on a specific component, symptom, or area. Runs all 6 phases but scoped to the target + its dependencies.</div>
+        <div class="separator"></div>
+        <div class="label">Example Scoping:</div>
+<pre class="data-block"><span class="cmd">/investigate observability</span>
+  Primary: MCO CR, all obs pods, Thanos, Grafana
+  Dependencies: MCH, PVCs, spoke addons, routes
+
+<span class="cmd">/investigate search</span>
+  Primary: search-api, indexer, postgres, collector
+  Dependencies: MCH, PVCs, spoke collector addons
+
+<span class="cmd">/investigate why clusters are Unknown</span>
+  Primary: ManagedCluster status, leases
+  Dependencies: registration, addons, klusterlet</pre>
+        <div class="label">Arguments can be:</div>
+        <div class="value">Component name (<code>observability</code>), symptom (<code>why clusters Unknown</code>), or subsystem (<code>certificates</code>, <code>storage</code>).</div>
+        <div class="label">Output:</div>
+        <div class="value">Narrative format: what was checked, what was found, what it means, what to do.</div>
+      </div>
+    `
+  },
+
+  // === DIAGRAM 3: 6-PHASE PIPELINE ===
+  'phase1': {
+    title: 'Phase 1: Discover (Always Run)',
+    html: `
+      <div class="detail-section">
+        <h4>Inventory the Hub</h4>
+        <div class="value">Build a complete inventory of what's deployed on THIS hub before checking anything. Never assume what's deployed &mdash; every hub is different.</div>
+        <div class="separator"></div>
+        <div class="label">Commands (run in parallel):</div>
+<pre class="data-block"><span class="cmd">oc get mch -A -o yaml</span>
+  &rarr; MCH namespace, version, phase, components map
+
+<span class="cmd">oc get multiclusterengines -A -o yaml</span>
+  &rarr; MCE status, version
+
+<span class="cmd">oc get nodes</span>
+  &rarr; Node count, Ready status, roles
+
+<span class="cmd">oc get clusterversion</span>
+  &rarr; OCP version, upgrade progress
+
+<span class="cmd">oc get managedclusters</span>
+  &rarr; Fleet: Available, Joined conditions
+
+<span class="cmd">oc get csv -n multicluster-engine</span>
+  &rarr; Operator CSV status (Succeeded?)
+
+<span class="cmd">oc whoami --show-server</span>
+  &rarr; Connectivity + cluster identity</pre>
+        <div class="separator"></div>
+        <div class="label">Critical First Steps:</div>
+        <div class="value"><strong>1.</strong> Discover MCH namespace (<code>oc get mch -A</code>). NOT always <code>open-cluster-management</code> &mdash; can be <code>ocm</code> or custom. Used for ALL subsequent pod checks.<br><strong>2.</strong> Identify enabled components from <code>.spec.overrides.components</code>. Tells you what to check and what to skip.<br><strong>3.</strong> Check <code>.status.components</code> map. Any entry with <code>status: "False"</code> is a problem.</div>
+      </div>
+    `
+  },
+  'phase2': {
+    title: 'Phase 2: Learn (Standard+)',
+    html: `
+      <div class="detail-section">
+        <h4>Consult Knowledge, Fill Gaps</h4>
+        <div class="value">For each component discovered in Phase 1, read the architecture knowledge and fill any gaps via self-healing.</div>
+        <div class="separator"></div>
+        <div class="label">Process per component:</div>
+<pre class="data-block"><span class="key">1.</span> Read <span class="str">knowledge/architecture/&lt;component&gt;/architecture.md</span>
+   Understand how the component should work
+
+<span class="key">2.</span> Read <span class="str">knowledge/learned/*.md</span>
+   Check for previous discoveries on this cluster
+
+<span class="key">3.</span> Compare cluster state with knowledge
+   Namespace, pods, labels, CRDs match?
+
+<span class="key">4.</span> If mismatch detected &rarr; <span class="str">Self-Healing Process</span>
+   (See Diagram 5)</pre>
+        <div class="label">Mismatch Triggers:</div>
+        <div class="value">Component not in knowledge base, namespace differs from expected, pod naming/labeling mismatch, new CRD or addon discovered, unfamiliar health signals.</div>
+      </div>
+    `
+  },
+  'phase3': {
+    title: 'Phase 3: Check (Standard+)',
+    html: `
+      <div class="detail-section">
+        <h4>Layer-Organized Health Checks</h4>
+        <div class="value">Check health layer by layer, bottom-up. Lower layers affect everything above them &mdash; find root causes before checking symptoms.</div>
+        <div class="separator"></div>
+        <div class="label">FOUNDATIONAL LAYERS (check first):</div>
+<pre class="data-block"><span class="key">L1-2</span> Compute + Control Plane (already checked in Phase 1)
+<span class="key">L3</span>   Network + Infrastructure Guards:
+     <span class="cmd">oc get networkpolicy -n &lt;mch-ns&gt; --no-headers</span>
+     <span class="cmd">oc get resourcequota -n &lt;mch-ns&gt; --no-headers</span>
+     ACM does NOT create these &mdash; any found is suspicious.
+     Checked BEFORE pods: NetworkPolicy can make pods LOOK
+     healthy while being non-functional (Trap 11)
+<span class="key">L4</span>   Storage: PVCs, search-postgres data integrity</pre>
+        <div class="label">COMPONENT LAYERS (check after foundational):</div>
+<pre class="data-block"><span class="key">L5</span>   Configuration: MCH component toggles from Phase 1
+<span class="key">L6-8</span> Auth, RBAC, API/Webhook: check if relevant
+<span class="key">L9</span>   Operators + Pod Health:
+     <span class="cmd">oc get pods -n &lt;mch-ns&gt; --field-selector=status.phase!=Running,status.phase!=Succeeded</span>
+     Interpret pod health IN CONTEXT of L3 findings
+<span class="key">L10</span>  Cross-Cluster: addon health vs addon-catalog.yaml
+<span class="key">L11</span>  Data Flow: only if pods healthy but features broken
+<span class="key">L12</span>  UI/Plugin: ConsolePlugins, console image integrity</pre>
+        <div class="label">Operator Log Scanning Patterns:</div>
+<pre class="data-block"><span class="str">"failed to wait for caches to sync"</span>  Controller cache timeout
+<span class="str">"context deadline exceeded"</span>          Backend connectivity failure
+<span class="str">"conflict"</span>                           Concurrent update conflict
+<span class="str">"nil pointer"</span>                        Uninstall race condition
+<span class="str">"template-error"</span>                     Policy template namespace mismatch
+<span class="str">"OOMKilled"</span> or exit code <span class="num">137</span>         Memory pressure
+Rapid entries for same resource       Reconciliation hot-loop</pre>
+        <div class="label">Per-Component Verdict:</div>
+        <div class="value"><span class="tag tag-ok">OK</span> All pods Running, healthy conditions <span class="tag tag-warn">WARN</span> Minor issues, high restarts but stable <span class="tag tag-crit">CRIT</span> CrashLooping, critical conditions False</div>
+      </div>
+    `
+  },
+  'phase4': {
+    title: 'Phase 4: Pattern Match (Standard+)',
+    html: `
+      <div class="detail-section">
+        <h4>Match Symptoms to Known Bugs</h4>
+        <div class="value">Many issues are documented bugs with known fixes. Match before reasoning from scratch.</div>
+        <div class="separator"></div>
+        <div class="label">Process:</div>
+<pre class="data-block"><span class="key">1.</span> Read <span class="str">knowledge/architecture/&lt;component&gt;/known-issues.md</span>
+   for each affected component
+
+<span class="key">2.</span> Compare symptoms, log patterns, and version
+   to documented issue signatures
+
+<span class="key">3.</span> Check exact ACM/MCE version:
+   <span class="cmd">oc get mch -A -o jsonpath='{.items[0].status.currentVersion}'</span>
+   <span class="cmd">oc get csv -n multicluster-engine -o jsonpath='{.items[0].spec.version}'</span>
+
+<span class="key">4.</span> If match found, note:
+   - JIRA reference (e.g., <span class="str">ACM-24965</span>)
+   - Fix version (e.g., <span class="str">2.15.1</span>)
+   - Cluster-fixable? (<span class="bool">Yes</span> / <span class="bool">Workaround</span> / <span class="bool">No</span>)</pre>
+        <div class="label">Version-Aware Matching:</div>
+        <div class="value">A bug in ACM 2.15.0 may be fixed in 2.15.1. The agent checks whether the cluster's exact version falls within the affected range before reporting a match.</div>
+        <div class="label">Known Issue Coverage:</div>
+        <div class="value">~150 documented known-issue patterns across 12 subsystems. Networking: 15, Console: 14, Cluster Lifecycle: 13, Observability: 13, RBAC: 12, Governance: 11, Infrastructure: 11, Virtualization: 11, and others.</div>
+      </div>
+    `
+  },
+  'phase5': {
+    title: 'Phase 5: Correlate (Deep / Targeted)',
+    html: `
+      <div class="detail-section">
+        <h4>Trace Root Cause Across Components</h4>
+        <div class="value">When multiple issues are found, trace dependency chains to find the root cause rather than treating each symptom independently.</div>
+        <div class="separator"></div>
+        <div class="label">Process:</div>
+<pre class="data-block"><span class="key">1.</span> <span class="str">HORIZONTAL</span>: Read dependency-chains.md
+   Trace upstream through 12 curated chains (see Diagram 6)
+
+<span class="key">2.</span> <span class="str">VERTICAL</span>: Trace through 12 diagnostic layers
+   Identify the LOWEST affected layer across findings.
+   A Layer 3 issue (NetworkPolicy) manifests as Layer 11
+   (empty data) which appears as Layer 12 (empty UI).
+   Fixing Layer 3 resolves all layers above.
+
+<span class="key">3.</span> <span class="str">Cluster introspection fallback</span>
+   If not in curated chains, reverse-engineer deps
+   from live metadata: owner refs, OLM labels, CSVs,
+   env vars, webhooks (always available)
+
+<span class="key">4.</span> <span class="str">Knowledge graph fallback</span> (neo4j-rhacm MCP)
+   Cross-reference with graph (370 components)
+
+<span class="key">5.</span> Read <span class="str">knowledge/diagnostics/evidence-tiers.md</span>
+   Weight evidence by tier:
+   <span class="key">Tier 1</span> (Definitive): Error msg, crash log, status
+   <span class="key">Tier 2</span> (Strong): Restart pattern, event correlation
+   <span class="key">Tier 3</span> (Supportive): Timing, pod age, node util
+
+<span class="key">6.</span> Apply cross-chain patterns:
+   Is a shared dependency the common cause?</pre>
+        <div class="label">Evidence Requirements:</div>
+        <div class="value">Every conclusion needs 2+ evidence sources. At least one should be Tier 1. State confidence level. Rule out alternatives before concluding.</div>
+        <div class="label">Common Correlation Patterns:</div>
+<pre class="data-block"><span class="str">Search + Observability both broken</span>
+  &rarr; Shared storage / CSI driver issue
+
+<span class="str">Multiple addons unavailable, same spoke</span>
+  &rarr; Klusterlet or addon-manager, not individual addons
+
+<span class="str">Console 500 across all features</span>
+  &rarr; console-api pod down (single backend)</pre>
+      </div>
+    `
+  },
+  'phase6': {
+    title: 'Phase 6: Deep Investigate (Deep / Targeted)',
+    html: `
+      <div class="detail-section">
+        <h4>Dig Into Specifics</h4>
+        <div class="value">For critical findings or targeted investigations, examine logs, events, storage, and networking.</div>
+        <div class="separator"></div>
+        <div class="label">Investigation Toolkit:</div>
+<pre class="data-block"><span class="cmd">oc logs -n ns pod --tail=100</span>       Error messages
+<span class="cmd">oc logs -n ns pod --previous</span>       Why it crashed
+<span class="cmd">oc get events -n ns --sort-by=</span>
+<span class="cmd">  .lastTimestamp</span>                    Scheduling, OOM
+<span class="cmd">oc describe resource -n ns</span>         Conditions, events
+<span class="cmd">oc get pvc -n ns</span>                   Storage binding
+<span class="cmd">oc adm top pods -n ns</span>              CPU/memory usage
+<span class="cmd">oc get routes -n ns</span>                Route availability
+<span class="cmd">oc get svc -n ns</span>                   Service availability</pre>
+        <div class="label">Per-Subsystem Playbooks:</div>
+        <div class="value">The agent follows procedures from <code>knowledge/diagnostics/diagnostic-playbooks.md</code>. 14 playbooks covering: MCH/MCE lifecycle, managed cluster connectivity, Search, Observability, Governance, Application Lifecycle, Console, Node/Infrastructure, Certificates, Add-ons, Networking/Submariner, RBAC, Addon Framework, Hive.</div>
+        <div class="label">Data Flow Tracing:</div>
+        <div class="value">Reads the component's <code>data-flow.md</code> to understand the data path and identify exactly where the flow is broken.</div>
+        <div class="label">Layer-Based Fallback:</div>
+        <div class="value">When no playbook matches the specific issue, the 12-layer diagnostic model provides a systematic fallback. Start at the symptom layer and trace downward through each applicable layer until the root cause is found. Works for ANY component, not just those with dedicated playbooks.</div>
+      </div>
+    `
+  },
+
+  // === DIAGRAM 4: KNOWLEDGE SYSTEM ===
+  'arch-knowledge': {
+    title: 'Architecture Knowledge (40 Files)',
+    html: `
+      <div class="detail-section">
+        <h4>Per-Component Deep Knowledge</h4>
+        <div class="value">Engineering-level documentation about how each ACM subsystem works internally.</div>
+        <div class="separator"></div>
+        <div class="label">Foundation:</div>
+<pre class="data-block"><span class="key">kubernetes-fundamentals.md</span>
+  Reconciliation loops, informers, CRD versions,
+  pod lifecycle, CrashLoopBackOff timing, resource
+  management, admission controllers, leader election,
+  etcd limits, finalizers
+
+<span class="key">acm-platform.md</span>
+  OLM &rarr; MCH Operator &rarr; Backplane &rarr; ~30 component
+  operators. MCH status fields, component toggles,
+  addon framework, ManifestWork, lease-based health</pre>
+        <div class="label">Full Coverage (architecture + data-flow + known-issues):</div>
+<pre class="data-block"><span class="str">search/</span>            search-v2, postgres, RBAC filtering
+<span class="str">governance/</span>        GRC, propagator, 5 sync controllers
+<span class="str">observability/</span>     Thanos stack, Grafana, S3 storage
+<span class="str">cluster-lifecycle/</span> Hive, import, upgrade, HyperShift
+<span class="str">console/</span>           Plugin model, console-api, fleet virt
+<span class="str">application-lifecycle/</span> Subscriptions, AppSets, GitOps
+<span class="str">virtualization/</span>    Fleet virt, KubeVirt, MTV
+<span class="str">rbac/</span>              MCRA, ClusterPermission, roles</pre>
+        <div class="label">Extended Coverage:</div>
+<pre class="data-block"><span class="str">cluster-lifecycle/</span> + health-patterns.md (hub-side spoke health)
+<span class="str">infrastructure/</span>    + post-upgrade-patterns.md (settling behavior)</pre>
+        <div class="label">Also Full Coverage:</div>
+<pre class="data-block"><span class="str">automation/</span>        ClusterCurator, AAP hooks
+<span class="str">addon-framework/</span>   Addon manager, ManifestWork delivery
+<span class="str">networking/</span>        Submariner, service discovery</pre>
+        <div class="label">Used in:</div>
+        <div class="value"><span class="tag tag-phase">Phase 2</span> Read architecture.md before checking <span class="tag tag-phase">Phase 4</span> Read known-issues.md for bug matching <span class="tag tag-phase">Phase 6</span> Read data-flow.md to trace broken flows</div>
+      </div>
+    `
+  },
+  'diag-knowledge': {
+    title: 'Diagnostic Knowledge (8 Files)',
+    html: `
+      <div class="detail-section">
+        <h4>Health Check Methodology</h4>
+        <div class="separator"></div>
+        <div class="label">diagnostic-layers.md (12 layers):</div>
+        <div class="value">12-layer investigation framework for systematic root cause tracing. Each layer is a failure domain (Compute &rarr; Control Plane &rarr; Network &rarr; Storage &rarr; Config &rarr; Auth &rarr; RBAC &rarr; API &rarr; Operator &rarr; Cross-Cluster &rarr; Data Flow &rarr; UI). Used in Phase 3 (layer-organized checking), Phase 5 (vertical tracing), Phase 6 (fallback). Includes layer-to-trap mapping table.</div>
+        <div class="label">dependency-chains.md (12 chains):</div>
+        <div class="value">Narrative tracing procedures for each dependency chain. For each chain: architecture diagram, impact statement, tracing procedure with specific <code>oc</code> commands. Each chain annotated with "Layers spanned" for vertical cross-reference. Covers 8 core chains plus app-lifecycle-subscription, virtualization-vm-discovery, submariner-networking, and cluster-provisioning.</div>
+        <div class="label">common-diagnostic-traps.md (14 traps):</div>
+        <div class="value">Patterns where the obvious diagnosis is wrong. Each trap: what you see, what you might conclude, what's actually happening, how to detect, and the rule. Loaded in Phase 2, verified in Phase 5.</div>
+        <div class="label">evidence-tiers.md:</div>
+<pre class="data-block"><span class="key">Tier 1 (Definitive):</span>
+  Pod OOMKilled, CrashLoopBackOff with error,
+  HTTP 5xx, resource missing, MCH not Running
+
+<span class="key">Tier 2 (Strong):</span>
+  High restart count (>10), elevated resource usage,
+  stale lease, version match to known issue
+
+<span class="key">Tier 3 (Supportive):</span>
+  Pod age, timing correlation, resource counts
+
+<span class="key">Confidence Rules:</span>
+  2+ Tier 1 = <span class="num">90%+</span>
+  1 Tier 1 + Tier 2 = <span class="num">80-90%</span>
+  3+ Tier 2 = <span class="num">70-85%</span>
+  Tier 3 alone = <span class="red">INSUFFICIENT</span></pre>
+        <div class="label">diagnostic-playbooks.md (14 playbooks):</div>
+        <div class="value">Per-subsystem investigation procedures with ordered steps and specific commands. Covers MCH/MCE, managed clusters, Search, Observability, Governance, App Lifecycle, Console, Nodes, Certificates, Add-ons, Networking/Submariner, RBAC, Addon Framework, Hive.</div>
+        <div class="label">cluster-introspection.md (8 sources):</div>
+        <div class="value">8 metadata sources for reverse-engineering component dependencies from live cluster state: owner references, OLM labels, CSV metadata, Kubernetes labels, env vars/volumes, webhooks, ConsolePlugins, APIServices. Self-healing fallback that works for any operator.</div>
+        <div class="label">neo4j-reference.md:</div>
+        <div class="value">Knowledge graph Cypher query reference for the neo4j-rhacm MCP. Covers availability checks, dependency queries (direct, transitive, common root cause), and the discovery chain (curated &rarr; introspection &rarr; graph).</div>
+        <div class="label">acm-search-reference.md:</div>
+        <div class="value">Search MCP tool reference for the acm-search MCP. Covers tool parameters, query patterns for fleet-wide spoke health, capabilities (cross-cluster addon/pod verification), and limitations (search lag, hub-side gaps).</div>
+      </div>
+    `
+  },
+  'yaml-knowledge': {
+    title: 'Structured YAML Data (7 Files)',
+    html: `
+      <div class="detail-section">
+        <h4>Quantitative Baselines</h4>
+        <div class="value">Machine-readable reference data for comparing cluster state against known-good values.</div>
+        <div class="separator"></div>
+        <div class="label">healthy-baseline.yaml:</div>
+        <div class="value">Expected pod counts per namespace (30-40 MCH, 30-40 MCE), critical deployments with minimum replicas, node thresholds, managed cluster conditions, addon expectations.</div>
+        <div class="label">dependency-chains.yaml:</div>
+        <div class="value">Same 12 chains as the markdown file, in structured YAML for programmatic lookups. Includes impact descriptions and cross-chain symptom patterns.</div>
+        <div class="label">service-map.yaml:</div>
+        <div class="value">Critical Service-to-Pod mappings for connectivity diagnosis. Maps Kubernetes Services to their backing pods, ports, and protocols for tracing network-layer failures.</div>
+        <div class="label">webhook-registry.yaml:</div>
+        <div class="value">25 webhook entries with owner, failure policy, critical operations, impact when broken, and check commands.</div>
+        <div class="label">certificate-inventory.yaml:</div>
+        <div class="value">TLS secrets per namespace, what component uses each, who manages rotation (service-ca vs manual), impact when corrupted, openssl check commands.</div>
+        <div class="label">addon-catalog.yaml:</div>
+        <div class="value">16 addons with default enabled state, subsystem classification, spoke namespaces, healthy conditions, dependencies, and known issues.</div>
+        <div class="label">version-constraints.yaml:</div>
+        <div class="value">Known product version incompatibilities that affect hub health. Cross-referenced during Phase 4 for version-aware matching (e.g., AAP 2.5+ with ACM &le;2.13, Submariner with OCP 4.18+, ClusterCurator with OCP 4.21+).</div>
+        <div class="separator"></div>
+        <div class="label">Refreshing from live cluster:</div>
+<pre class="data-block"><span class="cmd">python -m knowledge.refresh</span>           All YAMLs
+<span class="cmd">python -m knowledge.refresh --baseline</span> Just baseline
+<span class="cmd">python -m knowledge.refresh --dry-run</span>  Preview only</pre>
+        <div class="value">Smart merge: curated content preserved, new items get placeholders, removed items flagged but kept.</div>
+      </div>
+    `
+  },
+  'cross-knowledge': {
+    title: 'Cross-Cutting Knowledge (2 Files)',
+    html: `
+      <div class="detail-section">
+        <h4>component-registry.md</h4>
+        <div class="value">Master inventory of all ACM hub components. For each: namespace (noting MCH varies), CRD/API resource, check command, healthy state, key pods/labels, impact when degraded, common issues.</div>
+        <div class="label">Key Principle:</div>
+        <div class="value">Never assume <code>open-cluster-management</code> as the MCH namespace. Always discover via <code>oc get mch -A</code>.</div>
+        <div class="separator"></div>
+        <h4>failure-patterns.md</h4>
+        <div class="value">Cross-component failure correlation heuristics. Maps symptom combinations to likely root causes.</div>
+        <div class="label">Examples:</div>
+<pre class="data-block"><span class="str">"Search + Observability both broken"</span>
+  &rarr; Shared storage or node pressure
+
+<span class="str">"All features broken on one spoke"</span>
+  &rarr; Klusterlet disconnected
+
+<span class="str">"UI shows everything broken but oc works"</span>
+  &rarr; Console issue only, not cluster-wide</pre>
+        <div class="label">Anti-Patterns (things that look related but aren't):</div>
+        <div class="value">Different components failing for different reasons, spoke vs hub failures, pod restart count > 0 (normal during upgrades).</div>
+      </div>
+    `
+  },
+  'learned-knowledge': {
+    title: 'Learned Knowledge',
+    html: `
+      <div class="detail-section">
+        <h4>Agent-Discovered Knowledge</h4>
+        <div class="value">Written to <code>knowledge/learned/&lt;topic&gt;.md</code> by the agent during health checks when mismatches are detected between static knowledge and cluster state.</div>
+        <div class="separator"></div>
+        <div class="label">Standard Format:</div>
+<pre class="data-block"><span class="key"># Component Name</span>
+
+<span class="key">Discovered:</span> <span class="str">2026-03-28</span>
+<span class="key">ACM Version:</span> <span class="str">2.17.0</span>
+<span class="key">Trigger:</span> <span class="str">New addon not in static knowledge</span>
+
+<span class="key">## What Was Found</span>
+Description of observed cluster state
+
+<span class="key">## Evidence</span>
+- Cluster: oc commands and output
+- Docs: rhacm-docs references
+- Source: acm-ui MCP findings
+
+<span class="key">## Health Signals</span>
+- Healthy: what healthy looks like
+- Degraded: warning signs
+- Critical: failure indicators</pre>
+        <div class="label">Two Roles:</div>
+        <div class="value"><strong>Topology</strong> (what exists): Cluster observation > Learned > Static<br><strong>Health</strong> (what's correct): Knowledge defines ground truth. Cluster shows current state. The gap = findings to diagnose.</div>
+      </div>
+    `
+  },
+  'live-cluster': {
+    title: 'Live Cluster &amp; Knowledge: Two Roles',
+    html: `
+      <div class="detail-section">
+        <h4>Knowledge Serves Two Distinct Roles</h4>
+        <div class="value">The knowledge database has two different relationships with the cluster, depending on what kind of question is being answered.</div>
+        <div class="separator"></div>
+        <h4>Role 1: Structural Observation (Topology)</h4>
+        <div class="label">What exists, where it lives, what's deployed</div>
+        <div class="value">For topology questions (namespaces, pod names, which components exist), always trust what you observe on the cluster. These vary per hub and per ACM version.</div>
+<pre class="data-block"><span class="key">Trust:</span> Cluster observation > Learned > Static
+
+<span class="dim">// Knowledge says: search-api runs in open-cluster-management</span>
+<span class="dim">// Cluster shows:  search-api runs in ocm</span>
+<span class="dim">// Agent uses:     ocm (the observed namespace)</span>
+<span class="dim">// Then writes:    knowledge/learned/ocm-namespace.md</span></pre>
+        <div class="separator"></div>
+        <h4>Role 2: Health Assessment (Correctness)</h4>
+        <div class="label">What correct, healthy behavior looks like</div>
+        <div class="value">For health questions, the knowledge is the <strong>ground truth</strong>. It defines what SHOULD BE. The cluster shows what IS. The gap between the two is what the agent diagnoses and reports.</div>
+<pre class="data-block"><span class="key">Knowledge defines:</span> what SHOULD BE (ground truth)
+<span class="key">Cluster shows:</span>    what IS (current state)
+<span class="key">The gap:</span>          findings to diagnose and report
+
+<span class="dim">// healthy-baseline.yaml says: expected_phase: Running</span>
+<span class="dim">// Cluster shows:              MCH phase: Progressing</span>
+<span class="dim">// This is NOT "cluster is right, Progressing is fine"</span>
+<span class="dim">// This IS a finding: MCH should be Running but isn't</span>
+
+<span class="dim">// architecture.md says: search-api serves GraphQL on :4010</span>
+<span class="dim">// Cluster shows:        search-api CrashLoopBackOff</span>
+<span class="dim">// Knowledge = ground truth for correct behavior</span>
+<span class="dim">// Deviation = problem to diagnose</span>
+
+<span class="dim">// known-issues.md says: ACM-28445 causes postgres OOM</span>
+<span class="dim">// Cluster shows:        postgres exit code 137</span>
+<span class="dim">// Knowledge = bug signature reference</span>
+<span class="dim">// Match = known issue to report with fix version</span></pre>
+      </div>
+    `
+  },
+
+  // === DIAGRAM 5: SELF-HEALING ===
+  'mismatch-detected': {
+    title: 'Mismatch Detected',
+    html: `
+      <div class="detail-section">
+        <h4>What Triggers Self-Healing</h4>
+        <div class="value">Phase 2 (Learn) compares the cluster's actual state against knowledge. A mismatch triggers the self-healing process.</div>
+        <div class="separator"></div>
+        <div class="label">Mismatch Types:</div>
+<pre class="data-block"><span class="key">Knowledge Gap</span>
+  New component deployed that isn't in static knowledge
+  Example: new addon added in ACM 2.17
+
+<span class="key">Knowledge Drift</span>
+  Component renamed or restructured since knowledge written
+  Example: pod label changed from app=X to app=Y
+
+<span class="key">Version-Specific Change</span>
+  Behavior changed in this ACM version
+  Example: new CRD added, controller logic changed
+
+<span class="key">Actual Issue</span>
+  Unexpected state that indicates a real problem
+  Example: deployment missing that should exist</pre>
+      </div>
+    `
+  },
+  'sh-step1': {
+    title: 'Step 1: Cluster Evidence',
+    html: `
+      <div class="detail-section">
+        <h4>Collect Evidence from the Cluster</h4>
+        <div class="label">Commands:</div>
+<pre class="data-block"><span class="cmd">oc describe</span> <span class="str">the unknown resource</span>
+  Labels, annotations, owner references
+
+<span class="cmd">oc get events -n ns</span>
+  Recent events related to the component
+
+<span class="cmd">oc get pod -n ns -l app=X -o yaml</span>
+  Full pod spec with container images, mounts
+
+<span class="cmd">oc get crd X -o yaml</span>
+  CRD spec including served versions</pre>
+        <div class="value">This step gathers factual data about the unknown component. No interpretation yet &mdash; just collection.</div>
+      </div>
+    `
+  },
+  'sh-step1b': {
+    title: 'Step 2: Cluster Introspection (Live Metadata)',
+    html: `
+      <div class="detail-section">
+        <h4>Reverse-Engineer Dependencies &mdash; Always Available</h4>
+        <div class="value">Build a dependency map directly from the live cluster's metadata using 8 read-only sources. This works without any external tools or MCPs &mdash; just <code>oc</code> commands.</div>
+        <div class="separator"></div>
+        <div class="label">8 Introspection Sources:</div>
+<pre class="data-block"><span class="cmd">1. Owner References</span>
+  Trace .metadata.ownerReferences up to CSV or CR
+  Pod &rarr; Deployment &rarr; CSV &rarr; Operator
+
+<span class="cmd">2. OLM Labels</span>
+  ClusterRoles with olm.owner=&lt;csv&gt; reveal
+  which API groups the operator accesses
+
+<span class="cmd">3. CSV Metadata</span>
+  Owned CRDs, managed deployments, related images
+  (Note: .required is almost always empty)
+
+<span class="cmd">4. Kubernetes Labels</span>
+  app.kubernetes.io/managed-by, part-of, component
+
+<span class="cmd">5. Env Vars + Volumes</span>
+  *.svc refs, DB_HOST, *_URL, OPERAND_IMAGE_*
+  (Richest source for runtime dependencies)
+
+<span class="cmd">6. Webhooks</span>
+  ValidatingWebhookConfigurations show which
+  operator validates which resources
+
+<span class="cmd">7. ConsolePlugins</span>
+  UI integration: backend services, proxy targets
+
+<span class="cmd">8. APIServices</span>
+  Non-local API aggregation: which operator
+  serves which API group</pre>
+        <div class="label">Output:</div>
+        <div class="value">A dependency map: what the component depends on, what depends on it, which operator manages it, and whether it's ACM-managed or independent. This feeds into Step 3 (knowledge graph) and Step 4 (source code understanding).</div>
+        <div class="label">Key Insight:</div>
+        <div class="value">This is the only dependency discovery method that works for <strong>any</strong> operator &mdash; including third-party operators (AAP, ACS, Compliance Operator, Quay) that aren't in the knowledge graph or static knowledge.</div>
+      </div>
+    `
+  },
+  'sh-step2': {
+    title: 'Step 3: Knowledge Graph (Cross-Reference)',
+    html: `
+      <div class="detail-section">
+        <h4>neo4j-rhacm MCP &mdash; Supplements Cluster Introspection</h4>
+        <div class="value">Cross-reference the dependency map from Step 2 with the ACM knowledge graph (370 components, 541 relationships). The graph adds broader ACM-specific relationships that may not be visible in cluster metadata alone.</div>
+        <div class="separator"></div>
+        <div class="label">Key Queries:</div>
+<pre class="data-block"><span class="cmd">Direct dependencies</span>
+  What does this component depend on?
+
+<span class="cmd">Dependents</span>
+  What other components depend on this one?
+
+<span class="cmd">Subsystem membership</span>
+  Which subsystem does this component belong to?
+
+<span class="cmd">Transitive impact</span>
+  If this fails, what breaks up to 3 hops away?</pre>
+        <div class="label">If unavailable:</div>
+        <div class="value">Skipped silently if the Neo4j container is not running. The cluster-derived map from Step 2 still provides a solid dependency picture. The agent will attempt <code>podman start neo4j-rhacm</code> before falling back.</div>
+      </div>
+    `
+  },
+  'sh-step3': {
+    title: 'Step 4: Understand Dependencies (acm-ui + docs)',
+    html: `
+      <div class="detail-section">
+        <h4>Chained from Steps 2-3 &mdash; The Ground Truth</h4>
+        <div class="value">For each dependency discovered by cluster introspection (Step 2) and the knowledge graph (Step 3), search source code and documentation to understand <strong>how</strong> those dependencies actually work.</div>
+        <div class="separator"></div>
+        <div class="label">ACM-UI MCP (source code):</div>
+<pre class="data-block"><span class="cmd">search_code("dependency-name")</span>
+  Find references across the codebase
+
+<span class="cmd">search_component("ComponentName")</span>
+  Find the React component by name
+
+<span class="cmd">get_component_source("path/Component")</span>
+  Read the full source code
+
+<span class="cmd">get_routes()</span>
+  Find route definitions for the feature</pre>
+        <div class="label">rhacm-docs (official documentation):</div>
+<pre class="data-block"><span class="cmd">grep -r "dependency-name" docs/rhacm-docs/ --include="*.adoc" -l</span></pre>
+        <div class="label">Why chained:</div>
+        <div class="value">Without Step 2, the agent would search blindly for the unknown component name. With Step 2, the agent knows the full dependency tree and can search for each dependency specifically &mdash; producing a complete understanding of the component's context.</div>
+      </div>
+    `
+  },
+  'sh-step4': {
+    title: 'Step 5: Synthesize',
+    html: `
+      <div class="detail-section">
+        <h4>Combine All Evidence</h4>
+        <div class="value">The agent combines cluster evidence (Step 1) + introspected dependencies (Step 2) + graph relationships (Step 3) + implementation details (Step 4) to understand the component and classify the mismatch.</div>
+        <div class="label">Classification:</div>
+<pre class="data-block"><span class="key">Knowledge Gap</span>   &rarr; Document the new component
+<span class="key">Knowledge Drift</span> &rarr; Update with current names
+<span class="key">Version Change</span>  &rarr; Document with version annotation
+<span class="key">Actual Issue</span>    &rarr; Report as a finding in the health check</pre>
+        <div class="value">Each source provides different context: cluster = current state, graph = dependency map, source = implementation, docs = intended behavior.</div>
+      </div>
+    `
+  },
+  'sh-step5': {
+    title: 'Step 6: Write Learned Knowledge',
+    html: `
+      <div class="detail-section">
+        <h4>Record for Future Runs</h4>
+        <div class="value">The agent writes findings to <code>knowledge/learned/&lt;topic&gt;.md</code> using the standard format (version, trigger, evidence, health signals).</div>
+        <div class="label">File Permissions:</div>
+        <div class="value"><code>settings.json</code> only allows writes to <code>knowledge/learned/*</code>. The agent cannot modify static knowledge files or any other files.</div>
+      </div>
+    `
+  },
+  'sh-step6': {
+    title: 'Step 7: Continue Health Check',
+    html: `
+      <div class="detail-section">
+        <h4>Use New Knowledge Immediately</h4>
+        <div class="value">The newly discovered knowledge is used for the remaining phases of the current health check. Phase 3 (Check) and Phase 4 (Pattern Match) benefit from the updated understanding.</div>
+        <div class="value">Future runs will also read the learned knowledge file, so the self-healing only needs to happen once per cluster/version combination.</div>
+      </div>
+    `
+  },
+
+  // === DIAGRAM 6: DEPENDENCY CHAINS ===
+  'chain1': {
+    title: 'Chain 1: Console > Search > Managed Clusters',
+    html: `
+      <div class="detail-section">
+        <h4>Search Pipeline Cascade</h4>
+<pre class="data-block"><span class="key">Console UI</span>
+  &darr; queries
+<span class="key">search-api</span> (GraphQL endpoint)
+  &darr; reads from
+<span class="key">search-postgres</span> (database)
+  &darr; populated by
+<span class="key">search-indexer</span> (hub-side processor)
+  &darr; receives data from
+<span class="key">search-collector</span> (spoke addon)
+  &darr; watches resources on
+<span class="key">Managed Clusters</span></pre>
+        <div class="separator"></div>
+        <div class="label">Impact:</div>
+<pre class="data-block"><span class="str">search-collector down</span> &rarr; Single spoke's resources disappear silently
+<span class="str">search-indexer down</span>  &rarr; All data becomes stale
+<span class="str">search-postgres down</span> &rarr; Total search outage
+<span class="str">search-api down</span>      &rarr; Console Search + Fleet Virt broken</pre>
+        <div class="label">Tracing Procedure:</div>
+        <div class="value">Start from "are console search pages loading?" and work backward through each component until you find the broken link.</div>
+      </div>
+    `
+  },
+  'chain2': {
+    title: 'Chain 2: Governance > Framework > Config Policy',
+    html: `
+      <div class="detail-section">
+        <h4>Policy Distribution Cascade</h4>
+<pre class="data-block"><span class="key">grc-policy-propagator</span> (hub)
+  &darr; creates replicated policies via
+<span class="key">Placement / PlacementBinding</span>
+  &darr; distributed to spokes via
+<span class="key">governance-policy-framework-addon</span> (spoke)
+  &darr; evaluated by
+<span class="key">config-policy-controller</span> (spoke)
+  &darr; enforces on
+<span class="key">Managed Clusters</span></pre>
+        <div class="separator"></div>
+        <div class="label">Impact:</div>
+<pre class="data-block"><span class="str">propagator down</span>        &rarr; No new policies distributed
+<span class="str">framework addon missing</span> &rarr; Policies don't reach spoke
+<span class="str">config-policy down</span>      &rarr; Policies not evaluated
+<span class="str">status sync blocked</span>     &rarr; Stale compliance on hub</pre>
+      </div>
+    `
+  },
+  'chain3': {
+    title: 'Chain 3: MCH > Backplane > Component Operators',
+    html: `
+      <div class="detail-section">
+        <h4>Operator Hierarchy (Ultimate Root Cause Chain)</h4>
+<pre class="data-block"><span class="key">OLM (Operator Lifecycle Manager)</span>
+  &darr; manages
+<span class="key">MCH Operator</span> (advanced-cluster-management CSV)
+  &darr; manages
+<span class="key">Backplane Operator</span> (multicluster-engine CSV)
+  &darr; manages
+<span class="key">~30 Component Operators</span>
+  (search, governance, console, hive, etc.)</pre>
+        <div class="separator"></div>
+        <div class="label">Impact:</div>
+<pre class="data-block"><span class="str">MCH Operator down</span>     &rarr; ACM lifecycle stops entirely
+<span class="str">Backplane down</span>        &rarr; MCE components can't reconcile
+<span class="str">Component op down</span>     &rarr; Single subsystem degraded</pre>
+        <div class="value">This is the most fundamental chain. If MCH is not Running, check this chain first before investigating individual components.</div>
+      </div>
+    `
+  },
+  'chain4': {
+    title: 'Chain 4: HyperShift > Import Controller > Klusterlet',
+    html: `
+      <div class="detail-section">
+        <h4>Hosted Cluster Import Chain</h4>
+<pre class="data-block"><span class="key">hypershift-addon</span> (hub)
+  &darr; triggers
+<span class="key">managedcluster-import-controller</span>
+  &darr; generates klusterlet manifests
+<span class="key">klusterlet</span> (hosted cluster)
+  &darr; registers with hub
+<span class="key">ManagedCluster Available</span></pre>
+        <div class="separator"></div>
+        <div class="label">Known Issues:</div>
+<pre class="data-block"><span class="str">ACM-20695</span>: hypershift-addon auto-import recreation loop
+<span class="str">ACM-15018</span>: Detach destroys hosted clusters
+<span class="str">ACM-26271</span>: Finalizer broken during deletion</pre>
+      </div>
+    `
+  },
+  'chain5': {
+    title: 'Chain 5: MCRA > ClusterPermission > ManifestWork > RBAC',
+    html: `
+      <div class="detail-section">
+        <h4>Fine-Grained RBAC Propagation</h4>
+<pre class="data-block"><span class="key">ManagedClusterRoleAssignment</span> (MCRA)
+  &darr; translated by
+<span class="key">cluster-permission-controller</span>
+  &darr; creates
+<span class="key">ClusterPermission</span> CRs
+  &darr; delivered via
+<span class="key">ManifestWork</span>
+  &darr; applied to
+<span class="key">Spoke RBAC</span> (Roles, RoleBindings)</pre>
+        <div class="separator"></div>
+        <div class="label">Impact:</div>
+<pre class="data-block"><span class="str">MCRA controller down</span>     &rarr; No RBAC propagation
+<span class="str">ManifestWork rejected</span>    &rarr; Single cluster RBAC stale
+<span class="str">ACM-24032</span>: ClusterPermission OOM at scale</pre>
+      </div>
+    `
+  },
+  'chain6': {
+    title: 'Chain 6: Observability > Addon > Thanos',
+    html: `
+      <div class="detail-section">
+        <h4>Metrics Pipeline Cascade</h4>
+<pre class="data-block"><span class="key">multicluster-observability-operator</span>
+  &darr; deploys
+<span class="key">observability-controller addon</span> (spoke)
+  &darr; collects from spoke Prometheus
+<span class="key">metrics-collector</span> (spoke)
+  &darr; remote-writes to
+<span class="key">thanos-receive</span> (hub)
+  &darr; stores to
+<span class="key">S3 / Object Storage</span>
+  &darr; queried by
+<span class="key">thanos-query</span> &rarr; <span class="key">Grafana</span></pre>
+        <div class="separator"></div>
+        <div class="label">Impact:</div>
+<pre class="data-block"><span class="str">S3 misconfigured</span>       &rarr; thanos-store/compactor crash
+<span class="str">metrics-collector down</span> &rarr; No spoke metrics
+<span class="str">thanos-receive down</span>   &rarr; All metrics rejected
+<span class="str">thanos-query down</span>     &rarr; Total query outage</pre>
+        <div class="label">Resource Profile:</div>
+        <div class="value">~2700 mCPU, ~12GB memory for 5 clusters. S3-compatible storage required (most common failure cause).</div>
+      </div>
+    `
+  },
+
+  'chain7': {
+    title: 'Chain 7: Addon Manager > Framework > Spoke Pods',
+    html: `
+      <div class="detail-section">
+        <h4>Addon Deployment Cascade (Single Point of Failure)</h4>
+<pre class="data-block"><span class="key">addon-manager</span> (hub MCE namespace)
+  &darr; deploys
+<span class="key">ManagedClusterAddon CRs</span> (per cluster namespace)
+  &darr; delivered via
+<span class="key">addon framework</span> (ManifestWork-based)
+  &darr; applied by
+<span class="key">klusterlet work-agent</span> (spoke)
+  &darr; runs
+<span class="key">spoke addon pods</span> (governance, search-collector, etc.)</pre>
+        <div class="separator"></div>
+        <div class="label">Impact:</div>
+<pre class="data-block"><span class="str">addon-manager down</span> &rarr; ALL addons Unavailable on ALL clusters
+<span class="str">                  </span>    New clusters import but get zero addons
+<span class="str">addon CR stuck</span>     &rarr; Specific addon not deployed on specific cluster</pre>
+        <div class="label">Key Diagnostic Trap (#7):</div>
+        <div class="value">Mass addon failure across clusters looks like widespread spoke failure but is actually a single hub-side pod: <code>oc get pods -n multicluster-engine | grep addon-manager</code></div>
+      </div>
+    `
+  },
+  'chain8': {
+    title: 'Chain 8: StorageClass > CSI > PV > PVC > Pod',
+    html: `
+      <div class="detail-section">
+        <h4>Persistent Storage for Stateful ACM Components</h4>
+<pre class="data-block"><span class="key">StorageClass</span> (cluster-scoped config)
+  &darr; provisions via
+<span class="key">CSI Driver</span> (dynamic provisioner)
+  &darr; creates
+<span class="key">PersistentVolume</span>
+  &darr; bound to
+<span class="key">PersistentVolumeClaim</span> (in component namespace)
+  &darr; mounted by
+<span class="key">Stateful pod</span> (thanos-receive, thanos-store, alertmanager)</pre>
+        <div class="separator"></div>
+        <div class="label">Affected Components:</div>
+<pre class="data-block"><span class="str">thanos-receive</span>  Observability metric ingestion (StatefulSet PVCs)
+<span class="str">thanos-store</span>    Observability historical queries (sharded PVCs)
+<span class="str">alertmanager</span>    Observability alerting (StatefulSet PVCs)
+<span class="str">search-postgres</span> Defaults to emptyDir, optional PVC</pre>
+        <div class="label">Tracing Procedure:</div>
+        <div class="value">Check PVC status &rarr; describe Pending PVCs &rarr; verify default StorageClass exists &rarr; check CSI driver pods &rarr; check disk usage for Bound PVCs.</div>
+      </div>
+    `
+  },
+
+  'dynamic-chains': {
+    title: 'Dynamic Dependency Discovery',
+    html: `
+      <div class="detail-section">
+        <h4>Beyond the 12 Curated Chains</h4>
+        <div class="value">The 12 curated chains cover core ACM subsystems and have the richest context: impact descriptions, tracing procedures, JIRA references. But real clusters have far more dependency paths &mdash; third-party operators (AAP, ACS, Compliance Operator, Quay), custom integrations, and cross-operator relationships not modeled in the static knowledge.</div>
+        <div class="separator"></div>
+        <div class="label">Phase 5 uses three layers, in order:</div>
+<pre class="data-block"><span class="key">Layer 1: Curated chains</span> (12 total, 8 core shown)
+  Highest quality: hand-written impact analysis,
+  investigation procedures, JIRA references
+  Coverage: core ACM subsystems only
+
+<span class="key">Layer 2: Cluster introspection</span>
+  Reverse-engineer deps from live cluster metadata:
+  owner refs, OLM labels, CSV metadata, env vars,
+  webhooks, ConsolePlugins, APIServices
+  Coverage: <span class="green">any operator on the cluster</span>
+  Always available (just oc commands)
+
+<span class="key">Layer 3: Knowledge graph</span> (neo4j-rhacm)
+  370 ACM components, 541 relationships
+  Coverage: ACM components (broader than curated)
+  Requires Neo4j container</pre>
+        <div class="label">Example: AAP failing on the cluster</div>
+        <div class="value">The 12 curated chains don't cover AAP. Cluster introspection discovers: AAP is managed by <code>aap-operator</code>, depends on <code>monitoring.coreos.com</code> (Prometheus) and <code>route.openshift.io</code> (routes), has no webhooks or console plugins, and is NOT in the MCH/MCE component maps. Conclusion: independent operator, no ACM impact.</div>
+        <div class="label">Example: MTV (Forklift) with console tab broken</div>
+        <div class="value">Cluster introspection discovers: MTV has a ConsolePlugin (<code>forklift-console-plugin</code>) with 3 proxy backends, and a hub-side integration controller delivered via ManifestWork. The dependency chain: Console &rarr; forklift-console-plugin &rarr; forklift-inventory + forklift-services. This chain doesn't exist in the curated 8 but is discoverable from live metadata.</div>
+      </div>
+    `
+  },
+
+  // === DIAGRAM 7: OUTPUT FORMAT ===
+  'phase-findings': {
+    title: 'Phase Findings',
+    html: `
+      <div class="detail-section">
+        <h4>What Each Phase Produces</h4>
+<pre class="data-block"><span class="key">Phase 1</span>: Inventory (MCH version, components, nodes, fleet)
+<span class="key">Phase 2</span>: Knowledge context (what we know about each component)
+<span class="key">Phase 3</span>: Health verdicts per component (OK/WARN/CRIT)
+<span class="key">Phase 4</span>: Known issue matches (JIRA refs, fix versions)
+<span class="key">Phase 5</span>: Root cause hypotheses with confidence levels
+<span class="key">Phase 6</span>: Detailed evidence (logs, events, storage state)</pre>
+        <div class="value">All findings flow into the verdict engine and are compiled into the final report.</div>
+      </div>
+    `
+  },
+  'verdict-engine': {
+    title: 'Verdict Engine',
+    html: `
+      <div class="detail-section">
+        <h4>How Verdicts Are Derived</h4>
+        <div class="label">Overall Verdict:</div>
+<pre class="data-block"><span class="green">All components OK</span>          &rarr; <span class="tag tag-ok">HEALTHY</span>
+<span class="amber">Any WARN, no CRIT</span>          &rarr; <span class="tag tag-warn">DEGRADED</span>
+<span class="red">Any CRIT</span>                   &rarr; <span class="tag tag-crit">CRITICAL</span></pre>
+        <div class="label">Per-Component Verdict:</div>
+<pre class="data-block"><span class="tag tag-ok">OK</span>   All pods Running, healthy conditions, no anomalies
+<span class="tag tag-warn">WARN</span> High restarts but stable, non-critical degradation
+<span class="tag tag-crit">CRIT</span> CrashLooping, critical condition False, impaired</pre>
+      </div>
+    `
+  },
+  'report-header': {
+    title: 'Report Header',
+    html: `
+      <div class="detail-section">
+        <h4>Example Header</h4>
+<pre class="data-block"><span class="key"># Hub Health Report: ashafi-acm-217</span>
+<span class="key">## Overall Verdict: HEALTHY</span>
+
+<span class="key">## Summary</span>
+Hub is operating normally. All 7 enabled components
+are healthy. 6/6 nodes Ready, 2/2 managed clusters
+Available. ACM 2.17.0 on OCP 4.21.5.</pre>
+      </div>
+    `
+  },
+  'component-table': {
+    title: 'Component Status Table',
+    html: `
+      <div class="detail-section">
+        <h4>Core of Every Report</h4>
+<pre class="data-block"><span class="key">## Component Status</span>
+| Component        | Status | Details                    |
+|------------------|--------|----------------------------|
+| MCH              | <span class="green">OK</span>   | Running, v2.17.0           |
+| MCE              | <span class="green">OK</span>   | Available, v2.12.0         |
+| OCP              | <span class="green">OK</span>   | v4.21.5, not progressing   |
+| Nodes            | <span class="green">OK</span>   | 6/6 Ready                  |
+| Managed Clusters | <span class="green">OK</span>   | 2/2 Available              |
+| Search           | <span class="green">OK</span>   | All pods Running           |
+| Governance       | <span class="green">OK</span>   | Policies compliant         |
+| Console          | <span class="green">OK</span>   | Plugins loaded             |
+| ACM CSV          | <span class="green">OK</span>   | Succeeded                  |
+| MCE CSV          | <span class="green">OK</span>   | Succeeded                  |</pre>
+        <div class="label">Components included depend on what's deployed:</div>
+        <div class="value">Always: MCH, MCE, OCP, Nodes, Managed Clusters, CSVs. If deployed: Observability, Search, Governance, App Lifecycle, Console, Cluster Backup, Fine-Grained RBAC, Submariner.</div>
+      </div>
+    `
+  },
+  'issues-section': {
+    title: 'Issues Found',
+    html: `
+      <div class="detail-section">
+        <h4>Issue Detail Fields</h4>
+        <div class="value">Each issue includes 9 required fields:</div>
+<pre class="data-block"><span class="key">### [CRITICAL] search-postgres CrashLoopBackOff</span>
+
+- <span class="key">What</span>: search-postgres-0 in CrashLoopBackOff,
+  47 restarts in last 6 hours
+
+- <span class="key">Evidence</span>:
+  <span class="tag tag-tier">Tier 1</span> Previous logs show OOMKilled (exit 137)
+  <span class="tag tag-tier">Tier 2</span> Memory usage at 98% of limit before crash
+
+- <span class="key">Root Cause</span>: Memory limit insufficient for
+  current index size (85% confidence)
+
+- <span class="key">Layer</span>: Layer 4 (Storage) &rarr; Layer 9 (Operator)
+
+- <span class="key">Known Issue</span>: <span class="str">ACM-28445</span>
+
+- <span class="key">Fix Version</span>: <span class="str">2.17.1</span>
+
+- <span class="key">Cluster-Fixable</span>: <span class="bool">Yes</span> &mdash; increase memory limit
+
+- <span class="key">Impact</span>: Console Search, Fleet Virt UI, and any
+  feature depending on search-api are non-functional
+
+- <span class="key">Recommended Action</span>:
+  Patch search-postgres StatefulSet to increase
+  memory limit from 1Gi to 2Gi</pre>
+        <div class="label">Severity Tags:</div>
+        <div class="value"><span class="tag tag-crit">CRITICAL</span> Core functionality impaired, immediate action <span class="tag tag-warn">WARNING</span> Degraded but functional, potential future issue <span class="tag tag-phase">INFO</span> Notable observation, cosmetic, historical</div>
+        <div class="label">Remediation:</div>
+        <div class="value">During diagnosis, the agent presents findings and recommended actions. Fixes are only executed after the user approves the full remediation plan (see Diagram 8).</div>
+      </div>
+    `
+  },
+  'cluster-overview': {
+    title: 'Cluster Overview',
+    html: `
+      <div class="detail-section">
+        <h4>Example</h4>
+<pre class="data-block"><span class="key">## Cluster Overview</span>
+- <span class="key">ACM Version</span>: <span class="str">2.17.0</span>
+- <span class="key">MCE Version</span>: <span class="str">2.12.0</span>
+- <span class="key">OCP Version</span>: <span class="str">4.21.5</span>
+- <span class="key">MCH Namespace</span>: <span class="str">ocm</span>
+- <span class="key">Nodes</span>: <span class="num">6</span> Ready (3 master, 3 worker)
+- <span class="key">Managed Clusters</span>: <span class="num">2</span> Available
+- <span class="key">Enabled Components</span>: search, grc, console,
+  cluster-lifecycle, app-lifecycle, insights,
+  multicluster-engine</pre>
+      </div>
+    `
+  },
+
+  // === DIAGRAM 8: SAFETY MODEL ===
+  'diagnostic-mode': {
+    title: 'Diagnostic Mode (Read-Only)',
+    html: `
+      <div class="detail-section">
+        <h4>Phases 1-6: Strictly Read-Only</h4>
+        <div class="value">During the entire diagnostic pipeline, the agent MUST NOT modify the cluster. All commands are read-only and auto-approved.</div>
+        <div class="separator"></div>
+        <div class="label">Auto-Approved Diagnostic Commands:</div>
+<pre class="data-block"><span class="cmd">oc get</span>, <span class="cmd">oc describe</span>, <span class="cmd">oc logs</span>
+<span class="cmd">oc api-resources</span>, <span class="cmd">oc version</span>
+<span class="cmd">oc whoami</span>, <span class="cmd">oc cluster-info</span>
+<span class="cmd">oc adm top</span>
+<span class="cmd">oc exec</span> (read-only: psql, nc)
+<span class="cmd">oc auth</span> (can-i checks)
+<span class="cmd">kubectl get</span>, <span class="cmd">kubectl describe</span>
+<span class="cmd">jq</span>, <span class="cmd">grep</span>, <span class="cmd">wc</span>, <span class="cmd">sort</span>, <span class="cmd">head</span>, <span class="cmd">tail</span>
+<span class="cmd">awk</span>, <span class="cmd">cut</span>, <span class="cmd">cat</span>, <span class="cmd">ls</span>, <span class="cmd">find</span>
+<span class="cmd">git clone</span> (documentation repos only)
+<span class="cmd">acm-ui MCP</span>     All 20 tools (source code search)
+<span class="cmd">neo4j-rhacm MCP</span> Read-only Cypher queries (KG)
+<span class="cmd">acm-search MCP</span>  All 5 tools (fleet resource queries)</pre>
+        <div class="label">Key Rule:</div>
+        <div class="value">No mutation commands during diagnosis. The full picture must be clear before any remediation is considered.</div>
+        <div class="label">Note on <code>oc exec</code>:</div>
+        <div class="value"><code>oc exec</code> is auto-approved for read-only diagnostics (postgres SELECT queries, <code>nc</code> connectivity checks). <code>oc auth can-i</code> is also auto-approved for RBAC verification.</div>
+      </div>
+    `
+  },
+  'remediation-plan': {
+    title: 'Remediation Plan (Approval Gate)',
+    html: `
+      <div class="detail-section">
+        <h4>Structured Approval &mdash; Not Per-Command</h4>
+        <div class="value">After diagnosis completes, the agent presents ALL issues with root causes and exact fix commands in one structured plan. The user reviews everything and approves or declines once.</div>
+        <div class="separator"></div>
+        <div class="label">Plan Format:</div>
+<pre class="data-block"><span class="key">## Remediation Plan</span>
+
+<span class="key">### Fix 1: search-postgres OOMKilled</span>
+<span class="key">Root Cause:</span> <span class="str">Memory limit (512Mi) too low for index</span>
+<span class="key">Evidence:</span> <span class="str">Tier 1: exit code 137, 98% memory usage</span>
+<span class="key">Fix:</span> <span class="str">Increase memory limit to 2Gi</span>
+<span class="key">Command:</span>
+  <span class="cmd">oc patch sts search-postgres -n ocm ...</span>
+<span class="key">Risk:</span> <span class="str">Low &mdash; pod will restart with new limit</span>
+
+<span class="key">### Issues NOT fixable on-cluster:</span>
+- <span class="str">ACM-28445: Requires upgrade to 2.17.1</span>
+
+<span class="amber">These fixes will modify your cluster.</span>
+<span class="amber">Should I proceed? (yes/no)</span></pre>
+        <div class="label">Key Rules:</div>
+        <div class="value"><strong>1.</strong> ALL diagnosis must complete first<br><strong>2.</strong> ALL issues presented together, not one at a time<br><strong>3.</strong> Wait for explicit approval before any mutation<br><strong>4.</strong> User can approve all, select specific fixes, or decline</div>
+      </div>
+    `
+  },
+  'execute-fixes': {
+    title: 'Execute Fixes (After Approval)',
+    html: `
+      <div class="detail-section">
+        <h4>Remediation Commands</h4>
+        <div class="value">Only after user approves the remediation plan. These commands are NOT auto-approved in settings.json &mdash; Claude Code prompts the user for permission on each mutation command, providing a second safety layer on top of the plan-approval flow.</div>
+        <div class="separator"></div>
+        <div class="label">Allowed Remediation Commands:</div>
+<pre class="data-block"><span class="cmd">oc patch</span>            Update resource specs
+<span class="cmd">oc scale</span>            Scale deployments
+<span class="cmd">oc rollout restart</span>  Restart deployments
+<span class="cmd">oc delete pod</span>      Restart stuck pods
+<span class="cmd">oc annotate</span>        Add/update annotations
+<span class="cmd">oc label</span>           Add/update labels
+<span class="cmd">oc apply</span>           Apply configuration</pre>
+        <div class="label">NEVER Allowed (even with approval):</div>
+<pre class="data-block"><span class="red">oc delete</span> (non-pod: CRDs, namespaces, deployments, PVCs)
+<span class="red">oc adm drain</span>
+<span class="red">oc adm cordon</span>
+<span class="red">oc create namespace</span>
+<span class="red">Any command</span> that destroys data or removes infrastructure</pre>
+        <div class="label">Execution Reporting:</div>
+<pre class="data-block"><span class="green">&check; Fix 1:</span> <span class="str">search-postgres memory</span> &mdash; applied
+  Verification: pods restarting with new limit
+
+<span class="red">&cross; Fix 2:</span> <span class="str">console route</span> &mdash; failed
+  Error: <span class="str">actual error output</span>
+  Manual action needed: <span class="str">description</span></pre>
+      </div>
+    `
+  },
+  'stop-manual': {
+    title: 'User Declines &mdash; Manual Remediation',
+    html: `
+      <div class="detail-section">
+        <h4>User Handles Fixes Manually</h4>
+        <div class="value">If the user declines the remediation plan, the agent stops. The health report and remediation plan are still available for the user to execute fixes themselves.</div>
+        <div class="label">The agent has provided:</div>
+<pre class="data-block"><span class="green">1.</span> Complete health report with all findings
+<span class="green">2.</span> Root cause for each issue with evidence
+<span class="green">3.</span> Exact commands to fix each issue
+<span class="green">4.</span> Risk assessment per fix
+<span class="green">5.</span> Issues that require upgrade vs on-cluster fix</pre>
+        <div class="value">The user can copy commands from the plan and execute them at their discretion.</div>
+      </div>
+    `
+  },
+  'post-fix-verify': {
+    title: 'Post-Fix Verification',
+    html: `
+      <div class="detail-section">
+        <h4>Verify Fixes Took Effect</h4>
+        <div class="value">After executing all approved fixes, the agent runs a quick health check (Phase 1 + Phase 3) on the affected components to verify results.</div>
+        <div class="separator"></div>
+        <div class="label">Verification Report:</div>
+<pre class="data-block"><span class="key">## Post-Remediation Status</span>
+
+| Component | Before | After |
+|-----------|--------|-------|
+| search-postgres | <span class="red">CRIT</span> (OOMKilled) | <span class="green">OK</span> (Running) |
+| console | <span class="amber">WARN</span> (restarts) | <span class="green">OK</span> (stable) |
+
+<span class="key">Overall:</span> <span class="str">2/2 fixes verified</span></pre>
+        <div class="value">If a fix didn't take effect, the agent reports what happened and suggests next steps.</div>
+      </div>
+    `
+  }
+};
+
+const NODE_MAP = {
+  // Diagram 1
+  'USER': 'user-input', 'ROUTER': 'depth-router', 'CLAUDE': 'claude-cli',
+  'OC': 'oc-cli', 'KB': 'knowledge-system', 'EXT': 'external-sources',
+  'REPORT': 'health-report',
+  // Diagram 2
+  'INPUT': 'input-detail', 'Q1': 'routing-logic',
+  'QUICK': 'quick-pulse', 'STD': 'standard-check',
+  'DEEP': 'deep-audit', 'TARGET': 'targeted-invest',
+  // Diagram 3
+  'P1': 'phase1', 'P2': 'phase2', 'P3': 'phase3',
+  'P4': 'phase4', 'P5': 'phase5', 'P6': 'phase6',
+  // Diagram 4
+  'ARCH': 'arch-knowledge', 'DIAGK': 'diag-knowledge',
+  'YAML': 'yaml-knowledge', 'CROSS': 'cross-knowledge',
+  'LEARNED': 'learned-knowledge', 'CLUSTER': 'live-cluster',
+  // Diagram 5
+  'MISMATCH': 'mismatch-detected',
+  'S1': 'sh-step1', 'S1B': 'sh-step1b', 'S2': 'sh-step2', 'S3': 'sh-step3',
+  'S4': 'sh-step4', 'S5': 'sh-step5', 'S6': 'sh-step6',
+  // Diagram 6
+  'C1': 'chain1', 'C2': 'chain2', 'C3': 'chain3',
+  'C4': 'chain4', 'C5': 'chain5', 'C6': 'chain6',
+  'C7': 'chain7', 'C8': 'chain8', 'DYNAMIC': 'dynamic-chains',
+  // Diagram 7
+  'FINDINGS': 'phase-findings', 'VERDICT': 'verdict-engine',
+  'HEADER': 'report-header', 'TABLE': 'component-table',
+  'ISSUES': 'issues-section', 'OVERVIEW': 'cluster-overview',
+  // Diagram 8
+  'DIAG': 'diagnostic-mode', 'PLAN': 'remediation-plan', 'FIX': 'execute-fixes',
+  'STOP': 'stop-manual', 'VERIFY': 'post-fix-verify'
+};
+
+window.showDetail = function(nodeId) {
+  const key = NODE_MAP[nodeId] || nodeId;
+  const panel = document.getElementById('detail-panel');
+  const title = document.getElementById('detail-title');
+  const body = document.getElementById('detail-body');
+  const main = document.getElementById('main');
+  const data = DATA[key];
+  if (!data) { console.log('No data for:', nodeId, key); return; }
+  title.textContent = data.title;
+  body.innerHTML = data.html;
+  panel.classList.remove('hidden');
+  main.classList.remove('full');
+}
+
+function hideDetail() {
+  document.getElementById('detail-panel').classList.add('hidden');
+  document.getElementById('main').classList.add('full');
+}
+
+mermaid.initialize({
+  startOnLoad: true,
+  theme: 'dark',
+  securityLevel: 'loose',
+  themeVariables: {
+    primaryColor: '#1a2a4a',
+    primaryTextColor: '#d8dce8',
+    primaryBorderColor: '#38bdf8',
+    lineColor: '#38bdf8',
+    secondaryColor: '#2a1a3f',
+    tertiaryColor: '#1a2f1a',
+    fontSize: '15px',
+    fontFamily: 'Inter, sans-serif'
+  },
+  flowchart: {
+    curve: 'basis',
+    padding: 18,
+    nodeSpacing: 40,
+    rankSpacing: 55,
+    useMaxWidth: true
+  }
+});
+</script>
+</body>
+</html>

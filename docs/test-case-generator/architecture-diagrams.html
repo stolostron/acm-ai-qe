@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Test Case Generator v2.0 &mdash; Interactive Architecture</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<style>
+:root { --bg: #080b14; --surface: #0f1320; --surface2: #141a2e; --border: #1e2640; --text: #d8dce8; --dim: #7a84a0; --accent: #38bdf8; --accent2: #f472b6; --green: #4ade80; --amber: #fbbf24; --red: #f87171; --purple: #a78bfa; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; display: flex; min-height: 100vh; }
+#main { flex: 1; padding: 40px 40px 40px 40px; overflow-y: auto; max-width: 65%; transition: max-width 0.3s; }
+#main.full { max-width: 100%; }
+#detail-panel { width: 35%; min-width: 35%; background: var(--surface); border-left: 2px solid var(--border); overflow-y: auto; position: sticky; top: 0; height: 100vh; transition: all 0.3s; }
+#detail-panel.hidden { width: 0; min-width: 0; border: none; overflow: hidden; }
+#detail-header { padding: 20px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; background: var(--surface); z-index: 10; }
+#detail-header h3 { font-size: 1rem; color: var(--accent); font-family: 'JetBrains Mono', monospace; }
+#detail-close { background: none; border: 1px solid var(--border); color: var(--dim); padding: 4px 12px; border-radius: 6px; cursor: pointer; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; }
+#detail-close:hover { color: var(--red); border-color: var(--red); }
+#detail-body { padding: 24px; }
+.detail-section { margin-bottom: 24px; }
+.detail-section h4 { font-size: 0.85rem; color: var(--accent2); text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 8px; font-family: 'JetBrains Mono', monospace; }
+.detail-section .label { font-size: 0.78rem; color: var(--dim); margin-bottom: 4px; font-family: 'JetBrains Mono', monospace; }
+.detail-section .value { font-size: 0.88rem; color: var(--text); margin-bottom: 12px; line-height: 1.5; }
+pre.data-block { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px; font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; color: var(--green); overflow-x: auto; white-space: pre-wrap; word-break: break-all; margin: 8px 0 16px 0; line-height: 1.6; }
+pre.data-block .key { color: var(--accent); }
+pre.data-block .str { color: var(--green); }
+pre.data-block .num { color: var(--amber); }
+pre.data-block .bool { color: var(--purple); }
+pre.data-block .null { color: var(--dim); }
+.tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; font-family: 'JetBrains Mono', monospace; font-weight: 700; }
+.tag-pass { background: rgba(74,222,128,0.15); color: var(--green); border: 1px solid rgba(74,222,128,0.3); }
+.tag-fail { background: rgba(248,113,113,0.15); color: var(--red); border: 1px solid rgba(248,113,113,0.3); }
+.tag-phase { background: rgba(251,191,36,0.15); color: var(--amber); border: 1px solid rgba(251,191,36,0.3); }
+.tag-stage { background: rgba(56,189,248,0.15); color: var(--accent); border: 1px solid rgba(56,189,248,0.3); }
+.tag-agent { background: rgba(167,139,250,0.15); color: var(--purple); border: 1px solid rgba(167,139,250,0.3); }
+.tag-mcp { background: rgba(244,114,182,0.15); color: var(--accent2); border: 1px solid rgba(244,114,182,0.3); }
+.arrow-trail { display: flex; align-items: center; gap: 8px; margin: 12px 0; flex-wrap: wrap; }
+.arrow-step { padding: 6px 12px; border-radius: 6px; font-size: 0.78rem; font-family: 'JetBrains Mono', monospace; border: 1px solid var(--border); background: var(--surface2); }
+.arrow-step.active { border-color: var(--accent); color: var(--accent); }
+.arrow-sep { color: var(--dim); }
+h1 { font-size: 2.4rem; font-weight: 800; margin-bottom: 8px; background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.sub { color: var(--dim); font-size: 0.95rem; margin-bottom: 40px; font-family: 'JetBrains Mono', monospace; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 32px; margin-bottom: 48px; }
+.card h2 { font-size: 1.4rem; font-weight: 700; color: var(--accent); margin-bottom: 4px; }
+.card .desc { color: var(--dim); margin-bottom: 20px; font-size: 0.92rem; }
+.mermaid { display: flex; justify-content: center; overflow-x: auto; padding: 16px 0; }
+.click-hint { color: var(--accent2); font-size: 0.78rem; font-family: 'JetBrains Mono', monospace; margin-top: 12px; opacity: 0.7; }
+.example-banner { background: linear-gradient(135deg, rgba(56,189,248,0.08), rgba(244,114,182,0.08)); border: 1px solid rgba(56,189,248,0.2); border-radius: 10px; padding: 16px 20px; margin-bottom: 32px; }
+.example-banner h3 { color: var(--accent); font-size: 1rem; margin-bottom: 6px; }
+.example-banner p { color: var(--dim); font-size: 0.88rem; line-height: 1.5; }
+.example-banner code { background: rgba(56,189,248,0.1); padding: 2px 6px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; color: var(--accent); }
+nav { position: fixed; top: 16px; left: 16px; display: flex; flex-direction: column; gap: 4px; z-index: 100; }
+nav a { display: block; padding: 6px 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; color: var(--dim); text-decoration: none; font-size: 0.72rem; font-family: 'JetBrains Mono', monospace; transition: all 0.2s; }
+nav a:hover { color: var(--accent); border-color: var(--accent); }
+.node-clickable { cursor: pointer; }
+.separator { height: 1px; background: var(--border); margin: 16px 0; }
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="#d1">Pipeline</a>
+  <a href="#d2">Stage 1</a>
+  <a href="#d3">Phase 1</a>
+  <a href="#d4">Synthesis</a>
+  <a href="#d5">Quality</a>
+  <a href="#d6">MCP</a>
+  <a href="#d7">Knowledge</a>
+  <a href="#d8">Tracing</a>
+</nav>
+
+<div id="main" class="full">
+
+<h1>Test Case Generator v2.0</h1>
+<p class="sub">Interactive Architecture &mdash; Click any box to see implementation details</p>
+
+<div class="example-banner">
+  <h3>How the Test Case Generator Works</h3>
+  <p>Generates Polarion-ready test cases from JIRA tickets through a 6-phase pipeline. Stage 1 gathers data deterministically via <code>gh</code> CLI. Phase 1 launches 3 parallel investigation agents (JIRA, code, UI). Phase 2 synthesizes findings with scope gating and AC cross-referencing. Phase 3 optionally validates on a live cluster. Phase 4 writes the test case. Phase 4.5 enforces a mandatory quality gate. Stage 3 generates Polarion HTML.</p>
+  <p style="margin-top:8px;font-size:0.88rem">All data in this document reflects the actual pipeline implementation. Click any box in the diagrams below to see what each component does, its inputs/outputs, and the tools it uses.</p>
+</div>
+
+<!-- DIAGRAM 1: PIPELINE OVERVIEW -->
+<div id="d1" class="card">
+  <h2>Diagram 1: Full Pipeline</h2>
+  <p class="desc">Seven steps run in sequence. Two are deterministic Python scripts (Stage 1, Stage 3). Five are AI-driven phases. Phase 1 runs 3 agents in parallel. Phase 4.5 loops until PASS. Click any box for details.</p>
+  <div class="mermaid">
+graph LR
+    P0["PHASE 0\nParse Inputs\nAsk Questions"]:::clickable --> S1["STAGE 1\ngather.py\nPR + conventions + knowledge\n~2-5 sec"]:::clickable
+    S1 --> GO["gather-output.json\npr-diff.txt"]:::clickable
+    GO --> PH1["PHASE 1\n3 Parallel Agents\nJIRA + Code + UI\n~30-60 sec"]:::clickable
+    PH1 --> PH2["PHASE 2\nSynthesize\nScope Gate + AC Check"]:::clickable
+    PH2 --> PH3["PHASE 3\nLive Validation\n(optional)\n~2-5 min"]:::clickable
+    PH3 --> PH4["PHASE 4\nWrite Test Case\ntest-case-generator agent\n~30-60 sec"]:::clickable
+    PH4 --> TC["test-case.md\nanalysis-results.json"]:::clickable
+    TC --> PH45["PHASE 4.5\nQuality Gate\nquality-reviewer agent\nLoops until PASS"]:::clickable
+    PH45 --> S3["STAGE 3\nreport.py\nValidation + HTML\n~1 sec"]:::clickable
+    S3 --> OUT["OUTPUT\nSetup HTML\nSteps HTML\nSUMMARY.txt"]:::clickable
+
+    classDef clickable cursor:pointer
+    click P0 showDetail
+    click S1 showDetail
+    click GO showDetail
+    click PH1 showDetail
+    click PH2 showDetail
+    click PH3 showDetail
+    click PH4 showDetail
+    click TC showDetail
+    click PH45 showDetail
+    click S3 showDetail
+    click OUT showDetail
+  </div>
+  <p class="click-hint">Click any box above to see implementation details</p>
+</div>
+
+<!-- DIAGRAM 2: STAGE 1 DATA GATHERING -->
+<div id="d2" class="card">
+  <h2>Diagram 2: Stage 1 &mdash; Data Gathering</h2>
+  <p class="desc">Deterministic Python script that collects PR data, conventions, and area knowledge via gh CLI and local file reads. No LLM or MCP calls.</p>
+  <div class="mermaid">
+graph TD
+    G1["Step 1: Search PR\ngh search prs JIRA-ID\nOutput: PR number"]:::clickable --> G2["Step 2: PR Metadata\ngh pr view --json\nOutput: title, files, additions, state"]:::clickable
+    G2 --> G3["Step 3: PR Diff\ngh pr diff\nOutput: pr-diff.txt"]:::clickable
+    G3 --> G4["Step 4: Detect Area\nFile path patterns\nOutput: area (governance, rbac, ...)"]:::clickable
+    G4 --> G5["Step 5: Peer Test Cases\nFilesystem glob\nOutput: existing_test_cases[]"]:::clickable
+    G5 --> G6["Step 6: Load Knowledge\nconventions + architecture\nOutput: conventions, area_knowledge"]:::clickable
+    G6 --> GOUT["gather-output.json\nAll data for Phase 1 agents"]:::clickable
+
+    style G1 fill:#0f1320,stroke:#38bdf8,color:#d8dce8
+    style G2 fill:#0f1320,stroke:#38bdf8,color:#d8dce8
+    style G3 fill:#0f1320,stroke:#38bdf8,color:#d8dce8
+    style G4 fill:#0f1320,stroke:#4ade80,color:#d8dce8
+    style G5 fill:#0f1320,stroke:#f472b6,color:#d8dce8
+    style G6 fill:#0f1320,stroke:#fbbf24,color:#d8dce8
+    style GOUT fill:#141a2e,stroke:#38bdf8,stroke-width:3px,color:#38bdf8
+
+    classDef clickable cursor:pointer
+    click G1 showDetail
+    click G2 showDetail
+    click G3 showDetail
+    click G4 showDetail
+    click G5 showDetail
+    click G6 showDetail
+    click GOUT showDetail
+  </div>
+  <p class="click-hint">Click any step to see what data is collected</p>
+</div>
+
+<!-- DIAGRAM 3: PHASE 1 PARALLEL INVESTIGATION -->
+<div id="d3" class="card">
+  <h2>Diagram 3: Phase 1 &mdash; Parallel Investigation</h2>
+  <p class="desc">Three agents launch simultaneously. Each uses different MCP servers to investigate the feature from a different angle. All three must complete before Phase 2 synthesis.</p>
+  <div class="mermaid">
+graph TD
+    INPUT["gather-output.json"]:::clickable --> A["Agent A: Feature Investigator\nJIRA deep dive\nMCP: jira, polarion, neo4j, bash\nOutput: ACs, linked tickets, coverage"]:::clickable
+    INPUT --> B["Agent B: Code Change Analyzer\nPR diff analysis\nMCP: acm-ui, neo4j, bash\nOutput: UI elements, routes, interaction models"]:::clickable
+    INPUT --> C["Agent C: UI Discovery\nACM Console source\nMCP: acm-ui, neo4j, playwright, bash\nOutput: selectors, translations, routes"]:::clickable
+    A --> MERGE["Phase 2: Synthesize\nMerge + Scope Gate + AC Check"]:::clickable
+    B --> MERGE
+    C --> MERGE
+
+    style INPUT fill:#141a2e,stroke:#38bdf8,stroke-width:3px,color:#38bdf8
+    style A fill:#0f1320,stroke:#f472b6,color:#d8dce8
+    style B fill:#0f1320,stroke:#4ade80,color:#d8dce8
+    style C fill:#0f1320,stroke:#a78bfa,color:#d8dce8
+    style MERGE fill:#0f1320,stroke:#fbbf24,color:#d8dce8
+
+    classDef clickable cursor:pointer
+    click INPUT showDetail
+    click A showDetail
+    click B showDetail
+    click C showDetail
+    click MERGE showDetail
+  </div>
+  <p class="click-hint">Click any agent to see its MCP tools and output format</p>
+</div>
+
+<!-- DIAGRAM 4: PHASE 2 SYNTHESIS -->
+<div id="d4" class="card">
+  <h2>Diagram 4: Phase 2 &mdash; Synthesis</h2>
+  <p class="desc">The orchestrator merges all three investigation outputs, applies scope gating (filter to target JIRA story ACs), cross-references ACs against code behavior, and produces a TEST PLAN.</p>
+  <div class="mermaid">
+graph LR
+    FI["Feature Investigation"]:::clickable --> SYN["SYNTHESIZE\n1. Merge outputs\n2. Scope gate (AC filter)\n3. AC vs code check\n4. Write TEST PLAN"]:::clickable
+    CC["Code Change Analysis"]:::clickable --> SYN
+    UID["UI Discovery Results"]:::clickable --> SYN
+    SYN --> CTX["SYNTHESIZED CONTEXT\nAll investigation data\n+ AC discrepancies\n+ TEST PLAN"]:::clickable
+
+    style FI fill:#0f1320,stroke:#f472b6,color:#d8dce8
+    style CC fill:#0f1320,stroke:#4ade80,color:#d8dce8
+    style UID fill:#0f1320,stroke:#a78bfa,color:#d8dce8
+    style SYN fill:#0f1320,stroke:#fbbf24,color:#d8dce8
+    style CTX fill:#141a2e,stroke:#38bdf8,stroke-width:3px,color:#38bdf8
+
+    classDef clickable cursor:pointer
+    click FI showDetail
+    click CC showDetail
+    click UID showDetail
+    click SYN showDetail
+    click CTX showDetail
+  </div>
+  <p class="click-hint">Click any box to see the synthesis process</p>
+</div>
+
+<!-- DIAGRAM 5: QUALITY GATES -->
+<div id="d5" class="card">
+  <h2>Diagram 5: Quality Gates</h2>
+  <p class="desc">Two independent validation layers. Phase 4.5 (AI reviewer) checks semantic correctness. Stage 3 (Python validator) checks structural correctness. Both must pass.</p>
+  <div class="mermaid">
+graph TD
+    TC["test-case.md"]:::clickable --> QR["Phase 4.5: Quality Reviewer\n8 checks: structure, UI verify,\nAC check, knowledge xref,\nPolarion, peers, HTML\nVerdict: PASS / NEEDS_FIXES"]:::clickable
+    QR -->|NEEDS_FIXES| FIX["Fix Issues\n(orchestrator)"]:::clickable
+    FIX --> QR
+    QR -->|PASS| CV["Stage 3: convention_validator.py\n11 checks: title, metadata,\nfields, sections, steps, teardown\nVerdict: PASS / FAIL"]:::clickable
+    CV --> HTML["html_generator.py\nPolarion setup + steps HTML"]:::clickable
+    HTML --> DONE["SUMMARY.txt\nreview-results.json\ntest-case-setup.html\ntest-case-steps.html"]:::clickable
+
+    style TC fill:#141a2e,stroke:#38bdf8,stroke-width:3px,color:#38bdf8
+    style QR fill:#0f1320,stroke:#fbbf24,color:#d8dce8
+    style FIX fill:#0f1320,stroke:#f87171,color:#d8dce8
+    style CV fill:#0f1320,stroke:#4ade80,color:#d8dce8
+    style HTML fill:#0f1320,stroke:#a78bfa,color:#d8dce8
+    style DONE fill:#141a2e,stroke:#4ade80,stroke-width:3px,color:#4ade80
+
+    classDef clickable cursor:pointer
+    click TC showDetail
+    click QR showDetail
+    click FIX showDetail
+    click CV showDetail
+    click HTML showDetail
+    click DONE showDetail
+  </div>
+  <p class="click-hint">Click any box to see the validation checks</p>
+</div>
+
+<!-- DIAGRAM 6: MCP INTEGRATION -->
+<div id="d6" class="card">
+  <h2>Diagram 6: MCP Server Integration</h2>
+  <p class="desc">Seven MCP servers provide external data. Four serve investigation (Phase 1). Three serve live validation (Phase 3). Each agent uses a specific subset.</p>
+  <div class="mermaid">
+graph LR
+    subgraph Investigation
+      ACMUI["acm-ui\n20 tools\nSource code search"]:::clickable
+      JIRA["jira\n3 tools\nTicket investigation"]:::clickable
+      POL["polarion\n7 tools\nTest coverage"]:::clickable
+      NEO["neo4j-rhacm\n2 tools\nDependency graph"]:::clickable
+    end
+
+    subgraph Live_Validation
+      PW["playwright\n24 tools\nBrowser automation"]:::clickable
+      SEARCH["acm-search\n5 tools\nFleet queries"]:::clickable
+      KCTL["acm-kubectl\n3 tools\nMulticluster kubectl"]:::clickable
+    end
+
+    style ACMUI fill:#0f1320,stroke:#38bdf8,color:#d8dce8
+    style JIRA fill:#0f1320,stroke:#f472b6,color:#d8dce8
+    style POL fill:#0f1320,stroke:#4ade80,color:#d8dce8
+    style NEO fill:#0f1320,stroke:#a78bfa,color:#d8dce8
+    style PW fill:#0f1320,stroke:#fbbf24,color:#d8dce8
+    style SEARCH fill:#0f1320,stroke:#fbbf24,color:#d8dce8
+    style KCTL fill:#0f1320,stroke:#fbbf24,color:#d8dce8
+
+    classDef clickable cursor:pointer
+    click ACMUI showDetail
+    click JIRA showDetail
+    click POL showDetail
+    click NEO showDetail
+    click PW showDetail
+    click SEARCH showDetail
+    click KCTL showDetail
+  </div>
+  <p class="click-hint">Click any server to see its tools and configuration</p>
+</div>
+
+<!-- DIAGRAM 7: KNOWLEDGE SYSTEM -->
+<div id="d7" class="card">
+  <h2>Diagram 7: Knowledge System</h2>
+  <p class="desc">Curated domain knowledge organized into three categories. Conventions are authoritative format rules. Architecture provides per-area context. Read by agents at specific pipeline phases.</p>
+  <div class="mermaid">
+graph TD
+    CONV["conventions/\n4 files\ntest-case-format.md\narea-naming-patterns.md\ncli-in-steps-rules.md\npolarion-html-templates.md"]:::clickable --> WRITER["Phase 4: Writer\nReads before writing"]
+    ARCH["architecture/\n9 files\ngovernance.md, rbac.md\nfleet-virt.md, clusters.md\nsearch.md, applications.md\ncredentials.md, cclm.md, mtv.md"]:::clickable --> GATHER["Stage 1: Gather\nLoaded into gather-output"]
+    EXAMPLES["examples/\nsample-test-case.md\nFormat fallback"]:::clickable --> WRITER
+    CONV --> REVIEWER["Phase 4.5: Reviewer\nValidation reference"]
+
+    style CONV fill:#0f1320,stroke:#38bdf8,color:#d8dce8
+    style ARCH fill:#0f1320,stroke:#4ade80,color:#d8dce8
+    style EXAMPLES fill:#0f1320,stroke:#f472b6,color:#d8dce8
+
+    classDef clickable cursor:pointer
+    click CONV showDetail
+    click ARCH showDetail
+    click EXAMPLES showDetail
+  </div>
+  <p class="click-hint">Click any category to see its files and content</p>
+</div>
+
+<!-- DIAGRAM 8: SESSION TRACING -->
+<div id="d8" class="card">
+  <h2>Diagram 8: Session Tracing</h2>
+  <p class="desc">Claude Code hooks capture all tool calls and agent interactions into structured JSONL traces. Two telemetry systems: Python pipeline telemetry (Stage 1/3) and hook-based session tracing (all phases).</p>
+  <div class="mermaid">
+graph LR
+    HOOKS["Claude Code Hooks\n6 event types\nPreToolUse, PostToolUse\nUserPromptSubmit, Stop\nSubagentStop, Failure"]:::clickable --> TRACE["Session Trace\n.claude/traces/session.jsonl\nEvery tool call + result"]:::clickable
+    TRACE --> INDEX["Session Index\nsessions.jsonl\nOne-line summary per session"]:::clickable
+    PY["Pipeline Telemetry\nPipelineTelemetry class\nStage 1 + Stage 3 timing"]:::clickable --> PLOG["pipeline.log.jsonl\nStage timing + metadata"]:::clickable
+
+    style HOOKS fill:#0f1320,stroke:#38bdf8,color:#d8dce8
+    style TRACE fill:#0f1320,stroke:#4ade80,color:#d8dce8
+    style INDEX fill:#0f1320,stroke:#f472b6,color:#d8dce8
+    style PY fill:#0f1320,stroke:#fbbf24,color:#d8dce8
+    style PLOG fill:#0f1320,stroke:#a78bfa,color:#d8dce8
+
+    classDef clickable cursor:pointer
+    click HOOKS showDetail
+    click TRACE showDetail
+    click INDEX showDetail
+    click PY showDetail
+    click PLOG showDetail
+  </div>
+  <p class="click-hint">Click any box to see event types and data format</p>
+</div>
+
+</div>
+
+<!-- DETAIL PANEL -->
+<div id="detail-panel" class="hidden">
+  <div id="detail-header">
+    <h3 id="detail-title">Select a component</h3>
+    <button id="detail-close" onclick="hideDetail()">Close</button>
+  </div>
+  <div id="detail-body"></div>
+</div>
+
+<script>
+const DATA = {
+  'P0': {
+    title: 'Phase 0: Parse Inputs',
+    html: `
+      <div class="detail-section">
+        <h4>Input Resolution</h4>
+        <div class="label">What it does:</div>
+        <div class="value">Checks if critical information is missing and asks the user before starting the pipeline.</div>
+        <div class="label">Questions asked (if missing):</div>
+        <div class="value">&bull; JIRA ticket ID (always required)<br>&bull; ACM version (if not in JIRA fix_versions)<br>&bull; CNV version (Fleet Virt only)<br>&bull; Cluster URL (offer to skip live validation)<br>&bull; Feature scope (if JIRA has multiple ACs)</div>
+        <div class="label">When it skips questions:</div>
+        <div class="value">If all info is available from CLI args or inferable from JIRA, proceeds directly without asking.</div>
+      </div>
+    `
+  },
+  'S1': {
+    title: 'Stage 1: gather.py',
+    html: `
+      <div class="detail-section">
+        <h4>Deterministic Data Gathering</h4>
+        <div class="label">Script:</div>
+        <div class="value"><code>src/scripts/gather.py</code> (192 lines)</div>
+        <div class="label">Duration:</div>
+        <div class="value">~2-5 seconds</div>
+        <div class="label">What it collects:</div>
+        <div class="value">&bull; PR discovery via <code>gh search prs JIRA-ID</code><br>&bull; PR metadata via <code>gh pr view --json</code><br>&bull; Full PR diff via <code>gh pr diff</code><br>&bull; Area detection from file paths<br>&bull; Test vs production file classification<br>&bull; Peer test cases from filesystem<br>&bull; Conventions and area knowledge from <code>knowledge/</code></div>
+        <div class="label">No LLM or MCP calls:</div>
+        <div class="value">This stage is fully deterministic. Uses only <code>gh</code> CLI and local file reads.</div>
+      </div>
+    `
+  },
+  'GO': {
+    title: 'gather-output.json',
+    html: `
+      <div class="detail-section">
+        <h4>Stage 1 Output</h4>
+        <div class="label">Schema (GatherOutput Pydantic model):</div>
+<pre class="data-block">{
+  <span class="key">"jira_id"</span>: <span class="str">"ACM-30459"</span>,
+  <span class="key">"acm_version"</span>: <span class="str">"2.17"</span>,
+  <span class="key">"area"</span>: <span class="str">"governance"</span>,
+  <span class="key">"pr_data"</span>: {
+    <span class="key">"number"</span>: <span class="num">5790</span>,
+    <span class="key">"title"</span>: <span class="str">"Implement labels for discovered policies..."</span>,
+    <span class="key">"repo"</span>: <span class="str">"stolostron/console"</span>,
+    <span class="key">"state"</span>: <span class="str">"merged"</span>,
+    <span class="key">"files"</span>: [<span class="str">"frontend/src/routes/Governance/..."</span>],
+    <span class="key">"additions"</span>: <span class="num">1238</span>,
+    <span class="key">"deletions"</span>: <span class="num">16</span>,
+    <span class="key">"diff_file"</span>: <span class="str">"pr-diff.txt"</span>
+  },
+  <span class="key">"existing_test_cases"</span>: [<span class="str">"peer1.md"</span>, <span class="str">"peer2.md"</span>],
+  <span class="key">"conventions"</span>: <span class="str">"# Test Case Conventions..."</span>,
+  <span class="key">"area_knowledge"</span>: <span class="str">"# Governance Area Knowledge..."</span>,
+  <span class="key">"html_templates"</span>: <span class="str">"# Polarion HTML Templates..."</span>,
+  <span class="key">"run_dir"</span>: <span class="str">"runs/ACM-30459/..."</span>,
+  <span class="key">"options"</span>: { <span class="key">"skip_live"</span>: <span class="bool">false</span>, <span class="key">"cluster_url"</span>: <span class="null">null</span>, <span class="key">"repo"</span>: <span class="str">"stolostron/console"</span> },
+  <span class="key">"test_files"</span>: [<span class="str">".test.tsx files..."</span>],
+  <span class="key">"production_files"</span>: [<span class="str">"production .tsx files..."</span>]
+}</pre>
+      </div>
+    `
+  },
+  'PH1': {
+    title: 'Phase 1: Parallel Investigation',
+    html: `
+      <div class="detail-section">
+        <h4>3 Agents in Parallel</h4>
+        <div class="label">Duration:</div>
+        <div class="value">~30-60 seconds (all three run simultaneously)</div>
+        <div class="label">Agents:</div>
+        <div class="value"><span class="tag tag-agent">feature-investigator</span> JIRA deep dive (jira, polarion, neo4j, bash)<br><span class="tag tag-agent">code-change-analyzer</span> PR diff analysis (acm-ui, neo4j, bash)<br><span class="tag tag-agent">ui-discovery</span> ACM source search (acm-ui, neo4j, playwright, bash)</div>
+        <div class="label">Key principle:</div>
+        <div class="value">Each agent investigates from a different angle. Feature Investigator reads the <em>requirements</em>. Code Analyzer reads the <em>implementation</em>. UI Discovery reads the <em>current source</em>. Phase 2 merges and cross-references.</div>
+      </div>
+    `
+  },
+  'A': {
+    title: 'Agent A: Feature Investigator',
+    html: `
+      <div class="detail-section">
+        <h4>JIRA Deep Dive</h4>
+        <div class="label">MCP tools:</div>
+        <div class="value"><span class="tag tag-mcp">jira</span> get_issue, search_issues, get_project_components<br><span class="tag tag-mcp">polarion</span> get_polarion_work_items, get_polarion_test_case_summary<br><span class="tag tag-mcp">neo4j</span> read_neo4j_cypher<br><span class="tag tag-mcp">bash</span> gh pr view</div>
+        <div class="label">Output includes:</div>
+        <div class="value">&bull; Story summary and acceptance criteria<br>&bull; Fix versions<br>&bull; Linked tickets (parent epic, siblings)<br>&bull; JIRA comments with design decisions<br>&bull; Existing Polarion test coverage<br>&bull; Test scenarios derived from ACs</div>
+        <div class="label">Important note:</div>
+        <div class="value"><code>get_issue</code> does NOT return issue links. Use <code>search_issues</code> with JQL for linked tickets.</div>
+      </div>
+    `
+  },
+  'B': {
+    title: 'Agent B: Code Change Analyzer',
+    html: `
+      <div class="detail-section">
+        <h4>PR Diff Analysis</h4>
+        <div class="label">MCP tools:</div>
+        <div class="value"><span class="tag tag-mcp">acm-ui</span> set_acm_version, search_code, get_component_source, search_translations, get_routes<br><span class="tag tag-mcp">neo4j</span> read_neo4j_cypher<br><span class="tag tag-mcp">bash</span> gh pr view, gh pr diff</div>
+        <div class="label">What it identifies per changed file:</div>
+        <div class="value">&bull; New UI components (pages, columns, fields)<br>&bull; Modified UI elements (labels, buttons)<br>&bull; New routes and API interactions<br>&bull; <strong>UI interaction model</strong> (dropdown vs text input, PatternFly component type)<br>&bull; Translation strings<br>&bull; Conditional logic (feature flags, RBAC)</div>
+      </div>
+    `
+  },
+  'C': {
+    title: 'Agent C: UI Discovery',
+    html: `
+      <div class="detail-section">
+        <h4>ACM Console Source Discovery</h4>
+        <div class="label">MCP tools:</div>
+        <div class="value"><span class="tag tag-mcp">acm-ui</span> set_acm_version, set_cnv_version, search_code, get_component_source, search_translations, get_routes, get_wizard_steps, get_acm_selectors, get_fleet_virt_selectors, find_test_ids, get_patternfly_selectors, get_component_types<br><span class="tag tag-mcp">neo4j</span> read_neo4j_cypher (architecture context)<br><span class="tag tag-mcp">playwright</span> browser_navigate, browser_snapshot, browser_take_screenshot (conditional: only with cluster URL)<br><span class="tag tag-mcp">bash</span> oc login, oc whoami, oc get mch -A (cluster auth before browser verification)</div>
+        <div class="label">Must call first:</div>
+        <div class="value"><code>set_acm_version("2.17")</code> before any other acm-ui call. For Fleet Virt, also <code>set_cnv_version</code>.</div>
+        <div class="label">Output includes:</div>
+        <div class="value">&bull; Translations (key &rarr; UI string)<br>&bull; Routes (name &rarr; path pattern)<br>&bull; Selectors (component &rarr; CSS/data-test)<br>&bull; Test IDs<br>&bull; Component structure<br>&bull; Live verification status (if cluster URL provided)</div>
+      </div>
+    `
+  },
+  'PH2': {
+    title: 'Phase 2: Synthesize',
+    html: `
+      <div class="detail-section">
+        <h4>Merge + Scope Gate + AC Check</h4>
+        <div class="label">Steps:</div>
+        <div class="value">1. Concatenate all three investigation outputs<br>2. <strong>Scope gate:</strong> Extract target JIRA story ACs, filter steps to only those ACs<br>3. <strong>AC vs Implementation:</strong> Compare each AC against code behavior, flag discrepancies<br>4. Write TEST PLAN with scenario count, setup, teardown<br>5. Resolve agent conflicts (UI Discovery wins on elements, Feature Investigator wins on requirements)</div>
+        <div class="label">Scope gating rule:</div>
+        <div class="value">If the PR covers multiple JIRA stories, only include steps that map to the target story's ACs. Out-of-scope functionality goes to Notes.</div>
+        <div class="label">AC discrepancy format:</div>
+<pre class="data-block"><span class="key">AC-IMPLEMENTATION DISCREPANCIES:</span>
+- <span class="key">AC:</span> <span class="str">"Labels field is NOT shown when empty"</span>
+  <span class="key">Code:</span> <span class="str">"Always shows Labels field, displays dash when empty"</span>
+  <span class="key">Source:</span> PolicyTemplateDetails.tsx</pre>
+      </div>
+    `
+  },
+  'MERGE': {
+    title: 'Phase 2: Synthesize',
+    html: `
+      <div class="detail-section">
+        <h4>Merge + Scope Gate + AC Check</h4>
+        <div class="label">Conflict resolution:</div>
+        <div class="value">&bull; UI elements (labels, routes, selectors): trust <strong>UI Discovery</strong> (reads source directly)<br>&bull; Business requirements (ACs, scope): trust <strong>Feature Investigator</strong> (reads JIRA)<br>&bull; What changed (files, diff): trust <strong>Code Change Analyzer</strong> (reads diff)</div>
+      </div>
+    `
+  },
+  'FI': {
+    title: 'Feature Investigation Output',
+    html: `<div class="detail-section"><h4>Feeds into synthesis</h4><div class="value">Story summary, ACs, linked tickets, Polarion coverage, test scenarios. See Agent A for details.</div></div>`
+  },
+  'CC': {
+    title: 'Code Change Analysis Output',
+    html: `<div class="detail-section"><h4>Feeds into synthesis</h4><div class="value">Changed components, UI elements, interaction models, routes, translations. See Agent B for details.</div></div>`
+  },
+  'UID': {
+    title: 'UI Discovery Results Output',
+    html: `<div class="detail-section"><h4>Feeds into synthesis</h4><div class="value">Selectors, translations, routes, test IDs, component structure. See Agent C for details.</div></div>`
+  },
+  'CTX': {
+    title: 'SYNTHESIZED CONTEXT',
+    html: `
+      <div class="detail-section">
+        <h4>Primary input to Phase 4</h4>
+        <div class="label">Contains:</div>
+        <div class="value">&bull; Full Feature Investigation output<br>&bull; Full Code Change Analysis output<br>&bull; Full UI Discovery Results output<br>&bull; AC-Implementation Discrepancies (if any)<br>&bull; TEST PLAN with scenarios, steps, setup, teardown</div>
+      </div>
+    `
+  },
+  'SYN': {
+    title: 'Synthesis Process',
+    html: `
+      <div class="detail-section">
+        <h4>Scope Gate + AC Cross-Reference</h4>
+        <div class="label">Scope gating:</div>
+        <div class="value">Extract target JIRA story ACs. For each planned step, verify it maps to at least one AC. Steps for other stories go to Notes as "Related but not tested here."</div>
+        <div class="label">AC vs Implementation:</div>
+        <div class="value">Compare each AC bullet against code behavior from Code Change Analysis. If they disagree, flag the discrepancy so Phase 4 includes a Note citing source code.</div>
+      </div>
+    `
+  },
+  'PH3': {
+    title: 'Phase 3: Live Validation',
+    html: `
+      <div class="detail-section">
+        <h4>Browser + CLI on Real Cluster</h4>
+        <div class="label">Condition:</div>
+        <div class="value">Runs only when <code>--cluster-url</code> is provided and <code>--skip-live</code> is not set.</div>
+        <div class="label">Agent:</div>
+        <div class="value"><span class="tag tag-agent">live-validator</span></div>
+        <div class="label">Tools:</div>
+        <div class="value"><span class="tag tag-mcp">playwright</span> 24 tools (browser navigation, snapshot, click, fill, screenshot)<br><span class="tag tag-mcp">acm-search</span> 5 tools (fleet-wide resource queries)<br><span class="tag tag-mcp">acm-kubectl</span> 3 tools (multicluster kubectl)<br><span class="tag tag-mcp">bash</span> oc CLI (cluster health, resource state)</div>
+        <div class="label">Safety:</div>
+        <div class="value">Read-only validation. Never modifies cluster resources.</div>
+      </div>
+    `
+  },
+  'PH4': {
+    title: 'Phase 4: Write Test Case',
+    html: `
+      <div class="detail-section">
+        <h4>test-case-generator Agent</h4>
+        <div class="label">Process:</div>
+        <div class="value">1. Read conventions + peer test cases<br>2. Scope gate: plan steps for target story ACs only<br>3. MCP spot-check: verify entry point route + key labels<br>4. Write test-case.md following exact convention structure<br>5. Write analysis-results.json (audit metadata)<br>6. Self-review before finalizing</div>
+        <div class="label">Key rules:</div>
+        <div class="value">&bull; Never assume UI labels (use MCP discovery)<br>&bull; Never fabricate numeric thresholds without source evidence<br>&bull; Find component-specific routes, not just area routes<br>&bull; Include AC discrepancy Notes when relevant</div>
+      </div>
+    `
+  },
+  'TC': {
+    title: 'test-case.md + analysis-results.json',
+    html: `
+      <div class="detail-section">
+        <h4>Phase 4 Output</h4>
+        <div class="label">test-case.md sections:</div>
+        <div class="value">1. Title (<code># RHACM4K-XXXXX - [Tag-Version] Area - Name</code>)<br>2. Metadata (Polarion ID, Status, Dates)<br>3. Polarion Fields (10 fields)<br>4. Description (Entry Point, JIRA Coverage)<br>5. Setup (bash commands)<br>6. Test Steps (H3 per step)<br>7. Teardown<br>8. Notes (optional)</div>
+        <div class="label">analysis-results.json:</div>
+        <div class="value">Audit metadata: routes discovered, translations verified, complexity, step count. Not consumed by downstream stages.</div>
+      </div>
+    `
+  },
+  'PH45': {
+    title: 'Phase 4.5: Quality Gate',
+    html: `
+      <div class="detail-section">
+        <h4>Mandatory Review Loop</h4>
+        <div class="label">Agent:</div>
+        <div class="value"><span class="tag tag-agent">quality-reviewer</span></div>
+        <div class="label">Checks:</div>
+        <div class="value">&bull; Structural validation (title, metadata, sections, steps)<br>&bull; Discovered vs assumed (MCP spot-check, min 3 verifications)<br>&bull; AC vs implementation (JIRA ACs match expected results)<br>&bull; Knowledge file cross-reference (area knowledge verification)<br>&bull; Scope alignment (steps match target story)<br>&bull; Polarion duplicate check<br>&bull; Peer consistency<br>&bull; HTML check (post-hoc /review only)</div>
+        <div class="label">Loop behavior:</div>
+        <div class="value">If NEEDS_FIXES: orchestrator fixes issues, re-runs reviewer. Max 3 iterations. If still failing, shows remaining issues to user.</div>
+      </div>
+    `
+  },
+  'QR': {
+    title: 'Phase 4.5: Quality Reviewer',
+    html: `
+      <div class="detail-section">
+        <h4>8-Step Review Process</h4>
+        <div class="label">Steps:</div>
+        <div class="value">1. Read test case<br>2. Read conventions (3 files)<br>3. Structural validation <span class="tag tag-fail">BLOCKING</span><br>4. Discovered vs assumed (MCP, min 3 verifications) <span class="tag tag-fail">BLOCKING</span><br>4.5. AC vs implementation check <span class="tag tag-fail">BLOCKING</span><br>4.6. Knowledge file cross-reference <span class="tag tag-fail">BLOCKING</span><br>5. Polarion coverage check<br>6. Peer consistency check<br>7. HTML check (post-hoc only)</div>
+        <div class="label">MCP tools used:</div>
+        <div class="value"><span class="tag tag-mcp">acm-ui</span> set_acm_version, search_translations, get_routes, get_wizard_steps, get_component_source<br><span class="tag tag-mcp">polarion</span> get_polarion_work_items, get_polarion_work_item, get_polarion_test_case_summary</div>
+      </div>
+    `
+  },
+  'FIX': {
+    title: 'Fix Issues',
+    html: `<div class="detail-section"><h4>Orchestrator fixes blocking issues</h4><div class="value">The orchestrator reads the NEEDS_FIXES verdict, applies fixes to test-case.md, and re-launches the quality-reviewer. Max 3 iterations.</div></div>`
+  },
+  'CV': {
+    title: 'Stage 3: convention_validator.py',
+    html: `
+      <div class="detail-section">
+        <h4>Structural Validation</h4>
+        <div class="label">Script:</div>
+        <div class="value"><code>src/services/convention_validator.py</code> (319 lines)</div>
+        <div class="label">11 validation checks:</div>
+        <div class="value">1. Title pattern: <code>^# RHACM4K-\\d+ - \\[.+\\] .+ - .+$</code> + area tag match<br>2. Metadata: 4 required fields (Polarion ID, Status, Created, Updated)<br>3. Polarion fields: 10 required <code>## Field: Value</code> lines<br>4. Type field value: must be "Test Case"<br>5. Test Steps section header: <code>## Test Steps</code> required<br>6. Section order: Description &rarr; Setup &rarr; Test Steps &rarr; Teardown<br>7. Description: mandatory section<br>8. Entry point: <code>Entry Point</code> in Description<br>9. JIRA coverage: <code>Dev JIRA Coverage</code> in Description<br>10. Step format: H3 heading + Expected Result + numbered actions + CLI check + separators<br>11. Teardown + Setup: <code>--ignore-not-found</code> on deletes, <code># Expected:</code> on setup commands</div>
+      </div>
+    `
+  },
+  'HTML': {
+    title: 'html_generator.py',
+    html: `
+      <div class="detail-section">
+        <h4>Polarion HTML Generation</h4>
+        <div class="label">Script:</div>
+        <div class="value"><code>src/services/html_generator.py</code> (210 lines)</div>
+        <div class="label">Produces:</div>
+        <div class="value">&bull; <code>test-case-setup.html</code> &mdash; Prerequisites, environment, bash commands<br>&bull; <code>test-case-steps.html</code> &mdash; Two-column table (Step | Expected Result)</div>
+        <div class="label">Template rules:</div>
+        <div class="value">&bull; <code>contenteditable="false"</code> on table headers<br>&bull; <code>background-color:#F0F0F0</code> for header cells<br>&bull; Bold via <code>&lt;span style="font-weight:bold;"&gt;</code><br>&bull; Base style: <code>font-size:11pt;font-family:Arial</code></div>
+      </div>
+    `
+  },
+  'S3': {
+    title: 'Stage 3: report.py',
+    html: `
+      <div class="detail-section">
+        <h4>Report Generation</h4>
+        <div class="label">Script:</div>
+        <div class="value"><code>src/scripts/report.py</code> (200 lines). Also uses <code>src/scripts/log_phase.py</code> (87 lines) for AI phase telemetry.</div>
+        <div class="label">Process:</div>
+        <div class="value">1. Find test case file in run directory<br>2. Run structural validation (<code>convention_validator.py</code>)<br>3. Generate Polarion HTML (<code>html_generator.py</code>)<br>4. Write <code>SUMMARY.txt</code><br>5. Log telemetry events</div>
+      </div>
+    `
+  },
+  'DONE': {
+    title: 'Pipeline Output Files',
+    html: `
+      <div class="detail-section">
+        <h4>Run Directory Contents</h4>
+<pre class="data-block">runs/ACM-30459/ACM-30459-2026-04-18T02-00-46/
+  <span class="key">gather-output.json</span>              <span class="null"># Stage 1</span>
+  <span class="key">pr-diff.txt</span>                     <span class="null"># Stage 1</span>
+  <span class="key">phase1-feature-investigation.md</span>  <span class="null"># Phase 1</span>
+  <span class="key">phase1-code-change-analysis.md</span>  <span class="null"># Phase 1</span>
+  <span class="key">phase1-ui-discovery.md</span>          <span class="null"># Phase 1</span>
+  <span class="key">phase2-synthesized-context.md</span>   <span class="null"># Phase 2</span>
+  <span class="key">phase3-live-validation.md</span>       <span class="null"># Phase 3</span>
+  <span class="str">test-case.md</span>                    <span class="null"># Phase 4 (primary deliverable)</span>
+  <span class="key">analysis-results.json</span>           <span class="null"># Phase 4</span>
+  <span class="key">phase4.5-quality-review.md</span>      <span class="null"># Phase 4.5</span>
+  <span class="key">test-case-setup.html</span>            <span class="null"># Stage 3 (Polarion)</span>
+  <span class="key">test-case-steps.html</span>            <span class="null"># Stage 3 (Polarion)</span>
+  <span class="key">review-results.json</span>             <span class="null"># Stage 3</span>
+  <span class="key">SUMMARY.txt</span>                     <span class="null"># Stage 3</span>
+  <span class="key">pipeline.log.jsonl</span>              <span class="null"># All stages + phases</span></pre>
+      </div>
+    `
+  },
+  'OUT': {
+    title: 'Final Output',
+    html: `
+      <div class="detail-section">
+        <h4>Polarion-Ready Deliverables</h4>
+        <div class="value">&bull; <code>test-case.md</code> &mdash; Primary test case (Markdown)<br>&bull; <code>test-case-setup.html</code> &mdash; Polarion setup section (paste into Polarion)<br>&bull; <code>test-case-steps.html</code> &mdash; Polarion steps table (paste into Polarion)<br>&bull; <code>SUMMARY.txt</code> &mdash; Human-readable pipeline summary<br>&bull; <code>review-results.json</code> &mdash; Structural validation results</div>
+      </div>
+    `
+  },
+  'INPUT': {
+    title: 'gather-output.json',
+    html: `<div class="detail-section"><h4>Input to Phase 1</h4><div class="value">All gathered data from Stage 1: JIRA ID, PR metadata, area, conventions, peer test cases. See gather-output.json detail for schema.</div></div>`
+  },
+  'G1': { title: 'Step 1: Search PR', html: `<div class="detail-section"><h4>PR Discovery</h4><div class="label">Command:</div><div class="value"><code>gh search prs JIRA-ID --repo stolostron/console --json number,title,state --limit 5</code></div><div class="label">Output:</div><div class="value">PR number (e.g., 5790) &mdash; first result from up to 5 matches</div></div>` },
+  'G2': { title: 'Step 2: PR Metadata', html: `<div class="detail-section"><h4>PR Details</h4><div class="label">Command:</div><div class="value"><code>gh pr view 5790 --repo stolostron/console --json title,body,files,additions,deletions,mergedAt,state</code></div><div class="label">Output:</div><div class="value">PRData model: title, file list (11 files), additions (1238), deletions (16), merge date, state</div></div>` },
+  'G3': { title: 'Step 3: PR Diff', html: `<div class="detail-section"><h4>Full Diff Download</h4><div class="label">Command:</div><div class="value"><code>gh pr diff 5790 --repo stolostron/console</code></div><div class="label">Output:</div><div class="value"><code>pr-diff.txt</code> file in run directory (used by Code Change Analyzer in Phase 1)</div></div>` },
+  'G4': { title: 'Step 4: Detect Area', html: `<div class="detail-section"><h4>Area Auto-Detection</h4><div class="label">Method:</div><div class="value"><code>detect_area_from_files()</code> in <code>github_service.py</code></div><div class="label">Pattern matching:</div><div class="value">&bull; <code>routes/Governance/</code> &rarr; governance<br>&bull; <code>routes/Infrastructure/Clusters/</code> &rarr; clusters<br>&bull; <code>routes/Applications/</code> &rarr; applications<br>&bull; <code>routes/Credentials/</code> &rarr; credentials</div></div>` },
+  'G5': { title: 'Step 5: Peer Test Cases', html: `<div class="detail-section"><h4>Peer Discovery</h4><div class="label">Search order:</div><div class="value">1. External automation workspace (area-aware)<br>2. Previous pipeline runs (<code>runs/</code>)<br>3. Sample (<code>knowledge/examples/sample-test-case.md</code>)</div><div class="label">Returns:</div><div class="value">Up to 3 test cases matching area and version</div></div>` },
+  'G6': { title: 'Step 6: Load Knowledge', html: `<div class="detail-section"><h4>Conventions + Architecture</h4><div class="label">Files loaded:</div><div class="value">&bull; <code>knowledge/conventions/test-case-format.md</code> (3237 chars)<br>&bull; <code>knowledge/conventions/polarion-html-templates.md</code><br>&bull; <code>knowledge/architecture/&lt;area&gt;.md</code> (e.g., governance.md, 2995 chars)</div></div>` },
+  'GOUT': { title: 'gather-output.json', html: `<div class="detail-section"><h4>Stage 1 Complete Output</h4><div class="value">Serialized GatherOutput Pydantic model with all collected data. See the gather-output.json detail above for full schema.</div></div>` },
+  'ACMUI': { title: 'acm-ui MCP Server', html: `<div class="detail-section"><h4>ACM Console Source Search</h4><div class="label">Tools:</div><div class="value"><span class="num">20</span> tools</div><div class="label">Source:</div><div class="value">This repo (<code>mcp/acm-ui-mcp-server/</code>)</div><div class="label">Key tools:</div><div class="value">set_acm_version, search_code, get_component_source, search_translations, get_routes, get_wizard_steps, find_test_ids, get_acm_selectors</div><div class="label">Used by:</div><div class="value">Code Change Analyzer, UI Discovery, Test Case Generator, Quality Reviewer</div></div>` },
+  'JIRA': { title: 'jira MCP Server', html: `<div class="detail-section"><h4>JIRA Ticket Investigation</h4><div class="label">Tools:</div><div class="value"><span class="num">3</span> tools: get_issue, search_issues, get_project_components</div><div class="label">Source:</div><div class="value">Cloned from stolostron/jira-mcp-server</div><div class="label">Credentials:</div><div class="value"><code>mcp/.external/jira-mcp-server/.env</code> (JIRA email + API token)</div><div class="label">Used by:</div><div class="value">Feature Investigator</div></div>` },
+  'POL': { title: 'polarion MCP Server', html: `<div class="detail-section"><h4>Polarion Test Coverage</h4><div class="label">Tools:</div><div class="value"><span class="num">7</span> tools</div><div class="label">Source:</div><div class="value">This repo (<code>mcp/polarion/</code>)</div><div class="label">Project ID:</div><div class="value">Always <code>RHACM4K</code></div><div class="label">Credentials:</div><div class="value"><code>mcp/polarion/.env</code> (Polarion JWT token, requires VPN)</div><div class="label">Used by:</div><div class="value">Feature Investigator, Quality Reviewer</div></div>` },
+  'NEO': { title: 'neo4j-rhacm MCP Server', html: `<div class="detail-section"><h4>Component Dependency Graph</h4><div class="label">Tools:</div><div class="value"><span class="num">2</span> tools: get_neo4j_schema, read_neo4j_cypher</div><div class="label">Data:</div><div class="value">339+ components, 479+ relationships</div><div class="label">Requires:</div><div class="value">Podman with <code>neo4j-rhacm</code> container running</div><div class="label">Used by:</div><div class="value">Feature Investigator, Code Change Analyzer, UI Discovery</div></div>` },
+  'PW': { title: 'playwright MCP Server', html: `<div class="detail-section"><h4>Browser Automation</h4><div class="label">Tools:</div><div class="value"><span class="num">24</span> tools</div><div class="label">Source:</div><div class="value"><code>@playwright/mcp</code> (npm), runs via <code>npx @playwright/mcp@latest</code></div><div class="label">Key tools:</div><div class="value">browser_navigate, browser_snapshot, browser_click, browser_fill_form, browser_take_screenshot, browser_console_messages, browser_network_requests</div><div class="label">Used by:</div><div class="value">Live Validator (Phase 3), UI Discovery (Phase 1, conditional &mdash; only when cluster URL provided)</div></div>` },
+  'SEARCH': { title: 'acm-search MCP Server', html: `<div class="detail-section"><h4>Fleet-Wide Resource Queries</h4><div class="label">Tools:</div><div class="value"><span class="num">5</span> tools: find_resources, query_database, list_tables, get_database_stats, search_tables</div><div class="label">Deployment:</div><div class="value">On-cluster pod, accessed via SSE + mcp-remote bridge</div><div class="label">Used by:</div><div class="value">Live Validator (Phase 3 only)</div></div>` },
+  'KCTL': { title: 'acm-kubectl MCP Server', html: `<div class="detail-section"><h4>Multicluster Kubectl</h4><div class="label">Tools:</div><div class="value"><span class="num">3</span> tools: clusters, kubectl, connect_cluster</div><div class="label">Source:</div><div class="value"><code>acm-mcp-server</code> (npm), runs via <code>npx -y acm-mcp-server@latest</code></div><div class="label">Used by:</div><div class="value">Live Validator (Phase 3 only)</div></div>` },
+  'CONV': { title: 'conventions/', html: `<div class="detail-section"><h4>Test Case Format Rules</h4><div class="label">4 files:</div><div class="value">&bull; <code>test-case-format.md</code> &mdash; Section order, naming, 85-case conventions<br>&bull; <code>area-naming-patterns.md</code> &mdash; Title tag by area ([GRC-X.XX], [FG-RBAC-X.XX])<br>&bull; <code>cli-in-steps-rules.md</code> &mdash; CLI only for backend validation<br>&bull; <code>polarion-html-templates.md</code> &mdash; HTML generation templates</div><div class="label">Read by:</div><div class="value">Phase 4 (writer), Phase 4.5 (reviewer), Stage 3 (html_generator.py)</div></div>` },
+  'ARCH': { title: 'architecture/', html: `<div class="detail-section"><h4>Per-Area Domain Knowledge</h4><div class="label">9 files:</div><div class="value">&bull; governance.md &mdash; Policy types, discovered vs managed, system labels<br>&bull; rbac.md &mdash; FG-RBAC, MCRA, scopes<br>&bull; fleet-virt.md &mdash; Tree view, VM actions, KubeVirt<br>&bull; cclm.md &mdash; Cross-cluster live migration<br>&bull; mtv.md &mdash; Migration toolkit for virtualization<br>&bull; clusters.md &mdash; Cluster lifecycle, import/detach<br>&bull; search.md &mdash; Search API, global queries<br>&bull; applications.md &mdash; ALC, subscriptions<br>&bull; credentials.md &mdash; Provider credentials</div><div class="label">Read by:</div><div class="value">Stage 1 (loaded into gather-output.json), Phase 4 (area context), Phase 4.5 (knowledge file cross-reference)</div></div>` },
+  'EXAMPLES': { title: 'examples/', html: `<div class="detail-section"><h4>Sample Test Case</h4><div class="value"><code>sample-test-case.md</code> &mdash; Convention-compliant sample used as format fallback when no peer test cases exist for the area/version.</div></div>` },
+  'HOOKS': { title: 'Claude Code Hooks', html: `<div class="detail-section"><h4>6 Event Types</h4><div class="label">Hook script:</div><div class="value"><code>.claude/hooks/agent_trace.py</code> (471 lines)</div><div class="label">Events captured:</div><div class="value">&bull; <strong>PreToolUse</strong> (Bash, mcp__.*, Agent, Read, Write, Edit)<br>&bull; <strong>PostToolUse</strong> (Bash, mcp__.*)<br>&bull; <strong>PostToolUseFailure</strong> (mcp__.*, Bash)<br>&bull; <strong>UserPromptSubmit</strong> (all prompts)<br>&bull; <strong>SubagentStop</strong> (all subagents)<br>&bull; <strong>Stop</strong> (turn completion)</div></div>` },
+  'TRACE': { title: 'Session Trace File', html: `<div class="detail-section"><h4>Per-Session JSONL</h4><div class="label">Location:</div><div class="value"><code>.claude/traces/&lt;session_id&gt;.jsonl</code></div><div class="label">Enrichment:</div><div class="value">&bull; Pipeline command detection (generate/review/batch)<br>&bull; Pipeline phase from subagent type<br>&bull; Knowledge category from file path<br>&bull; oc command parsing (verb, resource, namespace)<br>&bull; MCP server/tool extraction</div></div>` },
+  'INDEX': { title: 'Session Index', html: `<div class="detail-section"><h4>One-Line Summary per Session</h4><div class="label">Location:</div><div class="value"><code>.claude/traces/sessions.jsonl</code></div><div class="label">Fields:</div><div class="value">pipeline_command, phases_seen, duration_sec, prompts, tool_calls, subagent_launches, mcp_calls, oc_commands, mutations, knowledge_reads, pattern_writes, pipeline_outputs, errors</div></div>` },
+  'PY': { title: 'Pipeline Telemetry', html: `<div class="detail-section"><h4>Python Script Telemetry</h4><div class="label">Class:</div><div class="value"><code>PipelineTelemetry</code> in <code>src/services/telemetry.py</code> (69 lines)</div><div class="label">Events:</div><div class="value">pipeline_start, stage_start, stage_end (with metadata), pipeline_end, error</div><div class="label">Phase logging:</div><div class="value"><code>src/scripts/log_phase.py</code> (87 lines) &mdash; CLI utility called by the orchestrator after each AI phase (Phases 1&ndash;4.5). Logs phase_end events with metadata to <code>pipeline.log.jsonl</code>.</div><div class="label">Covers:</div><div class="value">Stage 1 + Stage 3 via PipelineTelemetry class. Phases 1&ndash;4.5 via log_phase.py. Hook-based session tracing covers all phases independently.</div></div>` },
+  'PLOG': { title: 'pipeline.log.jsonl', html: `<div class="detail-section"><h4>Per-Run Telemetry</h4><div class="label">Location:</div><div class="value"><code>runs/&lt;run-dir&gt;/pipeline.log.jsonl</code></div><div class="label">Stage 1 metadata:</div><div class="value">pr_found, pr_number, area, existing_test_cases_count, conventions_loaded, elapsed_seconds</div><div class="label">Stage 3 metadata:</div><div class="value">verdict, total_steps, blocking_issues, warnings, html_generated, elapsed_seconds</div></div>` }
+};
+
+function showDetail(id) {
+  const d = DATA[id];
+  if (!d) return;
+  document.getElementById('detail-title').textContent = d.title;
+  document.getElementById('detail-body').innerHTML = d.html;
+  document.getElementById('detail-panel').classList.remove('hidden');
+  document.getElementById('main').classList.remove('full');
+}
+
+function hideDetail() {
+  document.getElementById('detail-panel').classList.add('hidden');
+  document.getElementById('main').classList.add('full');
+}
+
+mermaid.initialize({ startOnLoad: true, theme: 'dark', themeVariables: { primaryColor: '#0f1320', primaryTextColor: '#d8dce8', lineColor: '#38bdf8', secondaryColor: '#141a2e' }});
+</script>
+
+</body>
+</html>

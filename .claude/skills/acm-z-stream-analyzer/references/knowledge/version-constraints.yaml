@@ -1,0 +1,133 @@
+# Version Compatibility Constraints -- Z-Stream Analysis
+# Known product version incompatibilities that cause test failures.
+# The AI agent cross-references operator versions from the oracle/cluster
+# against this list to detect PRODUCT_BUG (compatibility gap) vs
+# INFRASTRUCTURE (component down).
+#
+# Populated by: manual QE review
+# Refresh frequency: after each GA release or when new constraints discovered
+
+constraints:
+
+  - id: ansiblejob-aap25-workflow
+    component: AnsibleJob CR
+    affected_versions:
+      aap: ">=2.5"
+      acm: "<=2.13"
+    description: >
+      AnsibleJob CR does not support AAP 2.5+ workflow job templates.
+      The AnsibleJob controller attempts to mount AAP 2.4-style secrets
+      that do not exist in AAP 2.5+, causing CreateContainerConfigError.
+    symptoms:
+      - "CreateContainerConfigError"
+      - "Ansible posthook is not triggered within time limit"
+      - "AnsibleJob not created within"
+    correct_classification: PRODUCT_BUG
+    common_misclassification: INFRASTRUCTURE
+    confidence: 0.85
+    explanation: >
+      CreateContainerConfigError looks like an infrastructure issue (pod
+      can't start), but the root cause is a product compatibility gap
+      between AnsibleJob CR and the AAP 2.5+ API. The operator CSV shows
+      Succeeded, and the AAP instance is healthy -- the CRD simply does
+      not support the new workflow API.
+    diagnostic: >
+      Check AAP operator version: oc get csv -A | grep aap.
+      If version >= 2.5, check if test uses workflow job template.
+      If yes, this is a product compatibility issue, not infrastructure.
+
+  - id: olm-max-openshift-version
+    component: OLM operator bundles
+    affected_versions:
+      ocp: ">= bundle ceiling"
+    description: >
+      OLM enforces the olm.maxOpenShiftVersion annotation on operator
+      bundles. If the cluster's OCP version exceeds the operator bundle's
+      ceiling, OLM blocks the operator upgrade. The CSV stays in Replacing
+      or Pending state and the operator cannot be updated.
+    symptoms:
+      - "CSV phase: Replacing"
+      - "CSV phase: Pending"
+      - "InstallPlan not completed"
+      - "operator upgrade blocked"
+    correct_classification: INFRASTRUCTURE
+    common_misclassification: PRODUCT_BUG
+    confidence: 0.85
+    explanation: >
+      The operator itself is not broken -- OLM is enforcing a version
+      constraint. The root cause is an OCP version that exceeds the
+      operator bundle's declared maximum. This requires updating the
+      operator bundle or downgrading OCP.
+    diagnostic: >
+      Check the CSV annotations: oc get csv <name> -n <ns> -o
+      jsonpath='{.metadata.annotations.olm\.maxOpenShiftVersion}'.
+      Compare against cluster OCP version: oc get clusterversion -o
+      jsonpath='{.status.desired.version}'. If OCP version exceeds
+      the annotation, the operator upgrade is blocked by design.
+
+  - id: submariner-ocp418
+    component: Submariner
+    affected_versions:
+      ocp: ">=4.18"
+      submariner: "<0.18"
+    description: >
+      Submariner versions below 0.18 fail on OCP 4.18+ due to API
+      changes in the networking stack.
+    symptoms:
+      - "SubmarinerConfig reconciliation failure"
+      - "Gateway pod CrashLoopBackOff"
+    correct_classification: PRODUCT_BUG
+    common_misclassification: INFRASTRUCTURE
+    confidence: 0.80
+    explanation: >
+      The Submariner gateway pod crashes because older versions don't
+      support the OCP 4.18+ networking API changes. The operator is
+      running but the managed components are incompatible.
+    diagnostic: >
+      Check Submariner version: oc get csv -A | grep submariner.
+      Check OCP version: oc get clusterversion. If Submariner < 0.18
+      on OCP >= 4.18, this is a known version incompatibility.
+
+  - id: clustercurator-ocp421
+    component: ClusterCurator
+    affected_versions:
+      ocp_target: ">=4.21"
+      acm: "<=2.15"
+    description: >
+      ClusterCurator fails when upgrading managed clusters to OCP 4.21
+      on ACM versions 2.15 and below. Fixed in ACM 2.16+.
+    symptoms:
+      - "ClusterCurator job failed"
+      - "Upgrade monitoring timeout"
+    correct_classification: PRODUCT_BUG
+    common_misclassification: INFRASTRUCTURE
+    confidence: 0.85
+    jira: "ACM-30314"
+    explanation: >
+      The curator controller does not handle OCP 4.21 upgrade monitoring
+      correctly in older ACM versions.
+    diagnostic: >
+      Check ACM version and target OCP version in ClusterCurator spec.
+      If ACM <= 2.15 upgrading to OCP >= 4.21, this is ACM-30314.
+
+  - id: console-mce-crashloop
+    component: console-mce
+    affected_versions:
+      acm: ">=2.13,<=2.15.0"
+    description: >
+      console-mce enters CrashLoopBackOff due to a connection pooling
+      bug. Fixed in ACM 2.15.1+.
+    symptoms:
+      - "console-mce CrashLoopBackOff"
+      - "MCE UI tabs missing"
+    correct_classification: PRODUCT_BUG
+    common_misclassification: INFRASTRUCTURE
+    confidence: 0.90
+    jira: "ACM-24965"
+    explanation: >
+      Connection pooling bug in console-mce causes resource exhaustion.
+      The pod crashes repeatedly. All MCE UI tabs silently disappear
+      (Trap 2 pattern).
+    diagnostic: >
+      Check ACM version and console-mce pod status. If ACM 2.13-2.15.0
+      and console-mce is in CrashLoopBackOff, this is ACM-24965.

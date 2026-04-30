@@ -1,0 +1,259 @@
+# ACM Webhook Registry
+# Validating and mutating webhook configurations expected on an ACM hub.
+# Use this to detect missing or misconfigured webhooks during health checks.
+#
+# Populated by: refresh.py (oc get validatingwebhookconfigurations, mutatingwebhookconfigurations)
+# Refresh frequency: after ACM version upgrade
+
+acm_version: "2.16.0"
+last_refreshed: "2026-04-03"
+
+validating_webhooks:
+
+  # --- Hive webhooks ---
+  - name: clusterdeploymentvalidators.admission.hive.openshift.io
+    owner: HiveConfig/hive
+    namespace: hive
+    failure_policy: Fail
+    critical_for:
+      - cluster-creation
+      - cluster-modification
+      - cluster-deletion
+    if_broken: "All ClusterDeployment operations fail with webhook errors"
+    check_command: "oc get validatingwebhookconfigurations clusterdeploymentvalidators.admission.hive.openshift.io"
+
+  - name: clusterimagesetvalidators.admission.hive.openshift.io
+    owner: HiveConfig/hive
+    namespace: hive
+    failure_policy: Fail
+    critical_for:
+      - cluster-creation
+      - cluster-image-selection
+    if_broken: "ClusterImageSet validation skipped. Invalid image sets may be accepted, causing cluster creation to fail later."
+
+  - name: clusterprovisionvalidators.admission.hive.openshift.io
+    owner: HiveConfig/hive
+    namespace: hive
+    failure_policy: Fail
+    critical_for:
+      - cluster-provisioning
+    if_broken: "ClusterProvision validation skipped. Invalid provisioning configs accepted."
+
+  - name: dnszonevalidators.admission.hive.openshift.io
+    owner: HiveConfig/hive
+    namespace: hive
+    failure_policy: Fail
+    critical_for:
+      - cluster-dns-configuration
+    if_broken: "DNSZone validation skipped. DNS misconfigurations accepted, causing cluster creation DNS failures."
+
+  - name: machinepoolvalidators.admission.hive.openshift.io
+    owner: HiveConfig/hive
+    namespace: hive
+    failure_policy: Fail
+    critical_for:
+      - cluster-scaling
+      - machinepool-management
+    if_broken: "MachinePool validation skipped. Invalid scaling configurations accepted."
+
+  - name: selectorsyncsetvalidators.admission.hive.openshift.io
+    owner: HiveConfig/hive
+    namespace: hive
+    failure_policy: Fail
+    critical_for:
+      - cluster-configuration-sync
+    if_broken: "SelectorSyncSet validation skipped. Invalid sync configurations may break resources across targeted clusters."
+
+  - name: syncsetvalidators.admission.hive.openshift.io
+    owner: HiveConfig/hive
+    namespace: hive
+    failure_policy: Fail
+    critical_for:
+      - cluster-configuration-sync
+    if_broken: "SyncSet validation skipped. Invalid per-cluster sync configurations accepted."
+
+  # --- ClusterManager / OCM Hub webhooks ---
+  - name: managedclustersetbindingvalidators.admission.cluster.open-cluster-management.io
+    owner: ClusterManager
+    namespace: open-cluster-management-hub
+    failure_policy: Fail
+    critical_for:
+      - clusterset-binding
+    if_broken: "ManagedClusterSetBinding operations fail"
+
+  - name: managedclustervalidators.admission.cluster.open-cluster-management.io
+    owner: ClusterManager
+    namespace: open-cluster-management-hub
+    failure_policy: Fail
+    critical_for:
+      - cluster-import
+      - cluster-registration
+    if_broken: "ManagedCluster create/update operations rejected"
+    check_command: "oc get validatingwebhookconfigurations managedclustervalidators.admission.cluster.open-cluster-management.io"
+
+  - name: manifestworkvalidators.admission.work.open-cluster-management.io
+    owner: ClusterManager
+    namespace: open-cluster-management-hub
+    failure_policy: Fail
+    critical_for:
+      - manifestwork-delivery
+      - addon-deployment
+    if_broken: "ManifestWork operations fail -- affects all addon and workload delivery"
+
+  # --- MCH / MCE Operator webhooks ---
+  - name: multiclusterhub-operator-validating-webhook
+    owner: MCH Operator
+    namespace: "{mch-ns}"
+    failure_policy: Fail
+    critical_for:
+      - mch-config-changes
+    if_broken: "MCH configuration changes rejected"
+
+  - name: multiclusterengines.multicluster.openshift.io
+    owner: MCE Operator
+    namespace: multicluster-engine
+    failure_policy: Fail
+    critical_for:
+      - mce-config-changes
+    if_broken: "MCE configuration changes rejected"
+
+  - name: ocm-validating-webhook
+    owner: MCH Operator
+    namespace: "{mch-ns}"
+    failure_policy: Fail
+    critical_for:
+      - resource-validation
+    if_broken: "OCM resource validation skipped (Ignore policy)"
+
+  # --- Observability webhook ---
+  - name: multicluster-observability-operator
+    owner: Observability Operator
+    namespace: "{mch-ns}"
+    failure_policy: Fail
+    critical_for:
+      - observability-configuration
+    if_broken: "MultiClusterObservability CR changes not validated. Invalid observability configuration may be accepted."
+
+  # --- SiteConfig webhook ---
+  - name: clusterinstances.siteconfig.open-cluster-management.io
+    owner: SiteConfig Operator (MCE)
+    namespace: "{mch-ns}"
+    failure_policy: Fail
+    critical_for:
+      - siteconfig-cluster-provisioning
+      - ztp-cluster-creation
+    if_broken: "SiteConfig-based cluster provisioning validation fails. ZTP workflows blocked."
+    note: "Only present when siteconfig component is enabled"
+
+  # --- Discovery webhook ---
+  - name: discovery.open-cluster-management.io
+    owner: Discovery Operator (MCE)
+    namespace: multicluster-engine
+    failure_policy: Fail
+    critical_for:
+      - discovered-cluster-import
+      - cluster-discovery
+    if_broken: "DiscoveredCluster resource validation fails. Cloud-discovered cluster import may break."
+
+  # --- Governance webhook ---
+  - name: propagator-webhook-validating-configuration
+    owner: GRC/grc-policy-propagator
+    namespace: "{mch-ns}"
+    failure_policy: Fail
+    critical_for:
+      - policy-creation
+      - policy-modification
+    if_broken: "Policy create/update operations rejected. Policy propagation stops."
+
+  # --- App-Lifecycle webhooks ---
+  - name: channels.apps.open.cluster.management.webhook.validator
+    owner: multicluster-operators-channel
+    namespace: "{mch-ns}"
+    failure_policy: Fail
+    critical_for:
+      - channel-creation
+      - channel-modification
+    if_broken: "Channel validation fails. Git/Helm/ObjectStorage channel create/update operations rejected."
+
+  - name: application-webhook-validator
+    owner: multicluster-operators-application
+    namespace: "{mch-ns}"
+    failure_policy: Fail
+    critical_for:
+      - application-creation
+      - application-modification
+    if_broken: "Application CR validation fails. Application create/update operations rejected."
+
+  # --- Virtualization webhook ---
+  - name: mtv-plan-webhook-validating-configuration
+    owner: MTV Integrations Controller
+    namespace: "{mch-ns}"
+    failure_policy: Fail
+    critical_for:
+      - mtv-migration-plans
+    if_broken: "MTV migration plan validation fails. Migration plans cannot be created."
+    note: "Only present when cnv-mtv-integrations is enabled"
+
+  # --- Cluster Backup webhook ---
+  - name: cluster-backup-validating-webhook-configuration
+    owner: Cluster Backup (OADP)
+    namespace: "{mch-ns}"
+    failure_policy: Fail
+    critical_for:
+      - cluster-backup-configuration
+    if_broken: "Cluster backup validation fails. Backup schedules may not be validated."
+    note: "Only present when cluster-backup is enabled"
+
+  # --- Legacy / version-specific (not on 2.16) ---
+  - name: policy.open-cluster-management.io.webhook
+    owner: GRC
+    namespace: "{mch-ns}"
+    failure_policy: Fail
+    critical_for:
+      - policy-creation
+      - policy-modification
+    if_broken: "Policy create/update operations rejected"
+    note: "Not found on 2.16 cluster -- replaced by propagator-webhook-validating-configuration. May be present on older versions."
+
+  - name: placement.open-cluster-management.io
+    owner: ClusterManager
+    namespace: open-cluster-management-hub
+    failure_policy: Fail
+    critical_for:
+      - placement-decisions
+    if_broken: "Placement operations fail -- affects app deployment and policy targeting"
+    note: "Not found on 2.16 cluster -- placement validation may be handled by ocm-validating-webhook"
+
+mutating_webhooks:
+  - name: managedclustermutators.admission.cluster.open-cluster-management.io
+    owner: ClusterManager
+    namespace: open-cluster-management-hub
+    failure_policy: Fail
+    critical_for:
+      - cluster-import
+    if_broken: "ManagedCluster mutations fail during import"
+
+  - name: ocm-mutating-webhook
+    owner: MCH Operator
+    namespace: "{mch-ns}"
+    failure_policy: Fail
+    critical_for:
+      - mch-defaults
+    if_broken: "MCH default values not applied"
+
+common_webhook_issues:
+  - issue: "CA bundle mismatch after cert rotation"
+    symptoms: "x509: certificate signed by unknown authority"
+    resolution: "Check webhook caBundle vs serving cert CA. service-ca-operator should auto-update."
+
+  - issue: "Webhook service not reachable"
+    symptoms: "failed calling webhook: connection refused"
+    resolution: "Check that the webhook's target service and pod are Running."
+
+  - issue: "Webhook timeout"
+    symptoms: "context deadline exceeded"
+    resolution: "Webhook pod may be overloaded. Check pod resource usage and restart count."
+
+  - issue: "Webhook blocks unrelated operations"
+    symptoms: "Unexpected admission rejection on resources not related to the webhook"
+    resolution: "Check webhook's rules[].scope and objectSelector. Overly broad rules can intercept unintended resources."

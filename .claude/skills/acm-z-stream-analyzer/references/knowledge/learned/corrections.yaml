@@ -1,0 +1,15 @@
+# Classification Corrections -- Agent-Contributed
+# When the user provides feedback that a classification was wrong,
+# the agent writes corrections here for future reference.
+#
+# Format:
+#   - date: "YYYY-MM-DD"
+#     test_name: "test that was misclassified"
+#     original_classification: AUTOMATION_BUG
+#     correct_classification: PRODUCT_BUG
+#     reason: "Why the original was wrong"
+#     pattern_to_add: "Optional: failure pattern to add to failure-patterns.yaml"
+#
+# Promoted by: refresh.py --promote (moves patterns to failure-patterns.yaml)
+
+corrections: []

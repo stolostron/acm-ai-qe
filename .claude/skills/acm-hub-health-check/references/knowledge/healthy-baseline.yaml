@@ -1,0 +1,390 @@
+# ACM Hub Healthy Baseline
+# What "normal" looks like for a healthy ACM hub cluster.
+# Used as a reference point, not as a strict checklist -- always discover
+# what's actually deployed before comparing against this baseline.
+#
+# Populated by: refresh.py (oc get against a known-healthy cluster)
+# Refresh frequency: after ACM version upgrade
+
+acm_version: "2.16.0"
+last_refreshed: "2026-04-03"
+
+baseline:
+
+  mch:
+    expected_phase: Running
+    expected_components_available: 25
+    reconciliation_interval: "~5 minutes"
+    key_conditions:
+      - type: Complete
+        expected_message: "All hub components ready"
+
+  mce:
+    expected_phase: Available
+    namespace: multicluster-engine
+    key_conditions:
+      - type: Available
+        expected_status: "True"
+
+  ocp:
+    clusterversion_available: true
+    clusterversion_progressing: false
+
+  namespaces:
+    mch_namespace:
+      note: "Namespace varies -- discover with oc get mch -A. Common: open-cluster-management, ocm"
+      expected_pod_count_range: "30-40"
+      critical_deployments:
+
+        # --- Search subsystem ---
+        - name: search-api
+          min_replicas: 1
+          subsystem: search
+        - name: search-indexer
+          min_replicas: 1
+          subsystem: search
+        - name: search-postgres
+          min_replicas: 1
+          volume_type: emptyDir
+          note: "Data lost on restart -- rebuilt from collectors"
+          subsystem: search
+        - name: search-v2-operator-controller-manager
+          min_replicas: 1
+          subsystem: search
+
+        # --- Console subsystem ---
+        - name: console-chart-console-v2
+          min_replicas: 2
+          expected_image_prefix: "quay.io"
+          subsystem: console
+        - name: multicluster-integrations
+          min_replicas: 1
+          note: "Bridges ACM/MCE resource management for console"
+          subsystem: console
+        - name: acm-cli-downloads
+          min_replicas: 2
+          subsystem: console
+
+        # --- Governance subsystem ---
+        - name: grc-policy-propagator
+          min_replicas: 2
+          note: "Distributes policies from hub to managed clusters via ManifestWork"
+          subsystem: governance
+        - name: grc-policy-addon-controller
+          min_replicas: 2
+          note: "Manages governance addon lifecycle (framework, config-policy, cert-policy)"
+          subsystem: governance
+
+        # --- Application Lifecycle subsystem ---
+        - name: multicluster-operators-hub-subscription
+          min_replicas: 1
+          note: "Core subscription reconciler -- processes Subscription CRs and generates ManifestWorks"
+          subsystem: app-lifecycle
+        - name: multicluster-operators-channel
+          min_replicas: 1
+          note: "Channel controller -- validates and manages Git/Helm/ObjectStorage channels"
+          subsystem: app-lifecycle
+        - name: multicluster-operators-application
+          min_replicas: 1
+          note: "Application controller -- reconciles Application CRs"
+          subsystem: app-lifecycle
+        - name: multicluster-operators-standalone-subscription
+          min_replicas: 1
+          note: "Standalone subscription processing -- handles local/hub subscriptions"
+          subsystem: app-lifecycle
+        - name: multicluster-operators-subscription-report
+          min_replicas: 1
+          note: "Subscription status aggregation and reporting"
+          subsystem: app-lifecycle
+
+        # --- Observability subsystem ---
+        - name: multicluster-observability-operator
+          min_replicas: 1
+          note: "Lives in MCH namespace, not observability namespace. Manages MCO CR."
+          subsystem: observability
+
+        # --- RBAC subsystem ---
+        - name: cluster-permission
+          min_replicas: 1
+          note: "Only present when fine-grained-rbac is enabled. Manages ClusterPermission CRs."
+          subsystem: rbac
+        - name: multicluster-role-assignment-controller
+          min_replicas: 1
+          note: "Only present when fine-grained-rbac is enabled. Processes MCRA CRs to propagate RBAC."
+          subsystem: rbac
+
+        # --- Virtualization subsystem ---
+        - name: mtv-integrations-controller
+          min_replicas: 1
+          note: "Only present when cnv-mtv-integrations is enabled. Manages MTV/CNV addon lifecycle."
+          subsystem: virtualization
+
+        # --- Networking subsystem ---
+        - name: submariner-addon
+          min_replicas: 1
+          note: "Only present when submariner-addon is enabled. Manages Submariner addon lifecycle."
+          subsystem: networking
+
+        # --- Addon Framework ---
+        - name: klusterlet-addon-controller-v2
+          min_replicas: 2
+          note: "Deploys and manages addons on managed clusters"
+          subsystem: addon-framework
+
+        # --- Infrastructure / SiteConfig ---
+        - name: siteconfig-controller-manager
+          min_replicas: 1
+          note: "Only present when siteconfig is enabled. Manages SiteConfig-based ZTP provisioning."
+          subsystem: cluster-lifecycle
+
+        # --- VolSync ---
+        - name: volsync-addon-controller
+          min_replicas: 1
+          note: "Only present when volsync is enabled. Manages VolSync addon for PVC replication."
+          subsystem: infrastructure
+
+        # --- Insights ---
+        - name: insights-client
+          min_replicas: 1
+          note: "Red Hat Insights integration. Reports hub health telemetry."
+          subsystem: infrastructure
+        - name: insights-metrics
+          min_replicas: 1
+          note: "Exposes Insights metrics endpoint"
+          subsystem: infrastructure
+
+    multicluster-engine:
+      expected_pod_count_range: "30-40"
+      critical_deployments:
+
+        # --- Cluster Lifecycle ---
+        - name: managedcluster-import-controller-v2
+          min_replicas: 2
+          subsystem: cluster-lifecycle
+          known_info_messages:
+            - pattern: "flightctl-discovery configmap not found"
+              severity: info
+              explanation: "Expected when FlightCtl not configured"
+        - name: cluster-manager
+          min_replicas: 3
+          note: "Core cluster management operator -- manages registration and work controllers"
+          subsystem: cluster-lifecycle
+        - name: cluster-curator-controller
+          min_replicas: 2
+          note: "Orchestrates cluster upgrades via ClusterCurator CRs and AAP hooks"
+          subsystem: automation
+        - name: ocm-controller
+          min_replicas: 2
+          note: "OCM core controller -- reconciles OCM CRDs"
+          subsystem: cluster-lifecycle
+        - name: ocm-webhook
+          min_replicas: 2
+          note: "OCM API validation webhook server"
+          subsystem: cluster-lifecycle
+        - name: discovery-operator
+          min_replicas: 1
+          note: "Discovers clusters from cloud providers for import"
+          subsystem: cluster-lifecycle
+        - name: hypershift-addon-manager
+          min_replicas: 1
+          note: "Manages HyperShift addon lifecycle for hosted clusters"
+          subsystem: cluster-lifecycle
+        - name: provider-credential-controller
+          min_replicas: 1
+          note: "Manages cloud provider credentials for cluster provisioning"
+          subsystem: cluster-lifecycle
+        - name: cluster-image-set-controller
+          min_replicas: 1
+          note: "Manages ClusterImageSet CRs for available OCP versions"
+          subsystem: cluster-lifecycle
+        - name: clusterclaims-controller
+          min_replicas: 2
+          note: "Manages ClusterClaim resources for ClusterPool allocation"
+          subsystem: cluster-lifecycle
+        - name: infrastructure-operator
+          min_replicas: 1
+          note: "Manages infrastructure CRDs for cluster provisioning"
+          subsystem: cluster-lifecycle
+
+        # --- Console (MCE plugin) ---
+        - name: console-mce-console
+          min_replicas: 2
+          note: "MCE console plugin -- serves MCE-specific UI tabs (Infrastructure, Credentials)"
+          subsystem: console
+
+        # --- Hive ---
+        - name: hive-operator
+          min_replicas: 1
+          subsystem: cluster-lifecycle
+
+        # --- Infrastructure (Proxy) ---
+        - name: cluster-proxy
+          min_replicas: 2
+          note: "Cluster proxy server -- enables API proxy access to managed clusters"
+          subsystem: infrastructure
+        - name: cluster-proxy-addon-manager
+          min_replicas: 2
+          note: "Manages cluster-proxy addon deployment to managed clusters"
+          subsystem: infrastructure
+
+        # --- Platform ---
+        - name: multicluster-engine-operator
+          min_replicas: 2
+          note: "MCE operator -- manages all MCE component lifecycle"
+          subsystem: platform
+
+    open-cluster-management-hub:
+      expected_pod_count_range: "15-20"
+      critical_deployments:
+        - name: cluster-manager-registration-controller
+          min_replicas: 1
+        - name: cluster-manager-registration-webhook
+          min_replicas: 1
+        - name: cluster-manager-work-webhook
+          min_replicas: 1
+        - name: cluster-manager-placement-controller
+          min_replicas: 1
+
+    open-cluster-management-observability:
+      note: "Only present when observability is enabled"
+      expected_pod_count_range: "25-40"
+      critical_deployments:
+        - name: observability-thanos-query
+          min_replicas: 1
+        - name: observability-thanos-query-frontend
+          min_replicas: 1
+        - name: observability-grafana
+          min_replicas: 2
+        - name: observability-alertmanager
+          min_replicas: 3
+          type: statefulset
+        - name: observability-thanos-receive-default
+          min_replicas: 3
+          type: statefulset
+        - name: observability-thanos-store-shard-0
+          min_replicas: 1
+          type: statefulset
+        - name: observability-thanos-compact
+          min_replicas: 1
+          type: statefulset
+        - name: observability-thanos-rule
+          min_replicas: 1
+          type: statefulset
+        - name: observability-rbac-query-proxy
+          min_replicas: 1
+
+    hive:
+      note: "Hive cluster provisioning -- always present. Has both Deployments and StatefulSets."
+      expected_pod_count_range: "5-8"
+      critical_deployments:
+        - name: hive-controllers
+          min_replicas: 1
+          note: "Runs with --disabled-controllers clustersync,machinepool (intentional -- they run as separate StatefulSets)"
+          subsystem: cluster-lifecycle
+        - name: hive-operator
+          min_replicas: 1
+          subsystem: cluster-lifecycle
+        - name: hiveadmission
+          min_replicas: 2
+          note: "Webhook admission for ClusterDeployment ops. If down, ALL CD operations blocked (Trap 10)."
+          subsystem: cluster-lifecycle
+        - name: hive-clustersync
+          min_replicas: 1
+          type: statefulset
+          note: "Syncs SyncSets/SelectorSyncSets to provisioned clusters. StatefulSet for stable identity."
+          subsystem: cluster-lifecycle
+        - name: hive-machinepool
+          min_replicas: 1
+          type: statefulset
+          note: "Manages MachinePool resources for provisioned clusters. StatefulSet for stable identity."
+          subsystem: cluster-lifecycle
+
+  nodes:
+    minimum_ready: 1
+    note: "1 for SNO, 3 for HA (standard), 6+ for large. Discover actual topology first."
+    expected_roles: [control-plane, worker]
+    pressure_thresholds:
+      cpu_warning_percent: 80
+      memory_warning_percent: 85
+      disk_warning_percent: 90
+
+  managed_clusters:
+    local_cluster_required: true
+    expected_conditions:
+      - type: ManagedClusterConditionAvailable
+        expected_status: "True"
+      - type: ManagedClusterJoined
+        expected_status: "True"
+      - type: HubAcceptedManagedCluster
+        expected_status: "True"
+    expected_addons:
+      - name: work-manager
+        required: true
+      - name: search-collector
+        required_for: [search]
+      - name: config-policy-controller
+        required_for: [grc]
+      - name: governance-policy-framework
+        required_for: [grc]
+      - name: application-manager
+        required_for: [app-lifecycle]
+      - name: observability-controller
+        required_for: [observability]
+        note: "Only if MCO is enabled"
+      - name: cluster-proxy
+        required: false
+        note: "Optional -- enables proxy access to spoke API"
+      - name: acm-roles
+        required_for: [fine-grained-rbac]
+        note: "Only deployed when fine-grained-rbac is enabled"
+      - name: managed-serviceaccount
+        required: false
+        note: "Optional -- creates service accounts on spoke clusters"
+      - name: kubevirt-hyperconverged
+        required_for: [virtualization]
+        note: "Only deployed when cnv-mtv-integrations is enabled and CNV is on spoke"
+      - name: mtv-operator
+        required_for: [virtualization]
+        note: "Only deployed when cnv-mtv-integrations is enabled"
+
+  etcd:
+    expected_members: 3
+    max_acceptable_restarts: 2
+    note: "Check via oc get pods -n openshift-etcd"
+
+  operators:
+    multiclusterhub-operator:
+      namespace: "{mch-ns}"
+      expected_replicas: 2
+      critical: true
+      note: "If at 0 replicas, no ACM component reconciliation. MCH CR status
+        becomes a stale snapshot. Highest priority finding."
+    multicluster-engine-operator:
+      namespace: "multicluster-engine"
+      expected_replicas: 2
+      critical: true
+      note: "If at 0 replicas, MCE components are unmanaged."
+
+  image_patterns:
+    console-chart-console-v2:
+      expected_prefix:
+        - "quay.io:443/acm-d/console"
+        - "quay.io/stolostron/console"
+      flag_if: "Image from personal registry or unknown source"
+      note: "Console image should be digest-pinned (@sha256:) in production"
+
+  network:
+    unexpected_resources:
+      networkpolicies_in_acm_namespaces:
+        flag: "Flag any -- ACM doesn't create these by default"
+        impact: "Can silently block pod-to-pod communication (e.g., search-api to search-postgres)"
+      resourcequotas_in_acm_namespaces:
+        flag: "Flag any -- can block pod scheduling"
+        impact: "Can prevent operator from creating new pods (e.g., grc-policy-propagator stuck at 0)"
+
+  csvs:
+    expected_phase: Succeeded
+    namespaces_to_check:
+      - "{mch-ns}"
+      - "multicluster-engine"
+    note: "CSVs not in Succeeded phase indicate operator installation issues"

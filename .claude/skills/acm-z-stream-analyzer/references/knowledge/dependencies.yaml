@@ -1,0 +1,154 @@
+# ACM Component Dependency Chains -- Z-Stream Analysis
+# Used by the AI agent to trace cascade failures and identify root causes.
+# When a test fails, trace upstream through the relevant chain to find
+# what infrastructure dependency is broken.
+#
+# Populated by: refresh.py (Neo4j KG transitive queries + manual curation)
+# Refresh frequency: weekly
+
+dependency_chains:
+
+  search:
+    chain: "search-collector (spoke) -> search-indexer -> search-postgres -> search-api -> console UI"
+    layers_involved: [10, 9, 4, 3, 11, 12]
+    layer_note: "Collector at L10 (spoke addon), indexer/operator at L9, postgres storage at L4, network at L3, data integrity at L11, UI rendering at L12"
+    if_postgres_down: "All search queries fail. VM discovery fails. No error in UI -- just empty results."
+    if_collector_missing: "Resources from that spoke silently absent from search."
+    if_indexer_restarting: "Index rebuild in progress -- temporarily stale results."
+    classification_hint:
+      postgres_down: INFRASTRUCTURE
+      collector_missing: INFRASTRUCTURE
+      indexer_stale: PRODUCT_BUG
+
+  governance:
+    chain: "policy (hub) -> grc-policy-propagator -> governance-policy-framework (spoke) -> config-policy-controller (spoke) -> status-sync -> hub"
+    layers_involved: [9, 10, 11]
+    layer_note: "Propagator at L9 (operator), framework/controller at L10 (spoke addons), compliance status at L11 (data flow)"
+    if_propagator_down: "No new policies distribute to any spoke."
+    if_framework_missing: "Policies don't reach that spoke. Compliance Unknown."
+    if_config_controller_down: "Policies not evaluated. Compliance Unknown."
+    if_work_manager_backlog: "Compliance updates delayed (stale status)."
+    classification_hint:
+      propagator_down: INFRASTRUCTURE
+      framework_missing: INFRASTRUCTURE
+      config_controller_down: INFRASTRUCTURE
+      work_manager_backlog: PRODUCT_BUG
+
+  cluster_lifecycle:
+    chain: "HiveConfig -> hive-operator -> hive-controllers -> hiveadmission (webhook) -> ClusterDeployment -> ClusterProvision -> Install Pod -> cloud infrastructure -> kubeconfig Secrets -> managedcluster-import-controller -> klusterlet -> registration-agent -> ManagedCluster Available"
+    layers_involved: [5, 8, 9, 1, 10, 6]
+    layer_note: "HiveConfig at L5 (config), hiveadmission webhook at L8 (API validation), hive/import controllers at L9 (operators), install pod scheduling at L1 (compute), klusterlet registration at L10+L6 (spoke+auth)"
+    if_hiveconfig_unhealthy: "All Hive operations degraded. Check HiveConfig status conditions."
+    if_hiveadmission_down: "ALL ClusterDeployment operations blocked (webhook failurePolicy: Fail). Includes create, update, delete."
+    if_hive_down: "Cluster provisioning/deprovisioning stops. Existing clusters unaffected."
+    if_install_pod_fails: "Provisioning fails at cloud API level. Check install pod logs for cloud-specific errors."
+    if_import_controller_down: "Cluster import stuck. ManagedCluster stays Pending."
+    if_klusterlet_disconnected: "All spoke-dependent features fail for that cluster."
+    prerequisites:
+      - "ClusterImageSet must exist for target OCP version (oc get clusterimagesets)"
+      - "Cloud provider credentials must be valid (Secret in cluster namespace)"
+      - "ClusterDeployment must be created AFTER Secrets (resource ordering matters)"
+    classification_hint:
+      hiveconfig_unhealthy: INFRASTRUCTURE
+      hiveadmission_down: INFRASTRUCTURE
+      hive_down: INFRASTRUCTURE
+      install_pod_cloud_error: INFRASTRUCTURE
+      import_controller_down: INFRASTRUCTURE
+      klusterlet_disconnected: INFRASTRUCTURE
+      clusterimagesets_missing: INFRASTRUCTURE
+
+  console:
+    chain: "OpenShift OAuth -> console-api -> ConsolePlugin CRs -> feature UIs"
+    layers_involved: [6, 9, 8, 12]
+    layer_note: "OAuth at L6 (auth), console-api at L9 (operator/pod), ConsolePlugin CRs at L8 (API), feature UIs at L12 (rendering)"
+    if_console_api_down: "ALL UI features return 500 errors."
+    if_plugin_missing: "Entire feature tabs disappear (no error, just missing nav)."
+    if_oauth_broken: "Login redirect loop or 403 errors."
+    classification_hint:
+      console_api_down: INFRASTRUCTURE
+      plugin_missing: INFRASTRUCTURE
+      oauth_broken: INFRASTRUCTURE
+
+  observability:
+    chain: "MCO CR -> observability-operator -> metrics-collector (spoke) -> thanos-receive -> S3 -> thanos-store -> thanos-query -> grafana"
+    layers_involved: [5, 9, 10, 4, 11, 12]
+    layer_note: "MCO CR at L5 (config), operator at L9, collector at L10 (spoke), S3/PVCs at L4 (storage), data pipeline at L11, grafana at L12"
+    if_s3_misconfigured: "thanos-store crashes. Most common observability failure."
+    if_collector_missing: "No metrics from that spoke."
+    if_thanos_query_down: "Grafana dashboards show no data."
+    classification_hint:
+      s3_misconfigured: INFRASTRUCTURE
+      collector_missing: INFRASTRUCTURE
+      thanos_query_down: INFRASTRUCTURE
+
+  rbac:
+    chain: "MCRA -> mcra-operator -> ClusterPermission -> ManifestWork -> klusterlet -> spoke Role+RoleBinding"
+    layers_involved: [7, 8, 9, 10]
+    layer_note: "MCRA/ClusterPermission at L7 (RBAC), ClusterPermission/ManifestWork CRDs at L8 (API), mcra-operator at L9, ManifestWork/klusterlet at L10 (spoke delivery)"
+    if_mcra_operator_down: "New role assignments not processed."
+    if_cluster_permission_oom: "RBAC not propagated (OOM at scale -- ACM-24032)."
+    if_klusterlet_disconnected: "ManifestWork can't be delivered to spoke."
+    classification_hint:
+      mcra_operator_down: INFRASTRUCTURE
+      cluster_permission_oom: INFRASTRUCTURE
+
+  application:
+    chain: "Channel -> Subscription -> PlacementRule/Placement -> ManifestWork -> spoke"
+    layers_involved: [8, 9, 10]
+    layer_note: "Channel/Subscription CRDs at L8 (API), subscription controller at L9 (operator), ManifestWork delivery at L10 (spoke)"
+    if_subscription_controller_down: "Subscriptions not reconciled."
+    if_channel_unreachable: "Git/Helm source unavailable. App deployment stuck."
+    if_placement_no_match: "No clusters selected. App not deployed."
+    classification_hint:
+      subscription_controller_down: INFRASTRUCTURE
+      channel_unreachable: INFRASTRUCTURE
+      placement_no_match: AUTOMATION_BUG
+
+  # --- Added 2026-04-03 after live cluster validation ---
+
+  operator_management:
+    chain: "multiclusterhub-operator -> MCH CR reconciliation -> all ACM deployments in {mch_ns}"
+    layers_involved: [9, 5]
+    layer_note: "MCH/MCE operators at L9 (reconciliation), MCH CR desired state at L5 (configuration)"
+    if_mch_operator_down: "No ACM component reconciliation. MCH CR status is a STALE snapshot. Any component crash in {mch_ns} is permanent -- operator won't recreate it."
+    if_mce_operator_down: "MCE components (import controller, placement, cluster-manager) unmanaged. Existing pods continue but can't be recreated."
+    cascade: "Total -- affects ALL ACM subsystems. This is the root of the dependency tree."
+    classification_hint:
+      mch_operator_down: INFRASTRUCTURE
+      mce_operator_down: INFRASTRUCTURE
+
+  addon_delivery:
+    chain: "cluster-manager-addon-manager-controller (hub) -> ClusterManagementAddon CR -> ManifestWork -> klusterlet -> spoke addon pod"
+    layers_involved: [9, 8, 10]
+    layer_note: "Addon manager at L9 (operator), ClusterManagementAddon CRs at L8 (API), ManifestWork/klusterlet at L10 (spoke delivery)"
+    if_addon_manager_down: "No new addon deployments to any spoke. Existing addons continue but can't be updated or redeployed."
+    if_manifestwork_stuck: "Addon deployment pending on spoke. Spoke doesn't receive addon spec."
+    if_klusterlet_disconnected: "ManifestWork can't be delivered. Addon deployment fails on that spoke only."
+    classification_hint:
+      addon_manager_down: INFRASTRUCTURE
+      manifestwork_stuck: INFRASTRUCTURE
+      klusterlet_disconnected: INFRASTRUCTURE
+
+  registration:
+    chain: "cluster-manager (MCE) -> cluster-manager-registration-controller (hub) -> ManagedCluster approval -> klusterlet bootstrap -> spoke registration"
+    layers_involved: [9, 8, 10]
+    layer_note: "Registration controller at L9 (operator), ManagedCluster CRD/webhooks at L8 (API), klusterlet bootstrap at L10 (spoke)"
+    if_registration_controller_down: "New cluster imports fail. Existing clusters remain connected."
+    if_registration_webhook_down: "ManagedCluster create/update operations rejected."
+    classification_hint:
+      registration_controller_down: INFRASTRUCTURE
+      registration_webhook_down: INFRASTRUCTURE
+
+cross_subsystem_dependencies:
+  - "Virtualization depends on Search: Fleet Virt uses VM Search Integration"
+  - "RBAC depends on Search: Fine-Grained RBAC filters search results"
+  - "Console is the UI for ALL features: console-api down breaks everything"
+  - "Infrastructure (klusterlet) is required by ALL spoke-dependent features"
+  - "Application distribution uses ManifestWork which requires klusterlet"
+  - "GitOps depends on external OpenShift GitOps Operator (not part of ACM)"
+  - "Operator management (MCH operator) is the root of ALL ACM components -- if at 0 replicas, everything is unmanaged"
+  - "Addon delivery (addon-manager in hub namespace) is required for ALL spoke-side addons -- single point of failure"
+  - "Registration (registration-controller in hub namespace) is required for new cluster imports -- existing clusters unaffected"
+  - "ConsolePlugin CRs (acm, mce) must be registered for UI features to appear -- missing plugin = missing UI tabs"
+  - "Provisioning stuck + import stuck simultaneously -> investigate hive-controllers or HiveConfig first (shared root cause)"
+  - "Multiple unrelated pods with ImagePullBackOff -> check MCH operator CSV for corrupted OPERAND_IMAGE_* refs (Layer 5 root cause)"

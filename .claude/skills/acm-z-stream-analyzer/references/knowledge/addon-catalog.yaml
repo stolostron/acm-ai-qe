@@ -1,0 +1,308 @@
+# ACM Addon Catalog
+# All managed cluster addons, their deployment expectations, and health checks.
+# Used during cluster diagnostic (Stage 1.5) to systematically verify addon
+# health across managed clusters and assess impact on test classification.
+#
+# Origin: Adapted from acm-hub-health knowledge database
+# Refresh frequency: after ACM version upgrade
+
+acm_version: "2.16"
+last_refreshed: "2026-04-03"
+validated_against_live_cluster: true
+
+addons:
+
+  - name: work-manager
+    display_name: Work Manager
+    required: true
+    default_enabled: true
+    subsystem: infrastructure
+    spoke_namespace: open-cluster-management-agent-addon
+    description: "Delivers ManifestWorks from hub to spoke. Core infrastructure addon."
+    health_check: "oc get managedclusteraddon work-manager -n {cluster}"
+    healthy_conditions:
+      - type: Available
+        status: "True"
+    if_unhealthy: "ManifestWork delivery fails. All addon deployments and workload delivery to this spoke stop."
+    depends_on: [klusterlet]
+    classification_impact: "INFRASTRUCTURE -- affects all feature areas that use ManifestWork delivery"
+
+  - name: search-collector
+    display_name: Search Collector
+    required: false
+    required_for: [Search]
+    default_enabled: true
+    subsystem: search
+    spoke_namespace: open-cluster-management-agent-addon
+    description: "Indexes spoke resources for cross-cluster search."
+    health_check: "oc get managedclusteraddon search-collector -n {cluster}"
+    healthy_conditions:
+      - type: Available
+        status: "True"
+    if_unhealthy: "Resources from this spoke not in search results. No error -- just missing data."
+    depends_on: [work-manager]
+    classification_impact: "INFRASTRUCTURE for Search tests. Also affects Console overview and Virtualization VM discovery."
+
+  - name: governance-policy-framework
+    display_name: Governance Policy Framework
+    required: false
+    required_for: [GRC]
+    default_enabled: true
+    subsystem: governance
+    spoke_namespace: open-cluster-management-agent-addon
+    description: "Core policy framework on spoke. Runs Spec/Template/Status/Secret/Gatekeeper sync controllers."
+    health_check: "oc get managedclusteraddon governance-policy-framework -n {cluster}"
+    healthy_conditions:
+      - type: Available
+        status: "True"
+    if_unhealthy: "Policies not synced to this spoke. Compliance status Unknown."
+    depends_on: [work-manager]
+    classification_impact: "INFRASTRUCTURE for GRC tests when addon is degraded across multiple clusters."
+
+  - name: config-policy-controller
+    display_name: Config Policy Controller
+    required: false
+    required_for: [GRC]
+    default_enabled: true
+    subsystem: governance
+    spoke_namespace: open-cluster-management-agent-addon
+    description: "Enforces ConfigurationPolicy on spoke."
+    health_check: "oc get managedclusteraddon config-policy-controller -n {cluster}"
+    healthy_conditions:
+      - type: Available
+        status: "True"
+    if_unhealthy: "ConfigurationPolicies not evaluated on this spoke."
+    depends_on: [governance-policy-framework]
+    classification_impact: "INFRASTRUCTURE for GRC ConfigurationPolicy tests."
+
+  - name: cert-policy-controller
+    display_name: Certificate Policy Controller
+    required: false
+    required_for: [GRC]
+    default_enabled: true
+    subsystem: governance
+    spoke_namespace: open-cluster-management-agent-addon
+    description: "Enforces CertificatePolicy on spoke."
+    health_check: "oc get managedclusteraddon cert-policy-controller -n {cluster}"
+    if_unhealthy: "Certificate policies not evaluated."
+    depends_on: [governance-policy-framework]
+
+  - name: iam-policy-controller
+    display_name: IAM Policy Controller
+    required: false
+    required_for: [GRC]
+    default_enabled: true
+    subsystem: governance
+    spoke_namespace: open-cluster-management-agent-addon
+    description: "Enforces IAM policies on spoke."
+    health_check: "oc get managedclusteraddon iam-policy-controller -n {cluster}"
+    if_unhealthy: "IAM policies not evaluated."
+    depends_on: [governance-policy-framework]
+
+  - name: application-manager
+    display_name: Application Manager
+    required: false
+    required_for: [Application]
+    default_enabled: true
+    subsystem: application-lifecycle
+    spoke_namespace: open-cluster-management-agent-addon
+    description: "Manages application resources on spoke. Validates via webhooks."
+    health_check: "oc get managedclusteraddon application-manager -n {cluster}"
+    if_unhealthy: "Application subscriptions not deployed to this spoke."
+    depends_on: [work-manager]
+    classification_impact: "INFRASTRUCTURE for Application tests when addon is degraded."
+
+  - name: observability-controller
+    display_name: Observability Controller
+    required: false
+    required_for: [Observability]
+    default_enabled: false
+    note: "Only deployed when MultiClusterObservability CR exists"
+    subsystem: observability
+    spoke_namespace: open-cluster-management-addon-observability
+    description: "Manages metrics-collector on spoke. Deploys collector that scrapes Prometheus."
+    health_check: "oc get managedclusteraddon observability-controller -n {cluster}"
+    if_unhealthy: "No metrics from this spoke. Grafana dashboards missing data for this cluster."
+    depends_on: [work-manager]
+    classification_impact: "INFRASTRUCTURE for Observability tests."
+
+  - name: cluster-proxy
+    display_name: Cluster Proxy
+    required: false
+    default_enabled: false
+    subsystem: infrastructure
+    spoke_namespace: open-cluster-management-agent-addon
+    description: "Enables proxy access to spoke API server from hub."
+    health_check: "oc get managedclusteraddon cluster-proxy -n {cluster}"
+    if_unhealthy: "Proxy access to spoke API unavailable."
+    depends_on: [work-manager]
+
+  - name: managed-serviceaccount
+    display_name: Managed Service Account
+    required: false
+    default_enabled: false
+    subsystem: infrastructure
+    spoke_namespace: open-cluster-management-agent-addon
+    description: "Creates and manages service accounts on spoke clusters."
+    health_check: "oc get managedclusteraddon managed-serviceaccount -n {cluster}"
+    if_unhealthy: "Managed service account creation/rotation fails."
+    depends_on: [work-manager]
+
+  - name: hypershift-addon
+    display_name: HyperShift Addon
+    required: false
+    default_enabled: false
+    subsystem: cluster-lifecycle
+    spoke_namespace: open-cluster-management-agent-addon
+    description: "Manages hosted cluster import and lifecycle."
+    health_check: "oc get managedclusteraddon hypershift-addon -n {cluster}"
+    if_unhealthy: "Hosted cluster import/management fails."
+    depends_on: [work-manager]
+    known_issues:
+      - "Auto-import can recreate ManagedCluster after HostedCluster destroy (ACM-20695)"
+      - "Detach can destroy hosted cluster namespace (ACM-15018)"
+
+  - name: submariner
+    display_name: Submariner
+    required: false
+    default_enabled: false
+    subsystem: networking
+    spoke_namespace: submariner-operator
+    description: "Cross-cluster networking for service discovery and connectivity."
+    health_check: "oc get managedclusteraddon submariner -n {cluster}"
+    if_unhealthy: "Cross-cluster networking unavailable. Service discovery fails."
+    depends_on: [work-manager]
+
+  # --- Addons discovered on live ACM 2.16 GA cluster (2026-04-03) ---
+
+  - name: acm-roles
+    display_name: ACM Roles
+    required: false
+    default_enabled: true
+    subsystem: rbac
+    spoke_namespace: open-cluster-management-agent-addon
+    description: "Syncs RBAC role definitions to spoke clusters."
+    health_check: "oc get managedclusteraddon acm-roles -n {cluster}"
+    if_unhealthy: "Role sync to spoke fails. RBAC tests may see stale permissions."
+    depends_on: [work-manager]
+    validated_on_cluster: true
+
+  - name: kubevirt-hyperconverged
+    display_name: KubeVirt HyperConverged
+    required: false
+    required_for: [Virtualization]
+    default_enabled: false
+    subsystem: virtualization
+    spoke_namespace: openshift-cnv
+    description: "Manages KubeVirt/CNV stack on spoke clusters."
+    health_check: "oc get managedclusteraddon kubevirt-hyperconverged -n {cluster}"
+    if_unhealthy: "VM operations on this spoke unavailable."
+    depends_on: [work-manager]
+    validated_on_cluster: true
+
+  - name: mtv-operator
+    display_name: MTV Operator
+    required: false
+    required_for: [Virtualization, CrossClusterMigration]
+    default_enabled: false
+    subsystem: virtualization
+    spoke_namespace: openshift-mtv
+    description: "Migration Toolkit for Virtualization operator addon."
+    health_check: "oc get managedclusteraddon mtv-operator -n {cluster}"
+    if_unhealthy: "Cross-cluster VM migration from this spoke unavailable."
+    depends_on: [work-manager, kubevirt-hyperconverged]
+    validated_on_cluster: true
+
+  - name: volsync
+    display_name: VolSync
+    required: false
+    default_enabled: false
+    subsystem: infrastructure
+    spoke_namespace: open-cluster-management-agent-addon
+    description: "Persistent volume replication addon."
+    health_check: "oc get managedclusteraddon volsync -n {cluster}"
+    if_unhealthy: "PV replication to/from this spoke unavailable."
+    depends_on: [work-manager]
+
+  - name: gitops-addon
+    display_name: GitOps Addon
+    required: false
+    required_for: [Application]
+    default_enabled: false
+    subsystem: application-lifecycle
+    description: "Manages OpenShift GitOps/ArgoCD integration on spokes."
+    health_check: "oc get managedclusteraddon gitops-addon -n {cluster}"
+    if_unhealthy: "GitOps-based application deployment to this spoke unavailable."
+    depends_on: [work-manager]
+    note: "Hub-side ClusterManagementAddon exists but addon may not be deployed to all clusters."
+
+  - name: governance-standalone-hub-templating
+    display_name: Governance Standalone Hub Templating
+    required: false
+    required_for: [GRC]
+    default_enabled: false
+    subsystem: governance
+    description: "Enables hub-side policy template resolution without spoke sync."
+    health_check: "oc get managedclusteraddon governance-standalone-hub-templating -n {cluster}"
+    if_unhealthy: "Hub-side policy templating unavailable."
+    depends_on: [governance-policy-framework]
+
+# Hub-side ClusterManagementAddon CRs (validated 2026-04-03)
+# These must exist on hub for addons to be deployable to clusters.
+cluster_management_addons:
+  validated:
+    - acm-roles
+    - application-manager
+    - cert-policy-controller
+    - cluster-proxy
+    - config-policy-controller
+    - gitops-addon
+    - governance-policy-framework
+    - governance-standalone-hub-templating
+    - hypershift-addon
+    - kubevirt-hyperconverged
+    - managed-serviceaccount
+    - mtv-operator
+    - observability-controller
+    - search-collector
+    - submariner
+    - volsync
+    - work-manager
+  check_command: "oc get clustermanagementaddons"
+  if_missing: "If a ClusterManagementAddon CR is missing, the addon cannot be deployed to any cluster."
+
+classification_disambiguation:
+  note: "Addon issues do NOT always mean INFRASTRUCTURE. Check these conditions:"
+  rules:
+    - condition: "Addon unavailable AND test error is selector/element not found"
+      classification: "AUTOMATION_BUG -- a missing addon doesn't remove UI selectors from product source code. The selector is stale regardless of addon health."
+    - condition: "Addon unavailable AND test doesn't depend on spoke data"
+      classification: "NOT INFRASTRUCTURE -- some tests validate hub-only features. Check if the test actually uses spoke-side data before classifying."
+    - condition: "Addon unavailable on 1 cluster but test only needs 1 healthy cluster"
+      classification: "NOT INFRASTRUCTURE -- partial addon degradation may not affect tests that only need N-1 healthy clusters."
+    - condition: "Addon missing because MCH component is disabled by design"
+      classification: "NO_BUG -- if the feature is intentionally disabled (mch_component enabled=false), tests for that feature are expected to fail."
+    - condition: "Addon healthy but test times out waiting for data"
+      classification: "Check PRODUCT_BUG -- the addon is collecting data but the hub component may not be processing it (indexer lag, reconciliation delay)."
+
+addon_check_commands:
+  list_all: "oc get managedclusteraddons -A"
+  check_cluster: "oc get managedclusteraddons -n {cluster}"
+  check_management: "oc get clustermanagementaddons"
+
+health_check_methodology:
+  - step: "List all addons across clusters"
+    command: "oc get managedclusteraddons -A"
+    look_for: "Any addon not showing Available=True"
+
+  - step: "Check ClusterManagementAddon CRs"
+    command: "oc get clustermanagementaddons"
+    look_for: "Missing ClusterManagementAddon (hub-side config for addon)"
+
+  - step: "Check addon-manager health"
+    command: "oc get pods -n {mch-ns} -l app=addon-manager"
+    look_for: "addon-manager pod not Running -- all addon deployment stops"
+
+  - step: "Per-cluster addon audit"
+    command: "oc get managedclusteraddons -n {cluster}"
+    look_for: "Expected addons missing from this cluster"

@@ -1,0 +1,188 @@
+# ACM Feature Area Index -- Z-Stream Analysis
+# Maps feature areas to test patterns, subsystems, and components.
+# Used by ClusterHealthService (Step 4) for feature-to-component mapping,
+# by FeatureKnowledgeService (Step 9) for grounding, and by AI agent
+# for classification routing.
+#
+# Architecture details: knowledge/architecture/<area>/
+# Failure signatures: knowledge/architecture/<area>/failure-signatures.md
+# Prerequisites: knowledge/prerequisites.yaml
+#
+# Validated against: ACM 2.16 GA + ACM UI MCP (stolostron/console @ release-2.16)
+# Refresh frequency: on test suite changes
+
+feature_areas:
+
+  Search:
+    subsystems: [search]
+    test_patterns:
+      - "(?i)search"
+      - "(?i)resource.*lookup"
+      - "(?i)vm.*search"
+    ui_routes:
+      - "/multicloud/search"
+    key_components: [search-api, search-indexer, search-postgres, search-collector]
+    mch_component: search
+    architecture_ref: "knowledge/architecture/search/"
+
+  GRC:
+    subsystems: [governance]
+    test_patterns:
+      - "(?i)governance"
+      - "(?i)policy"
+      - "(?i)grc"
+      - "(?i)compliance"
+    ui_routes:
+      - "/multicloud/governance"
+    key_components: [grc-policy-propagator, config-policy-controller, governance-policy-framework]
+    mch_component: grc
+    architecture_ref: "knowledge/architecture/governance/"
+
+  CLC:
+    subsystems: [cluster-lifecycle]
+    test_patterns:
+      - "(?i)cluster.*lifecycle"
+      - "(?i)cluster.*create"
+      - "(?i)cluster.*import"
+      - "(?i)cluster.*upgrade"
+      - "(?i)cluster.*destroy"
+      - "(?i)clusterdeployment"
+      - "(?i)clusterpool"
+      - "(?i)infrastructure"
+    ui_routes:
+      - "/multicloud/infrastructure/clusters"
+    key_components: [managedcluster-import-controller, cluster-curator, hive-controllers, cluster-manager, placement-controller]
+    mch_component: cluster-lifecycle
+    architecture_ref: "knowledge/architecture/cluster-lifecycle/"
+
+  Application:
+    subsystems: [application-lifecycle]
+    test_patterns:
+      - "(?i)application"
+      - "(?i)subscription"
+      - "(?i)channel"
+      - "(?i)gitops"
+      - "(?i)argo"
+    ui_routes:
+      - "/multicloud/applications"
+    key_components: [subscription-controller, channel-controller, application-manager]
+    mch_component: app-lifecycle
+    architecture_ref: "knowledge/architecture/application-lifecycle/"
+
+  Console:
+    subsystems: [console]
+    test_patterns:
+      - "(?i)console"
+      - "(?i)overview"
+      - "(?i)welcome"
+      - "(?i)credential"
+      - "(?i)login"
+    ui_routes:
+      - "/multicloud/home/overview"
+      - "/multicloud/credentials"
+    key_components: [console-chart-console-v2, console-api]
+    mch_component: console
+    architecture_ref: "knowledge/architecture/console/"
+
+  Infrastructure:
+    subsystems: [infrastructure]
+    test_patterns:
+      - "(?i)managed.*cluster"
+      - "(?i)klusterlet"
+      - "(?i)addon"
+      - "(?i)node"
+    key_components: [klusterlet, addon-manager, foundation-controller, work-manager]
+    mch_component: null
+    architecture_ref: "knowledge/architecture/infrastructure/"
+
+  RBAC:
+    subsystems: [rbac]
+    test_patterns:
+      - "(?i)rbac"
+      - "(?i)user.*management"
+      - "(?i)role.*assignment"
+      - "(?i)access.*control"
+      - "(?i)mcra"
+    ui_routes:
+      - "/multicloud/user-management"
+    key_components: [console-api, cluster-permission]
+    mch_component: fine-grained-rbac
+    default_enabled: false
+    architecture_ref: "knowledge/architecture/rbac/"
+
+  Virtualization:
+    subsystems: [virtualization]
+    test_patterns:
+      - "(?i)virtual.*machine"
+      - "(?i)fleet.*virt"
+      - "(?i)kubevirt"
+      - "(?i)cnv"
+      - "(?i)vm"
+    key_components: [virt-api, kubevirt-operator]
+    mch_component: cnv-mtv-integrations
+    default_enabled: false
+    architecture_ref: "knowledge/architecture/virtualization/"
+
+  Automation:
+    subsystems: [automation]
+    test_patterns:
+      - "(?i)ansible"
+      - "(?i)automation"
+      - "(?i)aap"
+      - "(?i)tower"
+    ui_routes:
+      - "/multicloud/infrastructure/automations"
+    key_components: [aap-controller]
+    mch_component: null
+    external_dependency: "AAP operator (not part of ACM)"
+    architecture_ref: "knowledge/architecture/automation/"
+
+  Observability:
+    subsystems: [observability]
+    test_patterns:
+      - "(?i)observability"
+      - "(?i)metrics"
+      - "(?i)grafana"
+      - "(?i)thanos"
+    key_components: [multicluster-observability-operator, thanos-query, thanos-receive, thanos-store, grafana]
+    mch_component: multicluster-observability-operator
+    default_enabled: false
+    architecture_ref: "knowledge/architecture/observability/"
+
+  Foundation:
+    subsystems: [foundation]
+    test_patterns:
+      - "(?i)server.?foundation"
+      - "(?i)addon.?framework"
+      - "(?i)\\[registration\\]"
+      - "(?i)\\[work-agent\\]"
+      - "(?i)managedclusteraddon"
+      - "(?i)managed.service.account"
+    key_components: [registration-controller, work-agent, cluster-proxy, managed-serviceaccount, addon-manager, work-manager]
+    mch_component: null
+    note: "Ginkgo (Go) test framework. Repo: stolostron/acmqe-autotest"
+
+  Install:
+    subsystems: [install]
+    test_patterns:
+      - "(?i)\\[Install\\]"
+      - "(?i)csv.*phase"
+      - "(?i)operator.*install"
+      - "(?i)install.*acm"
+      - "(?i)install.*mce"
+    key_components: [multiclusterhub-operator, multicluster-engine, hive-operator, assisted-service]
+    mch_component: null
+    note: "Ginkgo (Go) test framework. Repo: stolostron/acmqe-autotest. Sub-jobs: install_mce_e2e_tests, install_acm_e2e_tests"
+
+  CrossClusterMigration:
+    subsystems: [virtualization]
+    test_patterns:
+      - "(?i)migration"
+      - "(?i)cross.*cluster"
+      - "(?i)mtv"
+      - "(?i)cclm"
+    key_components: [forklift-controller, kubevirt-operator]
+    mch_component: cnv-mtv-integrations
+    default_enabled: false
+    architecture_ref: "knowledge/architecture/virtualization/"
+    note: "New in ACM 2.16. Has 5+ prerequisites -- most failures are missing prereqs."

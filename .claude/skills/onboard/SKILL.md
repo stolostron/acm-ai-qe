@@ -42,25 +42,41 @@ Print this to the user:
 ```
 AI Systems Suite — Interactive Setup
 
-This repo has three apps:
+This repo provides ACM QE capabilities as portable skills:
 
-  1. Z-Stream Analysis
-     Classify Jenkins pipeline test failures as PRODUCT_BUG,
-     AUTOMATION_BUG, or INFRASTRUCTURE using 12-layer diagnostics.
-     Usage: cd apps/z-stream-analysis && claude
-            /analyze <JENKINS_URL>
+  Skills (portable, in .claude/skills/):
+  ──────────────────────────────────────
+  Shared capabilities:
+    acm-jira-client           JIRA ticket investigation interface
+    acm-ui-source             ACM Console source code queries
+    acm-polarion-client       Polarion test case queries
+    acm-neo4j-explorer        RHACM component dependency graph
+    acm-cluster-health        12-layer cluster health diagnostics
+    acm-knowledge-base        ACM domain knowledge (area architecture, conventions)
 
-  2. ACM Hub Health
-     Diagnose ACM hub cluster health with 6-phase investigation.
-     Read-only diagnosis; fixes only after approval.
-     Usage: cd apps/acm-hub-health && oc login <hub> && claude
-            /health-check
+  Test case generation:
+    acm-test-case-generator   Orchestrator: generate test cases from JIRA tickets
+    acm-code-analyzer         PR diff analysis for code changes
+    acm-test-case-writer      Test case markdown authoring
+    acm-test-case-reviewer    Quality gate with MCP verification
 
-  3. Test Case Generator
-     Generate Polarion-ready test cases from JIRA tickets using
-     a 6-phase subagent pipeline with quality review gate.
-     Usage: cd apps/test-case-generator && claude
-            /generate ACM-XXXXX
+  Hub health diagnostics:
+    acm-hub-health-check      Orchestrator: 6-phase cluster health diagnosis
+    acm-cluster-remediation   Cluster fix execution with approval gates
+    acm-knowledge-learner     Discover and learn from live cluster state
+
+  Z-stream pipeline analysis:
+    acm-z-stream-analyzer     Orchestrator: Jenkins failure classification pipeline
+    acm-failure-classifier    5-phase classification engine (A through E)
+    acm-cluster-investigator  Per-group 12-layer root cause investigation
+    acm-data-enricher         Data enrichment (selectors, timeline, knowledge gaps)
+    acm-jenkins-client        Jenkins CI interface
+
+  Apps (Claude Code specific, in apps/):
+  ───────────────────────────────────────
+  z-stream-analysis         Jenkins pipeline failure classification
+  acm-hub-health            ACM hub cluster health diagnosis
+  test-case-generator       Test case generation (original app)
 
 Checking your environment...
 ```
@@ -139,21 +155,27 @@ App Configs:
 
 Mark items as OK, MISSING, or OPTIONAL. Use OK for present, MISSING for required but absent, OPTIONAL for nice-to-have.
 
-## Step 3: Ask Which App(s) to Set Up
+## Step 3: Ask What to Set Up
 
-If ALL three app `.mcp.json` files exist and all required venvs are present, print:
+If ALL app `.mcp.json` files exist and all required venvs are present, print:
 
 ```
-All apps are already configured. No setup needed.
+All apps and skills are already configured. No setup needed.
 ```
 
 And stop here (idempotent behavior).
 
-Otherwise, ask the user which app(s) they want to configure. Present the options:
+Otherwise, ask the user what they want to configure. Present the options:
 
+**Skills (portable):**
+- Test Case Generator skills (needs: acm-ui, jira, polarion; recommended: neo4j-rhacm; optional: acm-search, acm-kubectl, playwright)
+- Hub Health Diagnostic skills (needs: oc CLI; recommended: neo4j-rhacm; optional: acm-search)
+- Z-Stream Analysis skills (needs: acm-ui, jira, jenkins, polarion; recommended: neo4j-rhacm; optional: acm-search, acm-kubectl)
+
+**Apps (Claude Code):**
 - Z-Stream Analysis (needs: acm-ui, jira, jenkins, polarion, neo4j-rhacm)
 - ACM Hub Health (needs: acm-ui, neo4j-rhacm, acm-search)
-- Test Case Generator (needs: acm-ui, jira, polarion, neo4j-rhacm, acm-search, acm-kubectl, playwright)
+- Test Case Generator app (needs: acm-ui, jira, polarion, neo4j-rhacm, acm-search, acm-kubectl, playwright)
 - All apps
 
 Let the user pick one or more.
@@ -161,8 +183,10 @@ Let the user pick one or more.
 Map the selection to a setup.sh app number:
 - Hub Health = 1
 - Z-Stream = 2
-- Test Case Generator = 3
+- Test Case Generator (app or skills) = 3
 - All = 4
+
+Note: The Test Case Generator skills use the SAME MCPs as the Test Case Generator app. Configuring one configures the other.
 
 ## Step 4: Set Up Credentials and Run Setup
 

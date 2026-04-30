@@ -1,0 +1,138 @@
+# ACM Service Map
+# Maps critical Kubernetes Services to their backing pods for connectivity
+# diagnosis. When diagnosing inter-component failures, verify Services have
+# ready endpoints: oc get endpoints -n <ns> <service-name>
+#
+# General principle: every inter-component dependency traverses a Service.
+# A Service with zero ready endpoints is a silent failure -- requests hang
+# or return connection refused, but the Service object shows no error.
+#
+# Bulk check for Services with no ready endpoints:
+#   oc get endpoints -n <ns> --no-headers | awk '$2 == "<none>" {print $1}'
+#
+# Populated by: manual curation from live cluster data
+# Last updated: 2026-04-20
+
+acm_version: "2.17.0"
+
+services:
+
+  mch_namespace:
+    note: "Services in the MCH namespace. Namespace varies -- discover with oc get mch -A."
+    entries:
+
+      # --- Search subsystem ---
+      - name: search-search-api
+        port: 4010
+        selector: "name=search-api"
+        consumers: [console-chart-console-v2]
+        diagnostic_note: "Zero endpoints = all search-dependent features fail (Trap 8). Query path entry point."
+
+      - name: search-indexer
+        port: 3010
+        selector: "name=search-indexer"
+        consumers: [search-collector]
+        diagnostic_note: "Zero endpoints = data ingestion stops. Results become stale but existing data still queryable."
+
+      - name: search-postgres
+        port: 5432
+        selector: "name=search-postgres"
+        consumers: [search-api, search-indexer]
+        diagnostic_note: "Zero endpoints = both query and ingestion paths break. All search features fail."
+
+      # --- Console subsystem ---
+      - name: console-chart-console-v2
+        port: 3000
+        selector: "app=console-chart-v2,component=console"
+        consumers: [ocp-console-via-consoleplugin-proxy]
+        diagnostic_note: "Zero endpoints = ACM console UI completely unavailable. ConsolePlugin proxy returns 502."
+
+      # --- Governance subsystem ---
+      - name: grc-policy-propagator
+        port: 8381
+        selector: "app=grc-policy-propagator"
+        consumers: [console-chart-console-v2]
+        diagnostic_note: "Zero endpoints = policy dashboard data stale. Policy propagation to spokes also stops."
+
+      # --- Observability subsystem ---
+      - name: observability-thanos-query
+        port: 9090
+        namespace_override: open-cluster-management-observability
+        selector: "app.kubernetes.io/name=thanos-query"
+        consumers: [observability-grafana, observability-rbac-query-proxy]
+        diagnostic_note: "Zero endpoints = Grafana dashboards show no data."
+
+      - name: observability-thanos-receive
+        port: 19291
+        namespace_override: open-cluster-management-observability
+        selector: "app.kubernetes.io/name=thanos-receive"
+        consumers: [metrics-collector-addons]
+        diagnostic_note: "Zero endpoints = metrics ingestion stops. Historical data still queryable."
+
+  multicluster-engine:
+    entries:
+
+      # --- Cluster lifecycle ---
+      - name: ocm-webhook
+        port: 443
+        selector: "app=ocm-webhook"
+        consumers: [kube-apiserver-via-webhook]
+        diagnostic_note: "Zero endpoints = OCM resource validation fails. ManagedCluster operations may be blocked."
+
+      - name: console-mce-console
+        port: 3001
+        selector: "app=console-mce-console"
+        consumers: [ocp-console-via-consoleplugin-proxy]
+        diagnostic_note: "Zero endpoints = MCE console tabs missing (Infrastructure, Credentials). Trap 2."
+
+      - name: cluster-proxy
+        port: 8090
+        selector: "app=cluster-proxy"
+        consumers: [console-chart-console-v2, managed-serviceaccount]
+        diagnostic_note: "Zero endpoints = proxy access to managed cluster APIs fails."
+
+  hive:
+    entries:
+
+      - name: hiveadmission
+        port: 443
+        selector: "app=hiveadmission"
+        consumers: [kube-apiserver-via-webhook]
+        diagnostic_note: "Zero endpoints = ALL ClusterDeployment operations blocked. Trap 10."
+
+      - name: hive-controllers
+        port: 8080
+        selector: "control-plane=controller-manager"
+        consumers: [internal-metrics-only]
+        diagnostic_note: "Metrics endpoint only. Controller health checked via pod status, not Service endpoints."
+
+  open-cluster-management-hub:
+    entries:
+
+      - name: cluster-manager-registration-webhook
+        port: 443
+        selector: "app=cluster-manager-registration-webhook"
+        consumers: [kube-apiserver-via-webhook]
+        diagnostic_note: "Zero endpoints = ManagedCluster registration webhook fails. New cluster joins blocked."
+
+      - name: cluster-manager-work-webhook
+        port: 443
+        selector: "app=cluster-manager-work-webhook"
+        consumers: [kube-apiserver-via-webhook]
+        diagnostic_note: "Zero endpoints = ManifestWork webhook fails. Addon deployment and RBAC propagation blocked."
+
+      - name: cluster-manager-placement-controller
+        port: 8443
+        selector: "app=cluster-manager-placement-controller"
+        consumers: [internal-metrics-only]
+        diagnostic_note: "Metrics endpoint only. Placement health checked via Placement CR status, not Service."
+
+# Diagnostic procedure:
+# 1. When a dependency chain shows a broken link, check the Service
+#    endpoint at that link: oc get endpoints -n <ns> <service-name>
+# 2. If endpoints are empty, the selector doesn't match any Ready pods.
+#    Check: oc get pods -n <ns> -l <selector> to see if pods exist.
+# 3. If pods exist but aren't Ready, investigate pod health (Layer 9).
+# 4. If no pods exist, check the operator that should create them (Layer 9).
+# 5. If pods are Ready but still not in endpoints, check readinessProbe
+#    configuration and whether the pod's ports match the Service targetPort.

@@ -1,0 +1,193 @@
+# Known Failure Patterns -- Z-Stream Analysis
+# Signatures that short-circuit investigation. When a test error matches one
+# of these patterns, the AI agent can classify with high confidence without
+# full investigation.
+#
+# Populated by: manual + learned/new-patterns.yaml promotion
+# Refresh frequency: after each analysis run (agent can append to learned/)
+
+patterns:
+
+  # --- Selector/UI patterns ---
+  - id: carbon-selector
+    category: selector
+    signature: "tf--list-box|tf--dropdown|tf--combo-box|tf--text-input"
+    classification: AUTOMATION_BUG
+    confidence: 0.95
+    explanation: "Carbon Design System selector. Console migrated to PatternFly in 2023."
+    fix: "Replace with PatternFly equivalent (pf-v6-c-menu, pf-v6-c-select, etc.)"
+
+  - id: pf5-selector-deprecated
+    category: selector
+    signature: "pf-c-[a-z]|pf-v5-c-[a-z]"
+    classification: AUTOMATION_BUG
+    confidence: 0.85
+    explanation: "PatternFly 5 selector. Console migrated to PF6."
+    fix: "Replace pf-c- or pf-v5-c- prefix with pf-v6-c-."
+
+  - id: pf6-portal-visibility
+    category: selector
+    signature: "pf-v6-c-menu__item.*visibility.*hidden"
+    classification: AUTOMATION_BUG
+    confidence: 0.90
+    explanation: "PF6 renders menu items in a portal outside .within() scope."
+    fix: "Use { withinSubject: null } or cy.get() outside .within() block."
+
+  - id: data-ouia-deprecated
+    category: selector
+    signature: "data-ouia-component-id.*not found|data-ouia-component-type.*not found"
+    classification: AUTOMATION_BUG
+    confidence: 0.80
+    explanation: "OUIA selectors may have changed or been removed in PF6 migration."
+    fix: "Check current component for data-ouia attributes. May need data-test-id instead."
+
+  # --- Infrastructure patterns ---
+  - id: vm-scheduling-no-kvm
+    category: infrastructure
+    signature: "FailedScheduling.*devices\\.kubevirt\\.io/kvm"
+    classification: INFRASTRUCTURE
+    confidence: 0.95
+    explanation: "No KVM-capable worker nodes available for VM scheduling."
+    fix: "Add KVM-capable nodes or use a cluster with nested virtualization."
+
+  - id: certificate-expired
+    category: infrastructure
+    signature: "x509.*certificate.*expired|tls.*handshake.*failure|certificate.*not valid"
+    classification: INFRASTRUCTURE
+    confidence: 0.85
+    explanation: "TLS certificate expired or invalid."
+    fix: "Check cert expiry. If service-ca managed, check service-ca-operator health."
+
+  - id: webhook-connection-refused
+    category: infrastructure
+    signature: "failed calling webhook.*connection refused|webhook.*service.*unavailable"
+    classification: INFRASTRUCTURE
+    confidence: 0.90
+    explanation: "Webhook service pod is down. Operations that require validation will fail."
+    fix: "Check webhook service pod health. Restart if needed."
+
+  - id: etcd-leader-election
+    category: infrastructure
+    signature: "etcdserver.*leader changed|raft.*election"
+    classification: INFRASTRUCTURE
+    confidence: 0.70
+    explanation: "etcd leader election in progress. Temporary API instability."
+    fix: "Usually self-resolving. Check etcd pod health and node stability."
+
+  - id: node-not-ready
+    category: infrastructure
+    signature: "NodeNotReady|node.*not.*ready|SchedulingDisabled"
+    classification: INFRASTRUCTURE
+    confidence: 0.85
+    explanation: "One or more nodes are NotReady. Pod scheduling fails."
+    fix: "Check node conditions and events."
+
+  # --- Product bug patterns ---
+  - id: nil-pointer-panic
+    category: product
+    signature: "runtime error.*nil pointer dereference|panic.*nil pointer"
+    classification: PRODUCT_BUG
+    confidence: 0.90
+    explanation: "Go nil pointer dereference in controller code."
+    fix: "File JIRA bug with stack trace."
+
+  - id: reconciliation-hot-loop
+    category: product
+    signature: "Reconciling.*Reconciling.*Reconciling|conflict.*retry"
+    classification: PRODUCT_BUG
+    confidence: 0.70
+    explanation: "Controller in reconciliation hot loop. May indicate race condition."
+    fix: "Check controller logs for resource conflict details."
+
+  # --- Automation patterns ---
+  - id: cy-visit-timeout
+    category: automation
+    signature: "cy\\.visit.*timed out|Timed out retrying.*cy\\.visit"
+    classification: AUTOMATION_BUG
+    confidence: 0.65
+    explanation: "Cypress visit timeout. Could be slow page load or wrong URL."
+    fix: "Check if URL is correct and page actually loads."
+    note: "Low confidence -- needs backend health check to distinguish from INFRASTRUCTURE."
+
+  - id: hook-cascade
+    category: automation
+    signature: "because this error occurred during.*after all.*hook|after each.*hook"
+    classification: NO_BUG
+    confidence: 0.90
+    explanation: "After-all/after-each hook failure cascading from prior test failure."
+    fix: "Classify the original test failure, not the hook cascade."
+
+  - id: blank-page-no-js
+    category: infrastructure_prereq
+    signature: "no-js|blank.*page|<body>\\s*</body>|empty.*body"
+    classification: INFRASTRUCTURE
+    confidence: 0.85
+    explanation: "Page loads but has no content. Usually missing prerequisite (AAP, IDP, CNV)."
+    fix: "Check if the feature prerequisite is installed on the cluster."
+    requires_verification: true
+    note: "Must verify which prerequisite is missing before finalizing."
+
+  # --- External service patterns ---
+  - id: minio-objectstore-down
+    category: external_service
+    signature: "minio.*connection.*(?:refused|timeout)|objectstore.*(?:fail|error|unavailable)"
+    classification: INFRASTRUCTURE
+    confidence: 0.85
+    explanation: "External Minio/S3 object storage server is unreachable. Object Storage subscription tests fail because the channel endpoint is down."
+    fix: "Check OBJECTSTORE_PRIVATE_URL from Jenkins params. Verify Minio server health on the remote cluster."
+
+  - id: gogs-git-push-failure
+    category: external_service
+    signature: "failed to push to testrepo|gogs.*connection.*(?:refused|error)"
+    classification: INFRASTRUCTURE
+    confidence: 0.85
+    explanation: "External Gogs Git server is down or unreachable. Git channel subscription tests fail at setup."
+    fix: "Check Gogs deployment on the CI runner. Verify the Git server endpoint is reachable."
+
+  - id: mtls-setup-failure
+    category: external_service
+    signature: "MTLS Test Environment setup failure|SSL certificate problem.*self signed"
+    classification: INFRASTRUCTURE
+    confidence: 0.85
+    explanation: "MTLS test environment failed to initialize. Gogs with custom TLS certs did not start properly."
+    fix: "Check SSL cert chain for the Gogs mTLS server. Verify cert generation in CI setup."
+
+  - id: tower-unreachable
+    category: external_service
+    signature: "tower.*(?:unreachable|connection.*refused|timeout)|ansible.*tower.*(?:fail|error)"
+    classification: INFRASTRUCTURE
+    confidence: 0.80
+    explanation: "Ansible Tower/AAP endpoint is unreachable. AnsibleJob tests fail."
+    fix: "Check TOWER_HOST from Jenkins params. Verify Tower is running and API is accessible."
+    note: "If AAP >= 2.5 and test uses workflow jobs, check version-constraints.yaml -- may be PRODUCT_BUG instead."
+
+# --- Known JIRA bugs ---
+# Cached JIRA references for known failures. The AI agent checks these
+# BEFORE calling the JIRA MCP tool, providing instant correlation.
+# Entries can become stale -- always verify the JIRA is still open/relevant.
+#
+# Refresh frequency: weekly or after each z-stream analysis run
+
+known_jira_bugs:
+
+  - id: acm-32244-subscription-timestamp
+    jira: ACM-32244
+    summary: "Timestamp comparison issue causes subscription controller to skip reconciliation"
+    affected_components: [subscription-controller, multicloud-operators-subscription]
+    feature_area: Application
+    symptoms:
+      - "subscription is not ready within time limit"
+      - "subscription.*not.*reconcil"
+      - "appsub.*timeout"
+    classification: PRODUCT_BUG
+    confidence: 0.80
+    versions_affected: ["2.13", "2.14"]
+    fix_version: "2.14.1"
+    status: open
+    last_verified: "2026-03-31"
+    note: >
+      Subscription controller skips reconciliation when lastTransitionTime comparison
+      fails due to timezone/precision mismatch. Only applies when the subscription-controller
+      pod is Running/Ready but subscriptions are not reconciling. If the pod is unhealthy,
+      classify as INFRASTRUCTURE instead. See disambiguation in
+      knowledge/architecture/application-lifecycle/failure-signatures.md.

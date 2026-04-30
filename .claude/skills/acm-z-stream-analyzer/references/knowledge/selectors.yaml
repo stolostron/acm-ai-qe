@@ -1,0 +1,97 @@
+# ACM UI Selector Ground Truth -- Z-Stream Analysis
+# Known selectors per feature area in the current ACM version.
+# Used by the AI agent to detect stale selectors in test failures.
+# When a test fails with "element not found" and the selector is NOT in
+# this file, it's likely been renamed or removed (AUTOMATION_BUG).
+#
+# Populated by: refresh.py (ACM-UI MCP find_test_ids + search_code)
+# Refresh frequency: on every ACM version change
+
+acm_version: "2.17"
+last_refreshed: "2026-03-27"
+note: >
+  This is a representative sample of critical selectors per feature area.
+  For the full selector inventory, query ACM-UI MCP get_acm_selectors.
+
+selectors:
+
+  clusters-page:
+    route: "/multicloud/infrastructure/clusters"
+    selectors:
+      - id: "createCluster"
+        selector: "[data-test-id='createCluster']"
+        purpose: "Create cluster button"
+      - id: "importCluster"
+        selector: "[data-test-id='importCluster']"
+        purpose: "Import cluster button"
+      - id: "clusterTable"
+        selector: "[data-test-id='clusters-table']"
+        purpose: "Managed clusters table"
+
+  search-page:
+    route: "/multicloud/search"
+    selectors:
+      - id: "searchInput"
+        selector: "[data-test='search-query-input']"
+        purpose: "Search query input field"
+      - id: "searchResults"
+        selector: "[data-test='search-results']"
+        purpose: "Search results container"
+
+  governance-page:
+    route: "/multicloud/governance"
+    selectors:
+      - id: "createPolicy"
+        selector: "[data-test='create-policy']"
+        purpose: "Create policy button"
+      - id: "policyTable"
+        selector: "[data-test='policy-table']"
+        purpose: "Policy list table"
+
+  applications-page:
+    route: "/multicloud/applications"
+    selectors:
+      - id: "createApplication"
+        selector: "[data-test='create-application']"
+        purpose: "Create application button"
+
+  overview-page:
+    route: "/multicloud/home/overview"
+    selectors:
+      - id: "overviewSummary"
+        selector: "[data-test='overview-summary']"
+        purpose: "Overview summary section"
+
+  credentials-page:
+    route: "/multicloud/credentials"
+    selectors:
+      - id: "addCredential"
+        selector: "[data-test='add-credential']"
+        purpose: "Add credential button"
+
+known_stale_patterns:
+  carbon_prefixes:
+    note: "Carbon Design System selectors. Console migrated to PatternFly in 2023."
+    patterns:
+      - "tf--list-box"
+      - "tf--dropdown"
+      - "tf--combo-box"
+      - "tf--text-input"
+    classification: AUTOMATION_BUG
+    confidence: 0.95
+
+  pf5_deprecated:
+    note: "PatternFly 5 selectors deprecated in favor of PF6."
+    patterns:
+      - "pf-c-"
+      - "pf-v5-c-"
+    replacement_prefix: "pf-v6-c-"
+    classification: AUTOMATION_BUG
+    confidence: 0.85
+
+  pf6_portal:
+    note: "PF6 renders menu items in portal outside .within() scope."
+    symptom: "pf-v6-c-menu__item visibility hidden"
+    fix: "Use { withinSubject: null } or cy.get() outside .within() block"
+    classification: AUTOMATION_BUG
+    confidence: 0.90

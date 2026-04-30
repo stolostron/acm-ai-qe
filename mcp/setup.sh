@@ -748,45 +748,25 @@ setup_acm_search() {
         fi
     fi
 
-    # Deploy on-cluster if oc is logged in
+    # Deploy on-cluster using the non-interactive deploy script
     ACM_SEARCH_ROUTE=""
     ACM_SEARCH_TOKEN=""
     if command -v oc &>/dev/null && oc whoami &>/dev/null 2>&1; then
-        if oc get namespace acm-search &>/dev/null 2>&1; then
-            ok "acm-search namespace exists on cluster"
-        else
-            info "Deploying acm-search MCP server on-cluster..."
-            if [ -f "$ACM_SEARCH_DIR/scripts/create-secret.sh" ]; then
-                (cd "$ACM_SEARCH_DIR" && bash scripts/create-secret.sh 2>&1) || {
-                    warn "create-secret.sh failed. You may need to deploy manually."
-                }
+        info "Running deploy-acm-search.sh..."
+        if bash "$MCP_DIR/deploy-acm-search.sh" 2>&1; then
+            ok "acm-search deployed and .mcp.json updated"
+            # Read back values from marker file for status display
+            if [ -f "$MCP_DIR/.acm-search-config.json" ] && command -v jq &>/dev/null; then
+                ACM_SEARCH_ROUTE=$(jq -r '.route' "$MCP_DIR/.acm-search-config.json")
+                ACM_SEARCH_TOKEN="set"
             fi
-            if [ -f "$ACM_SEARCH_DIR/Makefile" ]; then
-                (cd "$ACM_SEARCH_DIR" && make deploy-prebuilt 2>&1) || {
-                    warn "deploy-prebuilt failed. Check: oc get pods -n acm-search"
-                }
-            fi
-        fi
-
-        # Extract route URL
-        ACM_SEARCH_ROUTE=$(oc get route -n acm-search -o jsonpath='{.items[0].spec.host}' 2>/dev/null || true)
-        if [ -n "$ACM_SEARCH_ROUTE" ]; then
-            ok "Route: $ACM_SEARCH_ROUTE"
         else
-            warn "No route found in acm-search namespace."
-            echo "  Deploy manually: cd $ACM_SEARCH_DIR && bash scripts/create-secret.sh && make deploy-prebuilt"
-        fi
-
-        # Extract service account token
-        ACM_SEARCH_TOKEN=$(oc get secret acm-search-client-token -n acm-search -o jsonpath='{.data.token}' 2>/dev/null | base64 -d || true)
-        if [ -n "$ACM_SEARCH_TOKEN" ]; then
-            ok "Service account token extracted"
-        else
-            warn "Could not extract acm-search-client-token. Check: oc get secret -n acm-search"
+            warn "deploy-acm-search.sh failed. You can retry later:"
+            echo "  oc login <hub> && bash mcp/deploy-acm-search.sh"
         fi
     else
         warn "oc not logged in. Skipping on-cluster deployment."
-        echo "  Log in first, then re-run: oc login <hub-api-url> && bash mcp/setup.sh"
+        echo "  Deploy later: oc login <hub> && bash mcp/deploy-acm-search.sh"
     fi
 
     echo ""
@@ -936,26 +916,40 @@ jenkins_env = read_env_file(f'{ext_dir}/jenkins-mcp/.env')
 polarion_env = read_env_file(f'{mcp_dir}/polarion/.env')
 
 def _build_acm_search_config():
-    \"\"\"Build acm-search MCP config using mcp-remote + on-cluster SSE route.\"\"\"
+    \"\"\"Build acm-search MCP config. Reads marker file first, falls back to live cluster query.\"\"\"
     import shutil, subprocess
     mcp_remote = shutil.which('mcp-remote')
     if not mcp_remote:
-        return {'command': 'echo', 'args': ['acm-search not configured -- install mcp-remote and deploy on-cluster'], 'timeout': 10}
-    try:
-        route = subprocess.check_output(
-            ['oc', 'get', 'route', '-n', 'acm-search', '-o', 'jsonpath={.items[0].spec.host}'],
-            stderr=subprocess.DEVNULL, timeout=10).decode().strip()
-        token = subprocess.check_output(
-            ['oc', 'get', 'secret', 'acm-search-client-token', '-n', 'acm-search',
-             '-o', 'jsonpath={.data.token}'],
-            stderr=subprocess.DEVNULL, timeout=10).decode().strip()
-        if token:
-            import base64
-            token = base64.b64decode(token).decode()
-    except Exception:
-        route, token = '', ''
+        return {'command': 'echo', 'args': ['acm-search not configured -- install mcp-remote: npm install -g mcp-remote'], 'timeout': 10}
+    route, token = '', ''
+    marker = f'{mcp_dir}/.acm-search-config.json'
+    if os.path.isfile(marker):
+        try:
+            with open(marker) as mf:
+                mc = json.load(mf)
+            route = mc.get('route', '')
+            token = mc.get('token', '')
+            mr = mc.get('mcp_remote', '')
+            if mr and os.path.isfile(mr):
+                mcp_remote = mr
+        except Exception:
+            pass
     if not route or not token:
-        return {'command': 'echo', 'args': ['acm-search not configured -- deploy on-cluster and re-run setup'], 'timeout': 10}
+        try:
+            route = subprocess.check_output(
+                ['oc', 'get', 'route', '-n', 'acm-search', '-o', 'jsonpath={.items[0].spec.host}'],
+                stderr=subprocess.DEVNULL, timeout=10).decode().strip()
+            token = subprocess.check_output(
+                ['oc', 'get', 'secret', 'acm-search-client-token', '-n', 'acm-search',
+                 '-o', 'jsonpath={.data.token}'],
+                stderr=subprocess.DEVNULL, timeout=10).decode().strip()
+            if token:
+                import base64
+                token = base64.b64decode(token).decode()
+        except Exception:
+            route, token = '', ''
+    if not route or not token:
+        return {'command': 'echo', 'args': ['acm-search not configured -- run: bash mcp/deploy-acm-search.sh'], 'timeout': 10}
     return {
         'command': mcp_remote,
         'args': [f'https://{route}/sse', '--header', f'Authorization: Bearer {token}', '--transport', 'sse-only'],

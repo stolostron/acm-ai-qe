@@ -308,6 +308,7 @@ reviews:
         quality-reviewer.md: Phase 4.5 — acm-ui MCP + Polarion MCP.
           Min 3 MCP verifications required (fewer = NEEDS_FIXES).
           Must call get_component_source on primary file (Step 4).
+          Must call search_translations at least once (verify metric/label names against source).
           Must cross-reference knowledge/architecture/<area>.md (Step 4.6).
           Must verify AC discrepancy Notes via source code (Step 4.5).
 

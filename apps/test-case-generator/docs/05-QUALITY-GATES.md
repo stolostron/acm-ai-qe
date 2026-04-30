@@ -54,7 +54,8 @@ The reviewer performs **minimum 3 MCP verifications**. Fewer than 3 = automatic 
 3. Check entry point via `get_routes` — verify navigation path exists
 4. If wizard steps mentioned: verify via `get_wizard_steps`
 5. **MANDATORY: Read primary changed component** via `get_component_source()` — verify at least one behavioral claim (field order, filtering, empty state) against actual source code
-6. Flag any unverifiable element as `POTENTIALLY ASSUMED`
+6. **MANDATORY: Verify metric/label names** — for any metric name, API field, or translation string in expected results, verify it matches the CURRENT source code via `search_translations` or `get_component_source`. JIRA descriptions may contain stale names from before implementation. If a discrepancy is found with the JIRA description, this is BLOCKING.
+7. Flag any unverifiable element as `POTENTIALLY ASSUMED`
 
 #### Step 4.5: AC vs Implementation Check
 
@@ -226,6 +227,8 @@ The quality reviewer must start its output with a JSON verification block contai
 
 The orchestrator validates this block before accepting the verdict. If the block is missing or `mcp_verifications` has fewer than 3 entries, the verdict is automatically overridden to `NEEDS_FIXES` and the reviewer is re-launched.
 
+The portable skill (`acm-test-case-generator`) also runs `scripts/review_enforcement.py` which deterministically checks: 3+ MCP verifications, `get_component_source` present, `search_translations` present. It also warns (non-blocking) if the test case describes a conditional feature but lacks a negative scenario step.
+
 ---
 
 ## Quality Standards Summary
@@ -246,3 +249,5 @@ A test case must pass all of these before delivery:
 | AC vs implementation | Compares JIRA ACs against test expectations | Not checked |
 | Peer consistency | Compares with existing test cases | Not checked |
 | Polarion duplicates | Searches Polarion for existing coverage | Not checked |
+| Metric/label name accuracy | Verifies names match current source code, not stale JIRA text | Not checked |
+| Negative scenario coverage | Warns if conditional feature lacks negative step (non-blocking) | Not checked |

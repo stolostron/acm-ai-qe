@@ -29,6 +29,11 @@ You MUST NOT modify the cluster. All commands are read-only.
 **ALLOWED:** oc get, oc describe, oc logs, oc exec (read-only curls),
 oc auth can-i, oc adm top, oc api-resources, oc whoami, oc get events
 
+**acm-search:** Before using, call `get_database_stats()` to verify
+connectivity. If it fails or returns 0 rows, skip acm-search and use
+`oc` commands for resource checks. The investigation works without
+acm-search — spoke-side visibility is reduced.
+
 **FORBIDDEN:** oc patch, oc delete, oc apply, oc scale, oc annotate,
 oc label, oc create, oc edit, oc rollout restart
 

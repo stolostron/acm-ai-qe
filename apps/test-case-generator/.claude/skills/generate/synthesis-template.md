@@ -24,15 +24,26 @@ Setup: [prerequisites, test users, resources needed]
 Per-step validations: [what each step validates -- UI action + expected result]
 CLI checkpoints: [where backend validation is needed mid-test]
 Teardown: [resources to clean up]
+Negative scenarios: [if feature is conditionally rendered/gated, plan at least one step verifying absence when condition is not met]
 
 Conflict resolution (if agents disagree):
 - UI elements (labels, routes, selectors): trust UI Discovery (reads source directly)
 - Business requirements (ACs, scope): trust Feature Investigator (reads JIRA)
 - What changed (files, diff): trust Code Change Analyzer (reads the diff)
 - **Knowledge file authority:** if ANY agent's findings contradict `knowledge/architecture/<area>.md` on field order, filtering behavior, or component structure, flag the contradiction and mark the knowledge file version as the default until MCP verification resolves the conflict
+- **Metric names, translation strings, UI field labels:** ALWAYS trust CURRENT source code (verified via `search_translations` or `get_component_source`) over JIRA descriptions. JIRA descriptions may contain stale or proposed names changed during implementation. When a discrepancy is found, use the source code value and add a Note: "JIRA says '[jira-name]' but source code uses '[source-name]' (verified via [tool])"
 ```
 
 The TEST PLAN section is written by the orchestrator based on the three investigation blocks.
+
+## Cross-Entity Verification
+
+If the feature operates on a per-entity basis (per-cluster, per-namespace, per-resource, per-policy), the TEST PLAN should include at least one step that validates behavior on a DIFFERENT entity of the same type. This catches:
+- Hardcoded entity names or IDs in the implementation
+- Filtering logic that only works for the first entity
+- Cache or state leakage between entity views
+
+Example: if testing a cluster-scoped action on cluster-A, add a step that performs the same action on cluster-B. If testing a namespace-scoped policy, verify it also appears correctly under a different namespace.
 
 ## Test File Data Warning
 

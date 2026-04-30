@@ -117,6 +117,8 @@ This repo only contains our original MCP code: ACM UI, Polarion wrapper, Jenkins
 
 **JIRA Cloud Setup:** Run `/onboard` and provide credentials when prompted, or create `mcp/.external/jira-mcp-server/.env` with your Jira Cloud credentials after setup. Get a token at https://id.atlassian.com/manage-profile/security/api-tokens.
 
+**ACM Search Setup:** Runs as a pod on the ACM hub cluster, accessed via SSE through an OpenShift route. Deploy with `bash mcp/deploy-acm-search.sh` after `oc login` -- it auto-discovers the ACM namespace, deploys the server, extracts the route/token, and updates all `.mcp.json` files. On cluster rotation, re-run the deploy script before starting `claude`. If acm-search is unavailable, agents fall back to `oc` CLI for direct queries.
+
 ## Directory Structure
 
 ```
@@ -128,6 +130,7 @@ ai_systems_v2/
 │   └── test-case-generator/   # Active — Polarion-ready test case generation from JIRA tickets
 ├── mcp/
 │   ├── setup.sh               # Interactive setup (clones external MCPs, creates venvs)
+│   ├── deploy-acm-search.sh   # Non-interactive ACM Search MCP deploy (cluster → .mcp.json)
 │   ├── verify.py              # Standalone health checker (run anytime)
 │   ├── acm-ui-mcp-server/     # Our code: ACM Console source search
 │   ├── polarion/              # Our code: Polarion wrapper

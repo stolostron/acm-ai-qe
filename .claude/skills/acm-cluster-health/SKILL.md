@@ -73,9 +73,28 @@ When performing cluster diagnostics, these MCPs may be available:
 
 | MCP | Tools | Purpose |
 |-----|-------|---------|
-| `acm-search` | `find_resources`, `query_database`, `list_tables` | Query K8s resources across all managed clusters |
+| `acm-search` | `find_resources`, `query_database`, `list_tables`, `get_database_stats`, `search_tables` | Query K8s resources across all managed clusters |
 | `acm-kubectl` | `clusters`, `kubectl`, `connect_cluster` | List managed clusters, run kubectl on hub or spokes |
 | `neo4j-rhacm` | `read_neo4j_cypher` | Query component dependency graph |
+
+### acm-search availability
+
+The acm-search MCP runs as a pod on the ACM hub cluster, accessed via SSE
+over an OpenShift route. It must be deployed before the Claude Code session
+starts.
+
+**Before using acm-search:** Call `get_database_stats()` as a connectivity
+check. If it fails or returns 0 rows, skip all acm-search usage and fall
+back to `oc` commands.
+
+**If acm-search is unavailable** (stub, connection error, or timeout):
+Tell the user to deploy it from their terminal:
+```
+oc login <hub> && bash mcp/deploy-acm-search.sh
+```
+Then restart Claude Code. Continue the diagnostic with `oc` CLI fallback —
+the diagnostic works without acm-search, just with reduced spoke-side
+visibility.
 
 ## Key Investigation Patterns
 

@@ -73,22 +73,54 @@ limit:          Max results for list mode (default: 50, max: 1000)
 
 The search MCP requires:
 - `oc` logged into an ACM hub with search enabled
-- The acm-search MCP server deployed on-cluster as a pod (via
-  `create-secret.sh` + `make deploy-prebuilt` in the acm-mcp-server repo)
+- The acm-search MCP server deployed on-cluster (`bash mcp/deploy-acm-search.sh`)
 - `mcp-remote` installed globally (`npm install -g mcp-remote`) as a
   stdio-to-SSE bridge
-- A valid service account token from the `acm-search` namespace
+- A valid service account token (extracted automatically by the deploy script)
 
-The MCP server runs as a pod on the ACM hub cluster, accessed via SSE
-over an OpenShift route. `mcp-remote` bridges stdio (what Claude Code
-expects) to SSE (what the on-cluster server speaks). The `--transport
-sse-only` flag and `NODE_TLS_REJECT_UNAUTHORIZED=0` env var are set
-in `.mcp.json` to handle self-signed certs and skip the Streamable
-HTTP probe.
+The MCP server runs as a pod on the ACM hub cluster in the `acm-search`
+namespace, accessed via SSE over an OpenShift route. `mcp-remote` bridges
+stdio (what Claude Code expects) to SSE (what the on-cluster server
+speaks). The `--transport sse-only` flag and `NODE_TLS_REJECT_UNAUTHORIZED=0`
+env var are set in `.mcp.json` to handle self-signed certs.
+
+### Deployment
+
+```bash
+oc login <hub-api-url>
+bash mcp/deploy-acm-search.sh    # deploys pod, extracts route+token, updates .mcp.json
+claude                            # session reads fresh .mcp.json
+```
+
+The deploy script auto-discovers the ACM namespace, deploys pre-built
+container images, extracts the SSE route URL and service account token,
+and updates all `.mcp.json` files (root + per-app).
+
+### Cluster rotation
+
+When the hub cluster changes, re-run the deploy script before starting
+a new Claude Code session:
+
+```bash
+oc login <new-hub>
+bash mcp/deploy-acm-search.sh
+claude
+```
+
+### Detecting unavailability
+
+The MCP is unavailable when:
+- `.mcp.json` has `"command": "echo"` (stub — never deployed)
+- MCP tool calls return connection errors or timeouts
+- `get_database_stats()` fails or returns 0 rows
+
+### Fallback
 
 If the MCP is not configured or the server fails to connect, skip
-search MCP usage and rely on `oc` commands -- the agent works
+all `acm-search` usage and rely on `oc` commands. The agent works
 without it, just with reduced spoke-side visibility.
 
-When the cluster is torn down and reprovisioned, redeploy the MCP
-server and re-run `setup.sh` to extract the new route URL and token.
+If the MCP is broken mid-session, tell the user:
+> acm-search is unavailable. To enable fleet-wide queries, run from
+> your terminal: `oc login <hub> && bash mcp/deploy-acm-search.sh`,
+> then restart Claude Code. Continuing with oc CLI fallback.

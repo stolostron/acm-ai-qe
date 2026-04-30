@@ -84,8 +84,14 @@ search_code("<component>", repo="acm")
 ```
 
 If **acm-search** MCP is available:
-- Query for the component's resources across managed clusters
+- Call `get_database_stats()` first to verify connectivity
+- Use `find_resources(kind=..., outputMode="list")` for the component's resources across managed clusters
 - Identify spoke-side footprint
+
+If acm-search is unavailable (stub, connection error), skip fleet queries
+and tell the user: "acm-search is not configured. To enable fleet
+discovery, run `oc login <hub> && bash mcp/deploy-acm-search.sh` from
+your terminal, then restart Claude Code."
 
 ### Step 5: Write Discoveries
 

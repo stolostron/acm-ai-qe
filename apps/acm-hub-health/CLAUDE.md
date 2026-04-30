@@ -334,8 +334,12 @@ all `acm-search` usage and rely on `oc` commands.
 **When NOT to use:** Phase 1 discovery, quick sanity checks, when search
 is broken, real-time hub pod status (use `oc` instead -- search has lag).
 
+**If unavailable** (stub, connection error, or timeout): Tell the user
+to deploy from their terminal: `oc login <hub> && bash mcp/deploy-acm-search.sh`,
+then restart Claude Code. Continue the diagnostic with `oc` CLI fallback.
+
 See `knowledge/diagnostics/acm-search-reference.md` for tool parameters,
-query patterns, and what it does/doesn't replace.
+query patterns, deployment, cluster rotation, and fallback procedures.
 
 ---
 

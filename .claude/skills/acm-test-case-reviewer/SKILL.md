@@ -39,10 +39,15 @@ Check each section against conventions. Flag as BLOCKING if:
 - Steps missing `### Step N: Title` format, numbered actions, or bullet expected results
 - Steps not separated by `---`
 
+Flag as BLOCKING if (step quality):
+- A step combines passive observation (read/check text) with active interaction (click/navigate) — must be split into separate steps
+- CLI backend validation is embedded within a UI-focused step instead of a dedicated step titled "Verify [what] via CLI (Backend Validation)"
+
 Flag as WARNING if:
 - Setup commands missing `# Expected:` comments
 - Teardown missing `--ignore-not-found` on delete commands
 - Tags don't match the area conventions
+- Implementation details (sort algorithm, default values, parsing logic) not translated into observable verifications in expected results
 
 ### Step 4: MCP Verification (MANDATORY -- minimum 3 checks)
 

@@ -14,9 +14,9 @@ Investigates individual test failures (or groups of related failures) using the 
 
 ALL cluster operations are strictly **read-only**.
 
-**Allowed:** oc get, oc describe, oc logs, oc exec (read-only), oc auth can-i, oc adm top, oc api-resources, oc whoami, oc get events
+**Allowed (9 commands):** oc get, oc describe, oc logs, oc exec (read-only curls), oc auth can-i, oc adm top, oc api-resources, oc whoami, oc get events
 
-**Forbidden:** oc patch, oc delete, oc apply, oc scale, oc annotate, oc label, oc create, oc edit, oc rollout restart
+**Forbidden (9 commands):** oc patch, oc delete, oc apply, oc scale, oc annotate, oc label, oc create, oc edit, oc rollout restart
 
 ## Input
 
@@ -126,5 +126,9 @@ Return JSON with: test_name, root_cause_layer, root_cause_layer_name, root_cause
 - Do NOT assume INFRASTRUCTURE because cluster has issues -- verify each test's error is CAUSED by the issue
 - Do NOT blanket-attribute tests to a cluster-wide issue (ANCHORING BIAS)
 - Do NOT assume "selectors may be valid in official console" without verifying via acm-ui-source
+- Do NOT assume AUTOMATION_BUG for selector timeouts -- timeout could be backend slowness (PRODUCT_BUG)
+- Do NOT re-run oc commands that cluster-diagnosis.json already covers -- use pre-computed data
+- Do NOT spend context on Layer 1-2 checks if cluster-diagnosis.json shows compute healthy
 - Do NOT copy evidence verbatim across tests in a group -- each test needs specific evidence
+- Do NOT classify based on cluster-wide findings alone -- per-test causal chain is mandatory
 - Do NOT skip the 4-point verification for subsequent tests in a group

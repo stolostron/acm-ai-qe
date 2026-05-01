@@ -304,12 +304,14 @@ Test cases are validated against these criteria (Phase 4.5 + Stage 3):
 2. **Section order**: Title -> Metadata -> Fields -> Description -> Setup -> Steps -> Teardown
 3. **Entry point discovered**: Navigation path verified via acm-ui `get_routes()`
 4. **UI elements discovered**: Labels/strings verified via `search_translations()`
-5. **CLI-in-steps rule**: CLI only for backend validation, never as substitute for UI testing
-6. **Setup completeness**: Numbered bash commands with `# Expected:` comments
-7. **Step format**: H3 title, numbered actions, bullet expected results, `---` separators
-8. **Teardown**: Cleanup commands that reverse setup, `--ignore-not-found` on deletes
-9. **Peer consistency**: Format matches existing test cases in the same area/version
-10. **Discovered vs assumed**: Reviewer verifies UI elements against MCP sources
+5. **CLI-in-steps rule**: CLI only for backend validation, in dedicated steps placed after UI steps (not embedded within UI steps)
+6. **Step granularity**: Each step verifies one behavior — no mixing observation (read/check) with interaction (click/navigate)
+7. **Implementation detail translation**: Code details (sort algorithms, default values, parsing logic) translated into observable verifications
+8. **Setup completeness**: Numbered bash commands with `# Expected:` comments
+9. **Step format**: H3 title, numbered actions, bullet expected results, `---` separators
+10. **Teardown**: Cleanup commands that reverse setup, `--ignore-not-found` on deletes
+11. **Peer consistency**: Format matches existing test cases in the same area/version
+12. **Discovered vs assumed**: Reviewer verifies UI elements against MCP sources
 
 ---
 

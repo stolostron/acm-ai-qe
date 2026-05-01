@@ -140,7 +140,7 @@ Merge all investigation results into a SYNTHESIZED CONTEXT block:
 2. **Resolve conflicts**: trust UI discovery for UI elements, JIRA for requirements, code analysis for what changed, knowledge files for architecture constraints
 3. **Scope gate**: only plan steps for the target story's ACs, not the broader PR
 4. **AC vs Implementation cross-reference**: if ACs disagree with code behavior, flag as discrepancy
-5. **Plan the test case**: step count, setup, per-step validations, CLI checkpoints, teardown
+5. **Plan the test case**: step count, setup, per-step validations (one behavior per step), dedicated backend validation steps (after UI steps), teardown
 6. **Negative scenario enforcement**: If the code analysis identified conditional rendering (ternary operators, feature gates, permission checks, addon dependencies), plan at least ONE negative scenario step that verifies the feature is NOT visible/accessible when the condition is not met. The negative step should verify absence (element not rendered, action not available), not an error state. If no conditional rendering was identified, this does not apply.
 
 **STOP checkpoint:** "Investigation complete. [N] test scenarios identified."

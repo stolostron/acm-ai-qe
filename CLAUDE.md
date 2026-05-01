@@ -151,8 +151,8 @@ ai_systems_v2/
 ```bash
 # Z-stream analysis (from app directory)
 cd apps/z-stream-analysis/
-python -m pytest tests/unit/ tests/regression/ -q    # 686 tests, no external deps
-python -m pytest tests/ -q --timeout=300             # 731 tests (requires Jenkins VPN)
+python -m pytest tests/unit/ tests/regression/ -q    # 756 tests, no external deps
+python -m pytest tests/ -q --timeout=300             # 801 tests (requires Jenkins VPN)
 
 # Hub health (from app directory)
 cd apps/acm-hub-health/

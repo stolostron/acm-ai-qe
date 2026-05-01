@@ -66,9 +66,40 @@ Follow conventions EXACTLY:
 **Polarion Fields:** Type, Level, Component, Subcomponent, Test Type, Pos/Neg, Importance, Automation, Tags, Release
 **Description:** What is tested, numbered verification list, Entry Point (verified via MCP), Dev JIRA Coverage
 **Setup:** Prerequisites, Test Environment, numbered bash commands with `# Expected:` comments
-**Test Steps:** `## Test Steps` header, then each step as `### Step N: Title` with numbered actions and bullet expected results, separated by `---`
+**Test Steps:** `## Test Steps` header, then each step as `### Step N: Title` with numbered actions and bullet expected results, separated by `---`. Apply the step granularity, backend validation placement, and implementation detail translation rules below.
 **Teardown:** Bash cleanup commands with `--ignore-not-found`
 **Notes:** Implementation details, AC-vs-implementation discrepancies with source code citations
+
+#### Step Granularity Rule
+
+Each test step should verify ONE distinct behavior or interaction. If a step has expected results that test different aspects (e.g., tooltip text content AND link click navigation), split into separate steps. Ask: "If one expected result passes but another fails, would a tester need to report this as a partial pass?" If yes, split.
+
+Signs a step needs splitting:
+- Expected results verify both READ (observe/check text) and ACTION (click/interact/navigate) outcomes
+- Expected results mix UI verification with backend CLI verification
+- A single step has 4+ expected result bullets covering different behaviors
+- The step title uses "and" connecting two distinct verifications
+
+#### Backend Validation Placement Rule
+
+When a test case includes CLI-based backend verification (checking resource state, querying APIs, verifying metric data), place it in a DEDICATED step titled "Verify [what] via CLI (Backend Validation)" — do NOT embed CLI commands within a UI-focused step. This ensures:
+- Clear context switch (browser → terminal) is visible in the step title
+- Pass/fail is cleanly attributed to UI behavior vs backend state
+- Automation can map UI steps to browser functions and CLI steps to shell functions
+
+Place backend validation steps AFTER UI steps, so the test flow is: UI verification first, then backend cross-check.
+
+Exception: Setup commands in the Setup section are not affected by this rule.
+
+#### Implementation Detail Translation Rule
+
+When the synthesized context includes implementation details (sort algorithm, comparison function, data parsing logic), translate them into OBSERVABLE verifications a tester can check. Ask: "What would a tester SEE if this implementation detail were wrong?"
+
+Examples:
+- `compareNumbers(a, b)` → "Sorting is numeric, not alphabetical (e.g., 0, 1, 2, 10 — not 0, 1, 10, 2)"
+- `text.split(':')[0]` → "The hostname displayed matches the node name (port suffix stripped)"
+- `value ?? 0` → "When no data exists, the field shows '0' (not a dash or empty)"
+- `skip: !isInstalled` → "The column/feature is NOT present when [component] is not installed"
 
 ### Step 6: Self-Review Before Finalizing
 
@@ -83,6 +114,9 @@ Check before completing:
 8. `## Test Steps` section header present before first step?
 9. Steps separated by `---`?
 10. No fabricated filter prefixes or numeric thresholds?
+11. Any step combining passive observation with active interaction (click/navigate)? Split them.
+12. Is CLI backend validation in its own dedicated step, not embedded in a UI step?
+13. Are implementation details (sort algorithm, default values, parsing logic) translated into observable verifications?
 
 ## Critical Rules
 

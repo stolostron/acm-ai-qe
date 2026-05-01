@@ -21,10 +21,15 @@ SYNTHESIZED CONTEXT
 Scenarios: [N]
 Steps: [estimated count, typically 5-10 for medium complexity]
 Setup: [prerequisites, test users, resources needed]
-Per-step validations: [what each step validates -- UI action + expected result]
-CLI checkpoints: [where backend validation is needed mid-test]
+Per-step validations (apply ONE-BEHAVIOR-PER-STEP rule):
+- [what each step validates -- UI action + expected result]
+- If a planned step covers multiple behaviors (e.g., "tooltip content AND link click navigation"), split into separate steps
+- If a planned step mixes UI observation and CLI verification, split into "UI step" + "Backend validation step"
+- Target: each step should have 2-3 expected result bullets covering the SAME behavior or observation
+Backend validation steps: [dedicated steps for CLI-based verification, placed AFTER UI steps -- not embedded within UI steps]
 Teardown: [resources to clean up]
 Negative scenarios: [if feature is conditionally rendered/gated, plan at least one step verifying absence when condition is not met]
+Implementation details to translate: [code-level details like sort algorithms, default values, parsing logic that should become observable verifications in expected results]
 
 Conflict resolution (if agents disagree):
 - UI elements (labels, routes, selectors): trust UI Discovery (reads source directly)

@@ -360,8 +360,8 @@ python -m src.scripts.feedback --stats
 ## Tests
 
 ```bash
-python -m pytest tests/unit/ tests/regression/ -q   # 686 tests, no external deps
-python -m pytest tests/ -q --timeout=300             # 731 tests (needs Jenkins VPN)
+python -m pytest tests/unit/ tests/regression/ -q   # 756 tests, no external deps
+python -m pytest tests/ -q --timeout=300             # 801 tests (needs Jenkins VPN)
 ```
 
 ## Documentation

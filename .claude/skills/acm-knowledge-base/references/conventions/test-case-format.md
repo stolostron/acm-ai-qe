@@ -88,9 +88,11 @@ Each step:
 
 Rules:
 - Steps are UI-focused (user interactions in the console)
-- CLI is allowed mid-test ONLY for backend validation
+- Each step should verify ONE distinct behavior or interaction — don't combine passive observation (reading text) with active interaction (clicking/navigating) in the same step
+- CLI is allowed ONLY for backend validation, in DEDICATED steps placed after UI steps (not embedded within UI steps)
+- Implementation details from code (sort algorithms, default values, parsing logic) must be translated into observable verifications (e.g., `compareNumbers` → "sorting is numeric, not alphabetical")
 - Each step has a clear title and numbered actions
-- Expected results use bullet points
+- Expected results use bullet points (target 2-3 bullets covering the same behavior)
 - Steps are separated by `---`
 
 ### 7. Teardown
@@ -119,7 +121,7 @@ References to source code components and implementation tickets.
 | Section | CLI Commands |
 |---------|-------------|
 | Setup | Allowed (bash scripts with `oc` commands) |
-| Test Steps | UI-only by default. Exception: CLI allowed for mid-test backend validation (verify resource YAML, check config state) when using Search UI is unnecessary |
+| Test Steps | UI-only by default. Exception: CLI allowed for backend validation in a DEDICATED step titled "Verify [what] via CLI (Backend Validation)" — placed after UI steps, not embedded within them |
 | Teardown | Allowed (cleanup commands) |
 
 ---

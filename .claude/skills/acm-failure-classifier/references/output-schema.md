@@ -19,13 +19,15 @@ These must be EXACT -- the report generator rejects the file if wrong:
     "total_failures_analyzed": "<int>"
   },
   "investigation_phases_completed": ["A", "B", "C", "D", "E"],
-  "mcp_queries_executed": {
-    "acm_ui": "<count>",
-    "jira": "<count>",
-    "polarion": "<count>",
-    "neo4j": "<count>"
+  "mcp_queries_executed": [
+    {"tool": "mcp__acm-ui__search_code", "query": "search_code('selector', 'acm')", "success": true, "result_summary": "Found in 2 files"},
+    {"tool": "mcp__jira__search_issues", "query": "project=ACM AND type=Bug", "success": true, "result_summary": "3 results"}
+  ],
+  "cross_test_correlations": {
+    "shared_selectors": {"#create-btn": ["test1", "test2"]},
+    "shared_components": {"search-api": ["test3", "test4"]},
+    "pattern_groups": []
   },
-  "cross_test_correlations": [...],
   "cascading_failure_analysis": {...},
   "per_test_analysis": [...],
   "cluster_investigation_summary": {...},
@@ -42,7 +44,12 @@ These must be EXACT -- the report generator rejects the file if wrong:
       "UNKNOWN": "<int>"
     }
   },
-  "jira_correlation": {...},
+  "jira_correlation": {
+    "search_performed": true,
+    "queries_executed": 3,
+    "related_issues_found": ["ACM-12345"],
+    "known_issue_matches": []
+  },
   "action_items": [...]
 }
 ```
@@ -78,8 +85,9 @@ Each entry in `per_test_analysis[]`:
     "steps": ["<step 1>"]
   },
   "jira_correlation": {
-    "existing_bugs": ["<JIRA keys>"],
-    "related_stories": ["<JIRA keys>"]
+    "related_bugs": ["<JIRA keys>"],
+    "related_stories": ["<JIRA keys>"],
+    "known_issue_match": "<JIRA key or null>"
   },
   "feature_context": {
     "area": "<feature area>",

@@ -6,12 +6,18 @@ Test steps are **UI-focused**. The tester interacts with the ACM Console UI (cli
 
 ## When CLI Is Allowed in Test Steps
 
-CLI (`oc`, `kubectl`, `curl`) is allowed mid-test ONLY for **backend validation**:
+CLI (`oc`, `kubectl`, `curl`) is allowed ONLY for **backend validation**, and MUST be placed in a **dedicated step** — not embedded within a UI-focused step:
 
 1. **Verify resource YAML state** after a UI action created/modified a resource
 2. **Check config changes** that are not visible in the UI
 3. **Verify API responses** for backend-only behavior
 4. **Confirm no resource was created** (negative test for in-memory operations)
+
+## Backend Validation Placement
+
+Place CLI backend validation in a DEDICATED step titled "Verify [what] via CLI (Backend Validation)". Place these steps AFTER all UI steps so the test flow is: UI verification first, then backend cross-check.
+
+**Why:** Embedding CLI in UI steps creates an unclear context switch (browser → terminal) that testers may miss. Separate steps allow precise pass/fail attribution and map cleanly to automation (browser tests vs shell tests).
 
 ## When CLI Is NOT Allowed in Test Steps
 

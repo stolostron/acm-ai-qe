@@ -27,6 +27,7 @@ For each cluster-wide issue, verify per-test:
 | Timeout | Check component health. Component healthy AND selector exists -> timing | Reclassify AUTOMATION_BUG |
 | Data assertion (X != Y) | Check backend data via API. API correct but UI wrong -> transform bug | Reclassify PRODUCT_BUG |
 | Blank page | Check console-api, auth, URL. All OK -> navigation timing | Reclassify AUTOMATION_BUG |
+| CSS visibility:hidden / opacity:0 | Check if standard PF6 behavior. PF6 menus use visibility:hidden until triggered | Reclassify AUTOMATION_BUG |
 | NetworkPolicy blocking | Verify THIS test's data path uses the blocked service | Reclassify if irrelevant |
 | Operator at 0 replicas | Verify THIS test depends on the scaled-down operator | Reclassify if independent |
 | ResourceQuota exceeded | Verify THIS test creates new pods/resources | Reclassify if read-only |

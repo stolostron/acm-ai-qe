@@ -41,7 +41,9 @@ The pipeline has two independent validation systems. Both must pass before a tes
 | Step actions numbered | Blocking | `1. Action` format |
 | Step expected results | Blocking | `**Expected Result:**` with bullet items |
 | Steps separated by `---` | Blocking | Horizontal rule between steps |
-| CLI-in-steps rule | Blocking | CLI only for backend validation |
+| CLI-in-steps rule | Blocking | CLI only for backend validation, in dedicated steps (not embedded in UI steps) |
+| Step granularity | Blocking | Each step verifies one behavior — no mixing observation (read/check) with interaction (click/navigate) |
+| Implementation detail translation | Warning | Code details (sort algorithm, default values, parsing) translated to observable verifications |
 | Teardown present | Warning | Cleanup section exists |
 | `--ignore-not-found` on deletes | Warning | Idempotent cleanup |
 
@@ -242,7 +244,9 @@ A test case must pass all of these before delivery:
 | Section order | Checks against conventions | Validates ordering |
 | Entry point discovered | MCP `get_routes()` verification | Checks `**Entry Point:**` present |
 | UI elements discovered | MCP `search_translations()` spot-check | Not checked (format only) |
-| CLI-in-steps rule | Checks CLI usage context | Not checked |
+| CLI-in-steps rule | Checks CLI in dedicated steps, not embedded in UI steps | Not checked |
+| Step granularity | Checks each step verifies one behavior (no observation + interaction mix) | Not checked |
+| Implementation detail translation | Checks code details translated to observable verifications | Not checked |
 | Setup completeness | Checks commands and expected output | Checks numbered format |
 | Step format | Checks H3 heading, actions, results | Validates `### Step N:` + `**Expected Result:**` |
 | Teardown | Checks cleanup coverage | Checks `--ignore-not-found` |

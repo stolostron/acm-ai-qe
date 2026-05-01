@@ -39,6 +39,48 @@
 5. Search product source via acm-ui-source `search_code`
 6. For VM/virt selectors: also search `repo="kubevirt"`
 
+### PatternFly class derivation rules
+Class pattern `pf-v6-c-{component-name}` maps to React component `{PascalCase(component-name)}`. Example: `pf-v6-c-tree-view` -> `TreeView`. Special case: `pf-v6-c-menu__list-item` -> `Menu` or `MenuItem`.
+
+### ACM version setting
+**MANDATORY:** Before calling `search_code`, ALWAYS call `set_acm_version()` with the ACM version extracted from `cluster_landscape.mch_version` (extract major.minor, e.g., "2.16"). For VM tests, also call `set_cnv_version()`.
+
+### Output schema per test
+```json
+{
+  "extracted_context": {
+    "console_search": {
+      "selector": "#create-btn",
+      "found": false,
+      "locations": [],
+      "verification": {
+        "verified_by": "data-collector",
+        "method": "mcp_literal_search",
+        "result": "not_found",
+        "detail": "Searched acm repo v2.16 for '#create-btn' -- 0 results"
+      }
+    }
+  }
+}
+```
+
+When found:
+```json
+{
+  "console_search": {
+    "selector": "[data-testid='cluster-name']",
+    "found": true,
+    "locations": ["frontend/src/routes/Infrastructure/Clusters/ClusterDetails/ClusterDetails.tsx"],
+    "verification": {
+      "verified_by": "data-collector",
+      "method": "mcp_literal_search",
+      "result": "found_in_source",
+      "detail": "Found in ClusterDetails.tsx"
+    }
+  }
+}
+```
+
 ### Result values
 - `found: true` -- selector or its generating component exists for correct feature area
 - `found: false` -- genuinely does not exist
@@ -63,8 +105,31 @@
 ### Intent classification values
 - `intentional_rename` -> AUTOMATION_BUG hint
 - `likely_unintentional` -> PRODUCT_BUG hint
-- `automation_premature` -> PRODUCT_BUG hint (test ahead of product)
+- `product_fix` -> neutral hint
 - `no_recent_change` -> null hint
+
+### Output schema per test
+```json
+{
+  "extracted_context": {
+    "recent_selector_changes": {
+      "change_detected": true,
+      "selector": "cluster-dropdown-toggle",
+      "direction": "removed_from_product",
+      "intent_assessment": "intentional_rename",
+      "classification_hint": "AUTOMATION_BUG",
+      "reasoning": "Commit explicitly renames selector as part of PF6 migration"
+    },
+    "temporal_summary": {
+      "stale_test_signal": true,
+      "product_last_modified": "2026-03-15T00:00:00",
+      "automation_last_modified": "2026-01-10T00:00:00",
+      "days_difference": 64,
+      "product_commit_type": "refactor"
+    }
+  }
+}
+```
 
 ---
 

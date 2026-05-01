@@ -47,17 +47,32 @@ If multiclusterhub-operator has 0 replicas: **CRITICAL immediately**. MCH status
 
 **For Quick depth: STOP HERE.** Report MCH/MCE status, node count, managed cluster count, operator health. Verdict: HEALTHY/DEGRADED/CRITICAL.
 
+### Also discover in Phase 1
+```bash
+oc get validatingwebhookconfigurations --no-headers
+oc get mutatingwebhookconfigurations --no-headers
+oc get consoleplugins --no-headers 2>/dev/null
+oc get statefulsets -n <mch-ns> --no-headers
+oc get statefulsets -n hive --no-headers
+```
+
+**If running in z-stream pipeline context:** Read `core-data.json` from the run directory to identify which feature areas have failing tests. Prioritize investigation of those subsystems.
+
 ## Phase 2: Learn (Standard+)
 
 Build understanding of healthy vs actual state. Read these knowledge files in order:
 
 1. `references/knowledge/component-registry.md` -- master component inventory
 2. `references/knowledge/architecture/acm-platform.md` -- MCH/MCE hierarchy
-3. For each component with issues: `references/knowledge/architecture/<subsystem>/architecture.md`
+3. For each affected subsystem: `references/knowledge/architecture/<subsystem>/architecture.md` AND `failure-signatures.md`
 4. `references/knowledge/healthy-baseline.yaml` -- expected pod counts, deployment states
 5. `references/knowledge/diagnostics/common-diagnostic-traps.md` -- 14 traps
-6. If managed clusters present: `references/knowledge/architecture/cluster-lifecycle/health-patterns.md`
-7. `references/knowledge/diagnostics/diagnostic-layers.md` -- 12-layer framework
+6. `references/knowledge/service-map.yaml` -- service-to-pod endpoint mapping
+7. `references/knowledge/webhook-registry.yaml` -- expected webhooks with criticality
+8. If managed clusters present: `references/knowledge/architecture/cluster-lifecycle/health-patterns.md`
+9. `references/knowledge/diagnostics/diagnostic-layers.md` -- 12-layer framework
+
+**Unknown operator protocol:** For CSVs not in the component registry: (1) note CSV metadata and owned CRDs, (2) check if it has ConsolePlugins registered, (3) check MCH/MCE namespace for related deployments.
 
 Compare cluster topology to knowledge. If knowledge doesn't cover a discovered component, note it for the acm-knowledge-learner skill (if available) or proceed with best-effort analysis.
 
@@ -97,10 +112,26 @@ oc get pods -n multicluster-engine --field-selector=status.phase!=Running,status
 oc get pods -n hive --field-selector=status.phase!=Running,status.phase!=Succeeded --no-headers
 ```
 
-Compare pod counts against `references/knowledge/healthy-baseline.yaml`. Check restart counts. Check console image integrity:
+Compare pod counts against `references/knowledge/healthy-baseline.yaml`. Check restart counts (flag pods with >3 restarts). Check StatefulSets in hive and observability namespaces.
+
+**Sub-operator CR status checks:**
+```bash
+oc get search -A -o jsonpath='{range .items[*]}{.metadata.name}: {.status.conditions[*].type}={.status.conditions[*].status}{"\n"}{end}' 2>/dev/null
+oc get hiveconfig -o jsonpath='{.items[0].status.conditions}' 2>/dev/null
+oc get multiclusterobservability -o jsonpath='{.items[0].status.conditions}' 2>/dev/null
+```
+
+**Console image integrity check:**
 ```bash
 oc get deploy console-chart-console-v2 -n <mch-ns> -o jsonpath='{.spec.template.spec.containers[0].image}'
 ```
+Compare against expected prefixes from `healthy-baseline.yaml` (registry.redhat.io/, quay.io/stolostron/). Non-standard image = tampered environment. Apply -0.10 penalty to health score.
+
+**Leader election check (Trap 1b):**
+```bash
+oc get lease -n <mch-ns> --no-headers
+```
+Verify lease holders are current. Pods can be Running/Ready but reconciliation stopped if lease is stuck.
 
 For unhealthy pods: `oc logs <pod> --tail=50`, `oc logs <pod> --previous`, `oc get events`. Scan for: OOMKilled, nil pointer, context deadline exceeded, cache sync failures.
 
@@ -153,7 +184,18 @@ For CRITICAL findings or targeted investigations:
 - Read component `data-flow.md` to trace where flow breaks
 - Use acm-search MCP for spoke triage when available
 
-## Report Format
+## Structured Output (Pipeline Mode)
+
+When used by the acm-z-stream-analyzer (Stage 1.5), produce `cluster-diagnosis.json` instead of a markdown report. Read `references/diagnostic-output-schema.md` for the full JSON schema including:
+- `environment_health_score` (weighted penalty formula)
+- `health_depth` per subsystem (pod_level/connectivity_verified/data_verified/full)
+- `counter_signals` (tests that should NOT be classified as INFRASTRUCTURE)
+- `classification_guidance` (pre-classified infrastructure + confirmed healthy areas)
+- `attribution_rule` per infrastructure issue (when to attribute + what NOT to attribute)
+
+Write self-healing discoveries to `knowledge/learned/` for future runs.
+
+## Report Format (Standalone Mode)
 
 ### Verdict (mechanical, no qualifiers)
 

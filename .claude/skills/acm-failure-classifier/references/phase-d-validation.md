@@ -5,7 +5,19 @@
 Applied before final classification routing:
 
 ### PR-1: Blank Page Detection
-If test shows blank page / `class="no-js"`: check console-api health, auth redirect chain, navigation URL. This is a prerequisite check, not a classification.
+If test shows blank page / `class="no-js"` / empty page body / zero interactive elements: check console-api health, auth redirect chain, navigation URL.
+
+**Routing logic:**
+
+| Condition | Classification | Confidence |
+|---|---|---|
+| Blank page + non-admin user (RBAC test) + IDP not configured | INFRASTRUCTURE | 0.90 |
+| Blank page + Automation page + AAP operator not installed | INFRASTRUCTURE | 0.90 |
+| Blank page + Automation page + AAP installed but degraded | INFRASTRUCTURE | 0.85 |
+| Blank page + Automation page + AAP installed and healthy | AUTOMATION_BUG | 0.85 |
+| Blank page + Fleet Virt page + CNV operator not installed | INFRASTRUCTURE | 0.90 |
+| Blank page + feature prerequisite unmet (from playbook) | INFRASTRUCTURE | 0.90 |
+| Blank page + console-api healthy + auth OK | AUTOMATION_BUG | 0.80 |
 
 ### PR-2: After-All Hook Deduplication
 If `hooks.afterAll.failed=true` AND test was not the first failure in its spec: NO_BUG (cascade from prior failure). Already handled in Phase A4.
@@ -43,11 +55,21 @@ Tests that don't clearly match Path A or B1. Use full investigation results, JIR
 
 ## Counterfactual Validation (D-V5)
 
-Mandatory for cluster-wide INFRASTRUCTURE classifications. 9 verification templates:
+Mandatory for ALL cluster-wide INFRASTRUCTURE classifications. 4-step process:
 
-For each test classified INFRASTRUCTURE, ask: "Would this test PASS if the infrastructure issue were fixed?"
+**STEP 1:** Ask "Would this test PASS if the infrastructure issue were fixed?"
 - YES -> infrastructure attribution confirmed
 - NO -> reclassify (usually AUTOMATION_BUG)
+
+**STEP 2:** Apply the appropriate verification template (see 9 templates below).
+
+**STEP 3: Evidence duplication detection** -- If 5+ tests share IDENTICAL evidence text (same evidence_sources entries, word for word), flag as suspicious blanket attribution. For each duplicated group, verify at least 2 tests individually have test-specific evidence, not cluster-wide-only evidence.
+
+**STEP 4: Per-test evidence requirement** -- Every INFRASTRUCTURE classification from a cluster-wide issue MUST have at least one evidence source specific to THAT test (not just cluster-wide findings). Evidence that only references cluster-wide state (e.g., "tampered console image detected") without per-test verification is INSUFFICIENT. Lower confidence to <= 0.60.
+
+9 verification templates:
+
+For each test classified INFRASTRUCTURE, ask: "Would this test PASS if the infrastructure issue were fixed?"
 
 ### D-V5c: Symmetric Validation for AUTOMATION_BUG (v4.0)
 Ask: "Does the backend confirm the test's expectation is correct?"
@@ -62,18 +84,37 @@ Ask: "Is the product behavior actually correct (and the test expectation is wron
 
 ## D4b: Causal Link Verification
 
-Every test's classification must have a causal chain:
-```
-root_cause (Layer N) -> intermediate effect -> test error (Layer 12)
-```
+Every test attributed to a shared pattern MUST have a direct causal mechanism linking the pattern to its specific error.
 
-If the causal chain has gaps, the classification confidence must be reduced.
+1. **State the causal mechanism:** How does [dominant signal] cause [this test's specific error]?
+
+2. **Check failure_mode_category compatibility:**
+
+| Dominant Signal | Compatible Failure Modes | Incompatible Failure Modes |
+|---|---|---|
+| Pod restarts / instability | `render_failure`, `timeout_general` | `data_incorrect`, `assertion_logic` |
+| Network errors | `render_failure`, `timeout_general`, `server_error` | `data_incorrect`, `element_missing` |
+| Backend 500 errors | `server_error`, `render_failure`, `element_missing` | `data_incorrect` |
+| Selector removed | `element_missing` | `data_incorrect`, `timeout_general`, `render_failure` |
+
+3. **If incompatible:** Re-classify independently, ignoring the dominant pattern. Example: pod restart (dominant signal) + "expected 5 items, got 0" (`data_incorrect`) = the page rendered (pod was running), so this is a data issue -> likely PRODUCT_BUG.
+
+4. **3-test threshold rule:** If more than 3 tests share the same classification AND the same `root_cause`, independently re-investigate at least 1 test from that group. If re-investigation reveals a different root cause, flag the entire group for review.
+
+Include a `causal_link` field in the reasoning for each test.
 
 ## D5: Counter-Bias Validation
 
-Checklist to prevent systematic misclassification:
+Before finalizing any classification, perform ALL applicable checks:
 
-1. **Trap 9 (Anchoring):** When one strong signal found (tampered image, NetworkPolicy), verify it doesn't become the default for all tests. Each test needs independent verification.
-2. **Automation vs Infrastructure:** A selector missing from BOTH tampered AND official source is AUTOMATION_BUG, not INFRASTRUCTURE.
-3. **Product vs Infrastructure:** Backend returning wrong data with healthy pods is PRODUCT_BUG, not INFRASTRUCTURE.
-4. **Layer discrepancy:** Lower layer healthy but higher layer defective = Tier 1 evidence for PRODUCT_BUG (product code issue, not infrastructure).
+- **If AUTOMATION_BUG:** Was B7 (backend cross-check) performed? Could a backend failure explain the missing element?
+- **If PRODUCT_BUG:** Does the selector exist in console source? Is the test logic correct?
+- **If INFRASTRUCTURE:** ALL of these:
+  1. Is only one test affected? (suggests PRODUCT_BUG or AUTOMATION_BUG instead)
+  2. **Trap 9 (Anchoring):** Does this test's specific error REQUIRE the broken component? A degraded search-collector does NOT explain `console_search.found=false`. Each test needs independent evidence.
+  3. **Oracle primary source check:** Is the classification coming primarily from oracle/diagnostic data? If yes, verify per-test evidence independently supports INFRASTRUCTURE. Ask: "Would I classify this as INFRASTRUCTURE with only the test's error and extracted context?"
+  4. **failure_mode_category match:** `element_missing` and `assertion_logic` are rarely infrastructure. `timeout_general`, `server_error`, and `render_failure` are more likely infrastructure-related.
+  5. **Trap 10:** Wrong data values + healthy pods = PRODUCT_BUG (data transformation bug), not INFRASTRUCTURE.
+- **If `failure_mode_category == 'data_incorrect'`:** Have you verified the backend API response path? Data mismatch almost never results from infrastructure or selector issues.
+- **Dominant signal check:** If a signal (e.g., pod restarts) is cited in more than 5 test classifications, verify at least 2 have a direct `causal_link`. If not, the signal may be over-attributed.
+- **Layer discrepancy:** Lower layer healthy but higher layer defective = Tier 1 evidence for PRODUCT_BUG (product code issue, not infrastructure).

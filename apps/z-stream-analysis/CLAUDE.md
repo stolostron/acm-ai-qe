@@ -266,6 +266,7 @@ Domain reference data for the AI agent during Stage 2 analysis. Includes per-sub
 | All services reference | `docs/04-SERVICES-REFERENCE.md` |
 | MCP integration guide | `docs/05-MCP-INTEGRATION.md` |
 | Knowledge database reference | `docs/06-KNOWLEDGE-DATABASE.md` |
+| Skill architecture (14 skills) | `docs/07-SKILL-ARCHITECTURE.md` |
 | Version history | `docs/CHANGELOG.md` |
 | v2.5 vs v3.0 comparison | `docs/V2.5-VS-V3.0-COMPARISON.md` |
 

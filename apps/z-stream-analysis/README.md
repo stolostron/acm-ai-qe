@@ -371,4 +371,5 @@ python -m pytest tests/ -q --timeout=300             # 801 tests (needs Jenkins 
 | [Pipeline overview](docs/00-OVERVIEW.md) | [Stage 1: Data gathering](docs/01-STAGE1-DATA-GATHERING.md) |
 | [Stage 2: AI analysis](docs/02-STAGE2-AI-ANALYSIS.md) | [Stage 3: Reports](docs/03-STAGE3-REPORT-GENERATION.md) |
 | [Services reference](docs/04-SERVICES-REFERENCE.md) | [MCP integration](docs/05-MCP-INTEGRATION.md) |
-| [Knowledge database](docs/06-KNOWLEDGE-DATABASE.md) | [Version history](docs/CHANGELOG.md) |
+| [Knowledge database](docs/06-KNOWLEDGE-DATABASE.md) | [Skill architecture](docs/07-SKILL-ARCHITECTURE.md) |
+| [Version history](docs/CHANGELOG.md) | [Interactive diagrams](docs/architecture-diagrams.html) |

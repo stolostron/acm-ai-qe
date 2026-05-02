@@ -53,6 +53,8 @@ Generates Polarion-ready test cases for ACM Console UI features from JIRA ticket
 
 ## Pipeline Stages
 
+The pipeline has 8 steps: 2 deterministic stages + 6 AI phases. "6-phase" in the tagline counts the AI phases only. The portable skill pack uses a 10-phase model that breaks investigation into 3 sequential phases; the app consolidates them into 1 parallel phase. See the README "Concepts" section for the full mapping.
+
 | Phase/Stage | Type | Agent/Script | Duration | Input | Output |
 |------------|------|-------------|----------|-------|--------|
 | Phase 0 | Interactive | Orchestrator | ~10 sec | User args | Resolved inputs |
@@ -61,7 +63,7 @@ Generates Polarion-ready test cases for ACM Console UI features from JIRA ticket
 | Phase 2 | AI (orchestrator) | Main context | ~10 sec | 3 agent outputs | SYNTHESIZED CONTEXT with TEST PLAN |
 | Phase 3 | AI (optional) | live-validator | ~2-5 min | Console URL, steps | LIVE VALIDATION RESULTS |
 | Phase 4 | AI | test-case-generator | ~30-60 sec | Synthesized context | `test-case.md`, `analysis-results.json` |
-| Phase 4.5 | AI (gate) | quality-reviewer | ~30-60 sec | test-case.md | PASS or NEEDS_FIXES (loops until PASS) |
+| Phase 4.5 | AI (gate) | quality-reviewer | ~30-60 sec | test-case.md | PASS or NEEDS_FIXES (3-tier escalation) |
 | Stage 3 | Deterministic | `report.py` | ~1 sec | test-case.md | HTML, `review-results.json`, `SUMMARY.txt` |
 
 ## Agents

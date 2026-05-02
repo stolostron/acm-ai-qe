@@ -11,6 +11,8 @@ metadata:
 
 Generates Polarion-ready test cases for ACM Console UI features from JIRA tickets. Uses a 10-phase pipeline: input resolution, data gathering, JIRA investigation, PR code analysis, UI discovery, synthesis, optional live validation, test case writing, mandatory quality review with programmatic enforcement, and report generation.
 
+> **Mapping note:** This skill uses a 10-phase model where investigation is split into 3 sequential phases (2-4). The app pipeline (`apps/test-case-generator/`) consolidates these into 1 parallel phase (Phase 1 with 3 agents). See the app README "Concepts" section for the full mapping table.
+
 ## Skills Used
 
 This skill orchestrates the following skills. Each provides raw capabilities; this skill provides the workflow intelligence.

@@ -16,7 +16,7 @@ The pipeline has two independent validation systems. Both must pass before a tes
 **Agent:** `.claude/agents/quality-reviewer.md`
 **Tools:** acm-ui, polarion
 **Verdict:** `PASS` or `NEEDS_FIXES`
-**Max iterations:** 3 (orchestrator fixes issues between iterations)
+**Recovery:** 3-tier escalation -- targeted MCP re-investigation, focused retry with evidence, placeholder and proceed (pipeline does not abort)
 
 ### Review Checklist
 
@@ -97,7 +97,35 @@ Reads 2-3 existing test cases from the same area and compares:
 
 ---
 
+### Failure State: Tier 3 Partial Pass
+
+When quality review escalates to Tier 3, unresolvable steps are marked and the pipeline proceeds:
+
+**Test step with manual verification flag:**
+
+```markdown
+### Step 4: Verify filter displays only non-compliant clusters
+
+1. Click the "Non-compliant" count in the violation summary card
+2. Observe the Clusters tab filters to show non-compliant clusters only
+
+**Expected Result:**
+- [MANUAL VERIFICATION REQUIRED: filter condition could not be verified via MCP -- acm-ui search_translations returned no match for "Non-compliant" label. Verify the exact label text on a cluster running this build.]
+- Only clusters with violations are displayed
+```
+
+The summary reports which steps were flagged:
+
+```
+Quality review: 1 step flagged for manual verification.
+- Step 4: filter label text unverifiable via MCP
+```
+
+---
+
 ## Stage 3: Structural Validator
+
+Stage 3 processes test cases regardless of manual verification flags. `[MANUAL VERIFICATION REQUIRED]` markers pass through to the Polarion HTML output unchanged. The `SUMMARY.txt` includes a count of flagged steps when present.
 
 **Script:** `src/services/convention_validator.py`
 **Input:** `test-case.md` file path, optional area

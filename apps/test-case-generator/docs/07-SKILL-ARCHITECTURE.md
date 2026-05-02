@@ -81,7 +81,7 @@ flowchart TD
     P1 -. "gather-output.json\npr-diff.txt" .-> P2
     P5 -. "SYNTHESIZED CONTEXT" .-> P7
     P7 -. "test-case.md" .-> P8
-    P8 -. "PASS / NEEDS_FIXES\n(loop max 3)" .-> P7
+    P8 -. "PASS / NEEDS_FIXES\n(3-tier escalation)" .-> P7
     P9 --> OUT["test-case.md\ntest-case-setup.html\ntest-case-steps.html\nSUMMARY.txt"]
 ```
 
@@ -123,7 +123,7 @@ The entry point. Receives a JIRA ticket ID and orchestrates the 10-phase pipelin
 **What it provides:**
 - Phase sequencing logic (which skills to invoke when, what data to pass)
 - Input resolution protocol (auto-detect version, PR, area from JIRA; ask only what's missing)
-- Phase gate enforcement (mandatory quality review, review loop up to 3 iterations)
+- Phase gate enforcement (mandatory quality review, 3-tier review escalation)
 - STOP checkpoints (after synthesis, after writing, after review)
 - Synthesis template (conflict resolution rules, scope gating, AC cross-reference)
 - Run directory structure specification
@@ -635,7 +635,7 @@ flowchart TD
     FIXES --> FIX["Fix issues\nin test case"]
     FIX --> TC
 
-    FIX -.max 3.-> ABORT["Show remaining\nissues to user"]
+    FIX -.Tier 3.-> ABORT["Mark [MANUAL\nVERIFICATION REQUIRED]\nproceed to Stage 3"]
 ```
 
 **Layer 1: AI Review** (acm-test-case-reviewer skill)

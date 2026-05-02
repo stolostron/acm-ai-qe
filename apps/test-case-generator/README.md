@@ -133,6 +133,84 @@ The entire pipeline is orchestrated by [Claude Code Skills](https://docs.anthrop
 
 Skills are defined in `.claude/skills/` with supporting files for phase gate enforcement (`phase-gates.md`) and the Phase 2 synthesis template (`synthesis-template.md`).
 
+## Concepts
+
+| Term | What it is | Count |
+|------|-----------|-------|
+| **Stage** | Deterministic Python script (no AI) | 2 (gather.py, report.py) |
+| **Phase** | AI-driven orchestration step | 6 (Phase 0 through Phase 4.5) |
+| **Agent** | AI entity executing a phase | 6 (feature-investigator, code-change-analyzer, ui-discovery, live-validator, test-case-generator, quality-reviewer) |
+| **Skill** | Reusable slash command | 3 (/generate, /review, /batch) |
+| **MCP integration** | External tool connection | 7 (JIRA, Polarion, ACM UI, Neo4j, ACM Search, ACM Kubectl, Playwright) |
+
+The pipeline has **8 steps**: 2 deterministic stages + 6 AI phases. The tagline "6-phase" counts the AI phases only.
+
+<details>
+<summary><b>Portable Skill Mapping</b></summary>
+
+The portable skill pack (`.claude/skills/acm-test-case-generator/`) uses a 10-phase model that breaks the 3 investigation agents into sequential phases. The app consolidates them into 1 parallel phase for speed:
+
+| Portable Skill | App Pipeline | Difference |
+|---------------|-------------|------------|
+| Phase 0: Determine Inputs | Phase 0: Parse Inputs | Same |
+| Phase 1: Gather Data | Stage 1: gather.py | Same |
+| Phase 2: JIRA Investigation | Phase 1 (agent 1 of 3) | Portable: sequential |
+| Phase 3: Code Analysis | Phase 1 (agent 2 of 3) | App: parallel |
+| Phase 4: UI Discovery | Phase 1 (agent 3 of 3) | App: parallel |
+| Phase 5: Synthesize | Phase 2: Synthesize | Same |
+| Phase 6: Live Validation | Phase 3: Live Validation | Same |
+| Phase 7: Write Test Case | Phase 4: Write Test Case | Same |
+| Phase 8: Quality Review | Phase 4.5: Quality Review | Same |
+| Phase 9: Generate Reports | Stage 3: report.py | Same |
+
+</details>
+
+## Standalone Usage
+
+The `/review` skill runs independently on any test case markdown file:
+
+```
+/review runs/ACM-30459/<run-dir>/test-case.md
+```
+
+For manual pipeline steps, see [Pipeline Phases](docs/01-PIPELINE-PHASES.md).
+
+## MCP Availability
+
+Not all MCP servers are required. The pipeline degrades gracefully:
+
+| MCP Server | Required? | If unavailable |
+|-----------|-----------|---------------|
+| **JIRA** | Yes | Pipeline cannot start (no ticket data) |
+| **acm-ui** | Yes | No UI element discovery; test case quality degrades significantly |
+| **Polarion** | No | Skips existing coverage check; no duplication detection |
+| **Neo4j** | No | Skips architecture dependency analysis |
+| **Playwright** | No | Skips live browser verification (Phase 3) |
+| **acm-search** | No | Falls back to `oc get` CLI for resource queries |
+| **acm-kubectl** | No | Falls back to `oc` CLI for spoke cluster checks |
+
+When an optional server is unavailable, the agent logs the gap and proceeds. Affected test steps may include `[MANUAL VERIFICATION REQUIRED]` markers in the output.
+
+<details>
+<summary><b>Degraded Output Example</b></summary>
+
+When acm-ui is partially unavailable (translations search fails):
+
+```markdown
+### Step 3: Verify policy status column shows compliance state
+
+1. Navigate to Governance > Policies
+2. Locate the test policy in the table
+3. Check the Status column value
+
+**Expected Result:**
+- [MANUAL VERIFICATION REQUIRED: status column label could not be verified -- acm-ui
+  search_translations unavailable. Verify exact column header text on a running cluster.]
+- Status shows either "Compliant" or "Non-compliant" based on cluster state
+```
+
+</details>
+
 ## Phase 1: Parallel Investigation
 
 Three agents investigate simultaneously, each with distinct MCP tools:

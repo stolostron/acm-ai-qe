@@ -69,9 +69,9 @@ After all tickets are processed, show a summary table:
 ```
 Batch Results
 =============
-| JIRA ID    | Status | Steps | Complexity | Output |
-|------------|--------|-------|------------|--------|
-| ACM-30459  | PASS   | 8     | medium     | runs/ACM-30459/... |
-| ACM-30460  | PASS   | 5     | simple     | runs/ACM-30460/... |
-| ACM-30461  | FAIL   | -     | -          | (validation failed) |
+| JIRA ID    | Status  | Steps | Complexity | Output |
+|------------|---------|-------|------------|--------|
+| ACM-30459  | PASS    | 8     | medium     | runs/ACM-30459/... |
+| ACM-30460  | PARTIAL | 5     | simple     | runs/ACM-30460/... (1 step needs manual verification) |
+| ACM-30461  | FAIL    | -     | -          | Stage 1 failed: no JIRA ticket found |
 ```

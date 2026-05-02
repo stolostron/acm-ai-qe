@@ -110,7 +110,7 @@ nav a:hover { color: var(--accent); border-color: var(--accent); }
      ═══════════════════════════════════════════════════════════════════════ -->
 <div id="d1" class="card">
   <h2>Diagram 1: Full Pipeline</h2>
-  <p class="desc">Eight steps run in sequence. Two are deterministic Python scripts (Stage 1, Stage 3). Six are AI-driven phases. Phase 1 runs 3 agents in parallel. Phase 3 is conditional. Phase 4.5 loops until PASS. Click any node for details.</p>
+  <p class="desc">Eight steps run in sequence. Two are deterministic Python scripts (Stage 1, Stage 3). Six are AI-driven phases. Phase 1 runs 3 agents in parallel. Phase 3 is conditional. Phase 4.5 uses 3-tier escalation (MCP re-investigation, focused retry, placeholder and proceed). Click any node for details.</p>
   <div class="mermaid">
 graph LR
     P0["Phase 0\nParse Inputs\nAsk Questions"]:::phase --> S1["Stage 1\ngather.py\nPR + conventions"]:::stage
@@ -768,7 +768,7 @@ const DATA = {
         <h4>7-Step Review Process</h4>
         <div class="value">1. Read test case<br>2. Read conventions (3 files)<br>3. Structural validation <span class="tag tag-fail">BLOCKING</span><br>4. Discovered vs assumed &mdash; min 3 MCP verifications <span class="tag tag-fail">BLOCKING</span><br>4.5. AC vs implementation check <span class="tag tag-fail">BLOCKING</span><br>4.6. Knowledge file cross-reference <span class="tag tag-fail">BLOCKING</span><br>5. Polarion coverage check<br>6. Peer consistency check<br>7. HTML check (post-hoc <code>/review</code> only)</div>
         <div class="label">Loop behavior:</div>
-        <div class="value">If NEEDS_FIXES: orchestrator fixes issues, re-runs reviewer. Max 3 iterations. If still failing, shows remaining issues to user.</div>
+        <div class="value">If NEEDS_FIXES: 3-tier escalation. Tier 1: targeted MCP re-investigation for factual errors. Tier 2: focused retry with evidence. Tier 3: marks unresolvable steps with [MANUAL VERIFICATION REQUIRED] and proceeds to Stage 3.</div>
         <div class="label">JSON verification block:</div>
         <div class="value">Reviewer must output a JSON block at start with <code>mcp_verifications</code> array (min 3 entries). Orchestrator checks this block exists and overrides verdict to NEEDS_FIXES if missing.</div>
       </div>
@@ -1254,7 +1254,7 @@ const DATA = {
         <h4>NEEDS_FIXES Loop</h4>
         <div class="value">The orchestrator reads the NEEDS_FIXES verdict and specific issues from the reviewer. Applies fixes to <code>test-case.md</code> and re-launches the quality-reviewer agent.</div>
         <div class="label">Max iterations:</div>
-        <div class="value">3 review cycles. If still failing after 3 iterations, remaining issues are shown to the user for manual resolution.</div>
+        <div class="value">3-tier escalation. Tier 1: targeted MCP call for correct value. Tier 2: focused retry with evidence. Tier 3: mark step with [MANUAL VERIFICATION REQUIRED] and proceed to Stage 3.</div>
       </div>
     `
   },

@@ -313,12 +313,12 @@ Produces the primary deliverable: a Polarion-ready test case markdown file.
 
 ## Phase 4.5: Quality Review (Mandatory Gate)
 
-**Type:** AI (subagent, loops until PASS)
+**Type:** AI (subagent, 3-tier escalation)
 **Duration:** ~30-60 seconds per iteration
 **Agent:** quality-reviewer
-**Max iterations:** 3
+**Recovery:** 3-tier escalation (targeted MCP re-investigation, focused retry with evidence, placeholder and proceed)
 
-The quality reviewer validates the generated test case. If it returns `NEEDS_FIXES`, the orchestrator fixes the issues and re-runs the reviewer. This loops until `PASS` or 3 iterations.
+The quality reviewer validates the generated test case. If it returns `NEEDS_FIXES`, the orchestrator escalates through 3 tiers: targeted MCP re-investigation for factual errors, focused retry with evidence, then marking unresolvable steps with `[MANUAL VERIFICATION REQUIRED]` and proceeding. The pipeline does not abort.
 
 ### What It Checks
 

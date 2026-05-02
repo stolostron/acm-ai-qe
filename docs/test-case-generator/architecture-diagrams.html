@@ -85,7 +85,7 @@ nav a:hover { color: var(--accent); border-color: var(--accent); }
 <!-- DIAGRAM 1: PIPELINE OVERVIEW -->
 <div id="d1" class="card">
   <h2>Diagram 1: Full Pipeline</h2>
-  <p class="desc">Seven steps run in sequence. Two are deterministic Python scripts (Stage 1, Stage 3). Five are AI-driven phases. Phase 1 runs 3 agents in parallel. Phase 4.5 loops until PASS. Click any box for details.</p>
+  <p class="desc">Seven steps run in sequence. Two are deterministic Python scripts (Stage 1, Stage 3). Five are AI-driven phases. Phase 1 runs 3 agents in parallel. Phase 4.5 uses 3-tier escalation (MCP re-investigation, focused retry, placeholder and proceed). Click any box for details.</p>
   <div class="mermaid">
 graph LR
     P0["PHASE 0\nParse Inputs\nAsk Questions"]:::clickable --> S1["STAGE 1\ngather.py\nPR + conventions + knowledge\n~2-5 sec"]:::clickable
@@ -563,7 +563,7 @@ const DATA = {
         <div class="label">Checks:</div>
         <div class="value">&bull; Structural validation (title, metadata, sections, steps)<br>&bull; Discovered vs assumed (MCP spot-check, min 3 verifications)<br>&bull; AC vs implementation (JIRA ACs match expected results)<br>&bull; Knowledge file cross-reference (area knowledge verification)<br>&bull; Scope alignment (steps match target story)<br>&bull; Polarion duplicate check<br>&bull; Peer consistency<br>&bull; HTML check (post-hoc /review only)</div>
         <div class="label">Loop behavior:</div>
-        <div class="value">If NEEDS_FIXES: orchestrator fixes issues, re-runs reviewer. Max 3 iterations. If still failing, shows remaining issues to user.</div>
+        <div class="value">If NEEDS_FIXES: 3-tier escalation. Tier 1: targeted MCP re-investigation for factual errors. Tier 2: focused retry with evidence. Tier 3: marks unresolvable steps with [MANUAL VERIFICATION REQUIRED] and proceeds to Stage 3.</div>
       </div>
     `
   },
@@ -581,7 +581,7 @@ const DATA = {
   },
   'FIX': {
     title: 'Fix Issues',
-    html: `<div class="detail-section"><h4>Orchestrator fixes blocking issues</h4><div class="value">The orchestrator reads the NEEDS_FIXES verdict, applies fixes to test-case.md, and re-launches the quality-reviewer. Max 3 iterations.</div></div>`
+    html: `<div class="detail-section"><h4>Orchestrator fixes blocking issues</h4><div class="value">3-tier escalation. Tier 1: targeted MCP call for correct value. Tier 2: focused retry with evidence. Tier 3: mark step with [MANUAL VERIFICATION REQUIRED] and proceed to Stage 3.</div></div>`
   },
   'CV': {
     title: 'Stage 3: convention_validator.py',

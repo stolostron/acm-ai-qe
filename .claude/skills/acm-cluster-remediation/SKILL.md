@@ -11,28 +11,26 @@ metadata:
 
 Executes cluster mutations to fix diagnosed issues. Works with structured approval gates to ensure safety.
 
-**Standalone operation:** This skill works independently. If invoked directly (without prior diagnosis), it performs a quick health assessment first to understand what needs fixing:
+**Standalone operation:** If invoked directly without prior diagnosis findings in the conversation:
 
-1. Run a lightweight Phase 1 (Discover) to inventory the hub
-2. Check operator health, pod status, and obvious issues
-3. Propose fixes based on observed problems
-4. Follow the same approval and verification protocol
+1. Inform the user: "I need diagnosis findings before proposing remediation. Ask me to 'check my hub health' first, or describe the specific issue you want to fix and I'll verify it before proposing a remediation plan."
+2. If the user describes a specific issue: perform ONLY a targeted verification of that specific issue (not a full diagnostic), then propose a fix
+3. Do not run a full diagnostic as a hidden prerequisite -- that is the acm-hub-health-check skill's job
 
-When invoked after a full diagnosis (via acm-hub-health-check), it receives comprehensive findings and proposes more targeted, evidence-based fixes.
+When invoked after a full diagnosis (via acm-hub-health-check), it receives comprehensive findings and proposes targeted, evidence-based fixes.
 
 ## Mandatory Protocol (cannot skip or reorder)
 
-### Step 1: Complete Diagnosis First
+### Step 1: Verify Diagnosis Exists
 
-If diagnosis findings are available from acm-hub-health-check in the current conversation, use them. If not, perform a lightweight assessment:
+If diagnosis findings are available from acm-hub-health-check in the current conversation, use them. If the user described a specific issue (e.g., "search pods are crashlooping"), perform a targeted verification of that issue only:
 
 ```bash
-oc get mch -A -o yaml
-oc get pods -n <mch-ns> --field-selector=status.phase!=Running,status.phase!=Succeeded --no-headers
-oc get pods -n multicluster-engine --field-selector=status.phase!=Running,status.phase!=Succeeded --no-headers
+oc get pods -n <mch-ns> | grep search
+oc logs <failing-pod> -n <mch-ns> --tail=50
 ```
 
-Identify what's broken and why before proposing any fix.
+Do not run a broad health assessment. Verify the specific reported issue, then proceed to Step 2.
 
 ### Step 2: Present Remediation Plan
 

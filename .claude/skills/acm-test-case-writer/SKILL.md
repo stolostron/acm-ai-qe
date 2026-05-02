@@ -1,6 +1,6 @@
 ---
 name: acm-test-case-writer
-description: Write Polarion-ready ACM Console UI test case markdown from synthesized investigation context, or independently from a JIRA ticket. Use when you need to produce a test case document for an ACM Console feature.
+description: Write Polarion-ready ACM Console UI test case markdown from synthesized investigation context. Use when you need to produce a test case document for an ACM Console feature after investigation is complete.
 compatibility: "Uses acm-ui-source skill (requires acm-ui MCP) for spot-check verification. Uses acm-knowledge-base skill (no MCP needed)."
 metadata:
   author: acm-qe
@@ -13,20 +13,24 @@ Produces Polarion-ready test case markdown files. Works in two modes depending o
 
 **Full context mode (via orchestrator):** Receives pre-analyzed investigation data (JIRA analysis, code analysis, UI discovery) and converts it into a formatted test case. This produces the highest quality output.
 
-**Standalone mode (direct invocation):** If no investigation context is available, perform a lightweight investigation first:
-1. Ask the user for a JIRA ticket ID
-2. Use the acm-jira-client skill to read the story, ACs, and comments
-3. Use the acm-ui-source skill to discover routes and translations for the feature
-4. Use the acm-code-analyzer skill to analyze the PR if one is referenced in the JIRA ticket
-5. Then proceed to write the test case from the gathered data
+**Standalone mode (direct invocation):** If no investigation context is available in the conversation, this skill does NOT perform its own investigation. Instead:
 
-Standalone mode produces a functional test case but may be less thorough than the full pipeline (fewer edge cases, less cross-referencing, no live validation).
+1. Check if synthesized context (JIRA findings, code analysis, UI discovery) exists in the conversation history
+2. If context IS present: proceed to write the test case
+3. If context is NOT present: inform the user:
+
+   "I need investigation context before I can write a test case. Two options:
+
+   Option A: Run the full pipeline -- ask me to 'generate a test case for ACM-XXXXX' and the acm-test-case-generator skill will run investigation, synthesis, and writing with full context.
+
+   Option B: Provide context manually -- give me the JIRA ticket details, PR diff summary, and the UI elements to test, and I'll write from that."
+
+This ensures missing context is always visible. If the test case has errors, the input data was wrong -- not a hidden investigation path.
 
 ## Prerequisites
 
 - acm-knowledge-base skill available for conventions and area knowledge
 - acm-ui-source skill available for spot-check verification
-- For standalone mode: acm-jira-client skill available for JIRA investigation
 
 ## Process
 

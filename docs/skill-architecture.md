@@ -49,8 +49,8 @@ These are vanilla tools with no app-specific logic. Any skill or workflow can us
 ### 1. Shared Skills are Tools, Not Workflows
 Shared skills expose raw capabilities (MCP interfaces, query syntax, methodology frameworks). They contain zero app-specific workflow logic. All analytical intelligence lives in the orchestrator skills.
 
-### 2. Graceful Degradation
-Every skill works independently. Skills that benefit from prior context (writer, remediation, learner) perform lightweight self-investigation when invoked standalone. Quality is reduced but functionality is preserved.
+### 2. Explicit Context Requirements
+Skills that depend on prior context (writer, remediation) declare their requirements and inform the user when context is missing rather than silently degrading into lower-quality investigation. The knowledge learner is the exception -- discovery IS its primary function, so standalone operation is appropriate.
 
 ### 3. Progressive Disclosure
 - Level 1 (YAML frontmatter): Always loaded (~100 tokens per skill). Tells Claude when to use the skill.

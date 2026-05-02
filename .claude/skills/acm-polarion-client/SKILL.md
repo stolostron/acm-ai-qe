@@ -2,6 +2,9 @@
 name: acm-polarion-client
 description: Interface to Polarion for querying test cases, reading work item details, test steps, and setup sections in the RHACM4K project. Use when you need to check existing test coverage, read Polarion test case content, or verify Polarion metadata.
 compatibility: "Requires MCP server: polarion (polarion-mcp + wrapper). Needs POLARION_BASE_URL, POLARION_PAT. VPN required. Run /onboard to configure."
+metadata:
+  author: acm-qe
+  version: "1.0.0"
 ---
 
 # ACM Polarion Client

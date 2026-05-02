@@ -2,6 +2,9 @@
 name: acm-test-case-generator
 description: Generate Polarion-ready ACM Console UI test cases from JIRA tickets. Runs a multi-phase pipeline with JIRA investigation, PR diff analysis, UI discovery, synthesis, optional live validation, test case writing, and mandatory quality review. Use when asked to generate a test case, write test coverage, or process an ACM JIRA ticket for testing.
 compatibility: "Required MCPs: acm-ui, jira, polarion. Recommended: neo4j-rhacm. Optional: acm-search (fleet queries, deploy with 'bash mcp/deploy-acm-search.sh'), acm-kubectl (spoke access), playwright (browser). Also needs gh CLI (gh auth login). Run /onboard to configure all MCPs."
+metadata:
+  author: acm-qe
+  version: "1.0.0"
 ---
 
 # ACM Console Test Case Generator
@@ -15,7 +18,7 @@ This skill orchestrates the following skills. Each provides raw capabilities; th
 | Skill | Phase | How This Skill Uses It |
 |-------|-------|----------------------|
 | **acm-jira-client** | 2 | Investigate the JIRA story: read summary, description, ALL comments, ACs, fix version, components. Search for QE tracking ticket, sub-tasks, related bugs, sibling stories in same epic. Find PR references in comments. Check if story is done/merged. |
-| **acm-code-analyzer** | 3 | Analyze the PR diff: identify changed components, new UI elements, modified behavior, filtering functions, field orders, conditional rendering, translation strings. Read full source of primary target file. Cross-reference with area knowledge. |
+| **acm-code-analyzer** | 3 | Analyze the PR diff: identify changed components, new UI elements, modified behavior, filtering functions, field orders, conditional rendering, translation strings. Read full source of primary target file. Cross-reference with area knowledge. Coverage gap analysis against ACs. |
 | **acm-ui-source** | 4, 7, 8 | Discover UI elements: set ACM version, search routes, translations, selectors, component source. Verify entry point route exists. Spot-check labels. Read filtering function source to extract exact rules. |
 | **acm-knowledge-base** | 2-8 | Read area architecture (field orders, filtering behavior, component patterns). Read test case conventions. Read examples for format reference. Area knowledge constrains the test case writer. |
 | **acm-neo4j-explorer** | 2-4 | Query component dependencies and subsystem membership. Understand impact of changes. Optional -- skip if Neo4j unavailable. |
@@ -51,7 +54,7 @@ If all inputs can be inferred from the JIRA ticket, proceed without asking.
 Run the deterministic gather script to collect PR data:
 
 ```bash
-python scripts/gather.py <JIRA_ID> [--version VERSION] [--pr PR_NUMBER] [--area AREA] [--repo REPO]
+python ${CLAUDE_SKILL_DIR}/scripts/gather.py <JIRA_ID> [--version VERSION] [--pr PR_NUMBER] [--area AREA] [--repo REPO]
 ```
 
 This produces:
@@ -113,7 +116,9 @@ Using the **acm-code-analyzer** skill, analyze the PR diff:
     ```
     If any merged PR has a `mergedAt` date AFTER the target PR, read its title. If it touches the same component, flag as "FOLLOW-UP PR: #NNNN -- [title]" in the output. This catches post-merge renames, fixes, and refactors that would make the test case stale.
 
-**Output:** Changed components, new UI elements, modified behavior, filtering logic with exact conditions, field orders, component dependencies, follow-up PRs, test scenarios.
+11. **Coverage gap analysis:** Cross-reference the conditional logic, error handling, and edge cases identified against the JIRA story's Acceptance Criteria (from Phase 2 investigation, or retrieve via acm-jira-client skill). For each code behavior NOT covered by any AC that is user-visible from the console, list it as a Coverage Gap with: description, code reference, and user impact. Internal defensive code (null checks with no UI effect) should be excluded.
+
+**Output:** Changed components, new UI elements, modified behavior, filtering logic with exact conditions, field orders, component dependencies, follow-up PRs, test scenarios, coverage gaps.
 
 ### Phase 4: Discover UI Elements
 
@@ -142,6 +147,13 @@ Merge all investigation results into a SYNTHESIZED CONTEXT block:
 4. **AC vs Implementation cross-reference**: if ACs disagree with code behavior, flag as discrepancy
 5. **Plan the test case**: step count, setup, per-step validations (one behavior per step), dedicated backend validation steps (after UI steps), teardown
 6. **Negative scenario enforcement**: If the code analysis identified conditional rendering (ternary operators, feature gates, permission checks, addon dependencies), plan at least ONE negative scenario step that verifies the feature is NOT visible/accessible when the condition is not met. The negative step should verify absence (element not rendered, action not available), not an error state. If no conditional rendering was identified, this does not apply.
+7. **Test design optimization** (apply to the plan before proceeding):
+   - When scenarios differ only by entity state, consolidate into a single sequential flow on ONE entity (test initial state → modify → test changed state). Prefer state transitions over separate resources.
+   - Minimize setup resources: only create what test steps consume. Consolidate when one entity can serve multiple steps.
+   - Order steps to build on each other: observe → act → verify → act → verify.
+   - Merge steps that verify the same behavior in the same context (keep both only if they test different routes).
+   - Place negative scenarios (feature absent) before positive scenarios when no extra setup is needed.
+8. **Coverage gap triage:** If the code analysis identified Coverage Gaps (code paths not covered by any Acceptance Criterion), triage each: ADD TO TEST PLAN (user-visible, worth testing), NOTE ONLY (real but minor), or SKIP (internal code, not UI-testable). Include triage summary in the synthesized context. Gaps triaged as ADD must have a corresponding test step.
 
 **STOP checkpoint:** "Investigation complete. [N] test scenarios identified."
 
@@ -197,7 +209,7 @@ Using the **acm-test-case-reviewer** skill, review the test case:
 
 Run programmatic enforcement:
 ```bash
-python scripts/review_enforcement.py <review-output-file>
+python ${CLAUDE_SKILL_DIR}/scripts/review_enforcement.py <review-output-file>
 ```
 
 This script verifies the reviewer's output contains 3+ MCP verification entries, at least one `get_component_source` call, and at least one `search_translations` call. For any metric name, field label, or translation string in expected results, the reviewer MUST verify it against current source code -- stale JIRA description text is a BLOCKING issue. If enforcement fails, the verdict is overridden to NEEDS_FIXES. The script also warns (non-blocking) if the test case describes a conditional feature but lacks a negative scenario step.
@@ -213,7 +225,7 @@ This script verifies the reviewer's output contains 3+ MCP verification entries,
 
 Run the deterministic report script:
 ```bash
-python scripts/report.py <run-directory>
+python ${CLAUDE_SKILL_DIR}/scripts/report.py <run-directory>
 ```
 
 This produces:

@@ -2,6 +2,9 @@
 name: acm-knowledge-learner
 description: Build and update ACM knowledge by comparing live cluster state to the knowledge base. Discovers unknown operators, new failure patterns, dependency chains, and certificate issues. Use when asked to learn from a cluster, update knowledge, discover new components, or refresh baselines.
 compatibility: "Requires oc CLI logged into an ACM hub. Optional MCPs: neo4j-rhacm (dependency discovery), acm-ui (component understanding), acm-search (fleet discovery). Works with reduced depth without optional MCPs."
+metadata:
+  author: acm-qe
+  version: "1.0.0"
 ---
 
 # ACM Knowledge Learner

@@ -2,6 +2,9 @@
 name: acm-knowledge-base
 description: ACM Console domain knowledge including per-area architecture, test case conventions, naming patterns, and shared reference data. Use when any ACM-related skill or workflow needs domain context about governance, RBAC, fleet virtualization, clusters, search, applications, credentials, CCLM, or MTV areas.
 compatibility: "No MCP servers required. Self-contained reference files."
+metadata:
+  author: acm-qe
+  version: "1.0.0"
 ---
 
 # ACM Knowledge Base

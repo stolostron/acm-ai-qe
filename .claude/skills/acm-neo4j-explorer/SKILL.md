@@ -2,6 +2,9 @@
 name: acm-neo4j-explorer
 description: Query the RHACM component dependency graph via Neo4j. Use when you need to understand ACM component architecture, subsystem membership, dependency chains, or impact analysis for any ACM-related investigation.
 compatibility: "Requires MCP server: neo4j-rhacm (Podman/Docker with neo4j-rhacm container). Optional -- skill degrades gracefully without it."
+metadata:
+  author: acm-qe
+  version: "1.0.0"
 ---
 
 # ACM Neo4j Architecture Explorer

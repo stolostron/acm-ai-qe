@@ -2,6 +2,9 @@
 name: acm-test-case-writer
 description: Write Polarion-ready ACM Console UI test case markdown from synthesized investigation context, or independently from a JIRA ticket. Use when you need to produce a test case document for an ACM Console feature.
 compatibility: "Uses acm-ui-source skill (requires acm-ui MCP) for spot-check verification. Uses acm-knowledge-base skill (no MCP needed)."
+metadata:
+  author: acm-qe
+  version: "1.0.0"
 ---
 
 # ACM Test Case Writer
@@ -56,6 +59,10 @@ Use the acm-ui-source skill for quick verification:
 3. `search_translations` -- spot-check 1-2 key labels
 4. `get_component_source` -- read the primary component, verify field order, filtering logic, empty state behavior
 5. For filtering functions: read the utility file source and extract exact filter conditions
+
+### Step 4.5: Follow Synthesis Design Optimizations
+
+If the SYNTHESIZED CONTEXT includes "Test Design Notes" with consolidation instructions (e.g., "use one policy for before/after", "resource count reduced from 4 to 2"), follow them exactly. Do NOT revert to a multi-resource approach. The synthesis phase optimized the plan for efficiency; the writer phase executes it faithfully.
 
 ### Step 5: Write the Test Case
 
@@ -127,3 +134,11 @@ Check before completing:
 - If investigation context is incomplete for a step, note it as "[NEEDS VERIFICATION]"
 - If a filtering function is referenced, read its source via MCP and extract exact conditions -- do NOT paraphrase from the PR diff
 - Always include a `## Test Steps` section header before the first `### Step N:`
+
+## Gotchas
+
+1. **Filter rules from PR diffs are summaries, not source** -- PR diffs show what changed, not the full logic. Always read the filter function source via `get_component_source` to get exact conditions, thresholds, and edge cases.
+2. **Field order assumptions break silently** -- Table column order in area knowledge files reflects the current product. If a PR reorders columns via `cols.push()` or `splice()`, the test case must match the NEW order, not the knowledge file order.
+3. **Translation keys are not display text** -- A key like `policy.table.actionGroup` resolves to a different string than the key name implies. Always call `search_translations` with the key to get the actual rendered label.
+4. **Test file mock data is not product behavior** -- Automation test files often contain mock data or fixture objects. Never cite test-repo data as evidence of what the product actually does. Product source and MCP verification are the only reliable sources.
+5. **`cols.push()` means append, not insert** -- When a PR adds a column via `push()`, it goes at the END of the table. Do not assume it inserts at a specific position unless the code uses `splice()` with an explicit index.

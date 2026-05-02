@@ -2,6 +2,9 @@
 name: acm-cluster-health
 description: Cluster health diagnostic toolkit using a 12-layer model with 14 trap patterns, dependency chain verification, and evidence-tier framework. Use when you need to assess ACM hub cluster health, verify infrastructure state, check operator health, or diagnose subsystem issues.
 compatibility: "Requires oc CLI logged into an ACM hub cluster. Optional MCPs: acm-search (fleet queries), acm-kubectl (spoke access), neo4j-rhacm (dependency graph). Degrades gracefully without optional MCPs."
+metadata:
+  author: acm-qe
+  version: "1.0.0"
 ---
 
 # ACM Cluster Health Diagnostic Toolkit

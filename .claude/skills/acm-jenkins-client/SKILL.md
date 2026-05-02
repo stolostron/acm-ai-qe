@@ -2,6 +2,9 @@
 name: acm-jenkins-client
 description: Interface to Jenkins CI for reading build status, test results, pipeline stages, console logs, and downstream trees. Use when you need to access Jenkins pipeline data, check build results, or extract test failure information.
 compatibility: "Requires MCP server: jenkins (jenkins-mcp). Needs JENKINS_USER, JENKINS_API_TOKEN. Run /onboard to configure."
+metadata:
+  author: acm-qe
+  version: "1.0.0"
 ---
 
 # Jenkins CI Client

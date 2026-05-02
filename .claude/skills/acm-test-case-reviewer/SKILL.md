@@ -2,6 +2,9 @@
 name: acm-test-case-reviewer
 description: Quality gate for ACM Console UI test cases. Validates conventions, verifies UI elements are discovered not assumed, checks AC vs implementation consistency, cross-references area knowledge, and enforces minimum MCP verification. Use after a test case is written to validate it before delivery.
 compatibility: "Requires acm-ui MCP (for MCP verification spot-checks). Uses acm-polarion-client skill (requires polarion MCP). Uses acm-knowledge-base skill (no MCP needed)."
+metadata:
+  author: acm-qe
+  version: "1.0.0"
 ---
 
 # ACM Test Case Quality Reviewer
@@ -84,6 +87,26 @@ Read `references/architecture/<area>.md` from acm-knowledge-base. Verify:
 - Component names and CRDs are consistent
 - Flag contradictions as BLOCKING
 
+### Step 6.5: Test Design Efficiency Check
+
+Review the test case for design inefficiencies (flag as WARNING, not BLOCKING):
+
+1. **Redundant resources:** Does the setup create multiple instances of the same resource type where one could serve multiple steps via state transitions? Flag: "Setup creates N [resource type] instances -- consider using state transitions on a single instance."
+2. **Missed state transitions:** Does the test verify state A on entity X, then set up state B on a DIFFERENT entity Y and verify there? Flag: "Steps [N] and [M] test the same behavior on different entities -- consider testing before/after on a single entity."
+3. **Duplicate verifications:** Do two steps verify the same element/behavior in the same context with no intervening state change? Flag: "Steps [N] and [M] verify the same behavior -- consider merging."
+4. **Setup/step ratio:** If the setup creates more resources than the test steps consume, flag: "Setup creates [N] resources but only [M] are referenced in test steps -- remove unused resources."
+
+### Step 6.6: Coverage Gap Verification
+
+If the synthesized context (from the orchestrator) includes a "Coverage Gap Triage" section:
+
+1. Read the triage decisions.
+2. For each gap triaged as "ADD TO TEST PLAN," verify the test case has a step or expected result covering it. If not, flag as WARNING: "Coverage gap [GAP-N] was triaged as ADD TO TEST PLAN but no test step covers it."
+3. For each gap triaged as "NOTE ONLY," verify the Notes section mentions it. If not, this is acceptable.
+4. Count: "Coverage gaps: [N] total, [X] covered in test steps, [Y] noted, [Z] skipped."
+
+If no Coverage Gap Triage section exists, skip this step.
+
 ### Step 7: Polarion Coverage Check
 
 Use acm-polarion-client skill:
@@ -124,7 +147,7 @@ Verdict: PASS | NEEDS_FIXES
 
 ## Programmatic Enforcement
 
-After the review, the calling skill runs `scripts/validate_conventions.py` to programmatically verify structural compliance. Additionally, the calling skill runs `scripts/review_enforcement.py` to verify this review output contains at least 3 MCP verification entries. If either check fails, the verdict is overridden to NEEDS_FIXES regardless of what this review concluded.
+After the review, the calling skill runs `report.py` (which includes inlined convention validation) to programmatically verify structural compliance. Additionally, the calling skill runs `review_enforcement.py` to verify this review output contains at least 3 MCP verification entries. If either check fails, the verdict is overridden to NEEDS_FIXES regardless of what this review concluded.
 
 ## Critical Rules
 

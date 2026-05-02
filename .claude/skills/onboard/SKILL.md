@@ -29,6 +29,9 @@ allowed-tools:
   - Bash(echo *)
   - Bash(command *)
   - Bash(python3 mcp/verify.py *)
+metadata:
+  author: acm-qe
+  version: "1.0.0"
 ---
 
 # Onboard — AI Systems Suite Setup

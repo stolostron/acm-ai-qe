@@ -2,6 +2,9 @@
 name: acm-cluster-investigator
 description: Deep-dive investigation of individual test failures using the 12-layer diagnostic model. Traces from symptom through infrastructure layers to find root cause with evidence. Use when test failures need root-cause analysis with classification.
 compatibility: "Requires oc CLI logged into the test cluster. Uses acm-ui-source (acm-ui MCP) for selector verification. Optional: acm-neo4j-explorer, acm-jira-client, acm-polarion-client. Uses acm-cluster-health for methodology."
+metadata:
+  author: acm-qe
+  version: "1.0.0"
 ---
 
 # ACM Test Failure Investigator

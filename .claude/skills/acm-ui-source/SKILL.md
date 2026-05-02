@@ -2,6 +2,9 @@
 name: acm-ui-source
 description: Query ACM Console and kubevirt-plugin source code for components, routes, translations, selectors, wizard steps, and TypeScript types. Use when you need to discover or verify UI elements, navigation paths, button labels, data-test attributes, or component source code in the ACM Console.
 compatibility: "Requires MCP server: acm-ui (acm-ui-mcp-server). Needs GitHub CLI auth (gh auth login) for source access. Run /onboard to configure."
+metadata:
+  author: acm-qe
+  version: "1.0.0"
 ---
 
 # ACM UI Source Code Explorer

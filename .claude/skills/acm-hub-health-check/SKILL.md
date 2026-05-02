@@ -2,6 +2,9 @@
 name: acm-hub-health-check
 description: Diagnose ACM hub cluster health using a 6-phase pipeline with 4 depth modes. Checks operators, pods, addons, subsystems, dependency chains, and known failure patterns. Use when asked to check hub health, run diagnostics, troubleshoot ACM issues, or verify cluster state.
 compatibility: "Requires oc CLI logged into an ACM hub. Uses acm-cluster-health skill (methodology). Optional MCPs: neo4j-rhacm (dependency analysis), acm-search (fleet queries). Run /onboard to configure."
+metadata:
+  author: acm-qe
+  version: "1.0.0"
 ---
 
 # ACM Hub Health Diagnostic
@@ -228,3 +231,13 @@ Allowed: `oc get`, `oc describe`, `oc logs`, `oc exec` (read-only), `oc adm top`
 Forbidden: `oc apply`, `oc create`, `oc delete`, `oc patch`, `oc scale`, `oc edit`, `oc annotate`, `oc label`, `oc rollout restart`
 
 If remediation is needed, use the acm-cluster-remediation skill AFTER diagnosis is complete.
+
+## Gotchas
+
+1. **Stale MCH status (Trap 1)** -- MCH operator at 0 replicas makes MCH status stale. "Running" in MCH status is a lie when the operator that reconciles it is not running. Check operator replicas before trusting MCH.
+2. **Search pods running but empty database (Trap 3)** -- All search pods can be Running/Ready while search-postgres has 0 rows. Data was lost (migration failure, PVC issue). Always verify row count, not just pod status.
+3. **All addons unavailable (Trap 7)** -- If ALL managed cluster addons show unavailable, check the addon-manager pod first. A single addon-manager failure cascades to every addon across every cluster.
+4. **ResourceQuota blocking scheduling (Trap 9)** -- ACM does NOT create ResourceQuotas. If one exists in the MCH namespace, it was added externally and may silently block pod scheduling. Pods stuck in Pending with no events is the symptom.
+5. **NetworkPolicy hiding failures (Trap 11)** -- Pods show Running with 0 restarts but cannot communicate. ACM does NOT create NetworkPolicies. External policies can silently break inter-pod traffic while health checks pass.
+
+See `references/knowledge/diagnostics/common-diagnostic-traps.md` for all 14 traps.

@@ -2,6 +2,9 @@
 name: acm-cluster-remediation
 description: Remediate ACM hub cluster issues with structured approval workflow. Proposes fixes based on diagnosis findings, executes approved mutations, and verifies results. Use when asked to fix, remediate, repair, or resolve ACM cluster issues.
 compatibility: "Requires oc CLI logged into an ACM hub with permissions to patch, scale, and restart resources. Uses acm-hub-health-check skill for verification. Uses acm-cluster-health skill for post-fix validation."
+metadata:
+  author: acm-qe
+  version: "1.0.0"
 ---
 
 # ACM Cluster Remediation
@@ -107,3 +110,11 @@ These commands may be used for remediation (each prompts for user permission):
 - ALWAYS verify after each fix
 - ALWAYS run post-remediation validation
 - If a fix fails, report the failure and stop -- do not attempt the next fix without user acknowledgment
+
+## Gotchas
+
+1. **Delete pod, not deployment** -- `oc delete pod` restarts a single pod. `oc delete deployment` destroys the entire workload and its replica management. Always delete the pod to trigger a restart; never delete the deployment.
+2. **Wait after rollout restart** -- `oc rollout restart` returns immediately but pods take 30-60 seconds to cycle. Always run `oc rollout status` or poll pod readiness before declaring the fix successful.
+3. **ResourceQuota is an artifact, not a fix target** -- If a ResourceQuota is blocking pod scheduling, it was externally applied. Deleting it may fix the symptom but violates the cluster admin's intent. Report it and let the user decide.
+4. **Scale to 0 then back is not the same as delete pod** -- Scaling to 0 removes ALL replicas and may trigger dependent failures (leader election loss, webhook unavailability). Prefer `oc rollout restart` for deployment restarts.
+5. **Post-remediation verification must re-check dependents** -- Fixing a root cause (e.g., search-postgres) does not instantly fix dependents (search-api, console). Verify the full dependency chain, not just the fixed component.

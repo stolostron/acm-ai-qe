@@ -1,0 +1,55 @@
+{
+  "skill_name": "acm-z-stream-analyzer",
+  "version": "1.0.0",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Analyze any Jenkins pipeline URL with test failures.",
+      "expected_output": "Pipeline produces all expected artifacts regardless of input job type (clc, alc, virt, grc).",
+      "assertions": [
+        "Stage 1 produces core-data.json with test_report, cluster_landscape, and feature_grounding sections",
+        "Stage 1.5 produces cluster-diagnosis.json with environment_health_score, subsystem_health, and classification_guidance",
+        "Stage 2 produces analysis-results.json with per_test_analysis array, summary.by_classification, and investigation_phases_completed",
+        "Stage 3 produces Detailed-Analysis.md and analysis-report.html",
+        "Pipeline runs stages in order with visible progress updates"
+      ],
+      "category": "process"
+    },
+    {
+      "id": 2,
+      "prompt": "Classify test failures from a pipeline run with mixed failure types.",
+      "expected_output": "Every test gets a classification with multi-evidence support. No test left unclassified.",
+      "assertions": [
+        "Every failed test has a classification from the 7 valid types: PRODUCT_BUG, AUTOMATION_BUG, INFRASTRUCTURE, NO_BUG, MIXED, FLAKY, UNKNOWN",
+        "Every classification has minimum 2 evidence sources",
+        "Every classification includes ruled_out_alternatives explaining why other types don't fit",
+        "Every classification includes root_cause_layer (1-12) and root_cause_layer_name"
+      ],
+      "category": "structure"
+    },
+    {
+      "id": 3,
+      "prompt": "Analyze a pipeline run where the cluster has a single infrastructure issue but tests fail for multiple reasons.",
+      "expected_output": "A single cluster-wide issue does NOT auto-classify all failures. Each test gets individual verification. Mixed failure sets are classified independently.",
+      "assertions": [
+        "Each test gets individual counterfactual verification even when cluster health is degraded",
+        "Tests with non-infrastructure root causes (stale selectors, wrong assertions) are NOT classified as INFRASTRUCTURE",
+        "Per-test causal link verification connects the specific cluster issue to each test's specific error",
+        "Tests failing for different reasons in the same pipeline run get different classifications"
+      ],
+      "category": "edge-case"
+    },
+    {
+      "id": 4,
+      "prompt": "Analyze pipeline runs with varied failure modes: selector not found, timeout, assertion failure, page crash, hook failure, API error.",
+      "expected_output": "Each failure type is routed through the correct investigation path. No pattern-matching to previously seen failures.",
+      "assertions": [
+        "Selector not found: triggers MCP verification via acm-ui-source before classifying",
+        "Timeout failures: checks subsystem health and backend state before attributing to infrastructure",
+        "After-all hook failures: correctly identified as cascade from prior failure, classified as NO_BUG",
+        "Each failure type follows its investigation path generically, not by matching known error strings"
+      ],
+      "category": "edge-case"
+    }
+  ]
+}

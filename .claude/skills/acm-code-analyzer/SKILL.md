@@ -1,7 +1,10 @@
 ---
 name: acm-code-analyzer
 description: Analyze GitHub PR diffs for ACM Console to identify changed components, new UI elements, modified behavior, filtering logic, field orders, and test scenarios. Use when writing test cases that need to understand what code changed in a PR.
-compatibility: "Requires gh CLI (gh auth login). Uses acm-ui-source skill (requires acm-ui MCP). Optional: acm-neo4j-explorer (requires neo4j-rhacm MCP)."
+compatibility: "Requires gh CLI (gh auth login). Uses acm-ui-source skill (requires acm-ui MCP). Optional: acm-neo4j-explorer (requires neo4j-rhacm MCP). Optional: acm-jira-client skill (requires jira MCP) for coverage gap analysis."
+metadata:
+  author: acm-qe
+  version: "1.0.0"
 ---
 
 # ACM Code Change Analyzer
@@ -73,6 +76,17 @@ Use acm-ui-source skill's `search_translations` for any new labels found in the 
 - New RBAC check -> test with different user roles
 - New error path -> test the error scenario
 - New filter -> test filter behavior with matching and non-matching data
+
+### Step 10: Coverage Gap Analysis
+
+Cross-reference the conditional logic, error handling, and edge cases identified in Steps 4-9 against the JIRA story's Acceptance Criteria. If ACs are provided in the input, use them directly. Otherwise, retrieve them via the acm-jira-client skill's `get_issue`.
+
+For each code behavior found in the diff, ask:
+- Does any AC explicitly describe this behavior? → Covered.
+- Does no AC mention it, but it affects what the user sees or can do? → GAP.
+- Is this purely internal logic with no user-visible effect? → Skip.
+
+Include a Coverage Gaps section in the output listing each gap with: description, code reference (file:function), and user impact. If all code paths map to ACs, state "No gaps found."
 
 ## Critical Rules
 

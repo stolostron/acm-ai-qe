@@ -2,6 +2,9 @@
 name: acm-jira-client
 description: Interface to Red Hat JIRA for reading tickets, searching with JQL, and extracting structured data from ACM project issues. Use when you need to read JIRA stories, bugs, epics, comments, acceptance criteria, fix versions, or search for related tickets.
 compatibility: "Requires MCP server: jira (jira-mcp-server). Needs JIRA_SERVER_URL, JIRA_ACCESS_TOKEN, JIRA_EMAIL. Run /onboard to configure."
+metadata:
+  author: acm-qe
+  version: "1.0.0"
 ---
 
 # ACM JIRA Client

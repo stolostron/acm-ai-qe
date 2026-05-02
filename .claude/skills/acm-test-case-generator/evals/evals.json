@@ -1,0 +1,69 @@
+{
+  "skill_name": "acm-test-case-generator",
+  "version": "1.0.0",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Generate a test case for any ACM JIRA ticket with a linked PR.",
+      "expected_output": "Pipeline completes all phases in order, MCP tools called before writing labels, quality review runs, report.py produces output files.",
+      "assertions": [
+        "Phases execute in order: JIRA investigation → code analysis → UI discovery → synthesis → writing → quality review",
+        "acm-ui-source MCP is called at least once before any UI label appears in the test case",
+        "Quality review gate runs and produces review-results.json",
+        "report.py produces both test-case.md and SUMMARY.txt",
+        "No UI label, route, or selector is assumed without MCP or investigation evidence"
+      ],
+      "category": "process"
+    },
+    {
+      "id": 2,
+      "prompt": "Generate a test case for a JIRA ticket in any ACM console area.",
+      "expected_output": "Output test case passes structural validation regardless of which console area the ticket belongs to.",
+      "assertions": [
+        "Title follows pattern: # RHACM4K-XXXXX - [Tag-Version] Area - Test Name",
+        "All Polarion metadata fields present: Type, Level, Component, Subcomponent, Test Type, Pos/Neg, Importance, Automation, Tags, Release",
+        "Setup section has numbered bash commands with # Expected: comments",
+        "Test Steps section has ## Test Steps header before first ### Step N:",
+        "Steps are separated by --- dividers",
+        "Teardown section cleans up all resources created in setup with --ignore-not-found"
+      ],
+      "category": "structure"
+    },
+    {
+      "id": 3,
+      "prompt": "Generate test cases for tickets across different ACM areas (governance, RBAC, fleet-virt, clusters, search).",
+      "expected_output": "Skill produces valid output for each area. Area detection works generically, not hardcoded to specific tickets.",
+      "assertions": [
+        "Area is detected from JIRA ticket content, not from a hardcoded ticket-to-area mapping",
+        "Area-specific knowledge file is read from acm-knowledge-base for the detected area",
+        "Test case conventions adapt to the area (correct tag pattern, component names, subcomponents)",
+        "No area produces an error or empty output when given a valid ticket from that area"
+      ],
+      "category": "edge-case"
+    },
+    {
+      "id": 4,
+      "prompt": "Generate a test case for a JIRA ticket with incomplete inputs (no linked PR, no ACs, or multi-story PR).",
+      "expected_output": "Skill handles missing inputs gracefully without crashing or producing invalid output.",
+      "assertions": [
+        "No linked PR: proceeds with JIRA-only investigation or asks user for PR URL",
+        "No ACs in JIRA: derives test scenarios from description and comments instead of failing",
+        "Multi-story PR: scopes test case to the target story only, mentions others in Notes",
+        "No cluster URL for live validation: skips live validation phase and notes it explicitly"
+      ],
+      "category": "edge-case"
+    },
+    {
+      "id": 5,
+      "prompt": "Generate a test case when one or more MCP servers are unavailable.",
+      "expected_output": "Skill notes unavailable MCPs explicitly and proceeds with available data. Never silently assumes labels, routes, or selectors.",
+      "assertions": [
+        "If acm-ui MCP unavailable: marks all UI elements as [NEEDS VERIFICATION] instead of assuming",
+        "If jira MCP unavailable: asks user for ticket details or falls back to manual input",
+        "If polarion MCP unavailable: skips Polarion duplicate check and notes it",
+        "Unavailable MCPs are reported in the output, not silently skipped"
+      ],
+      "category": "degradation"
+    }
+  ]
+}

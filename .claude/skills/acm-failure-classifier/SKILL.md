@@ -2,6 +2,9 @@
 name: acm-failure-classifier
 description: Classify Jenkins pipeline test failures as PRODUCT_BUG, AUTOMATION_BUG, INFRASTRUCTURE, or NO_BUG using a 5-phase AI investigation framework with 12-layer diagnostics, provably linked grouping, counterfactual validation, and multi-evidence requirements. Use when test failures need root-cause classification.
 compatibility: "Uses acm-cluster-health (methodology), acm-ui-source (selector verification), acm-neo4j-explorer (dependencies), acm-jira-client (bug correlation), acm-polarion-client (test case context). Requires oc CLI for cluster access. Uses acm-cluster-investigator for per-group deep investigation."
+metadata:
+  author: acm-qe
+  version: "1.0.0"
 ---
 
 # ACM Test Failure Classifier (v4.0)
@@ -148,3 +151,13 @@ Key output sections:
 - Read-only cluster operations only
 - Credentials masked in output
 - Audit trail maintained in run directory
+
+## Gotchas
+
+1. **Anchoring bias on cluster health** -- A degraded cluster does NOT mean all failures are INFRASTRUCTURE. Each test still needs per-test causal link verification. A single cluster issue can coexist with automation bugs and product bugs.
+2. **Selector missing + backend broken is not always INFRASTRUCTURE** -- When a selector is not found AND a subsystem is unhealthy, verify the causal chain. The selector may have been removed by a PR (AUTOMATION_BUG) while the subsystem issue is unrelated.
+3. **`console_search.found=false` is not automatic AUTOMATION_BUG** -- Check `recent_selector_changes` first. If the selector was recently removed or renamed in the product repo, it may be PRODUCT_BUG (breaking change without migration).
+4. **"Same feature area" is not a valid grouping criterion** -- Two tests in the same area can fail for completely different reasons. Group only by exact shared signals: same selector + same calling function, same hook failure, or same spec + exact error + same line.
+5. **Dead selectors need timeline context** -- A selector not found in product source could be (a) never existed (AUTOMATION_BUG), (b) recently removed by a PR (PRODUCT_BUG), or (c) behind a feature flag (check MCH toggles). The timeline determines the classification.
+6. **Layer discrepancy detection** -- If the `root_cause_layer` is 9 (operators) but the evidence points to layer 4 (storage), the classification may be wrong. The layer must match the actual root cause, not the symptom layer.
+7. **Test file mock data is not cluster state** -- Automation repos contain fixture data and mock objects. Never use test-file content as evidence of what the cluster or product actually does.

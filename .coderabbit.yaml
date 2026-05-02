@@ -555,7 +555,7 @@ reviews:
 
         Z-stream-analysis tests:
         - tests/unit/ (625 tests): No network access. Test individual services.
-        - tests/regression/ (61 tests): Cross-module consistency checks,
+        - tests/regression/ (131 tests): Cross-module consistency checks,
           schema coverage, field name alignment across services.
         - tests/integration/ (45 tests): Require Jenkins VPN. Test full pipeline.
         - tests/fixtures/: Synthetic analysis-results.json for testing.

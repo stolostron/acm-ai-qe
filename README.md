@@ -122,7 +122,7 @@ ai_systems_v2/
 
 ```bash
 cd apps/z-stream-analysis
-python -m pytest tests/unit/ tests/regression/ -q    # 686 tests, no external deps
+python -m pytest tests/unit/ tests/regression/ -q    # 756 tests, no external deps
 ```
 
 See each app's `CLAUDE.md` for architecture details and development conventions.

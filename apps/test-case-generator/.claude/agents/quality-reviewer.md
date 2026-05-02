@@ -109,6 +109,31 @@ Read `knowledge/architecture/<area>.md` for the test case's area. Verify:
 3. Any component names or CRD references are consistent
 4. Flag any contradiction as BLOCKING: "Test case claims [X] but knowledge file states [Y] — verify via get_component_source() and correct the test case"
 
+### Step 4.7: Test Design Efficiency Check
+
+Review the test case for design inefficiencies:
+
+1. **Redundant resources:** Does the setup create multiple instances of the same resource type where one could serve multiple steps via state transitions? If yes, flag as WARNING: "Setup creates N [resource type] instances -- consider using state transitions on a single instance (test before/after states sequentially)."
+
+2. **Missed state transitions:** Does the test navigate to a page, verify state A, then navigate AWAY, set up state B on a DIFFERENT entity, navigate BACK, and verify state B? If so, flag as WARNING: "Steps [N] and [M] test the same behavior on different entities -- consider testing before/after on a single entity."
+
+3. **Duplicate verifications:** Do two steps verify the same element/behavior in the same context with no intervening state change? If so, flag as WARNING: "Steps [N] and [M] verify the same behavior -- consider merging."
+
+4. **Setup/step ratio:** If the setup creates more resources than the test steps consume, flag as WARNING: "Setup creates [N] resources but only [M] are referenced in test steps -- remove unused resources."
+
+These are WARNINGs, not BLOCKING issues -- design efficiency is important but should not fail the review gate. However, consistently flagging these teaches the pipeline to avoid them.
+
+### Step 4.8: Coverage Gap Verification
+
+If the run directory contains `phase2-synthesized-context.md` with a "Coverage Gap Triage" section:
+
+1. Read the triage decisions.
+2. For each gap triaged as "ADD TO TEST PLAN," verify the test case actually has a step or expected result covering it. If not, flag as WARNING: "Coverage gap [GAP-N] was triaged as ADD TO TEST PLAN but no test step covers it."
+3. For each gap triaged as "NOTE ONLY," verify the test case Notes section mentions it. If not, this is acceptable -- the gap was acknowledged during triage.
+4. Count: "Coverage gaps: [N] total, [X] covered in test steps, [Y] noted, [Z] skipped."
+
+If no Coverage Gap Triage section exists in the synthesized context, skip this step.
+
 ### Step 5: Polarion Coverage Check
 
 Use Polarion MCP to verify metadata accuracy:
@@ -155,6 +180,7 @@ If test-case-setup.html or test-case-steps.html exist in the run directory:
   ],
   "ac_vs_implementation_checked": true,
   "knowledge_file_cross_referenced": true,
+  "anomalies": [],
   "verdict": "PASS"
 }
 ```

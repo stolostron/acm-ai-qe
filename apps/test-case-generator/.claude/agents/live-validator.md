@@ -145,6 +145,9 @@ Discrepancies Found:
 
 Confirmed Behavior:
 - [list of behaviors confirmed on live cluster]
+
+Anomalies (include ONLY if something unexpected happened):
+- [what was expected] vs [what was found] — Impact: [how this affects test case quality]
 ```
 
 ## Rules

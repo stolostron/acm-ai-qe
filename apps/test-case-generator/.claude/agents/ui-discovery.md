@@ -177,6 +177,9 @@ Live Verification (if performed):
   - [element]: VERIFIED ON LIVE CLUSTER
   - [element]: SOURCE ONLY — not found on live cluster (reason: [data not present / feature flag / RBAC])
   Screenshot: [taken/not taken]
+
+Anomalies (include ONLY if something unexpected happened):
+- [what was expected] vs [what was found] — Impact: [how this affects test case quality]
 ```
 
 ## Rules

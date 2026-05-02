@@ -90,7 +90,7 @@ Six agents, each with a dedicated role in the pipeline:
 | Agent | File | Pipeline Phase | Role |
 |-------|------|---------------|------|
 | **Feature Investigator** | `.claude/agents/feature-investigator.md` | Phase 1 (parallel) | Deep JIRA investigation: story, comments, linked tickets, Polarion coverage, PR discovery |
-| **Code Change Analyzer** | `.claude/agents/code-change-analyzer.md` | Phase 1 (parallel) | PR diff analysis: changed components, new UI elements, Neo4j impact, test scenarios |
+| **Code Change Analyzer** | `.claude/agents/code-change-analyzer.md` | Phase 1 (parallel) | PR diff analysis: changed components, new UI elements, Neo4j impact, test scenarios, coverage gap analysis |
 | **UI Discovery** | `.claude/agents/ui-discovery.md` | Phase 1 (parallel) | Source code discovery: selectors, translations, routes, wizard steps, test IDs + optional live browser verification |
 | **Live Validator** | `.claude/agents/live-validator.md` | Phase 3 | Live cluster verification: browser UI, oc CLI, acm-search, acm-kubectl |
 | **Test Case Generator** | `.claude/agents/test-case-generator.md` | Phase 4 | Write test case markdown from synthesized investigation context |
@@ -137,6 +137,7 @@ Code Change Analyzer:
   bash      -> gh pr view, gh pr diff (GitHub CLI via bash)
   acm-ui    -> set_acm_version, search_code, get_component_source,
                get_component_types, search_translations, get_routes
+  jira      -> get_issue (Acceptance Criteria for coverage gap analysis)
   neo4j     -> read_neo4j_cypher (component dependencies)
 
 UI Discovery:
@@ -213,8 +214,8 @@ runs/ACM-30459/ACM-30459-2026-04-08T12-00-00/
   phase4.5-quality-review.md         # Phase 4.5: quality reviewer agent output (JSON block + review)
   test-case-setup.html               # Stage 3: Polarion setup section HTML
   test-case-steps.html               # Stage 3: Polarion steps table HTML
-  review-results.json                # Stage 3: structural validation
-  SUMMARY.txt                        # Stage 3: human-readable summary
+  review-results.json                # Stage 3: structural validation + artifact completeness
+  SUMMARY.txt                        # Stage 3: human-readable summary + artifact completeness
   pipeline.log.jsonl                 # All stages + phases: telemetry (gather, log_phase, report)
 ```
 
@@ -290,9 +291,13 @@ The pipeline has two independent validation systems. Both must pass:
 | Layer | When | What it checks | Authoritative for |
 |-------|------|---------------|-------------------|
 | **Phase 4.5** (quality-reviewer agent) | Before Stage 3 | MCP verification of UI elements, AC vs implementation, scope alignment, numeric thresholds, Polarion coverage, peer consistency, discovered vs assumed | Semantic correctness (are the right things tested?) |
-| **Stage 3** (report.py / convention_validator.py) | After Phase 4.5 | Title pattern, metadata fields, section order, step format, entry point, teardown | Structural correctness (is the format right?) |
+| **Stage 3** (report.py / convention_validator.py) | After Phase 4.5 | Title pattern, metadata fields, section order, step format, entry point, teardown, artifact completeness | Structural correctness (is the format right?) |
+
+Stage 3 also checks pipeline artifact completeness (9 expected files) and includes the result in `review-results.json` and `SUMMARY.txt`. This is reporting-only — it does not block the pipeline.
 
 If Stage 3 fails after Phase 4.5 passed, fix the structural issue and re-run `report.py`. Do not re-run the quality reviewer unless the fix changed test content.
+
+All 6 agents include an optional Anomalies section in their return format for surfacing data quality issues (empty MCP results, missing JIRA ACs, unexpected PR structure) upstream rather than silently passing unreliable data downstream.
 
 ---
 

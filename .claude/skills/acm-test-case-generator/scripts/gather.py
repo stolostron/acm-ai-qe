@@ -1,60 +1,299 @@
-"""Stage 1: Gather data for test case generation.
+#!/usr/bin/env python3
+"""Stage 1: Gather data for test case generation (standalone).
 
-Deterministic Python script that collects PR data, existing test cases,
-conventions, and area knowledge. No LLM or MCP calls.
+Zero external dependencies -- uses only Python stdlib and gh CLI.
+Produces gather-output.json with PR data, conventions, and area knowledge.
 
 Usage:
-    python -m src.scripts.gather ACM-30459 [--version 2.17] [--pr 5790] [--area governance] [--skip-live] [--repo stolostron/console]
+    python gather.py ACM-30459 [--version 2.17] [--pr 5790] [--area governance]
+                               [--skip-live] [--cluster-url URL] [--repo stolostron/console]
 """
 
 import argparse
 import json
+import os
+import subprocess
 import sys
-from datetime import datetime
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.models.gather_output import GatherOptions, GatherOutput
-from src.services.file_service import (
-    find_existing_test_cases,
-    read_area_knowledge,
-    read_conventions,
-    read_html_templates,
-)
-from src.services.github_service import (
-    detect_area_from_files,
-    get_pr_diff,
-    get_pr_metadata,
-    search_pr_for_jira,
-)
-from src.services.telemetry import PipelineTelemetry
+# ---------------------------------------------------------------------------
+# Telemetry (inlined from src/services/telemetry.py)
+# ---------------------------------------------------------------------------
 
+class PipelineTelemetry:
+    def __init__(self, run_dir: str, jira_id: str):
+        self.run_dir = Path(run_dir)
+        self.jira_id = jira_id
+        self.log_path = self.run_dir / "pipeline.log.jsonl"
+        self._stage_start = None
+        self._pipeline_start = time.monotonic()
+        self._log_event("pipeline_start", {"jira_id": jira_id})
+
+    def _log_event(self, event_type: str, data: dict = None):
+        entry = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "event": event_type,
+            "jira_id": self.jira_id,
+        }
+        if data:
+            entry.update(data)
+        self.run_dir.mkdir(parents=True, exist_ok=True)
+        with open(self.log_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry) + "\n")
+
+    def start_stage(self, stage_name: str):
+        self._stage_start = time.monotonic()
+        self._log_event("stage_start", {"stage": stage_name})
+
+    def end_stage(self, stage_name: str, metadata: dict = None):
+        elapsed = 0.0
+        if self._stage_start is not None:
+            elapsed = time.monotonic() - self._stage_start
+        data = {"stage": stage_name, "elapsed_seconds": round(elapsed, 2)}
+        if metadata:
+            data.update(metadata)
+        self._log_event("stage_end", data)
+        self._stage_start = None
+
+
+# ---------------------------------------------------------------------------
+# GitHub service (inlined from src/services/github_service.py)
+# ---------------------------------------------------------------------------
+
+def _run_gh(args: list, timeout: int = 30):
+    try:
+        result = subprocess.run(
+            ["gh"] + args,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+        if result.returncode != 0:
+            return None
+        return result.stdout.strip()
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return None
+
+
+def search_pr_for_jira(jira_id: str, repo: str = "stolostron/console"):
+    output = _run_gh([
+        "search", "prs", jira_id,
+        "--repo", repo,
+        "--json", "number,title,state",
+        "--limit", "5",
+    ])
+    if not output:
+        return None
+    try:
+        results = json.loads(output)
+        if results:
+            return results[0]["number"]
+    except (json.JSONDecodeError, KeyError, IndexError):
+        pass
+    return None
+
+
+def get_pr_metadata(pr_number: int, repo: str = "stolostron/console"):
+    output = _run_gh([
+        "pr", "view", str(pr_number),
+        "--repo", repo,
+        "--json", "title,body,files,additions,deletions,mergedAt,state",
+    ])
+    if not output:
+        return None
+    try:
+        data = json.loads(output)
+        files = [f["path"] for f in data.get("files", [])]
+        return {
+            "number": pr_number,
+            "title": data.get("title", ""),
+            "repo": repo,
+            "state": data.get("state", ""),
+            "body": data.get("body"),
+            "files": files,
+            "additions": data.get("additions", 0),
+            "deletions": data.get("deletions", 0),
+            "merged_at": data.get("mergedAt"),
+            "diff_file": None,
+        }
+    except (json.JSONDecodeError, KeyError):
+        return None
+
+
+def get_pr_diff(pr_number: int, repo: str, output_path: Path = None):
+    output = _run_gh([
+        "pr", "diff", str(pr_number),
+        "--repo", repo,
+    ], timeout=60)
+    if not output:
+        return None
+    if output_path:
+        output_path.write_text(output, encoding="utf-8")
+        return str(output_path)
+    return output
+
+
+def detect_area_from_files(files: list):
+    area_patterns = {
+        "governance": ["Governance", "governance", "policy", "Policy"],
+        "rbac": ["rbac", "RBAC", "RoleAssignment", "ClusterPermission", "user-management"],
+        "fleet-virt": ["Virtualization", "virtualization", "kubevirt", "fleet-virt"],
+        "cclm": ["CCLM", "cclm", "LiveMigration", "live-migration", "CrossClusterMigration"],
+        "mtv": ["MTV", "mtv", "forklift", "migration-toolkit", "ForkliftController"],
+        "clusters": ["Clusters", "clusters", "ClusterSet", "ClusterDeployment", "ClusterPool"],
+        "search": ["Search", "search", "SearchInput", "SearchRelated", "search-api"],
+        "applications": ["Applications", "applications", "Subscription", "Channel"],
+        "credentials": ["Credentials", "credentials", "CredentialsForm", "ProviderConnection"],
+    }
+    area_scores = {}
+    for file_path in files:
+        for area, patterns in area_patterns.items():
+            for pattern in patterns:
+                if pattern in file_path:
+                    area_scores[area] = area_scores.get(area, 0) + 1
+    if area_scores:
+        return max(area_scores, key=area_scores.get)
+    return None
+
+
+# ---------------------------------------------------------------------------
+# File service (inlined from src/services/file_service.py)
+# ---------------------------------------------------------------------------
+
+AREA_TO_COMPONENT_DIRS = {
+    "governance": ["grc"],
+    "rbac": ["rbac"],
+    "fleet-virt": ["virt"],
+    "clusters": ["clc", "bm"],
+    "search": ["search"],
+    "applications": ["alc"],
+    "credentials": ["clc"],
+    "cclm": ["virt"],
+    "mtv": ["mtv"],
+}
+
+
+def _resolve_knowledge_dir():
+    """Find the knowledge directory, checking multiple locations."""
+    skill_dir = os.environ.get("CLAUDE_SKILL_DIR")
+    if skill_dir:
+        p = Path(skill_dir) / "knowledge"
+        if p.exists():
+            return p
+
+    # Fall back to app location (relative to repo root or cwd)
+    for candidate in [
+        Path.cwd() / "knowledge",
+        Path.cwd() / "apps" / "test-case-generator" / "knowledge",
+    ]:
+        if candidate.exists():
+            return candidate
+
+    return None
+
+
+def _resolve_runs_dir():
+    """Find the runs directory."""
+    for candidate in [
+        Path.cwd() / "runs",
+        Path.cwd() / "apps" / "test-case-generator" / "runs",
+    ]:
+        if candidate.exists():
+            return candidate
+    return Path.cwd() / "runs"
+
+
+def read_conventions():
+    kd = _resolve_knowledge_dir()
+    if kd:
+        path = kd / "conventions" / "test-case-format.md"
+        if path.exists():
+            return path.read_text(encoding="utf-8")
+    return ""
+
+
+def read_html_templates():
+    kd = _resolve_knowledge_dir()
+    if kd:
+        path = kd / "conventions" / "polarion-html-templates.md"
+        if path.exists():
+            return path.read_text(encoding="utf-8")
+    return ""
+
+
+def read_area_knowledge(area: str):
+    kd = _resolve_knowledge_dir()
+    if kd:
+        path = kd / "architecture" / f"{area}.md"
+        if path.exists():
+            return path.read_text(encoding="utf-8")
+    return None
+
+
+def find_existing_test_cases(version: str, area: str = None, max_count: int = 3):
+    search_paths = []
+
+    automation_workspace = os.environ.get("ACM_AUTOMATION_WORKSPACE")
+    if automation_workspace:
+        automation_base = Path(automation_workspace)
+        if automation_base.exists():
+            component_dirs = AREA_TO_COMPONENT_DIRS.get(area, []) if area else []
+            for component_dir in component_dirs:
+                tc_path = automation_base / component_dir / "test-cases" / version
+                if tc_path.exists():
+                    search_paths.append(tc_path)
+
+    search_paths.append(_resolve_runs_dir())
+
+    kd = _resolve_knowledge_dir()
+    if kd:
+        search_paths.append(kd / "examples")
+
+    results = []
+    for search_path in search_paths:
+        if not search_path.exists():
+            continue
+        glob_pattern = "**/*.md" if "runs" in str(search_path) else "*.md"
+        for md_file in sorted(
+            search_path.glob(glob_pattern),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        ):
+            if md_file.name.startswith("RHACM4K-") or md_file.name == "test-case.md" or md_file.name.startswith("sample-"):
+                results.append(str(md_file))
+                if len(results) >= max_count:
+                    return results
+    return results
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
 
 def create_run_directory(jira_id: str) -> Path:
-    """Create a timestamped run directory."""
     timestamp = datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
-    run_dir = PROJECT_ROOT / "runs" / jira_id / f"{jira_id}-{timestamp}"
+    runs_dir = _resolve_runs_dir()
+    run_dir = runs_dir / jira_id / f"{jira_id}-{timestamp}"
     run_dir.mkdir(parents=True, exist_ok=True)
     return run_dir
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Stage 1: Gather data for test case generation",
-    )
+def parse_args():
+    parser = argparse.ArgumentParser(description="Stage 1: Gather data for test case generation")
     parser.add_argument("jira_id", help="JIRA ticket ID (e.g., ACM-30459)")
     parser.add_argument("--version", help="ACM version (e.g., 2.17)")
     parser.add_argument("--pr", type=int, help="PR number (auto-detected if omitted)")
     parser.add_argument("--area", help="Console area (auto-detected from PR paths)")
     parser.add_argument("--skip-live", action="store_true", help="Skip live cluster validation")
-    parser.add_argument("--cluster-url", help="Console URL for live validation (e.g., https://console-openshift-console.apps.hub.example.com)")
-    parser.add_argument("--repo", default="stolostron/console", help="GitHub repo (default: stolostron/console)")
+    parser.add_argument("--cluster-url", help="Console URL for live validation")
+    parser.add_argument("--repo", default="stolostron/console", help="GitHub repo")
     return parser.parse_args()
 
 
-def main() -> None:
+def main():
     args = parse_args()
     jira_id = args.jira_id.upper()
 
@@ -67,7 +306,6 @@ def main() -> None:
     pr_number = args.pr
     pr_data = None
     area = args.area
-    diff_file = None
 
     # --- PR Discovery ---
     if not pr_number:
@@ -83,21 +321,19 @@ def main() -> None:
         print(f"  Fetching PR #{pr_number} metadata...")
         pr_data = get_pr_metadata(pr_number, args.repo)
         if pr_data:
-            print(f"  PR: {pr_data.title}")
-            print(f"  Files: {len(pr_data.files)} changed ({pr_data.additions}+ / {pr_data.deletions}-)")
+            print(f"  PR: {pr_data['title']}")
+            print(f"  Files: {len(pr_data['files'])} changed ({pr_data['additions']}+ / {pr_data['deletions']}-)")
 
-            # Auto-detect area from file paths
             if not area:
-                area = detect_area_from_files(pr_data.files)
+                area = detect_area_from_files(pr_data["files"])
                 if area:
                     print(f"  Area detected: {area}")
 
-            # Fetch full diff
-            print(f"  Fetching PR diff...")
+            print("  Fetching PR diff...")
             diff_path = run_dir / "pr-diff.txt"
             diff_result = get_pr_diff(pr_number, args.repo, diff_path)
             if diff_result:
-                pr_data.diff_file = str(diff_path)
+                pr_data["diff_file"] = str(diff_path)
                 print(f"  Diff saved: {diff_path.name}")
         else:
             print(f"  Failed to fetch PR #{pr_number} metadata")
@@ -105,7 +341,7 @@ def main() -> None:
     # --- Version ---
     acm_version = args.version
     if not acm_version:
-        print("  ACM version not specified (will be detected from JIRA in Stage 2)")
+        print("  ACM version not specified (will be detected from JIRA in Phase 2)")
 
     # --- Existing Test Cases ---
     version_for_search = acm_version or "latest"
@@ -133,40 +369,41 @@ def main() -> None:
         else:
             print(f"  No architecture knowledge found for area: {area}")
 
-    # --- Classify PR files as test vs production ---
-    test_files: list[str] = []
-    production_files: list[str] = []
-    if pr_data and pr_data.files:
-        for f in pr_data.files:
+    # --- Classify PR files ---
+    test_files = []
+    production_files = []
+    if pr_data and pr_data["files"]:
+        for f in pr_data["files"]:
             if ".test." in f or ".spec." in f or "/tests/" in f or "/__tests__/" in f:
                 test_files.append(f)
             else:
                 production_files.append(f)
 
-    # --- Build Output ---
-    output = GatherOutput(
-        jira_id=jira_id,
-        acm_version=acm_version,
-        area=area,
-        pr_data=pr_data,
-        existing_test_cases=existing,
-        conventions=conventions,
-        area_knowledge=area_knowledge,
-        html_templates=html_templates,
-        run_dir=str(run_dir),
-        options=GatherOptions(
-            skip_live=args.skip_live,
-            cluster_url=args.cluster_url,
-            repo=args.repo,
-        ),
-        test_files=test_files,
-        production_files=production_files,
-    )
+    # --- Build Output (plain dict, same schema as Pydantic version) ---
+    output = {
+        "jira_id": jira_id,
+        "acm_version": acm_version,
+        "area": area,
+        "pr_data": pr_data,
+        "existing_test_cases": existing,
+        "conventions": conventions,
+        "area_knowledge": area_knowledge,
+        "html_templates": html_templates,
+        "run_dir": str(run_dir),
+        "timestamp": datetime.now().isoformat(),
+        "options": {
+            "skip_live": args.skip_live,
+            "cluster_url": args.cluster_url,
+            "repo": args.repo,
+        },
+        "test_files": test_files,
+        "production_files": production_files,
+    }
 
     # --- Write Output ---
     output_path = run_dir / "gather-output.json"
     output_path.write_text(
-        json.dumps(output.model_dump(), indent=2, default=str),
+        json.dumps(output, indent=2, default=str),
         encoding="utf-8",
     )
 
@@ -178,13 +415,10 @@ def main() -> None:
         "conventions_loaded": bool(conventions),
     })
 
-    # --- Summary ---
     print()
     print(f"  Stage 1 complete. Output: {output_path}")
     print(f"  Run directory: {run_dir}")
     print()
-
-    # Print the run directory path for Stage 2 to pick up
     print(str(run_dir))
 
 

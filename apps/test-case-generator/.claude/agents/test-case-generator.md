@@ -62,6 +62,7 @@ Using the synthesized context, plan:
 4. **Steps** -- each must map to at least one AC bullet from the target JIRA story
 5. **CLI checkpoints** -- where backend validation is needed mid-test
 6. **Teardown** -- resources to clean up
+7. **Follow the synthesis plan's design optimizations.** If the SYNTHESIZED CONTEXT includes "Test Design Notes" with consolidation instructions (e.g., "use one policy for before/after"), follow them exactly. Do NOT revert to a multi-resource approach. The synthesis phase optimized the plan for efficiency; the writer phase executes it faithfully.
 
 ### Step 3: Verify Key UI Elements (spot-check)
 
@@ -144,6 +145,7 @@ Write two files to the run directory:
      "live_validation_performed": false,
      "self_review_verdict": "PASS",
      "self_review_issues": [],
+     "anomalies": [],
      "timestamp": "2026-04-08T12:00:00Z"
    }
    ```

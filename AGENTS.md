@@ -5,11 +5,11 @@ Multi-app repository for ACM quality engineering tools built on Claude Code.
 ## Build and Test
 
 ```bash
-# Z-stream analysis (fast suite, 686 tests, no external deps)
+# Z-stream analysis (fast suite, 756 tests, no external deps)
 cd apps/z-stream-analysis
 python -m pytest tests/unit/ tests/regression/ -q
 
-# Full suite (731 tests, requires Jenkins VPN for integration)
+# Full suite (801 tests, requires Jenkins VPN for integration)
 python -m pytest tests/ -q --timeout=300
 
 # Hub health (22 regression tests, no external deps)
@@ -63,7 +63,7 @@ Diagnostic agent for ACM hub clusters. Single-agent architecture with 6 diagnost
 
 ### Test Case Generator (`apps/test-case-generator/`)
 
-Generates Polarion-ready test cases from JIRA tickets. 6-phase subagent pipeline with 6 specialized agents: feature-investigator, code-change-analyzer, ui-discovery, live-validator, test-case-generator, quality-reviewer.
+Generates Polarion-ready test cases from JIRA tickets. 6-phase subagent pipeline with 6 specialized agents (each with structured anomaly reporting): feature-investigator, code-change-analyzer (with coverage gap analysis), ui-discovery, live-validator, test-case-generator, quality-reviewer (with design efficiency and coverage gap verification). report.py includes artifact completeness check (9 expected files). Portable standalone scripts for repo-root execution.
 
 3 skills in `.claude/skills/`: `/generate`, `/review`, `/batch`
 

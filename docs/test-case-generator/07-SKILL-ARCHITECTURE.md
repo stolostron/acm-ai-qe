@@ -1,10 +1,10 @@
 # Test Case Generator: Skill Architecture
 
-How the portable skill pack enables the test case generation pipeline. 9 skills decompose a 10-phase pipeline into reusable, independently testable components — from JIRA investigation through PR code analysis, UI discovery, and synthesis to Polarion-ready test case output with mandatory quality review.
+How the portable skill pack enables the test case generation pipeline. 10 skills decompose a 10-phase pipeline into reusable, independently testable components — from JIRA investigation through PR code analysis, UI discovery, and synthesis to Polarion-ready test case output with mandatory quality review.
 
 ## Skill Inventory
 
-9 skills organized in 4 tiers:
+10 skills organized in 4 tiers:
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -235,14 +235,14 @@ Implementation details, AC discrepancies with source citations
 
 **Pipeline stage:** 3
 **Files:** SKILL.md (no separate reference files)
-**Depends on:** acm-ui-source (source verification), acm-neo4j-explorer (dependency graph)
+**Depends on:** acm-ui-source (source verification), acm-neo4j-explorer (dependency graph), acm-jira-client (coverage gap analysis)
 
 Analyzes PR diffs from `stolostron/console` or `kubevirt-ui/kubevirt-plugin` to understand what changed and what needs testing.
 
 ```mermaid
 flowchart TD
     PR["PR Number + Repo"] --> S1
-    subgraph "9-Step Analysis"
+    subgraph "10-Step Analysis"
         S1["Step 1: gh pr view\n(metadata)"] --> S2["Step 2: gh pr diff\n(full diff)"]
         S2 --> S3["Step 3: Set ACM\nVersion"]
         S3 --> S4["Step 4: Analyze\nChanged Files"]
@@ -251,8 +251,9 @@ flowchart TD
         S6 --> S7["Step 7: Check\nDependencies"]
         S7 --> S8["Step 8: Verify\nUI Strings"]
         S8 --> S9["Step 9: Map to\nTest Scenarios"]
+        S9 --> S10["Step 10: Coverage\nGap Analysis"]
     end
-    S9 --> OUT["Changed components, UI elements,\nfiltering logic, test scenarios"]
+    S10 --> OUT["Changed components, UI elements,\nfiltering logic, test scenarios,\ncoverage gaps"]
 ```
 
 **Per-file analysis identifies:**
@@ -271,6 +272,8 @@ flowchart TD
 
 **Follow-up PR detection:** For each primary changed file, checks for subsequent merged PRs via `gh pr list --search "path:<filepath>" --state merged`. Flags post-merge renames, fixes, and refactors that would make the test case stale.
 
+**Coverage gap analysis (Step 10):** Cross-references every conditional branch, error handler, and edge case in the diff against the JIRA story's Acceptance Criteria (retrieved via `get_issue`). Code behaviors not covered by any AC are reported as Coverage Gaps with description, code reference, and user impact. Internal defensive code (null checks with no UI effect) is excluded. The synthesis phase triages gaps as ADD TO TEST PLAN, NOTE ONLY, or SKIP.
+
 **Critical rules:**
 - MANDATORY: Read full source of primary target file via `get_component_source` — diffs alone miss array construction patterns, import chains, and conditional rendering
 - Distinguish test files (`.test.tsx`) from production code — data in test files is MOCK DATA
@@ -282,7 +285,7 @@ flowchart TD
 ### 4. acm-test-case-reviewer — Quality Gate (Phase 8)
 
 **Pipeline stage:** 8 (mandatory, cannot skip)
-**Files:** SKILL.md + 1 reference file (review-checklist.md) + 1 script (validate_conventions.py)
+**Files:** SKILL.md (portable: standalone with inlined validation; app: uses convention_validator.py)
 **Depends on:** acm-ui-source (MCP spot-checks), acm-polarion-client (coverage), acm-knowledge-base (conventions)
 
 The mandatory quality gate. No test case is delivered without passing this review. Operates as a review loop — if it returns NEEDS_FIXES, the writer fixes and the reviewer re-runs (max 3 iterations).
@@ -304,7 +307,7 @@ flowchart TD
     FIX --> TC
 ```
 
-**8-step review process:**
+**10-step review process:**
 
 | Step | What | Checks | Severity |
 |:----:|------|--------|----------|
@@ -314,6 +317,8 @@ flowchart TD
 | 4 | MCP verification | min 3 checks: translations, routes, component source | BLOCKING if < 3 |
 | 5 | AC vs implementation | ACs match expected results, discrepancies cited | BLOCKING |
 | 6 | Knowledge cross-reference | Field order, filtering, CRDs vs architecture file | BLOCKING |
+| 6.5 | Design efficiency | Redundant resources, missed state transitions, duplicate verifications, setup/step ratio | WARNING |
+| 6.6 | Coverage gap verification | Gaps triaged as ADD have test steps, gaps triaged as NOTE mentioned | WARNING |
 | 7 | Polarion coverage | Duplicate check, metadata accuracy | WARNING |
 | 8 | Peer consistency | Compare with 2–3 existing test cases in same area | WARNING |
 
@@ -583,9 +588,9 @@ flowchart LR
 - Output: Story summary, ACs, comments (with decisions/edge cases), linked tickets, existing Polarion coverage, sibling story context
 
 **Agent B: Code Change Analyzer**
-- Input: PR number, repo, ACM version
-- Tools: gh CLI, acm-ui MCP, neo4j MCP
-- Output: Changed components, new UI elements, modified behavior, routes, translations, filtering logic, follow-up PRs, test scenarios
+- Input: PR number, repo, ACM version, JIRA ID
+- Tools: gh CLI, acm-ui MCP, neo4j MCP, jira MCP
+- Output: Changed components, new UI elements, modified behavior, routes, translations, filtering logic, follow-up PRs, test scenarios, coverage gaps
 
 **Agent C: UI Discovery**
 - Input: ACM version, CNV version (if Fleet Virt), feature name, area
@@ -617,6 +622,10 @@ Phase 5 merges all investigation outputs using explicit precedence rules:
 3. If a step tests functionality from a different story (even in same PR), exclude it
 4. Mention other stories in Notes as "Related but scoped to [other-story]"
 
+**Coverage gap triage:** If the code-change-analyzer identified code behaviors not covered by any AC, the synthesis phase triages each gap: ADD TO TEST PLAN (user-visible, worth testing), NOTE ONLY (real but minor), or SKIP (internal, not UI-testable). Gaps triaged as ADD get corresponding test steps.
+
+**Test design optimization:** 5 passes applied to the planned steps before writing: state transition consolidation (test state changes on one entity instead of creating multiple), resource minimization, step flow sequencing (observe → act → verify), deduplication, and negative scenario placement (before positive when no extra setup needed).
+
 ---
 
 ## Quality Review Loop
@@ -625,7 +634,7 @@ The review is a mandatory gate with two enforcement layers:
 
 ```mermaid
 flowchart TD
-    TC[test-case.md] --> AIR["AI Review\n(8-step process)"]
+    TC[test-case.md] --> AIR["AI Review\n(10-step process)"]
     AIR --> JSON["Parse JSON\nverification block"]
     JSON --> PE["Programmatic\nEnforcement\n(review_enforcement.py)"]
     PE --> CHECK{Both\npass?}
@@ -639,7 +648,7 @@ flowchart TD
 ```
 
 **Layer 1: AI Review** (acm-test-case-reviewer skill)
-- 8-step review: structural validation, MCP verification (min 3), AC vs implementation, knowledge cross-reference, Polarion coverage, peer consistency
+- 10-step review: structural validation, MCP verification (min 3), AC vs implementation, knowledge cross-reference, design efficiency check, coverage gap verification, Polarion coverage, peer consistency, anomaly reporting
 - Verdict: PASS or NEEDS_FIXES with specific BLOCKING/WARNING issues
 
 **Layer 2: Programmatic Enforcement** (review_enforcement.py)
@@ -659,12 +668,14 @@ flowchart TD
 |-----------|------|-------------|-----------|
 | `gather.py` | Deterministic (Python) | PR metadata, file list, peer test cases, area knowledge | Always produces `gather-output.json` + `pr-diff.txt` |
 | `review_enforcement.py` | Deterministic (Python) | Parses reviewer output, counts MCP verifications | Cannot be skipped by AI |
-| `validate_conventions.py` | Deterministic (Python) | Structural validation of test case markdown | Title format, metadata, step format |
+| `validate_conventions.py` | Deterministic (Python) | Structural validation of test case markdown (app version) | Title format, metadata, step format |
 | `generate_html.py` | Deterministic (Python) | Polarion-compatible HTML from markdown | Setup + steps HTML |
-| `report.py` | Deterministic (Python) | Orchestrates validation + HTML + summary | Always produces output files |
+| `report.py` | Deterministic (Python) | Orchestrates validation + HTML + summary + artifact completeness check (portable version inlines validator + HTML generator) | Always produces output files; reports artifact completeness in `review-results.json` and `SUMMARY.txt` |
 | `log_phase` | Deterministic (Python) | Write telemetry entries between AI phases | Pipeline observability |
 | Phase 2–7 | AI (Skills) | Investigation, analysis, synthesis, writing | Evidence-based, MCP-verified |
 | Phase 8 | AI + Deterministic | Review (AI) + enforcement (Python) | Two-layer quality gate |
+
+**Portable skill scripts:** The portable skill pack (`.claude/skills/acm-test-case-generator/scripts/`) contains standalone versions of `gather.py`, `report.py`, `review_enforcement.py`, and `generate_html.py` with zero external dependencies — all `src/` imports are inlined. Referenced via `${CLAUDE_SKILL_DIR}/scripts/` for portability.
 
 ---
 
@@ -675,7 +686,11 @@ The pipeline has two independent validation systems. Both must pass:
 | Layer | When | What it checks | Authoritative for |
 |-------|------|---------------|-------------------|
 | **Phase 8** (quality-reviewer + enforcement) | Before Stage 3 | MCP verification of UI elements, AC vs implementation, scope alignment, numeric thresholds, Polarion coverage, peer consistency, discovered vs assumed | Semantic correctness (are the right things tested?) |
-| **Phase 9** (report.py / convention_validator.py) | After Phase 8 | Title pattern, metadata fields, section order, step format, entry point, teardown | Structural correctness (is the format right?) |
+| **Phase 9** (report.py / convention_validator.py) | After Phase 8 | Title pattern, metadata fields, section order, step format, entry point, teardown, artifact completeness | Structural correctness (is the format right?) |
+
+Phase 9 also checks pipeline artifact completeness (9 expected files) and includes the result in `review-results.json` and `SUMMARY.txt`. This is reporting-only — it does not block the pipeline.
+
+All 6 agents include an optional Anomalies section in their return format for surfacing data quality issues (empty MCP results, missing JIRA ACs, unexpected PR structure).
 
 If Phase 9 fails after Phase 8 passed, fix the structural issue and re-run `report.py`. Do not re-run the quality reviewer unless the fix changed test content.
 
@@ -699,8 +714,8 @@ runs/ACM-30459/ACM-30459-2026-04-08T12-00-00/
   phase4.5-quality-review.md         Phase 8: reviewer output + JSON block
   test-case-setup.html               Phase 9: Polarion setup section HTML
   test-case-steps.html               Phase 9: Polarion steps table HTML
-  review-results.json                Phase 9: structural validation results
-  SUMMARY.txt                        Phase 9: human-readable summary
+  review-results.json                Phase 9: structural validation + artifact completeness
+  SUMMARY.txt                        Phase 9: human-readable summary + artifact completeness
   pipeline.log.jsonl                 All phases: telemetry log
 ```
 
@@ -714,7 +729,7 @@ Which tools each skill uses, and when:
 |----------|:-:|:-:|:-:|:-:|
 | `set_acm_version` | Phase 2 | Step 3 | Step 4 | Step 4 |
 | `set_cnv_version` | Phase 4 | — | — | — |
-| `get_issue` | Phase 2 | — | — | — |
+| `get_issue` | Phase 2 | Step 10 | — | — |
 | `search_issues` | Phase 2 | — | — | — |
 | `get_polarion_work_items` | Phase 2 | — | — | Step 7 |
 | `get_polarion_test_case_summary` | Phase 2, 8 | — | — | Step 7 |

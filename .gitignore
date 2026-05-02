@@ -68,6 +68,9 @@ environment-*.config
 # Machine-specific Claude Code settings (permissions, allowed tools)
 **/settings.local.json
 
+# Personal/development skills (not part of the ACM suite)
+.claude/skills/grill-me/
+
 # Agent trace logs (session-specific, contain tool call details)
 **/.claude/traces/
 

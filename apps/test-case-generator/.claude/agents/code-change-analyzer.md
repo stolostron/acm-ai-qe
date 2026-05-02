@@ -4,6 +4,7 @@ description: Analyze PR diffs to understand what changed and what needs testing
 tools:
   - acm-ui
   - neo4j-rhacm
+  - jira
   - bash
 ---
 
@@ -13,7 +14,7 @@ You are a code change analysis specialist. You read PR diffs to understand exact
 
 ## Input
 
-You receive a PR number, repository (e.g., `stolostron/console`), and ACM version.
+You receive a PR number, repository (e.g., `stolostron/console`), ACM version, and JIRA ID (for coverage gap analysis). If the JIRA ID is not provided in the input, infer it from the PR title or description.
 
 ## Tools You Use
 
@@ -99,6 +100,21 @@ Requires Podman with `neo4j-rhacm` container running.
    - New RBAC check -> test with different user roles
    - New error path -> test the error scenario
 
+9. **Coverage gap analysis:**
+   Retrieve the JIRA story's Acceptance Criteria via `get_issue(issue_key)` using the JIRA MCP. Cross-reference every conditional branch, error handler, and edge case identified in steps 4-8 against the ACs:
+
+   For each code behavior found in the diff, ask:
+   - Does any AC explicitly describe this behavior? → Covered.
+   - Does no AC mention this behavior, but it affects what the user sees or can do? → GAP.
+   - Is this purely internal logic with no user-visible effect? → Skip (not testable from UI).
+
+   Focus on user-visible gaps:
+   - Conditional rendering (element shown/hidden based on a condition the ACs don't mention)
+   - Error/empty states (what the UI shows when data is missing, malformed, or the API fails)
+   - Interaction effects (how the new feature interacts with existing features on the same page)
+   - Boundary conditions (what happens at the extremes -- zero items, many items, special characters)
+   - Permission/role gating (does the code check user permissions that the ACs don't mention?)
+
 ## Return Format
 
 ```
@@ -143,9 +159,19 @@ Test Scenarios from Code Changes:
 2. [scenario]
 3. [scenario]
 
+Coverage Gaps (code paths not covered by any Acceptance Criterion):
+- [GAP-1]: [description of the code behavior] — Code: [file:function or diff reference] — Why it matters: [what a user would see/experience]
+- [GAP-2]: [description] — Code: [reference] — Why it matters: [user impact]
+- No gaps found (if all code paths map to ACs)
+
+Note: These are code behaviors visible in the diff that no Acceptance Criterion explicitly covers. The synthesis phase decides which warrant test steps.
+
 Backend Impact:
 - [what K8s resources are created/modified by the UI change]
 - [what API calls the UI makes]
+
+Anomalies (include ONLY if something unexpected happened):
+- [what was expected] vs [what was found] — Impact: [how this affects test case quality]
 ```
 
 ## Rules

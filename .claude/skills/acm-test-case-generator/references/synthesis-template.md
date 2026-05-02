@@ -8,14 +8,14 @@ Use this template when merging investigation results from JIRA, code analysis, a
 SYNTHESIZED CONTEXT
 ===================
 
---- JIRA INVESTIGATION ---
-[Paste structured JIRA findings: story summary, ACs, comments, edge cases, linked tickets, PR references]
+--- JIRA INVESTIGATION (source: phase2-jira.json) ---
+[Read from phase2-jira.json. JSON values are authoritative for: acceptance_criteria, linked_tickets, pr_references]
 
---- CODE CHANGE ANALYSIS ---
-[Paste structured code analysis: changed components, new UI elements, filtering logic, field orders, test scenarios]
+--- CODE CHANGE ANALYSIS (source: phase3-code.json) ---
+[Read from phase3-code.json. JSON values are authoritative for: field_orders, filter_functions (exact conditions), coverage_gaps]
 
---- UI DISCOVERY ---
-[Paste structured UI discovery: selectors, translations, routes, entry point, wizard steps]
+--- UI DISCOVERY (source: phase4-ui.json) ---
+[Read from phase4-ui.json. JSON values are authoritative for: routes, translations_verified, selectors, entry_point]
 
 --- TEST PLAN ---
 Scenarios: [N]
@@ -32,6 +32,7 @@ Conflict resolution (if findings disagree):
 - What changed (files, diff): trust CODE CHANGE ANALYSIS (reads the diff)
 - Knowledge file authority: if ANY finding contradicts architecture knowledge, flag the contradiction and trust the knowledge file until MCP verification resolves it
 - Metric names, translation strings, UI field labels: ALWAYS trust CURRENT source code (verified via `search_translations` or `get_component_source`) over JIRA descriptions. JIRA descriptions may contain stale or proposed names changed during implementation. When a discrepancy is found, use the source code value and add a Note: "JIRA says '[jira-name]' but source code uses '[source-name]' (verified via [tool])"
+- JSON file authority: when phase JSON files (`phase2-jira.json`, `phase3-code.json`, `phase4-ui.json`) exist in the run directory, their structured values (filter conditions, field order arrays, route paths, AC lists) take precedence over conversation text for the same data point
 ```
 
 ## Test Design Optimization (MANDATORY)

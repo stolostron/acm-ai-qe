@@ -157,7 +157,18 @@ If `--skip-live` is NOT set and a cluster URL is available:
 [Phase 3] Running live validation...
 ```
 
-- Launch the live-validator agent with: console URL, feature path, steps to verify
+**Step 0: Environment verification (MANDATORY before feature validation)**
+
+Before launching the live-validator agent, verify the environment has the PR's change:
+
+1. Get the PR merge date from `gather-output.json`
+2. Get the MCH version: `oc get mch -A -o jsonpath='{.items[0].status.currentVersion}'`
+3. Compare: is the PR included in this build?
+   - If YES: proceed with full validation, discrepancies are significant findings
+   - If NO: note "Environment does not contain PR changes (MCH build predates PR merge)" and instruct the live-validator to skip new-feature UI checks. Validate only prerequisites and existing features.
+   - If UNKNOWN: proceed but instruct the live-validator to flag all discrepancies as "environmental -- verify on a cluster with the change deployed"
+
+- Launch the live-validator agent with: console URL, feature path, steps to verify, environment verification result
 - Agent file: `.claude/agents/live-validator.md`
 - Output: LIVE VALIDATION RESULTS (confirmed behavior, discrepancies, screenshots)
 - **Save the agent's full output:** `Write -> <run-dir>/phase3-live-validation.md`
@@ -217,11 +228,15 @@ Then BEFORE accepting the verdict:
    If the JSON block is missing or any check fails, override the verdict to `NEEDS_FIXES` and re-launch with: "Your review is missing mandatory MCP verifications. You MUST: (1) call at least 3 MCP tools and list results in the JSON block, (2) check AC vs implementation, (3) cross-reference knowledge file."
 
 2. If verdict = **PASS** (and JSON checks pass) -> proceed to Stage 3
-3. If verdict = **NEEDS_FIXES**:
-   a. Fix all BLOCKING issues in the test case markdown
-   b. Re-launch quality-reviewer with the same inputs PLUS the previous review output (so it can use the re-review protocol to check only previously reported issues)
-   c. Repeat until PASS (max 3 iterations)
-4. If still failing after 3 iterations, show the remaining issues to the user
+3. If verdict = **NEEDS_FIXES**, escalate through tiers (NEVER retry with the same context and same instruction):
+
+   **Tier 1 — Targeted MCP re-investigation:** Parse each BLOCKING issue. For factual errors (wrong filter logic, wrong field order, wrong label), launch a targeted MCP call (`get_component_source`, `search_translations`) to get the correct value. Fix the test case with corrected data. For format errors, fix directly. Re-launch quality-reviewer.
+
+   **Tier 2 — Focused retry with evidence:** If Tier 1 fails, write the current draft and reviewer flags to a file. Re-attempt the fix with explicit focus on the reviewer's exact complaint and the MCP evidence from Tier 1. Re-launch quality-reviewer.
+
+   **Tier 3 — Placeholder and proceed:** If still NEEDS_FIXES after Tier 2, mark unresolvable steps with `[MANUAL VERIFICATION REQUIRED: <specific issue>]`. Proceed to Stage 3. The summary reports which steps need manual verification and why.
+
+4. Pipeline does NOT abort on unresolvable review issues
 
 ```
 Quality review PASSED. Generating reports.

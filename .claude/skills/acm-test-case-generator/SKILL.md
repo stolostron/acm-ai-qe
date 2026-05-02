@@ -97,6 +97,8 @@ Using the **acm-jira-client** skill, deeply investigate the JIRA ticket:
 
 **Output:** Story summary, ACs, implementation details from comments, edge cases, RBAC impact, linked tickets, existing coverage, test scenarios suggested.
 
+Write findings to `phase2-jira.json` in the run directory with structured fields: story (key, summary, status, fix_version, components), acceptance_criteria (array of items), comments_with_decisions (key insights from comments), linked_tickets (qe, bugs, siblings), pr_references (number, repo, merged date), existing_polarion coverage.
+
 ### Phase 3: Analyze PR Code Changes
 
 Using the **acm-code-analyzer** skill, analyze the PR diff:
@@ -120,6 +122,8 @@ Using the **acm-code-analyzer** skill, analyze the PR diff:
 
 **Output:** Changed components, new UI elements, modified behavior, filtering logic with exact conditions, field orders, component dependencies, follow-up PRs, test scenarios, coverage gaps.
 
+Write findings to `phase3-code.json` in the run directory with structured fields: primary_files, field_orders (arrays per component), filter_functions (name, file, exact conditions from source), new_ui_elements, translations, follow_up_prs, coverage_gaps (description, code_ref, user_impact).
+
 ### Phase 4: Discover UI Elements
 
 Using the **acm-ui-source** skill, discover UI elements:
@@ -136,12 +140,14 @@ Using the **acm-ui-source** skill, discover UI elements:
 
 **Output:** Component files, selectors, translation keys, routes, entry point, wizard structure, existing QE selectors.
 
+Write findings to `phase4-ui.json` in the run directory with structured fields: routes (name-to-path mapping), translations_verified (key-value pairs confirmed via MCP), selectors (array), entry_point, acm_version, wizard_steps (if applicable).
+
 ### Phase 5: Synthesize
 
 Read `references/synthesis-template.md` for the synthesis template.
 
-Merge all investigation results into a SYNTHESIZED CONTEXT block:
-1. Combine JIRA findings, code analysis, and UI discovery
+Read `phase2-jira.json`, `phase3-code.json`, `phase4-ui.json` from the run directory. These JSON files are the authoritative source for exact values (filter conditions, field order arrays, routes, ACs). Merge all findings into a SYNTHESIZED CONTEXT block:
+1. Start from the JSON files for structured data, supplement with conversation context for additional findings. For exact code extracts (filter conditions, field order arrays, route paths), always prefer the JSON values over conversation text.
 2. **Resolve conflicts**: trust UI discovery for UI elements, JIRA for requirements, code analysis for what changed, knowledge files for architecture constraints
 3. **Scope gate**: only plan steps for the target story's ACs, not the broader PR
 4. **AC vs Implementation cross-reference**: if ACs disagree with code behavior, flag as discrepancy
@@ -160,6 +166,22 @@ Merge all investigation results into a SYNTHESIZED CONTEXT block:
 ### Phase 6: Live Validation (conditional)
 
 If a cluster URL was provided (or auto-detected from `oc` login in Phase 0):
+
+**Step 0: Environment verification (MANDATORY before feature validation)**
+
+Before validating the NEW feature, verify the environment has the change:
+
+1. Get the PR merge date from `gather-output.json`
+2. Get the MCH version: `oc get mch -A -o jsonpath='{.items[0].status.currentVersion}'`
+3. Compare: is the PR included in this build?
+   - If YES: proceed with full validation, discrepancies are significant findings
+   - If NO: note "Environment does not contain PR changes (MCH build predates PR merge)" and skip new-feature UI checks. Validate only prerequisites and existing features.
+   - If UNKNOWN: proceed but flag all discrepancies as "environmental -- verify on a cluster with the change deployed"
+
+**Arbitration hierarchy (when change IS deployed but discrepancy found):**
+- Source code = structural truth (what the developer built)
+- Live cluster = environmental truth (what's running now)
+- When they disagree: KEEP the source-based test step, ADD prerequisite note explaining the discrepancy, NEVER let transient cluster state remove a source-code-verified step
 
 Use ALL available tools in this priority order:
 
@@ -214,12 +236,19 @@ python ${CLAUDE_SKILL_DIR}/scripts/review_enforcement.py <review-output-file>
 
 This script verifies the reviewer's output contains 3+ MCP verification entries, at least one `get_component_source` call, and at least one `search_translations` call. For any metric name, field label, or translation string in expected results, the reviewer MUST verify it against current source code -- stale JIRA description text is a BLOCKING issue. If enforcement fails, the verdict is overridden to NEEDS_FIXES. The script also warns (non-blocking) if the test case describes a conditional feature but lacks a negative scenario step.
 
-**Review loop:**
-1. If PASS -> proceed to Phase 9
-2. If NEEDS_FIXES -> fix the issues in the test case, re-run the review (max 3 iterations)
-3. If still failing after 3 iterations -> show remaining issues to the user
+**Review loop with 3-tier escalation (NEVER retry with the same context and same instruction):**
 
-**STOP checkpoint:** "Quality review PASSED."
+If PASS -> proceed to Phase 9.
+
+If NEEDS_FIXES, escalate through tiers:
+
+**Tier 1 — Targeted MCP re-investigation:** Parse each BLOCKING issue. For factual errors (wrong filter logic, wrong field order, wrong label), launch a targeted MCP call (`get_component_source`, `search_translations`) to get the correct value. Pass corrected data to the writer for a targeted fix. For format errors (missing separator, wrong title pattern), fix directly. Re-run review.
+
+**Tier 2 — Focused retry with evidence:** If Tier 1 fails (MCP unavailable or source doesn't resolve it), write the current draft and reviewer flags to a file. Re-attempt the fix with explicit focus on the reviewer's exact complaint and the MCP evidence gathered in Tier 1. Re-run review.
+
+**Tier 3 — Placeholder and proceed:** If still NEEDS_FIXES after Tier 2, mark unresolvable steps with `[MANUAL VERIFICATION REQUIRED: <specific issue>]`. Proceed to Phase 9 with the partially-verified test case. The summary reports which steps need manual verification and why. The pipeline does NOT abort.
+
+**STOP checkpoint:** "Quality review PASSED." (or "Quality review: N steps flagged for manual verification.")
 
 ### Phase 9: Generate Reports
 
@@ -242,6 +271,9 @@ Each run produces artifacts under `runs/<JIRA_ID>/<timestamp>/`:
 ```
 gather-output.json        -- Phase 1: collected data
 pr-diff.txt               -- Phase 1: full PR diff
+phase2-jira.json          -- Phase 2: structured JIRA findings
+phase3-code.json          -- Phase 3: structured code analysis
+phase4-ui.json            -- Phase 4: structured UI discovery
 test-case.md              -- Phase 7: primary deliverable
 test-case-setup.html      -- Phase 9: Polarion setup HTML
 test-case-steps.html      -- Phase 9: Polarion steps HTML

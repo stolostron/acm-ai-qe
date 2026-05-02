@@ -221,7 +221,7 @@ reviews:
           Does NOT perform primary investigation — only spot-checks via MCP.
 
         Phase 4.5 (quality-reviewer agent, MANDATORY GATE) → PASS or NEEDS_FIXES
-          Loop: launch reviewer → if NEEDS_FIXES, fix and re-launch → max 3 iterations.
+          3-tier escalation: targeted MCP re-investigation → focused retry with evidence → placeholder and proceed.
           Must PASS before Stage 3 runs.
 
         Stage 3 (report.py) → review-results.json + HTML + SUMMARY.txt

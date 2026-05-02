@@ -3,7 +3,7 @@
 ## Gate Rules
 
 1. A phase CANNOT be marked complete without executing it.
-2. The Quality Review phase is a HARD STOP. If the review returns NEEDS_FIXES, fix the issues and re-review. Loop until pass or max 3 iterations.
+2. The Quality Review phase is a HARD STOP. If the review returns NEEDS_FIXES, escalate through 3 tiers: targeted MCP re-investigation, focused retry with evidence, then placeholder and proceed. Never retry with the same context.
 3. Never skip Live Validation when a cluster URL was provided. If the cluster is unreachable, log why.
 4. Test case writing MUST complete before quality review. Write first, then review.
 
@@ -27,4 +27,4 @@ Print a progress line before each phase:
 
 - After Phase 5: "Investigation complete. [N] test scenarios identified."
 - After Phase 7: "Test case written: [filename] ([N] steps)."
-- After Phase 8 pass: "Quality review PASSED."
+- After Phase 8: "Quality review PASSED." (or "Quality review: N steps flagged for manual verification.")

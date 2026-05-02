@@ -127,7 +127,7 @@ The entire pipeline is orchestrated by [Claude Code Skills](https://docs.anthrop
 
 | Skill | Command | What it does |
 |-------|---------|-------------|
-| **Generate** | `/generate ACM-XXXXX` | Full pipeline: gather &rarr; 3 parallel investigation agents &rarr; synthesis with scope gating &rarr; optional live validation &rarr; test case writing &rarr; quality review loop (max 3 iterations) &rarr; Polarion HTML. Includes STOP checkpoints after Phase 2 and Phase 4 for user review. |
+| **Generate** | `/generate ACM-XXXXX` | Full pipeline: gather &rarr; 3 parallel investigation agents &rarr; synthesis with scope gating &rarr; optional live validation &rarr; test case writing &rarr; quality review with 3-tier escalation &rarr; Polarion HTML. Includes STOP checkpoints after Phase 2 and Phase 4 for user review. |
 | **Review** | `/review path/to/test-case.md` | Standalone quality review: loads an existing test case and runs the quality-reviewer agent against it. Returns PASS or NEEDS_FIXES with specific issues. |
 | **Batch** | `/batch ACM-1,ACM-2,ACM-3` | Multi-ticket generation: runs `/generate` sequentially for each JIRA ID. Continues on failure. Produces a summary table with status, step count, and output path per ticket. |
 
@@ -190,7 +190,7 @@ Two independent validation layers. Both must pass before delivery:
 | **Phase 4.5** (Quality Reviewer agent) | Before Stage 3 | MCP verification of UI elements, AC vs implementation, scope alignment, numeric thresholds, discovered vs assumed |
 | **Stage 3** (`report.py`) | After Phase 4.5 | Title pattern, metadata fields, section order, step format, entry point, teardown |
 
-The quality reviewer loops: if it returns `NEEDS_FIXES`, the orchestrator fixes the issues and re-runs the reviewer until `PASS` (max 3 iterations).
+The quality reviewer uses 3-tier escalation: targeted MCP re-investigation for factual errors, focused retry with evidence, then marking unresolvable steps with `[MANUAL VERIFICATION REQUIRED]` and proceeding.
 
 <details>
 <summary><b>Pipeline Details</b></summary>

@@ -288,7 +288,7 @@ flowchart TD
 **Files:** SKILL.md (portable: standalone with inlined validation; app: uses convention_validator.py)
 **Depends on:** acm-ui-source (MCP spot-checks), acm-polarion-client (coverage), acm-knowledge-base (conventions)
 
-The mandatory quality gate. No test case is delivered without passing this review. Operates as a review loop — if it returns NEEDS_FIXES, the writer fixes and the reviewer re-runs (max 3 iterations).
+The mandatory quality gate. No test case is delivered without passing this review. Operates as a 3-tier escalation loop — targeted MCP re-investigation, focused retry with evidence, then placeholder and proceed. Never retries with the same context.
 
 ```mermaid
 flowchart TD
@@ -658,7 +658,7 @@ flowchart TD
 - Warns if conditional feature lacks negative scenario step
 - Can override AI verdict to NEEDS_FIXES
 
-**Review loop:** If NEEDS_FIXES, fix issues → re-review (max 3 iterations). After 3 failures, show remaining issues to user.
+**Review loop with 3-tier escalation:** If NEEDS_FIXES: Tier 1 — targeted MCP re-investigation for factual errors. Tier 2 — focused retry with evidence. Tier 3 — mark unresolvable steps with `[MANUAL VERIFICATION REQUIRED]` and proceed.
 
 ---
 

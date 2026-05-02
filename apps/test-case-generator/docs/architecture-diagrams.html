@@ -380,7 +380,7 @@ graph TD
      ═══════════════════════════════════════════════════════════════════════ -->
 <div id="d6" class="card">
   <h2>Diagram 6: Phase 4 + 4.5 &mdash; Writer &amp; Quality Gate</h2>
-  <p class="desc">Phase 4: <code>test-case-generator</code> agent writes the test case from synthesized context. Phase 4.5: <code>quality-reviewer</code> agent validates with mandatory MCP verification (min 3 checks). Loops until PASS (max 3 iterations). Both are STOP checkpoints.</p>
+  <p class="desc">Phase 4: <code>test-case-generator</code> agent writes the test case from synthesized context. Phase 4.5: <code>quality-reviewer</code> agent validates with mandatory MCP verification (min 3 checks). Uses 3-tier escalation (targeted MCP, focused retry, placeholder). Both are STOP checkpoints.</p>
   <div class="mermaid">
 graph TD
     SYNCTX["SYNTHESIZED CONTEXT\n+ live validation (if any)"]:::data --> P4C["Read Conventions\n+ peer test cases\n+ area knowledge"]:::step

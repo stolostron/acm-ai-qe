@@ -292,11 +292,14 @@ reviews:
         === AGENTS (6) ===
 
         feature-investigator.md: Phase 1 — JIRA MCP + Polarion MCP + Neo4j + gh CLI
-        code-change-analyzer.md: Phase 1 — gh CLI + acm-ui MCP + Neo4j.
+        code-change-analyzer.md: Phase 1 — gh CLI + acm-ui MCP + JIRA MCP + Neo4j.
           Must read primary file via get_component_source (not just diff).
           Must distinguish test files from production code.
           Must cross-reference with knowledge/architecture/<area>.md.
           Trusts MCP source over PR diff when they disagree.
+          Step 9: Coverage gap analysis — cross-references code behaviors against
+          JIRA ACs (via jira MCP get_issue), identifies user-visible code paths
+          not covered by any AC. Gaps reported in output for synthesis triage.
         ui-discovery.md: Phase 1 — acm-ui MCP (all tools) + Neo4j +
           Playwright (conditional: live browser verification when cluster URL provided) +
           bash (oc login for cluster auth)
@@ -311,6 +314,11 @@ reviews:
           Must call search_translations at least once (verify metric/label names against source).
           Must cross-reference knowledge/architecture/<area>.md (Step 4.6).
           Must verify AC discrepancy Notes via source code (Step 4.5).
+          Step 4.7: Design efficiency check — flags redundant resources,
+          missed state transitions, duplicate verifications, setup/step ratio
+          (WARNINGs, not BLOCKING).
+          Step 4.8: Coverage gap verification — checks gaps triaged as
+          "ADD TO TEST PLAN" are covered by test steps (WARNING if missing).
 
         === KEY CONVENTIONS ===
 
@@ -344,7 +352,9 @@ reviews:
         Reads gather-output.json for jira_id and area (not directory name parsing).
         Runs convention_validator.validate_test_case(path, area=area).
         Generates Polarion HTML via html_generator.generate_html().
+        Checks artifact completeness (9 expected files in run directory).
         Writes review-results.json + HTML files + SUMMARY.txt.
+        Artifact completeness is reporting-only (does not block pipeline).
         Does NOT consume Phase 4.5 quality-reviewer output — they are
         independent validation layers (Phase 4.5 = semantic, Stage 3 = structural).
 
@@ -417,11 +427,15 @@ reviews:
 
         Agents in test-case-generator:
         - feature-investigator.md: Phase 1 JIRA deep dive (jira, polarion, neo4j, gh CLI)
-        - code-change-analyzer.md: Phase 1 PR diff analysis (gh CLI, acm-ui, neo4j)
+        - code-change-analyzer.md: Phase 1 PR diff analysis (gh CLI, acm-ui, jira, neo4j)
         - ui-discovery.md: Phase 1 source code discovery (acm-ui, neo4j, playwright conditional, bash)
         - live-validator.md: Phase 3 live cluster verification (playwright, oc, acm-search, acm-kubectl)
         - test-case-generator.md: Phase 4 test case writer (acm-ui spot-check only)
         - quality-reviewer.md: Phase 4.5 quality gate (acm-ui, polarion)
+
+        All 6 tc-gen agents include an optional Anomalies section in their
+        output format for surfacing data quality issues (empty MCP results,
+        missing JIRA ACs, unexpected PR structure) upstream.
 
         MCP tool signatures (do NOT flag these as incorrect):
         - mcp__acm-ui__search_code(query='...', repo='acm')

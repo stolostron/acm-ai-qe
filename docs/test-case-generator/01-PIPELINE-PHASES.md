@@ -1,6 +1,6 @@
 # Pipeline Phases
 
-The test case generator runs a 7-step pipeline from JIRA ticket to Polarion-ready output. Two steps are deterministic Python scripts (Stage 1, Stage 3). Five steps are AI-driven (Phases 0-4.5). This document describes each step in execution order.
+The test case generator runs an 8-step pipeline from JIRA ticket to Polarion-ready output. Two steps are deterministic Python scripts (Stage 1, Stage 3). Six steps are AI-driven (Phases 0-4.5). The portable skill pack uses a 10-phase model (Phases 0-9) that breaks investigation into 3 sequential phases; the app consolidates them into 1 parallel phase. This document describes each step in execution order using the app pipeline numbering.
 
 ## Phase 0: Parse Inputs and Ask Questions
 
@@ -46,6 +46,7 @@ If JIRA has multiple acceptance criteria with distinct flows: ask which to cover
 | 6 | Load conventions | Read `knowledge/conventions/test-case-format.md` | `conventions` |
 | 7 | Load area knowledge | Read `knowledge/architecture/<area>.md` | `area_knowledge` |
 | 8 | Load HTML templates | Read `knowledge/conventions/polarion-html-templates.md` | `html_templates` |
+| 9 | Classify PR files | Python (path patterns) | `test_files`, `production_files` |
 
 ### Area Detection
 
@@ -185,6 +186,16 @@ The orchestrator merges all three Phase 1 outputs into a `SYNTHESIZED CONTEXT` b
    - UI elements: trust UI Discovery (reads source directly)
    - Business requirements: trust Feature Investigator (reads JIRA)
    - What changed: trust Code Change Analyzer (reads diff)
+6. **Coverage gap triage:** If code-change-analyzer identified code behaviors not covered by any AC, triage each gap:
+   - `ADD TO TEST PLAN` — user-visible behavior worth testing, gets a test step
+   - `NOTE ONLY` — real but minor, mentioned in Notes section
+   - `SKIP` — internal implementation detail, not UI-testable
+7. **Optimize test design** (5 passes applied to the planned steps before writing):
+   - State transition consolidation (test state changes on one entity instead of creating multiple)
+   - Resource minimization (only create resources that steps consume)
+   - Step flow sequencing (observe → act → verify natural arc)
+   - Deduplication (merge steps verifying same behavior in same context)
+   - Negative scenario placement (before positive when no extra setup needed)
 
 ### Output Format
 

@@ -77,6 +77,25 @@ Read `knowledge/architecture/<area>.md` and verify:
 3. Component names and CRD references are consistent
 4. Flag contradictions as BLOCKING
 
+#### Step 4.7: Design Efficiency Check
+
+Checks for anti-patterns that indicate suboptimal test design. All issues flagged as WARNING:
+
+| Anti-Pattern Category | What to Check |
+|----------------------|---------------|
+| Resource optimization | Two resources testing presence/absence of same property (should be one entity with before/after state). Setup creates resources no step consumes. More resources than needed. |
+| Entry point selection | Entry point from JIRA hierarchy instead of shortest click path from console side panel. Entry point requires unnecessary resource creation. |
+| Prerequisite completeness | Missing managed clusters, RBAC permissions, credentials, CLI access, or any environmental dependency a tester needs but cannot infer from Setup. |
+| Step design | Steps mixing observation with interaction. Duplicate verifications of same behavior in same context. Setup/step ratio imbalance. |
+
+#### Step 4.8: Coverage Gap Verification
+
+If the synthesized context includes a Coverage Gap Triage section:
+
+1. For each gap triaged as `ADD TO TEST PLAN`: verify a corresponding test step exists
+2. For each gap triaged as `NOTE ONLY`: verify it's mentioned in the Notes section
+3. Flag missing coverage as WARNING
+
 #### Step 5: Polarion Coverage Check
 
 Search for duplicate test cases via Polarion MCP:
@@ -94,6 +113,39 @@ Reads 2-3 existing test cases from the same area and compares:
 - Level of detail in expected results
 - Setup section format
 - Teardown approach
+
+---
+
+### Error Handling and Graceful Degradation
+
+Every agent in the pipeline can encounter MCP failures, missing data, or unavailable services. The pipeline never aborts on tool failures -- it degrades gracefully.
+
+**Agent-level handling:**
+- All 6 agents include an `anomalies` array in their output for surfacing data quality issues
+- Missing MCP results: note in anomalies, proceed with available data
+- MCP timeout or error: skip that verification, flag in anomalies
+- Missing JIRA ACs: investigate from PR description and comments instead
+- Empty Polarion results: note "no existing coverage found", proceed
+
+**Pipeline-level handling:**
+- Phase 1 agent failure: pipeline continues with remaining agents' data
+- Live validation skip: synthesis proceeds without live data, notes limitation
+- Quality reviewer NEEDS_FIXES: 3-tier escalation (never aborts):
+  - Tier 1: targeted MCP re-investigation for factual errors
+  - Tier 2: focused retry with accumulated evidence
+  - Tier 3: mark unresolvable with `[MANUAL VERIFICATION REQUIRED]`, proceed
+- Stage 3 failure after Phase 8 pass: fix structural issue, re-run `report.py` only
+
+**Anomaly reporting format** (all agents):
+
+```json
+{
+  "anomalies": [
+    "acm-ui search_translations returned empty for 'PolicyReport' -- using PR diff label instead",
+    "Polarion MCP unavailable -- skipping coverage check"
+  ]
+}
+```
 
 ---
 

@@ -249,7 +249,9 @@ Validates the generated test case against conventions, verifies UI elements were
 | 3 | Structural validation (title, metadata, sections, steps, teardown) | Blocking/Warning |
 | 4 | Discovered vs assumed (min 3 MCP checks; mandatory `get_component_source()` on primary file) | Blocking |
 | 4.5 | AC vs implementation (JIRA ACs consistent with expected results, scope alignment, verify cited discrepancies via source) | Blocking |
-| 4.6 | Knowledge file cross-reference (field order, filtering, component names vs `knowledge/architecture/<area>.md`) | Blocking |
+| 4.6 | Knowledge file cross-reference (field order, filtering, component names vs area knowledge) | Blocking |
+| 4.7 | Design efficiency (resource optimization, entry point selection, prerequisite completeness, step design) | Warning |
+| 4.8 | Coverage gap verification (gaps triaged as ADD have test steps, NOTE gaps mentioned) | Warning |
 | 5 | Polarion coverage check (search for duplicates) | Info |
 | 6 | Peer consistency check (compare with existing test cases) | Info |
 | 7 | Polarion HTML check (only on `/review`, not during `/generate`) | Warning |

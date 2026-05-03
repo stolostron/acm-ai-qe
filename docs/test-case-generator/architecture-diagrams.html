@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Test Case Generator v2.0 &mdash; Interactive Architecture</title>
+<title>Test Case Generator v3.0 &mdash; Interactive Architecture</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
 <style>
@@ -73,19 +73,19 @@ nav a:hover { color: var(--accent); border-color: var(--accent); }
 
 <div id="main" class="full">
 
-<h1>Test Case Generator v2.0</h1>
+<h1>Test Case Generator v3.0</h1>
 <p class="sub">Interactive Architecture &mdash; Click any box to see implementation details</p>
 
 <div class="example-banner">
   <h3>How the Test Case Generator Works</h3>
-  <p>Generates Polarion-ready test cases from JIRA tickets through a 6-phase pipeline. Stage 1 gathers data deterministically via <code>gh</code> CLI. Phase 1 launches 3 parallel investigation agents (JIRA, code, UI). Phase 2 synthesizes findings with scope gating and AC cross-referencing. Phase 3 optionally validates on a live cluster. Phase 4 writes the test case. Phase 4.5 enforces a mandatory quality gate. Stage 3 generates Polarion HTML.</p>
+  <p>Generates Polarion-ready test cases from JIRA tickets through a 10-phase pipeline (Phases 0-9). Phase 1 gathers data deterministically via <code>gh</code> CLI. Phases 2-4 investigate (JIRA, code, UI). Phase 5 synthesizes findings with scope gating and AC cross-referencing. Phase 6 optionally validates on a live cluster. Phase 7 writes the test case. Phase 8 enforces a mandatory quality gate. Phase 9 generates Polarion HTML and reports.</p>
   <p style="margin-top:8px;font-size:0.88rem">All data in this document reflects the actual pipeline implementation. Click any box in the diagrams below to see what each component does, its inputs/outputs, and the tools it uses.</p>
 </div>
 
 <!-- DIAGRAM 1: PIPELINE OVERVIEW -->
 <div id="d1" class="card">
   <h2>Diagram 1: Full Pipeline</h2>
-  <p class="desc">Seven steps run in sequence. Two are deterministic Python scripts (Stage 1, Stage 3). Five are AI-driven phases. Phase 1 runs 3 agents in parallel. Phase 4.5 uses 3-tier escalation (MCP re-investigation, focused retry, placeholder and proceed). Click any box for details.</p>
+  <p class="desc">Ten phases run in sequence (0-9). Two are deterministic Python (Phases 1 and 9). Eight are AI-driven. Phase 1 runs 3 agents in parallel. Phase 4.5 uses 3-tier escalation (MCP re-investigation, focused retry, placeholder and proceed). Click any box for details.</p>
   <div class="mermaid">
 graph LR
     P0["PHASE 0\nParse Inputs\nAsk Questions"]:::clickable --> S1["STAGE 1\ngather.py\nPR + conventions + knowledge\n~2-5 sec"]:::clickable
@@ -125,8 +125,11 @@ graph TD
     G2 --> G3["Step 3: PR Diff\ngh pr diff\nOutput: pr-diff.txt"]:::clickable
     G3 --> G4["Step 4: Detect Area\nFile path patterns\nOutput: area (governance, rbac, ...)"]:::clickable
     G4 --> G5["Step 5: Peer Test Cases\nFilesystem glob\nOutput: existing_test_cases[]"]:::clickable
-    G5 --> G6["Step 6: Load Knowledge\nconventions + architecture\nOutput: conventions, area_knowledge"]:::clickable
-    G6 --> GOUT["gather-output.json\nAll data for Phase 1 agents"]:::clickable
+    G5 --> G6["Step 6: Load Conventions\ntest-case-format.md\nOutput: conventions"]:::clickable
+    G6 --> G7["Step 7: Load Area Knowledge\narchitecture/area.md\nOutput: area_knowledge"]:::clickable
+    G7 --> G8["Step 8: Load HTML Templates\npolarion-html-templates.md\nOutput: html_templates"]:::clickable
+    G8 --> G9["Step 9: Classify Files\ntest vs production\nOutput: test_files, production_files"]:::clickable
+    G9 --> GOUT["gather-output.json\nAll data for Phase 1 agents"]:::clickable
 
     style G1 fill:#0f1320,stroke:#38bdf8,color:#d8dce8
     style G2 fill:#0f1320,stroke:#38bdf8,color:#d8dce8
@@ -134,6 +137,9 @@ graph TD
     style G4 fill:#0f1320,stroke:#4ade80,color:#d8dce8
     style G5 fill:#0f1320,stroke:#f472b6,color:#d8dce8
     style G6 fill:#0f1320,stroke:#fbbf24,color:#d8dce8
+    style G7 fill:#0f1320,stroke:#fbbf24,color:#d8dce8
+    style G8 fill:#0f1320,stroke:#fbbf24,color:#d8dce8
+    style G9 fill:#0f1320,stroke:#4ade80,color:#d8dce8
     style GOUT fill:#141a2e,stroke:#38bdf8,stroke-width:3px,color:#38bdf8
 
     classDef clickable cursor:pointer
@@ -143,6 +149,9 @@ graph TD
     click G4 showDetail
     click G5 showDetail
     click G6 showDetail
+    click G7 showDetail
+    click G8 showDetail
+    click G9 showDetail
     click GOUT showDetail
   </div>
   <p class="click-hint">Click any step to see what data is collected</p>

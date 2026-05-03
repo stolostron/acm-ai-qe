@@ -1,6 +1,6 @@
 # Test Case Generator: Skill Architecture
 
-How the portable skill pack enables the test case generation pipeline. 10 skills decompose a 10-phase pipeline into reusable, independently testable components — from JIRA investigation through PR code analysis, UI discovery, and synthesis to Polarion-ready test case output with mandatory quality review.
+How the portable skill pack enables the test case generation pipeline. 10 skills support a 10-phase pipeline into reusable, independently testable components — from JIRA investigation through PR code analysis, UI discovery, and synthesis to Polarion-ready test case output with mandatory quality review.
 
 ## Skill Inventory
 
@@ -44,6 +44,8 @@ How the portable skill pack enables the test case generation pipeline. 10 skills
 | Core Pipeline | acm-test-case-writer, acm-code-analyzer, acm-test-case-reviewer | Execute writing, code analysis, and quality review |
 | Methodology + Knowledge | acm-knowledge-base, acm-cluster-health | Provide conventions, architecture data, cluster diagnostic methodology |
 | MCP Interfaces | acm-jira-client, acm-polarion-client, acm-ui-source, acm-neo4j-explorer | Wrap external tool access |
+
+`acm-cluster-health` is shared with hub-health -- it provides cluster diagnostic methodology for live validation context, not a test-case-generator-specific skill.
 
 ---
 
@@ -317,8 +319,8 @@ flowchart TD
 | 4 | MCP verification | min 3 checks: translations, routes, component source | BLOCKING if < 3 |
 | 5 | AC vs implementation | ACs match expected results, discrepancies cited | BLOCKING |
 | 6 | Knowledge cross-reference | Field order, filtering, CRDs vs architecture file | BLOCKING |
-| 6.5 | Design efficiency | Redundant resources, missed state transitions, duplicate verifications, setup/step ratio | WARNING |
-| 6.6 | Coverage gap verification | Gaps triaged as ADD have test steps, gaps triaged as NOTE mentioned | WARNING |
+| 4.7 | Design efficiency | Redundant resources, missed state transitions, duplicate verifications, setup/step ratio | WARNING |
+| 4.8 | Coverage gap verification | Gaps triaged as ADD have test steps, gaps triaged as NOTE mentioned | WARNING |
 | 7 | Polarion coverage | Duplicate check, metadata accuracy | WARNING |
 | 8 | Peer consistency | Compare with 2–3 existing test cases in same area | WARNING |
 
@@ -555,6 +557,32 @@ The test case generator has two execution paths that use the same underlying log
 | acm-code-analyzer | code-change-analyzer agent | Same analysis, portable |
 
 The app pipeline runs Phase 1 with **3 parallel agents** (feature-investigator, code-change-analyzer, ui-discovery), while the portable skill runs the same investigation phases sequentially as isolated subagents (one per phase, spawned via the Agent tool). Both produce equivalent results; the app pipeline is faster due to parallelism. The portable skill's subagent model prevents context pressure — each subagent writes structured output to disk and terminates.
+
+---
+
+## Context Isolation Model
+
+The portable skill uses isolated subagents to prevent context pressure. Each investigation phase runs in a fresh subagent context:
+
+| Phase | Context Size | Why Isolated |
+|-------|-------------|-------------|
+| Phase 2 (JIRA) | ~10-20 KB | JIRA comments can be verbose; isolation prevents crowding later analysis |
+| Phase 3 (Code) | ~20-40 KB | PR diffs consume significant context; discard after extracting findings |
+| Phase 4 (UI) | ~15-30 KB | MCP results (selectors, translations) are voluminous |
+| Phase 5 (Synthesis) | ~30-60 KB | Merges all three, but writes to disk and terminates |
+| Phase 7 (Writer) | ~40-60 KB | Reads synthesized context + conventions, writes test case |
+| Phase 8 (Reviewer) | ~30-50 KB | Reads test case + conventions + makes MCP calls |
+
+**How it works:**
+
+1. Orchestrator spawns subagent via the `Agent` tool with full instructions from `references/agents/<agent>.md`
+2. Subagent receives `<input>` block with file paths (not file contents) — reads from disk
+3. Subagent writes structured output (JSON or markdown) to the run directory
+4. Subagent terminates — its context is released
+5. Orchestrator verifies the output file exists, does NOT read it into its own context
+6. Next phase's subagent reads previous output from disk independently
+
+This model means no single context window holds more than one phase's data. The orchestrator's context stays thin (just file paths and phase status).
 
 ---
 

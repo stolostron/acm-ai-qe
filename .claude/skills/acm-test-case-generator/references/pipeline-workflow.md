@@ -1,27 +1,48 @@
 # Pipeline Workflow Reference
 
+## Execution Model
+
+Phases 2-8 run as isolated **subagents** via the Agent tool. Each subagent gets fresh context, reads its inputs from disk, writes structured output, and terminates. The orchestrator (SKILL.md) is thin routing logic that spawns subagents and verifies outputs -- it never accumulates MCP responses.
+
+Agent instruction files: `references/agents/` directory (7 files, one per subagented phase).
+
 ## Phase Summary
 
-| Phase | Action | Output | Skills Used |
-|-------|--------|--------|-------------|
-| 0 | Determine inputs | JIRA ID, version, area, PR, cluster URL | None |
-| 1 | Gather data (deterministic) | gather-output.json, pr-diff.txt | scripts/gather.py |
-| 2 | Investigate JIRA story | Story, ACs, comments, linked tickets, coverage | acm-jira-client, acm-polarion-client, acm-neo4j-explorer |
-| 3 | Analyze PR code changes | Components, UI elements, filtering, field orders | acm-code-analyzer, acm-ui-source, acm-knowledge-base |
-| 4 | Discover UI elements | Routes, translations, selectors, entry point | acm-ui-source |
-| 5 | Synthesize | Merged context, test plan, conflict resolutions | acm-knowledge-base |
-| 6 | Live validation (optional) | Confirmed behavior, discrepancies | acm-cluster-health, browser/oc |
-| 7 | Write test case | test-case.md | acm-test-case-writer |
-| 8 | Quality review (mandatory) | PASS/NEEDS_FIXES | acm-test-case-reviewer, scripts/review_enforcement.py |
-| 9 | Generate reports (deterministic) | HTML, validation, summary | scripts/report.py |
+| Phase | Action | Execution | Output | Agent File |
+|-------|--------|-----------|--------|------------|
+| 0 | Determine inputs | Inline | JIRA ID, version, area, PR, cluster URL | -- |
+| 1 | Gather data | Inline (script) | gather-output.json, pr-diff.txt | -- |
+| 2 | Investigate JIRA story | Subagent | phase2-jira.json | jira-investigator.md |
+| 3 | Analyze PR code changes | Subagent | phase3-code.json | code-analyzer.md |
+| 4 | Discover UI elements | Subagent | phase4-ui.json | ui-discoverer.md |
+| 5 | Synthesize | Subagent | synthesized-context.md | synthesizer.md |
+| 6 | Live validation (optional) | Subagent | phase6-live-validation.md | live-validator.md |
+| 7 | Write test case | Subagent | test-case.md | test-case-writer.md |
+| 8 | Quality review (mandatory) | Subagent + inline escalation | PASS/NEEDS_FIXES | quality-reviewer.md |
+| 9 | Generate reports | Inline (script) | HTML, validation, summary | -- |
 
 ## Deterministic vs AI Steps
 
-**Deterministic (Python scripts):**
+**Deterministic (Python scripts, inline):**
 - Phase 1: gather.py (gh CLI, file operations)
 - Phase 8: review_enforcement.py (parse reviewer output, count MCP verifications)
 - Phase 9: report.py (convention validation, HTML generation)
 
-**AI (Claude follows skill instructions):**
-- Phases 2-7: investigation, analysis, discovery, synthesis, validation, writing
-- Phase 8: quality review (AI does the review, Python enforces the output)
+**AI (subagents with isolated context):**
+- Phases 2-7: each runs in its own subagent, writes structured JSON/markdown to disk
+- Phase 8: quality reviewer subagent + orchestrator-managed 3-tier escalation
+
+## Context Flow
+
+```
+Orchestrator context: ~10-15KB peak (inputs + progress tracking)
+  ├── Phase 2 subagent: ~30-50KB → writes phase2-jira.json → terminates
+  ├── Phase 3 subagent: ~30-60KB → writes phase3-code.json → terminates
+  ├── Phase 4 subagent: ~20-40KB → writes phase4-ui.json → terminates
+  ├── Phase 5 subagent: ~25-35KB → reads 3 JSONs → writes synthesized-context.md → terminates
+  ├── Phase 6 subagent: ~15-30KB → writes phase6-live-validation.md → terminates
+  ├── Phase 7 subagent: ~15-25KB → writes test-case.md → terminates
+  └── Phase 8 subagent: ~10-20KB → writes review output → terminates
+```
+
+Structured files (JSON, markdown) are genuine cross-context bridges: written by one subagent, read by the next. The orchestrator never loads them.

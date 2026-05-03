@@ -129,7 +129,7 @@ stage_end       {"stage": "gather", "elapsed_seconds": 1.72, "pr_found": true, "
 
 Three agents run in parallel. Each receives specific inputs from `gather-output.json` and returns a structured block. See [02-AGENTS.md](02-AGENTS.md) for detailed agent specifications.
 
-**Artifact persistence:** Each agent's full output is saved to the run directory (`phase1-feature-investigation.md`, `phase1-code-change-analysis.md`, `phase1-ui-discovery.md`). Phase telemetry logged via `python -m src.scripts.log_phase <run-dir> phase_1 --agents 3`.
+**Artifact persistence:** Each agent's full output is saved to the run directory. The app pipeline uses `phase1-feature-investigation.md`, `phase1-code-change-analysis.md`, `phase1-ui-discovery.md`. The portable skill uses `phase2-jira.json`, `phase3-code.json`, `phase4-ui.json`. Both naming schemes are recognized by `report.py` artifact completeness checks. Phase telemetry logged via `python -m src.scripts.log_phase <run-dir> phase_1 --agents 3`.
 
 ### Agent A: Feature Investigator
 

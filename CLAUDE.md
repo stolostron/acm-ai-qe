@@ -160,5 +160,5 @@ python -m pytest tests/regression/ -q                # 22 tests, no external dep
 
 # Test case generator (from app directory)
 cd apps/test-case-generator/
-python -m pytest tests/unit/ -q                      # 38 tests, no external deps
+python -m pytest tests/unit/ -q                      # 45 tests, no external deps
 ```

@@ -353,6 +353,11 @@ reviews:
         Runs convention_validator.validate_test_case(path, area=area).
         Generates Polarion HTML via html_generator.generate_html().
         Checks artifact completeness (9 expected files in run directory).
+        Each expected artifact has alternate file names — the app pipeline
+        uses phase1-*/phase2-*/phase4.5-* names, the portable skill uses
+        phase2-jira.json/phase3-code.json/phase4-ui.json/synthesized-context.md/
+        phase6-live-validation.md/phase8-review.md. Either naming scheme
+        counts as present. EXPECTED_ARTIFACTS is a list of tuples.
         Writes review-results.json + HTML files + SUMMARY.txt.
         Artifact completeness is reporting-only (does not block pipeline).
         Does NOT consume Phase 4.5 quality-reviewer output — they are
@@ -575,14 +580,18 @@ reviews:
         - tests/fixtures/: Synthetic analysis-results.json for testing.
 
         Test-case-generator tests:
-        - tests/unit/ (38 tests): Convention validator (valid/invalid cases,
+        - tests/unit/ (45 tests): Convention validator (valid/invalid cases,
           area tag validation, per-step checks, teardown checks), file service
           (knowledge loading, peer discovery, sample fallback), Pydantic models
-          (GatherOutput, ReviewResult, AnalysisResult schema enforcement).
+          (GatherOutput, ReviewResult, AnalysisResult schema enforcement),
+          artifact completeness (both app and portable skill naming schemes).
         - tests/unit/test_convention_validator.py: Tests structural validation
           including the approved ACM-30459 test case and sample test case.
         - tests/unit/test_models.py: Verifies all 3 data contract models
           serialize correctly and have expected fields.
+        - tests/unit/test_artifact_completeness.py: Tests pipeline artifact
+          detection with app names (phase1-*), portable skill names
+          (phase2-jira.json etc.), mixed names, and empty directories.
 
         Check for: tests referencing removed methods, renamed files, or
         changed field names. Unit tests must be self-contained. Regression

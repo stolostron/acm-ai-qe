@@ -22,15 +22,15 @@ from src.services.html_generator import generate_html
 from src.services.telemetry import PipelineTelemetry
 
 EXPECTED_ARTIFACTS = [
-    "gather-output.json",
-    "pr-diff.txt",
-    "phase1-feature-investigation.md",
-    "phase1-code-change-analysis.md",
-    "phase1-ui-discovery.md",
-    "phase2-synthesized-context.md",
-    "phase3-live-validation.md",
-    "test-case.md",
-    "phase4.5-quality-review.md",
+    ("gather-output.json",),
+    ("pr-diff.txt",),
+    ("phase1-feature-investigation.md", "phase2-jira.json"),
+    ("phase1-code-change-analysis.md", "phase3-code.json"),
+    ("phase1-ui-discovery.md", "phase4-ui.json"),
+    ("phase2-synthesized-context.md", "synthesized-context.md"),
+    ("phase3-live-validation.md", "phase6-live-validation.md"),
+    ("test-case.md",),
+    ("phase4.5-quality-review.md", "phase8-review.md"),
 ]
 
 
@@ -38,11 +38,16 @@ def check_artifact_completeness(run_dir: Path) -> dict:
     """Check which pipeline artifacts were saved."""
     present = []
     missing = []
-    for artifact in EXPECTED_ARTIFACTS:
-        if (run_dir / artifact).exists():
-            present.append(artifact)
+    for alternates in EXPECTED_ARTIFACTS:
+        found = None
+        for name in alternates:
+            if (run_dir / name).exists():
+                found = name
+                break
+        if found:
+            present.append(found)
         else:
-            missing.append(artifact)
+            missing.append(alternates[0])
     return {
         "artifacts_present": len(present),
         "artifacts_expected": len(EXPECTED_ARTIFACTS),

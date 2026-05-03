@@ -53,6 +53,16 @@ This is always preferred over creating multiple independent entities because:
 - Tighter cause-and-effect narrative (the tester sees the before/after on the same object).
 - Catches state transition bugs that independent-entity tests miss.
 
+**Examples (these illustrate the general principle -- apply to any resource type or feature area):**
+- BAD: "Create Resource-A (with property X) for steps 1-3. Create Resource-B (without property X) for steps 4-5."
+- GOOD: "Navigate to Resource-A (property X absent). Steps 1-2 verify empty/absent state. Step 3 adds property X via CLI/UI. Steps 4-5 verify property X now displayed on the same Resource-A."
+- BAD: "Use Entity-1 (default config) to test default behavior. Use Entity-2 (modified config) to test modified behavior."
+- GOOD: "Use Entity-1. Steps 1-2 test default behavior. Step 3 modifies config. Steps 4-5 test modified behavior on Entity-1."
+
+The decision of whether a resource's initial state belongs in Setup (prerequisites) vs test steps depends on what you are testing:
+- If you are testing state transitions (before/after), the state change happens in test steps -- that IS the test.
+- If you only need a resource in a particular state as a starting condition (you are not testing the state change itself), put the setup in prerequisites.
+
 ### Pass 2: Resource Minimization
 
 For each test resource planned in Setup:
@@ -70,6 +80,8 @@ Order test steps to build on each other rather than resetting state:
 2. Progress to state-changing actions (create, modify, delete).
 3. After each state change, verify the effect before the next change.
 4. End with the most destructive or complex action.
+
+This creates a natural narrative arc: observe → act → verify → act → verify → clean up.
 
 ### Pass 4: Deduplication
 
@@ -89,6 +101,34 @@ Test Design Notes:
 - Resource count: [N] (reduced from [M] in raw plan)
 - Consolidations: [describe any state-transition consolidations]
 ```
+
+## Entry Point Selection
+
+Select the test's entry point (where the tester starts navigating) based on UI topology and environment prerequisites, NOT from JIRA epic/story hierarchy.
+
+### Decision Process
+
+1. **Identify the target component** -- the UI element being tested (e.g., PolicyTemplateDetails, ClusterOverview, VirtualMachineDetails).
+2. **Read the area knowledge file** (`knowledge/architecture/<area>.md`) for documented navigation paths to that component.
+3. **Choose the shortest click path** from the ACM console landing page through the side panel (Home, Search, Infrastructure, Applications, Governance, Credentials, User Management) to the target component.
+4. **Consider prerequisites** -- if one path requires creating resources that don't exist in a fresh environment while another path uses resources that are more commonly available, prefer the path with fewer prerequisites. Every prerequisite the test needs (managed clusters, policies, credentials, RBAC permissions, specific resource states) must be explicitly declared in the Setup section.
+5. **Document the entry point** in the Description with the full navigation path and route.
+
+### Why Not JIRA Hierarchy
+
+JIRA epic/story hierarchy (e.g., "this is under the discovered policies epic") is fragile and often inaccurate. A story may be filed under one epic but the UI component it touches is reachable from multiple paths. The tester navigating the console doesn't think in JIRA structure -- they think in click paths from the side panel.
+
+### Prerequisite Completeness
+
+The test case must declare ALL environmental dependencies the tester needs:
+- Managed clusters (always a prerequisite -- they do not exist by default)
+- RBAC permissions or specific user configurations
+- Credentials (provider credentials, cloud credentials)
+- Specific resource states (policies deployed, addons enabled, operators installed)
+- CLI access (oc CLI, specific cluster contexts)
+- Console access (URL, authentication method)
+
+Nothing should be assumed. A tester should be able to read the Setup section cold and know exactly what they need before starting.
 
 ## Cross-Entity Verification
 

@@ -548,12 +548,12 @@ The test case generator has two execution paths that use the same underlying log
 
 | Skill | Equivalent Agent(s) | Difference |
 |-------|---------------------|------------|
-| acm-test-case-generator | All 6 agents orchestrated | Self-contained pipeline in one skill |
+| acm-test-case-generator | All 6 agents orchestrated | Thin orchestrator spawning 7 subagents (phases 2-8) |
 | acm-test-case-writer | test-case-generator agent | Can also run standalone (lightweight investigation) |
 | acm-test-case-reviewer | quality-reviewer agent | Same review process, independent invocation |
 | acm-code-analyzer | code-change-analyzer agent | Same analysis, portable |
 
-The app pipeline runs Phase 1 with **3 parallel agents** (feature-investigator, code-change-analyzer, ui-discovery), while the portable skill runs the same investigation phases sequentially within the single orchestrator skill. Both produce equivalent results; the app pipeline is faster due to parallelism.
+The app pipeline runs Phase 1 with **3 parallel agents** (feature-investigator, code-change-analyzer, ui-discovery), while the portable skill runs the same investigation phases sequentially as isolated subagents (one per phase, spawned via the Agent tool). Both produce equivalent results; the app pipeline is faster due to parallelism. The portable skill's subagent model prevents context pressure — each subagent writes structured output to disk and terminates.
 
 ---
 
@@ -688,7 +688,7 @@ The pipeline has two independent validation systems. Both must pass:
 | **Phase 8** (quality-reviewer + enforcement) | Before Stage 3 | MCP verification of UI elements, AC vs implementation, scope alignment, numeric thresholds, Polarion coverage, peer consistency, discovered vs assumed | Semantic correctness (are the right things tested?) |
 | **Phase 9** (report.py / convention_validator.py) | After Phase 8 | Title pattern, metadata fields, section order, step format, entry point, teardown, artifact completeness | Structural correctness (is the format right?) |
 
-Phase 9 also checks pipeline artifact completeness (9 expected files) and includes the result in `review-results.json` and `SUMMARY.txt`. This is reporting-only — it does not block the pipeline.
+Phase 9 also checks pipeline artifact completeness (9 expected files) and includes the result in `review-results.json` and `SUMMARY.txt`. The checker recognizes both the app pipeline naming scheme (`phase1-feature-investigation.md`, `phase2-synthesized-context.md`, `phase4.5-quality-review.md`) and the portable skill naming scheme (`phase2-jira.json`, `synthesized-context.md`, `phase8-review.md`). This is reporting-only — it does not block the pipeline.
 
 All 6 agents include an optional Anomalies section in their return format for surfacing data quality issues (empty MCP results, missing JIRA ACs, unexpected PR structure).
 
@@ -704,14 +704,20 @@ Each run produces artifacts under `runs/<JIRA_ID>/<JIRA_ID>-<timestamp>/`:
 runs/ACM-30459/ACM-30459-2026-04-08T12-00-00/
   gather-output.json                 Phase 1: collected data (deterministic)
   pr-diff.txt                        Phase 1: full PR diff (deterministic)
-  phase1-feature-investigation.md    Phase 2: feature investigator output
-  phase1-code-change-analysis.md     Phase 3: code change analyzer output
-  phase1-ui-discovery.md             Phase 4: UI discovery output
-  phase2-synthesized-context.md      Phase 5: merged context + test plan
-  phase3-live-validation.md          Phase 6: live validation (or skip note)
+  phase1-feature-investigation.md    Phase 2: feature investigator (app pipeline)
+  phase2-jira.json                   Phase 2: JIRA findings (portable skill)
+  phase1-code-change-analysis.md     Phase 3: code change analyzer (app pipeline)
+  phase3-code.json                   Phase 3: code analysis (portable skill)
+  phase1-ui-discovery.md             Phase 4: UI discovery (app pipeline)
+  phase4-ui.json                     Phase 4: UI elements (portable skill)
+  phase2-synthesized-context.md      Phase 5: merged context + test plan (app pipeline)
+  synthesized-context.md             Phase 5: merged context (portable skill)
+  phase3-live-validation.md          Phase 6: live validation (app pipeline)
+  phase6-live-validation.md          Phase 6: live validation (portable skill)
   test-case.md                       Phase 7: PRIMARY DELIVERABLE
   analysis-results.json              Phase 7: investigation metadata (audit)
-  phase4.5-quality-review.md         Phase 8: reviewer output + JSON block
+  phase4.5-quality-review.md         Phase 8: reviewer output (app pipeline)
+  phase8-review.md                   Phase 8: reviewer output (portable skill)
   test-case-setup.html               Phase 9: Polarion setup section HTML
   test-case-steps.html               Phase 9: Polarion steps table HTML
   review-results.json                Phase 9: structural validation + artifact completeness
@@ -782,14 +788,15 @@ Which tools each skill uses, and when:
 
 ## Unit Testing
 
-38 automated tests in `tests/unit/` validate pipeline components:
+45 automated tests in `tests/unit/` validate pipeline components:
 
 - **Convention validation** (`test_convention_validator.py`): Title patterns, metadata fields, step format, section order, CLI-in-steps rules
 - **Model fields** (`test_models.py`): Analysis result model fields, required attributes
 - **File operations** (`test_file_service.py`): File read/write, path handling
+- **Artifact completeness** (`test_artifact_completeness.py`): Pipeline artifact detection for both app and portable skill naming schemes
 
 ```bash
-# Run unit tests (38 tests, no external deps)
+# Run unit tests (45 tests, no external deps)
 cd apps/test-case-generator/
 python -m pytest tests/unit/ -q
 ```

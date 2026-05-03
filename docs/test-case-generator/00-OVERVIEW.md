@@ -97,14 +97,20 @@ Each pipeline run produces artifacts under `runs/<JIRA_ID>/<JIRA_ID>-<timestamp>
 runs/ACM-30459/ACM-30459-2026-04-18T02-00-46/
   gather-output.json                 # Stage 1: all gathered data
   pr-diff.txt                        # Stage 1: full PR diff
-  phase1-feature-investigation.md    # Phase 1: feature investigator output
-  phase1-code-change-analysis.md     # Phase 1: code change analyzer output
-  phase1-ui-discovery.md             # Phase 1: UI discovery output
-  phase2-synthesized-context.md      # Phase 2: merged investigation + test plan
-  phase3-live-validation.md          # Phase 3: live validation output (or skip note)
-  test-case.md                       # Phase 4: primary deliverable
-  analysis-results.json              # Phase 4: investigation metadata
-  phase4.5-quality-review.md         # Phase 4.5: quality review output (JSON + text)
+  phase1-feature-investigation.md    # Phase 1: feature investigator output (app pipeline)
+  phase1-code-change-analysis.md     # Phase 1: code change analyzer output (app pipeline)
+  phase1-ui-discovery.md             # Phase 1: UI discovery output (app pipeline)
+  phase2-jira.json                   # Phase 2: JIRA findings (portable skill alternate)
+  phase3-code.json                   # Phase 3: code analysis (portable skill alternate)
+  phase4-ui.json                     # Phase 4: UI discovery (portable skill alternate)
+  phase2-synthesized-context.md      # Phase 2: merged investigation + test plan (app pipeline)
+  synthesized-context.md             # Phase 5: merged context (portable skill alternate)
+  phase3-live-validation.md          # Phase 3: live validation output (app pipeline)
+  phase6-live-validation.md          # Phase 6: live validation (portable skill alternate)
+  test-case.md                       # Phase 4/7: primary deliverable
+  analysis-results.json              # Phase 4/7: investigation metadata
+  phase4.5-quality-review.md         # Phase 4.5: quality review output (app pipeline)
+  phase8-review.md                   # Phase 8: quality review (portable skill alternate)
   test-case-setup.html               # Stage 3: Polarion setup HTML
   test-case-steps.html               # Stage 3: Polarion steps table HTML
   review-results.json                # Stage 3: structural validation
@@ -138,7 +144,7 @@ test-case-generator/
 │   ├── scripts/             # CLI scripts (gather.py, log_phase.py, report.py)
 │   └── templates/           # Markdown skeleton template
 ├── tests/
-│   └── unit/                # Unit tests (3 files, 38 tests)
+│   └── unit/                # Unit tests (4 files, 45 tests)
 ├── .claude/
 │   ├── agents/              # 6 agent definitions
 │   ├── skills/              # 3 skill definitions (generate, review, batch)

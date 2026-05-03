@@ -238,11 +238,11 @@ runs/ACM-30459/ACM-30459-2026-04-08T12-00-00/
 ## Tests
 
 ```bash
-# Unit tests (38 tests, no external deps):
+# Unit tests (45 tests, no external deps):
 python -m pytest tests/unit/ -q
 ```
 
-Test structure: `tests/unit/test_convention_validator.py` (convention validation rules), `tests/unit/test_models.py` (analysis result model fields), `tests/unit/test_file_service.py` (file operations). No cluster access, MCP, or JIRA credentials required.
+Test structure: `tests/unit/test_convention_validator.py` (convention validation rules), `tests/unit/test_models.py` (analysis result model fields), `tests/unit/test_file_service.py` (file operations), `tests/unit/test_artifact_completeness.py` (pipeline artifact detection for both app and portable skill naming schemes). No cluster access, MCP, or JIRA credentials required.
 
 ---
 

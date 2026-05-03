@@ -525,7 +525,7 @@ Builds and updates the knowledge base by comparing live cluster state to known b
 
 **Discovery triggers:** Unknown CSV, unrecognized error pattern, unexplained dependency, TLS errors, post-upgrade settling.
 
-**Output:** Writes to `knowledge/learned/` — unknown operator profiles, new failure patterns, new dependency chains, certificate issues, upgrade observations.
+**Output:** Writes to `${KNOWLEDGE_DIR}/learned/` — unknown operator profiles, new failure patterns, new dependency chains, certificate issues, upgrade observations.
 
 ---
 

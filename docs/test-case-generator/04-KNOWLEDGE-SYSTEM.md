@@ -2,6 +2,8 @@
 
 The `knowledge/` directory contains curated domain knowledge that agents read during the pipeline. Knowledge is organized into three categories: conventions (authoritative format rules), architecture (per-area domain knowledge), and examples (sample test cases).
 
+**Two copies, same content:** The app pipeline reads from `apps/test-case-generator/knowledge/` (app-local). Portable skills (`.claude/skills/acm-test-case-generator/`) read from `.claude/knowledge/test-case-generator/` via `KNOWLEDGE_DIR`. Both contain the same 14 files. Changes to domain knowledge should be applied to both locations.
+
 ## Directory Structure
 
 ```

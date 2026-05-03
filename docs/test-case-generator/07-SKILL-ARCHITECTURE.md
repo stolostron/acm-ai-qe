@@ -407,8 +407,9 @@ Wraps the Polarion MCP server. Used for two purposes in the test case pipeline:
 ### 8. acm-knowledge-base — Domain Knowledge Repository
 
 **Pipeline stage:** 2–8 (referenced throughout)
-**Files:** SKILL.md + 14 reference files (9 architecture + 4 conventions + 1 example)
+**Files:** SKILL.md + 14 knowledge files in `.claude/knowledge/test-case-generator/` (9 architecture + 4 conventions + 1 example)
 **Used by:** All core pipeline skills
+**Resolution:** `KNOWLEDGE_DIR = ${CLAUDE_SKILL_DIR}/../../knowledge/test-case-generator/`
 
 The knowledge backbone. Provides two categories of reference data:
 
@@ -782,7 +783,7 @@ Which tools each skill uses, and when:
 6. **Knowledge file authority** — architecture files define verified behavior; contradictions flagged and verified via MCP before overriding
 7. **Mandatory source verification** — writer (Phase 7) and reviewer (Phase 8) each must call `get_component_source` to verify at least one behavioral claim
 8. **Test vs production code** — data from `.test.tsx`/`.test.ts` files is MOCK DATA, not rendering behavior
-9. **File isolation** — only write to `runs/` directory and `knowledge/patterns/`
+9. **File isolation** — only write to `runs/` directory and `${KNOWLEDGE_DIR}/patterns/`
 
 ---
 

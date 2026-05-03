@@ -94,5 +94,5 @@ Write `phase3-code.json` to the run directory:
 - Read the FULL source of key changed components, not just the diff
 - ALWAYS verify new UI labels via `search_translations`
 - If Neo4j is available, check component dependencies
-- Cross-reference with area knowledge (`knowledge/architecture/<area>.md`) if accessible. Flag contradictions.
+- Cross-reference with area knowledge (`${KNOWLEDGE_DIR}/architecture/<area>.md`) if accessible. Flag contradictions.
 - If a tool is unavailable, note in anomalies and proceed

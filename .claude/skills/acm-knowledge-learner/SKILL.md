@@ -9,13 +9,17 @@ metadata:
 
 # ACM Knowledge Learner
 
+## Knowledge Directory
+
+KNOWLEDGE_DIR = ${CLAUDE_SKILL_DIR}/../../knowledge/hub-health/
+
 Builds and updates the ACM knowledge base by comparing live cluster state against curated knowledge. Discovers unknown components, new failure patterns, dependency chains, and infrastructure changes.
 
 **Standalone operation:** This skill works independently. Give it cluster access and it will:
 1. Discover what's deployed on the hub
 2. Compare against the knowledge base
 3. Identify gaps (unknown operators, undocumented dependencies, new patterns)
-4. Write discoveries to `knowledge/learned/`
+4. Write discoveries to `${KNOWLEDGE_DIR}/learned/`
 
 When used after a diagnostic (acm-hub-health-check), it receives richer context about what was found and can focus learning on the gaps discovered during diagnosis. Without prior diagnosis, it performs its own discovery phase.
 
@@ -35,7 +39,7 @@ oc get managedclusteraddons -A --no-headers
 
 ### Step 2: Compare Against Knowledge Base
 
-Read `references/knowledge/component-registry.md` (via acm-hub-health-check or acm-knowledge-base skill). For each discovered component:
+Read `${KNOWLEDGE_DIR}/component-registry.md`. For each discovered component:
 - Is it in the component registry? If NO: **unknown component** -- trigger learning
 - Does the knowledge match what's deployed? If NO: **knowledge drift** -- update needed
 
@@ -101,7 +105,7 @@ your terminal, then restart Claude Code."
 Write each discovery to the knowledge `learned/` directory.
 
 **Unknown operator discovered:**
-Write `knowledge/learned/<operator-name>.md`:
+Write `${KNOWLEDGE_DIR}/learned/<operator-name>.md`:
 ```markdown
 # <Operator Name>
 Discovered: <date>
@@ -123,16 +127,16 @@ Discovered: <date>
 ```
 
 **New failure pattern:**
-Write to `knowledge/learned/new-patterns.yaml`
+Write to `${KNOWLEDGE_DIR}/learned/new-patterns.yaml`
 
 **New dependency chain:**
-Write to `knowledge/learned/new-chains.yaml`
+Write to `${KNOWLEDGE_DIR}/learned/new-chains.yaml`
 
 **Certificate issue:**
-Write to `knowledge/learned/cert-issues.yaml`
+Write to `${KNOWLEDGE_DIR}/learned/cert-issues.yaml`
 
 **Post-upgrade observation:**
-Write to `knowledge/learned/upgrade-observations.yaml`
+Write to `${KNOWLEDGE_DIR}/learned/upgrade-observations.yaml`
 
 ## Discovery Triggers
 
@@ -151,14 +155,14 @@ Automatically investigate when ANY of these are observed:
 To refresh YAML baselines from the current cluster state:
 
 ```bash
-python scripts/refresh.py --baseline --webhooks --certs --addons
+python ${KNOWLEDGE_DIR}/refresh.py --baseline --webhooks --certs --addons
 ```
 
-This updates `healthy-baseline.yaml`, `webhook-registry.yaml`, `certificate-inventory.yaml`, and `addon-catalog.yaml` from the live cluster. Use `--dry-run` to preview changes. Use `--promote` to copy from `learned/` to the main knowledge directory.
+This updates `healthy-baseline.yaml`, `webhook-registry.yaml`, `certificate-inventory.yaml`, and `addon-catalog.yaml` from the live cluster. Use `--dry-run` to preview changes. Use `--promote` to copy from `${KNOWLEDGE_DIR}/learned/` to the main knowledge directory.
 
 ## Rules
 
 - ALL cluster operations are strictly **read-only** -- never modify the cluster during learning
-- Write ONLY to `knowledge/learned/` -- never modify curated knowledge files directly
+- Write ONLY to `${KNOWLEDGE_DIR}/learned/` -- never modify curated knowledge files directly
 - Discoveries are **additive** -- never delete existing learned entries, only add or update
 - When introspection is insufficient, note the gap rather than guessing

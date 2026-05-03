@@ -13,6 +13,10 @@ Enriches test failure data (`core-data.json`) with information that requires int
 
 **Standalone operation:** Works independently when given a run directory path containing `core-data.json` and cloned repos (`repos/automation/`, `repos/console/`). Can also be used to re-enrich an existing dataset.
 
+## Knowledge Directory
+
+KNOWLEDGE_DIR = ${CLAUDE_SKILL_DIR}/../../knowledge/z-stream-analysis/
+
 ## Input
 
 A run directory path containing:
@@ -60,12 +64,12 @@ Run ONLY if gap detection thresholds are met:
 
 When triggered: read per-area `failure-signatures.md`, match unmatched errors, construct and validate failure path entries, resolve prerequisites from `cluster-diagnosis.json`.
 
-Output: `feature_knowledge.ai_enrichment` in core-data.json, plus `knowledge/learned/feature-gaps.yaml`.
+Output: `feature_knowledge.ai_enrichment` in core-data.json, plus `${KNOWLEDGE_DIR}/learned/feature-gaps.yaml`.
 
 ## Constraints
 
 - **Read-only on repos/** -- never modify cloned repository files
-- **Never write to base.yaml** -- discoveries go to `knowledge/learned/` only
+- **Never write to base.yaml** -- discoveries go to `${KNOWLEDGE_DIR}/learned/` only
 - **Time-efficient** -- deduplicate by file/selector, don't re-verify duplicates
 - **MCP version setup** -- ALWAYS call `set_acm_version` before any `search_code` call
 - **Single write** -- read core-data.json once, update in memory, write once at end
@@ -79,4 +83,4 @@ Output: `feature_knowledge.ai_enrichment` in core-data.json, plus `knowledge/lea
 2. **Hex color values trigger false positive selector matches** -- Strings like `#c0c0c0` or `#ffffff` in test errors are color values, not selectors. Skip selector verification for any string that matches a hex color pattern.
 3. **`git log -S` is case-sensitive** -- Searching for `data-test="SearchBar"` will NOT find commits that changed `data-test="searchbar"`. When selector case is uncertain, run two searches or use `git log -S --regexp-ignore-case`.
 4. **The `direction` field in selector timeline must be computed** -- `recent_selector_changes.direction` must be one of `added`, `removed`, `renamed`, `modified`. Never leave it empty or set it to the raw commit message. Compute it from the diff hunks.
-5. **Schema validation catches silent corruption** -- AI-generated failure paths can have valid-looking YAML but invalid field values (wrong types, missing required keys). Always validate against the schema before writing to `knowledge/learned/`.
+5. **Schema validation catches silent corruption** -- AI-generated failure paths can have valid-looking YAML but invalid field values (wrong types, missing required keys). Always validate against the schema before writing to `${KNOWLEDGE_DIR}/learned/`.

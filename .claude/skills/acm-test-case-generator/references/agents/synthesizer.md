@@ -64,7 +64,7 @@ If code analysis has Coverage Gaps, triage each:
 Choose the test's entry point based on UI topology, not JIRA hierarchy:
 
 1. Identify the target UI component being tested
-2. Read the area knowledge file (`knowledge/architecture/<area>.md`) for navigation paths
+2. Read the area knowledge file (`${KNOWLEDGE_DIR}/architecture/<area>.md`) for navigation paths
 3. Choose the shortest click path from the console side panel to the target component
 4. Prefer paths with fewer environmental prerequisites
 5. Declare ALL prerequisites explicitly (managed clusters, policies, credentials, RBAC permissions, CLI access, console access) -- nothing is assumed to exist by default

@@ -34,17 +34,21 @@ Every classification needs ALL 5 criteria:
 4. **Cross-test correlation** -- check for patterns across all failures
 5. **JIRA correlation** -- search for related bugs before finalizing
 
+## Knowledge Directory
+
+KNOWLEDGE_DIR = ${CLAUDE_SKILL_DIR}/../../knowledge/z-stream-analysis/
+
 ## 5-Phase Framework
 
 ### Phase A: Ground and Group
 
 Read `references/phase-a-grouping.md` for full details.
 
-**A0: Feature Grounding** -- Read `feature_grounding` from core-data.json. For each detected area, read `knowledge/architecture/<area>/architecture.md` and `data-flow.md`.
+**A0: Feature Grounding** -- Read `feature_grounding` from core-data.json. For each detected area, read `${KNOWLEDGE_DIR}/architecture/<area>/architecture.md` and `data-flow.md`.
 
 **A1: Environment Health** -- Read `cluster-diagnosis.json` if available. Extract `environment_health_score`, `subsystem_health`, `classification_guidance`. When score < 0.8 (DEGRADED/CRITICAL), infrastructure is a hypothesis but NOT automatic -- per-test verification still required.
 
-**A2: Failure Pattern Matching** -- Read `knowledge/architecture/<area>/failure-signatures.md`. Match error patterns against known signatures.
+**A2: Failure Pattern Matching** -- Read `${KNOWLEDGE_DIR}/architecture/<area>/failure-signatures.md`. Match error patterns against known signatures.
 
 **A3: Cross-Test Correlation** -- Find patterns: same selector across multiple tests? Same error message? Same feature area?
 
@@ -126,7 +130,7 @@ Read `references/phase-e-jira.md` for full details.
 - `core-data.json` -- primary input with failed tests, feature grounding, extracted context, cluster landscape
 - `cluster-diagnosis.json` -- optional cluster health findings from Stage 1.5
 - `cluster.kubeconfig` -- for oc commands (read-only)
-- `knowledge/` -- architecture, diagnostics, failure patterns
+- `${KNOWLEDGE_DIR}/` -- architecture, diagnostics, failure patterns
 
 ## Output
 

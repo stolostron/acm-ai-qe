@@ -27,7 +27,7 @@ Known failure patterns for ALC-related test failures.
 - **Diagnostic:** `oc get pods -n ocm -l app=multicluster-operators-hub-subscription`
 - **Disambiguation:**
   - If subscription-controller pod is **unhealthy** (CrashLooping, not Running, pending): **INFRASTRUCTURE** (80% confidence) — controller can't reconcile due to environment issue
-  - If subscription-controller pod is **healthy** (Running, Ready) but subscriptions still not reconciling: **PRODUCT_BUG** (80% confidence) — likely ACM-32244 (timestamp comparison bug causes controller to skip reconciliation). See `known_jira_bugs` in `knowledge/failure-patterns.yaml`
+  - If subscription-controller pod is **healthy** (Running, Ready) but subscriptions still not reconciling: **PRODUCT_BUG** (80% confidence) — likely ACM-32244 (timestamp comparison bug causes controller to skip reconciliation). See `known_jira_bugs` in `failure-patterns.yaml`
   - If external channel endpoint is unreachable (Minio, Git, Helm repo down): **INFRASTRUCTURE** — see external service signatures below
 
 ### ArgoCD Sync Stuck
@@ -42,7 +42,7 @@ Known failure patterns for ALC-related test failures.
 - **Classification:** INFRASTRUCTURE (80% confidence)
 - **Explanation:** Tower host not reachable or 'Demo Workflow Template' doesn't exist
 - **Diagnostic:** Check TOWER_HOST connectivity from hub
-- **Version check:** If AAP operator >= 2.5 and test uses workflow job template, reclassify as PRODUCT_BUG (see `knowledge/version-constraints.yaml`)
+- **Version check:** If AAP operator >= 2.5 and test uses workflow job template, reclassify as PRODUCT_BUG (see `version-constraints.yaml`)
 
 ### External Object Storage (Minio) Unreachable
 - **Error:** `subscription is not ready within time limit` with objectBucket channel type

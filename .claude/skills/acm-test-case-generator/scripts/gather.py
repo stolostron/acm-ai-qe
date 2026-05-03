@@ -180,11 +180,17 @@ def _resolve_knowledge_dir():
     """Find the knowledge directory, checking multiple locations."""
     skill_dir = os.environ.get("CLAUDE_SKILL_DIR")
     if skill_dir:
+        # Shared knowledge database (.claude/knowledge/test-case-generator/)
+        claude_dir = Path(skill_dir).parent.parent
+        shared = claude_dir / "knowledge" / "test-case-generator"
+        if shared.exists():
+            return shared
+        # Legacy: skill-local knowledge
         p = Path(skill_dir) / "knowledge"
         if p.exists():
             return p
 
-    # Fall back to app location (relative to repo root or cwd)
+    # Fall back to app location (running from app directory)
     for candidate in [
         Path.cwd() / "knowledge",
         Path.cwd() / "apps" / "test-case-generator" / "knowledge",
@@ -358,7 +364,7 @@ def main():
     if conventions:
         print(f"  Loaded test-case-format.md ({len(conventions)} chars)")
     else:
-        print("  WARNING: test-case-format.md not found in knowledge/conventions/")
+        print("  WARNING: test-case-format.md not found in knowledge directory")
 
     # --- Area Knowledge ---
     area_knowledge = None

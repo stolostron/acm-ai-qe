@@ -56,6 +56,10 @@ Options:
 
 Show summary: "Extracted N failed tests across M feature areas, K managed clusters."
 
+## Knowledge Directory
+
+KNOWLEDGE_DIR = ${CLAUDE_SKILL_DIR}/../../knowledge/z-stream-analysis/
+
 ### Stage 1.5: Cluster Diagnostic (AI)
 
 ```
@@ -66,9 +70,9 @@ Using the acm-cluster-health skill methodology, perform a comprehensive cluster 
 
 Follow the 6-phase diagnostic process:
 1. **Discover:** MCH namespace, version, operators, nodes, managed clusters, CSVs, webhooks
-2. **Learn:** Read knowledge baselines (`references/knowledge/healthy-baseline.yaml`, `components.yaml`, `addon-catalog.yaml`, `diagnostic-traps.md`)
+2. **Learn:** Read knowledge baselines (`${KNOWLEDGE_DIR}/healthy-baseline.yaml`, `components.yaml`, `addon-catalog.yaml`, `diagnostic-traps.md`)
 3. **Check:** 12-layer bottom-up verification (compute, network guards, storage, config, pods, addons)
-4. **Pattern Match:** Cross-reference against `failure-patterns.yaml` and per-area `failure-signatures.md`
+4. **Pattern Match:** Cross-reference against `${KNOWLEDGE_DIR}/failure-patterns.yaml` and per-area `failure-signatures.md`
 5. **Correlate:** Trace dependency chains, identify root causes across subsystems
 6. **Output:** Write `cluster-diagnosis.json` with structured health data
 

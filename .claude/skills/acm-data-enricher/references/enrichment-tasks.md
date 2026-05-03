@@ -144,7 +144,7 @@ If none trigger, skip Task 4 entirely.
 
 ### Process
 1. For each area in `gap_areas` (match rate < 50%):
-   a. Read `knowledge/architecture/<area>/failure-signatures.md`
+   a. Read `${KNOWLEDGE_DIR}/architecture/<area>/failure-signatures.md`
    b. Extract unmatched error messages from `gap_detection.match_rates[area].unmatched_samples`
    c. Match against failure-signatures.md patterns
    d. Construct failure path entries (id, description, category, symptoms regex, classification, confidence, explanation)
@@ -152,7 +152,7 @@ If none trigger, skip Task 4 entirely.
    f. Discard invalid entries
 2. Resolve prerequisites from `cluster-diagnosis.json` if it exists
 3. Write to `feature_knowledge.ai_enrichment` in core-data.json
-4. Write discoveries to `knowledge/learned/feature-gaps.yaml`
+4. Write discoveries to `${KNOWLEDGE_DIR}/learned/feature-gaps.yaml`
 
 ### Valid values
 - Classifications: PRODUCT_BUG, AUTOMATION_BUG, INFRASTRUCTURE, MIXED, UNKNOWN, NO_BUG, FLAKY

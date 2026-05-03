@@ -15,15 +15,15 @@ From `gather-output.json`, extract: `jira_id`, `acm_version`, `area`, `pr_data`,
 
 ### Step 1: Read Conventions and Peer Test Cases
 
-Read from `knowledge/` (paths relative to the skill's parent directory or the app directory):
-- `knowledge/conventions/test-case-format.md` -- section order, naming, rules
-- `knowledge/conventions/area-naming-patterns.md` -- title patterns for the area
-- `knowledge/conventions/cli-in-steps-rules.md` -- when CLI allowed in steps
-- 2-3 peer test cases from `existing_test_cases` paths (or `knowledge/examples/sample-test-case.md` if none)
+Read from the knowledge directory (passed as `KNOWLEDGE_DIR` in your input):
+- `${KNOWLEDGE_DIR}/conventions/test-case-format.md` -- section order, naming, rules
+- `${KNOWLEDGE_DIR}/conventions/area-naming-patterns.md` -- title patterns for the area
+- `${KNOWLEDGE_DIR}/conventions/cli-in-steps-rules.md` -- when CLI allowed in steps
+- 2-3 peer test cases from `existing_test_cases` paths (or `${KNOWLEDGE_DIR}/examples/sample-test-case.md` if none)
 
 ### Step 1.5: Read Area Knowledge
 
-Read `knowledge/architecture/<area>.md`. Extract constraints: field orders, filtering behavior, empty state behavior, component patterns. These are CONSTRAINTS the test case MUST follow. If synthesized context contradicts the knowledge file, trust the knowledge file.
+Read `${KNOWLEDGE_DIR}/architecture/<area>.md`. Extract constraints: field orders, filtering behavior, empty state behavior, component patterns. These are CONSTRAINTS the test case MUST follow. If synthesized context contradicts the knowledge file, trust the knowledge file.
 
 ### Step 2: Plan the Test Case
 

@@ -3,8 +3,8 @@
 ## A0: Feature Grounding
 
 Read `feature_grounding` from core-data.json. For each detected feature area:
-1. Read `knowledge/architecture/<area>/architecture.md` -- how the subsystem works
-2. Read `knowledge/architecture/<area>/data-flow.md` -- data flow through the subsystem
+1. Read `${KNOWLEDGE_DIR}/architecture/<area>/architecture.md` -- how the subsystem works
+2. Read `${KNOWLEDGE_DIR}/architecture/<area>/data-flow.md` -- data flow through the subsystem
 3. Read `feature_knowledge` if present -- oracle-provided failure paths and readiness
 
 ## A1: Environment Health Assessment
@@ -55,7 +55,7 @@ Read `cluster_landscape` from core-data.json: MCH version, managed clusters, fea
 
 ## A2: Failure Pattern Matching
 
-For each detected area, read `knowledge/architecture/<area>/failure-signatures.md`. Match error messages against known signatures. Record matched patterns with their classification hints.
+For each detected area, read `${KNOWLEDGE_DIR}/architecture/<area>/failure-signatures.md`. Match error messages against known signatures. Record matched patterns with their classification hints.
 
 ## A3: Cross-Test Correlation
 

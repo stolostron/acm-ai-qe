@@ -167,7 +167,7 @@ fail, or when pods restart and haven't passed readiness yet. Check:
 oc get endpoints -n <acm-ns> <service-name>
 # If ENDPOINTS column shows <none>, no traffic can reach the backing pods
 ```
-Cross-reference `knowledge/service-map.yaml` for which components depend
+Cross-reference `service-map.yaml` for which components depend
 on each Service and what breaks when endpoints are missing.
 
 ### Layer 4: Storage / Data Persistence
@@ -477,7 +477,7 @@ If backend GRANTS permission but UI shows disabled → PRODUCT_BUG
 If backend DENIES permission → check if denial is from cluster-wide
   issue or from correct RBAC configuration
 Fallback (kubeconfig expired): check test role against RBAC architecture
-  in knowledge/architecture/rbac/
+  in architecture/rbac/
 ```
 
 ### Template 3: Timeout + Cluster-Wide Issue

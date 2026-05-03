@@ -17,9 +17,9 @@ Read the full `test-case.md` file.
 ### Step 2: Read Conventions
 
 Read convention files for format rules:
-- `knowledge/conventions/test-case-format.md`
-- `knowledge/conventions/area-naming-patterns.md`
-- `knowledge/conventions/cli-in-steps-rules.md`
+- `${KNOWLEDGE_DIR}/conventions/test-case-format.md`
+- `${KNOWLEDGE_DIR}/conventions/area-naming-patterns.md`
+- `${KNOWLEDGE_DIR}/conventions/cli-in-steps-rules.md`
 
 ### Step 3: Structural Validation
 
@@ -54,7 +54,7 @@ Check each section against conventions:
 
 ### Step 4.6: Knowledge File Cross-Reference
 
-Read `knowledge/architecture/<area>.md`. Verify field order, filtering behavior, component names are consistent. Flag contradictions as BLOCKING.
+Read `${KNOWLEDGE_DIR}/architecture/<area>.md`. Verify field order, filtering behavior, component names are consistent. Flag contradictions as BLOCKING.
 
 ### Step 4.7: Test Design Efficiency
 
@@ -95,7 +95,7 @@ Report existing similar test cases and potential duplication.
 
 ### Step 6: Peer Consistency Check
 
-Read 2-3 existing test cases from `existing_test_cases` in gather-output.json. Compare section structure, detail level, setup format, teardown approach. If none available, use `knowledge/examples/sample-test-case.md`.
+Read 2-3 existing test cases from `existing_test_cases` in gather-output.json. Compare section structure, detail level, setup format, teardown approach. If none available, use `${KNOWLEDGE_DIR}/examples/sample-test-case.md`.
 
 ## Output Format
 

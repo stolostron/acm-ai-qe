@@ -81,7 +81,7 @@ selector patterns).
   - `console_search.found=false` → AUTOMATION_BUG regardless of signals
   - Known failure-signatures pattern → use pattern classification
   - Layer discrepancy → PRODUCT_BUG
-- **MANDATORY:** Read `knowledge/architecture/<area>/failure-signatures.md` before applying signals. Pattern matches take precedence.
+- **MANDATORY:** Read `architecture/<area>/failure-signatures.md` before applying signals. Pattern matches take precedence.
 - **If NO dependency broken:** Proceed to PR-4
 
 ### PR-4: Feature Knowledge Override (v3.1)

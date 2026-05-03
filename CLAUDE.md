@@ -138,6 +138,7 @@ ai_systems_v2/
 │   └── .external/             # Cloned at setup time (gitignored)
 ├── .claude/
 │   ├── skills/                # 19 skills: 18 ACM + onboard (usable from repo root via root .mcp.json)
+│   ├── knowledge/             # Shared knowledge database for skills (3 domains: tc-gen, z-stream, hub-health)
 │   ├── commands/pre-push.md   # /pre-push quality gate slash command
 │   ├── statusline.sh          # Status line script (model, branch, context %)
 │   └── settings.json          # Root-level Claude Code settings

@@ -24,7 +24,7 @@ CCLM, Fine-Grained RBAC).
   (source code, data flow, implementation details)
            |
            v
-  Write synthesized understanding to knowledge/learned/
+  Write synthesized understanding to learned/
 ```
 
 ## Example Cypher Queries

@@ -113,6 +113,7 @@ ACM_VERSION: <value>
 AREA: <value>
 RUN_DIR: <path>
 PR_DIFF_PATH: <path to pr-diff.txt>
+KNOWLEDGE_DIR: ${CLAUDE_SKILL_DIR}/../../knowledge/test-case-generator
 </input>
 
 Verify `phase3-code.json` exists. Show: "Phase 3 complete. Code analysis written to phase3-code.json."
@@ -142,6 +143,7 @@ AREA: <value>
 CLUSTER_URL: <value or "NONE">
 RUN_DIR: <path>
 SYNTHESIS_TEMPLATE_PATH: ${CLAUDE_SKILL_DIR}/references/synthesis-template.md
+KNOWLEDGE_DIR: ${CLAUDE_SKILL_DIR}/../../knowledge/test-case-generator
 </input>
 
 Verify `synthesized-context.md` exists. Show: "Phase 5 complete. Synthesized context written."
@@ -175,6 +177,7 @@ SYNTHESIZED_CONTEXT_PATH: <path to synthesized-context.md>
 LIVE_VALIDATION_PATH: <path to phase6-live-validation.md or "N/A">
 GATHER_OUTPUT_PATH: <path to gather-output.json>
 SKILL_DIR: ${CLAUDE_SKILL_DIR}
+KNOWLEDGE_DIR: ${CLAUDE_SKILL_DIR}/../../knowledge/test-case-generator
 </input>
 
 Verify `test-case.md` exists. Show: "Phase 7 complete. Test case written."
@@ -190,6 +193,7 @@ RUN_DIR: <path>
 TEST_CASE_PATH: <path to test-case.md>
 GATHER_OUTPUT_PATH: <path to gather-output.json>
 SKILL_DIR: ${CLAUDE_SKILL_DIR}
+KNOWLEDGE_DIR: ${CLAUDE_SKILL_DIR}/../../knowledge/test-case-generator
 </input>
 
 Read the review output. Run programmatic enforcement:

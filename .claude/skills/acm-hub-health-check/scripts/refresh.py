@@ -34,7 +34,8 @@ except ImportError:
     print("Error: PyYAML is required. Install with: pip install pyyaml")
     sys.exit(1)
 
-KNOWLEDGE_DIR = Path(__file__).parent
+_SKILL_DIR = Path(__file__).resolve().parent.parent
+KNOWLEDGE_DIR = _SKILL_DIR.parent.parent / "knowledge" / "hub-health"
 LEARNED_DIR = KNOWLEDGE_DIR / "learned"
 
 # --- File headers (preserved on write, since yaml.dump strips comments) ---

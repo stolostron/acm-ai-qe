@@ -13,6 +13,10 @@ Diagnoses ACM hub cluster health using a 6-phase pipeline. Works at 4 depth leve
 
 **Standalone operation:** This skill works independently. Give it cluster access (`oc` logged in) and it runs the full diagnostic. When used with the acm-cluster-health skill, it follows the 12-layer methodology. When used with acm-neo4j-explorer, it gets richer dependency analysis. Without those skills, it still works -- just with less depth.
 
+## Knowledge Directory
+
+KNOWLEDGE_DIR = ${CLAUDE_SKILL_DIR}/../../knowledge/hub-health/
+
 ## Depth Router
 
 | User Intent | Depth | Phases | Duration |
@@ -65,15 +69,15 @@ oc get statefulsets -n hive --no-headers
 
 Build understanding of healthy vs actual state. Read these knowledge files in order:
 
-1. `references/knowledge/component-registry.md` -- master component inventory
-2. `references/knowledge/architecture/acm-platform.md` -- MCH/MCE hierarchy
-3. For each affected subsystem: `references/knowledge/architecture/<subsystem>/architecture.md` AND `failure-signatures.md`
-4. `references/knowledge/healthy-baseline.yaml` -- expected pod counts, deployment states
-5. `references/knowledge/diagnostics/common-diagnostic-traps.md` -- 14 traps
-6. `references/knowledge/service-map.yaml` -- service-to-pod endpoint mapping
-7. `references/knowledge/webhook-registry.yaml` -- expected webhooks with criticality
-8. If managed clusters present: `references/knowledge/architecture/cluster-lifecycle/health-patterns.md`
-9. `references/knowledge/diagnostics/diagnostic-layers.md` -- 12-layer framework
+1. `${KNOWLEDGE_DIR}/component-registry.md` -- master component inventory
+2. `${KNOWLEDGE_DIR}/architecture/acm-platform.md` -- MCH/MCE hierarchy
+3. For each affected subsystem: `${KNOWLEDGE_DIR}/architecture/<subsystem>/architecture.md` AND `failure-signatures.md`
+4. `${KNOWLEDGE_DIR}/healthy-baseline.yaml` -- expected pod counts, deployment states
+5. `${KNOWLEDGE_DIR}/diagnostics/common-diagnostic-traps.md` -- 14 traps
+6. `${KNOWLEDGE_DIR}/service-map.yaml` -- service-to-pod endpoint mapping
+7. `${KNOWLEDGE_DIR}/webhook-registry.yaml` -- expected webhooks with criticality
+8. If managed clusters present: `${KNOWLEDGE_DIR}/architecture/cluster-lifecycle/health-patterns.md`
+9. `${KNOWLEDGE_DIR}/diagnostics/diagnostic-layers.md` -- 12-layer framework
 
 **Unknown operator protocol:** For CSVs not in the component registry: (1) note CSV metadata and owned CRDs, (2) check if it has ConsolePlugins registered, (3) check MCH/MCE namespace for related deployments.
 
@@ -115,7 +119,7 @@ oc get pods -n multicluster-engine --field-selector=status.phase!=Running,status
 oc get pods -n hive --field-selector=status.phase!=Running,status.phase!=Succeeded --no-headers
 ```
 
-Compare pod counts against `references/knowledge/healthy-baseline.yaml`. Check restart counts (flag pods with >3 restarts). Check StatefulSets in hive and observability namespaces.
+Compare pod counts against `${KNOWLEDGE_DIR}/healthy-baseline.yaml`. Check restart counts (flag pods with >3 restarts). Check StatefulSets in hive and observability namespaces.
 
 **Sub-operator CR status checks:**
 ```bash
@@ -142,9 +146,9 @@ For unhealthy pods: `oc logs <pod> --tail=50`, `oc logs <pod> --previous`, `oc g
 ```bash
 oc get managedclusteraddons -A --no-headers
 ```
-Compare against `references/knowledge/addon-catalog.yaml`. If ALL addons unavailable: check addon-manager pod first (Trap 7).
+Compare against `${KNOWLEDGE_DIR}/addon-catalog.yaml`. If ALL addons unavailable: check addon-manager pod first (Trap 7).
 
-**Spoke-side verification (conditional):** If acm-search MCP available AND search-postgres healthy, use `find_resources` for fleet-wide checks. See `references/knowledge/diagnostics/acm-search-reference.md`.
+**Spoke-side verification (conditional):** If acm-search MCP available AND search-postgres healthy, use `find_resources` for fleet-wide checks. See `${KNOWLEDGE_DIR}/diagnostics/acm-search-reference.md`.
 
 ### Application Layers
 
@@ -152,16 +156,16 @@ Compare against `references/knowledge/addon-catalog.yaml`. If ALL addons unavail
 
 ### Trap Detection
 
-Walk through ALL 14 traps from `references/knowledge/diagnostics/common-diagnostic-traps.md`. Record each as TRIGGERED, NOT triggered, or N/A.
+Walk through ALL 14 traps from `${KNOWLEDGE_DIR}/diagnostics/common-diagnostic-traps.md`. Record each as TRIGGERED, NOT triggered, or N/A.
 
 ## Phase 4: Pattern Match (Standard+)
 
 Cross-reference findings against known issues:
 
-1. Read `references/knowledge/failure-patterns.md`
-2. Read `references/knowledge/architecture/<subsystem>/known-issues.md` for each affected subsystem
-3. Check `references/knowledge/version-constraints.yaml` for version incompatibilities
-4. Check `references/knowledge/architecture/infrastructure/post-upgrade-patterns.md` before reporting post-upgrade issues (may be normal settling)
+1. Read `${KNOWLEDGE_DIR}/failure-patterns.md`
+2. Read `${KNOWLEDGE_DIR}/architecture/<subsystem>/known-issues.md` for each affected subsystem
+3. Check `${KNOWLEDGE_DIR}/version-constraints.yaml` for version incompatibilities
+4. Check `${KNOWLEDGE_DIR}/architecture/infrastructure/post-upgrade-patterns.md` before reporting post-upgrade issues (may be normal settling)
 
 Note JIRA references, fix versions, and cluster-fixability for matched patterns.
 
@@ -169,11 +173,11 @@ Note JIRA references, fix versions, and cluster-fixability for matched patterns.
 
 Trace dependency chains when multiple issues found:
 
-1. Read `references/knowledge/diagnostics/dependency-chains.md` (12 chains)
+1. Read `${KNOWLEDGE_DIR}/diagnostics/dependency-chains.md` (12 chains)
 2. For each chain: check each link against Phase 3 findings. Record broken links and root causes.
 3. Use acm-neo4j-explorer skill for dependencies not in curated chains (if available)
 4. If acm-search MCP available: spoke-side chain verification
-5. Weight evidence per `references/knowledge/diagnostics/evidence-tiers.md`: minimum 2 sources per conclusion, at least 1 Tier 1
+5. Weight evidence per `${KNOWLEDGE_DIR}/diagnostics/evidence-tiers.md`: minimum 2 sources per conclusion, at least 1 Tier 1
 6. Verify conclusions against trap list -- is this a diagnostic trap?
 
 ## Phase 6: Deep Investigate (Deep/Targeted)
@@ -183,7 +187,7 @@ For CRITICAL findings or targeted investigations:
 - `oc logs <pod> --tail=100` and `--previous`
 - `oc get events -n <ns> --sort-by=.lastTimestamp`
 - Resource details: `oc describe`, YAML dumps
-- Follow `references/knowledge/diagnostics/diagnostic-playbooks.md`
+- Follow `${KNOWLEDGE_DIR}/diagnostics/diagnostic-playbooks.md`
 - Read component `data-flow.md` to trace where flow breaks
 - Use acm-search MCP for spoke triage when available
 
@@ -196,7 +200,7 @@ When used by the acm-z-stream-analyzer (Stage 1.5), produce `cluster-diagnosis.j
 - `classification_guidance` (pre-classified infrastructure + confirmed healthy areas)
 - `attribution_rule` per infrastructure issue (when to attribute + what NOT to attribute)
 
-Write self-healing discoveries to `knowledge/learned/` for future runs.
+Write self-healing discoveries to `${KNOWLEDGE_DIR}/learned/` for future runs.
 
 ## Report Format (Standalone Mode)
 
@@ -240,4 +244,4 @@ If remediation is needed, use the acm-cluster-remediation skill AFTER diagnosis 
 4. **ResourceQuota blocking scheduling (Trap 9)** -- ACM does NOT create ResourceQuotas. If one exists in the MCH namespace, it was added externally and may silently block pod scheduling. Pods stuck in Pending with no events is the symptom.
 5. **NetworkPolicy hiding failures (Trap 11)** -- Pods show Running with 0 restarts but cannot communicate. ACM does NOT create NetworkPolicies. External policies can silently break inter-pod traffic while health checks pass.
 
-See `references/knowledge/diagnostics/common-diagnostic-traps.md` for all 14 traps.
+See `${KNOWLEDGE_DIR}/diagnostics/common-diagnostic-traps.md` for all 14 traps.

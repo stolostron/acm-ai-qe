@@ -41,7 +41,7 @@ def _write_json(path: Path, data: dict) -> Path:
 # --- Phase 2: JIRA ---
 
 
-class TestPhase2Jira:
+class TestPhase1Jira:
     VALID = {
         "story": {"key": "ACM-30459", "summary": "Labels field"},
         "acceptance_criteria": ["AC1"],
@@ -52,45 +52,45 @@ class TestPhase2Jira:
     }
 
     def test_valid_passes(self, tmp_path):
-        result = _run(_write_json(tmp_path / "a.json", self.VALID), "phase2-jira")
+        result = _run(_write_json(tmp_path / "a.json", self.VALID), "phase1-jira")
         assert result.returncode == 0
         assert "PASS" in result.stdout
 
     def test_missing_acceptance_criteria(self, tmp_path):
         data = {**self.VALID}
         del data["acceptance_criteria"]
-        result = _run(_write_json(tmp_path / "a.json", data), "phase2-jira")
+        result = _run(_write_json(tmp_path / "a.json", data), "phase1-jira")
         assert result.returncode == 1
         assert "[MISSING] acceptance_criteria" in result.stdout
 
     def test_empty_test_scenarios(self, tmp_path):
         data = {**self.VALID, "test_scenarios": []}
-        result = _run(_write_json(tmp_path / "a.json", data), "phase2-jira")
+        result = _run(_write_json(tmp_path / "a.json", data), "phase1-jira")
         assert result.returncode == 1
         assert "[EMPTY] test_scenarios" in result.stdout
 
     def test_story_missing_nested_key(self, tmp_path):
         data = {**self.VALID, "story": {"key": "ACM-1"}}
-        result = _run(_write_json(tmp_path / "a.json", data), "phase2-jira")
+        result = _run(_write_json(tmp_path / "a.json", data), "phase1-jira")
         assert result.returncode == 1
         assert '[NESTED] story: missing required nested key "summary"' in result.stdout
 
     def test_story_key_null(self, tmp_path):
         data = {**self.VALID, "story": {"key": None, "summary": "x"}}
-        result = _run(_write_json(tmp_path / "a.json", data), "phase2-jira")
+        result = _run(_write_json(tmp_path / "a.json", data), "phase1-jira")
         assert result.returncode == 1
         assert "[TYPE] story.key" in result.stdout
 
     def test_extra_keys_ignored(self, tmp_path):
         data = {**self.VALID, "extra_field": "ok"}
-        result = _run(_write_json(tmp_path / "a.json", data), "phase2-jira")
+        result = _run(_write_json(tmp_path / "a.json", data), "phase1-jira")
         assert result.returncode == 0
 
 
 # --- Phase 3: Code ---
 
 
-class TestPhase3Code:
+class TestPhase2Code:
     VALID = {
         "pr": {"number": 5790, "repo": "stolostron/console", "title": "Labels"},
         "primary_files": ["src/a.tsx"],
@@ -100,25 +100,25 @@ class TestPhase3Code:
     }
 
     def test_valid_passes(self, tmp_path):
-        result = _run(_write_json(tmp_path / "a.json", self.VALID), "phase3-code")
+        result = _run(_write_json(tmp_path / "a.json", self.VALID), "phase2-code")
         assert result.returncode == 0
 
     def test_missing_pr(self, tmp_path):
         data = {**self.VALID}
         del data["pr"]
-        result = _run(_write_json(tmp_path / "a.json", data), "phase3-code")
+        result = _run(_write_json(tmp_path / "a.json", data), "phase2-code")
         assert result.returncode == 1
         assert "[MISSING] pr" in result.stdout
 
     def test_pr_missing_number(self, tmp_path):
         data = {**self.VALID, "pr": {"repo": "r", "title": "t"}}
-        result = _run(_write_json(tmp_path / "a.json", data), "phase3-code")
+        result = _run(_write_json(tmp_path / "a.json", data), "phase2-code")
         assert result.returncode == 1
         assert "[NESTED] pr" in result.stdout
 
     def test_empty_primary_files(self, tmp_path):
         data = {**self.VALID, "primary_files": []}
-        result = _run(_write_json(tmp_path / "a.json", data), "phase3-code")
+        result = _run(_write_json(tmp_path / "a.json", data), "phase2-code")
         assert result.returncode == 1
         assert "[EMPTY] primary_files" in result.stdout
 
@@ -126,7 +126,7 @@ class TestPhase3Code:
 # --- Phase 4: UI ---
 
 
-class TestPhase4UI:
+class TestPhase3UI:
     VALID = {
         "acm_version": "2.17",
         "routes": {"/governance": "/multicloud/governance"},
@@ -136,26 +136,26 @@ class TestPhase4UI:
     }
 
     def test_valid_passes(self, tmp_path):
-        result = _run(_write_json(tmp_path / "a.json", self.VALID), "phase4-ui")
+        result = _run(_write_json(tmp_path / "a.json", self.VALID), "phase3-ui")
         assert result.returncode == 0
 
     def test_missing_acm_version(self, tmp_path):
         data = {**self.VALID}
         del data["acm_version"]
-        result = _run(_write_json(tmp_path / "a.json", data), "phase4-ui")
+        result = _run(_write_json(tmp_path / "a.json", data), "phase3-ui")
         assert result.returncode == 1
         assert "[MISSING] acm_version" in result.stdout
 
     def test_empty_routes(self, tmp_path):
         data = {**self.VALID, "routes": {}}
-        result = _run(_write_json(tmp_path / "a.json", data), "phase4-ui")
+        result = _run(_write_json(tmp_path / "a.json", data), "phase3-ui")
         assert result.returncode == 1
         assert "[EMPTY] routes" in result.stdout
 
     def test_missing_entry_point(self, tmp_path):
         data = {**self.VALID}
         del data["entry_point"]
-        result = _run(_write_json(tmp_path / "a.json", data), "phase4-ui")
+        result = _run(_write_json(tmp_path / "a.json", data), "phase3-ui")
         assert result.returncode == 1
         assert "[MISSING] entry_point" in result.stdout
 
@@ -266,14 +266,14 @@ class TestGatherOutput:
 
 class TestEdgeCases:
     def test_nonexistent_file(self, tmp_path):
-        result = _run(tmp_path / "nope.json", "phase2-jira")
+        result = _run(tmp_path / "nope.json", "phase1-jira")
         assert result.returncode == 1
         assert "not found" in result.stdout
 
     def test_invalid_json(self, tmp_path):
         f = tmp_path / "bad.json"
         f.write_text("{broken", encoding="utf-8")
-        result = _run(f, "phase2-jira")
+        result = _run(f, "phase1-jira")
         assert result.returncode == 1
         assert "[PARSE]" in result.stdout
 
@@ -287,14 +287,14 @@ class TestEdgeCases:
     def test_empty_file(self, tmp_path):
         f = tmp_path / "empty.json"
         f.write_text("", encoding="utf-8")
-        result = _run(f, "phase2-jira")
+        result = _run(f, "phase1-jira")
         assert result.returncode == 1
         assert "[PARSE]" in result.stdout
 
     def test_json_array_root(self, tmp_path):
         f = tmp_path / "arr.json"
         f.write_text("[1, 2, 3]", encoding="utf-8")
-        result = _run(f, "phase2-jira")
+        result = _run(f, "phase1-jira")
         assert result.returncode == 1
         assert "[TYPE] Root" in result.stdout
 
@@ -307,7 +307,7 @@ class TestEdgeCases:
             "test_scenarios": [],
             "anomalies": [],
         }
-        result = _run(_write_json(tmp_path / "a.json", data), "phase2-jira")
+        result = _run(_write_json(tmp_path / "a.json", data), "phase1-jira")
         assert result.returncode == 1
         assert "[TYPE] story: expected dict, got null" in result.stdout
 
@@ -379,11 +379,11 @@ class TestPreSynthesis:
 
     def _setup_run(self, tmp_path, jira=None, code=None, ui=None):
         if jira is not None:
-            _write_json(tmp_path / "phase2-jira.json", jira)
+            _write_json(tmp_path / "phase1-jira.json", jira)
         if code is not None:
-            _write_json(tmp_path / "phase3-code.json", code)
+            _write_json(tmp_path / "phase2-code.json", code)
         if ui is not None:
-            _write_json(tmp_path / "phase4-ui.json", ui)
+            _write_json(tmp_path / "phase3-ui.json", ui)
 
     def test_all_valid_passes(self, tmp_path):
         self._setup_run(tmp_path, self.VALID_JIRA, self.VALID_CODE, self.VALID_UI)
@@ -396,19 +396,19 @@ class TestPreSynthesis:
         self._setup_run(tmp_path, code=self.VALID_CODE, ui=self.VALID_UI)
         result = _run_pre_synthesis(tmp_path)
         assert result.returncode == 1
-        assert "[FILE] phase2-jira.json" in result.stdout
+        assert "[FILE] phase1-jira.json" in result.stdout
 
     def test_missing_code_file(self, tmp_path):
         self._setup_run(tmp_path, jira=self.VALID_JIRA, ui=self.VALID_UI)
         result = _run_pre_synthesis(tmp_path)
         assert result.returncode == 1
-        assert "[FILE] phase3-code.json" in result.stdout
+        assert "[FILE] phase2-code.json" in result.stdout
 
     def test_missing_ui_file(self, tmp_path):
         self._setup_run(tmp_path, jira=self.VALID_JIRA, code=self.VALID_CODE)
         result = _run_pre_synthesis(tmp_path)
         assert result.returncode == 1
-        assert "[FILE] phase4-ui.json" in result.stdout
+        assert "[FILE] phase3-ui.json" in result.stdout
 
     def test_empty_acceptance_criteria(self, tmp_path):
         jira = {**self.VALID_JIRA, "acceptance_criteria": []}
@@ -486,9 +486,9 @@ class TestPreSynthesis:
         assert result.returncode == 0
 
     def test_invalid_json_in_artifact(self, tmp_path):
-        _write_json(tmp_path / "phase2-jira.json", self.VALID_JIRA)
-        (tmp_path / "phase3-code.json").write_text("{broken", encoding="utf-8")
-        _write_json(tmp_path / "phase4-ui.json", self.VALID_UI)
+        _write_json(tmp_path / "phase1-jira.json", self.VALID_JIRA)
+        (tmp_path / "phase2-code.json").write_text("{broken", encoding="utf-8")
+        _write_json(tmp_path / "phase3-ui.json", self.VALID_UI)
         result = _run_pre_synthesis(tmp_path)
         assert result.returncode == 1
-        assert "[FILE] phase3-code.json" in result.stdout
+        assert "[FILE] phase2-code.json" in result.stdout

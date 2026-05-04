@@ -1,18 +1,18 @@
 # MCP Integration
 
-Seven MCP servers provide external data access for the pipeline. Four are used during investigation (Phase 1), three are used during live validation (Phase 3). Setup is handled by `mcp/setup.sh` from the repository root.
+Seven MCP servers provide external data access for the pipeline. Four are used during investigation (Phases 1-3), three are used during live validation (Phase 5). Setup is handled by `mcp/setup.sh` from the repository root.
 
 ## Server Summary
 
 | Server | Tools | Source | Phase | Setup |
 |--------|-------|--------|-------|-------|
-| acm-ui | 20 | This repo (`mcp/acm-ui-mcp-server/`) | 1, 4, 4.5 | Local venv |
+| acm-ui | 20 | This repo (`mcp/acm-ui-mcp-server/`) | 2, 3, 6, 7 | Local venv |
 | jira | 3 | [stolostron/jira-mcp-server](https://github.com/stolostron/jira-mcp-server) | 1 | Clone + venv + .env |
-| polarion | 7 | This repo (`mcp/polarion/`) | 1, 4.5 | uvx + .env |
-| neo4j-rhacm | 2 | [mcp-neo4j-cypher](https://pypi.org/project/mcp-neo4j-cypher/) (PyPI) | 1 | Podman container |
-| acm-search | 5 | [stolostron/acm-mcp-server](https://github.com/stolostron/acm-mcp-server) | 3 | On-cluster SSE + mcp-remote |
-| acm-kubectl | 3 | [stolostron/acm-mcp-server](https://github.com/stolostron/acm-mcp-server) | 3 | npx |
-| playwright | 24 | [@playwright/mcp](https://www.npmjs.com/package/@playwright/mcp) (npm) | 1 (conditional), 3 | npx |
+| polarion | 7 | This repo (`mcp/polarion/`) | 1, 7 | uvx + .env |
+| neo4j-rhacm | 2 | [mcp-neo4j-cypher](https://pypi.org/project/mcp-neo4j-cypher/) (PyPI) | 1-3 | Podman container |
+| acm-search | 5 | [stolostron/acm-mcp-server](https://github.com/stolostron/acm-mcp-server) | 5 | On-cluster SSE + mcp-remote |
+| acm-kubectl | 3 | [stolostron/acm-mcp-server](https://github.com/stolostron/acm-mcp-server) | 5 | npx |
+| playwright | 24 | [@playwright/mcp](https://www.npmjs.com/package/@playwright/mcp) (npm) | 3 (conditional), 5 | npx |
 
 ## Setup
 
@@ -36,7 +36,7 @@ The setup script:
 
 **Tools:** 20
 **Source:** `mcp/acm-ui-mcp-server/` (our code)
-**Used by:** Code Change Analyzer, UI Discovery, Test Case Generator, Quality Reviewer
+**Used by:** Code Analyzer (Phase 2), UI Discoverer (Phase 3), Test Case Writer (Phase 6), Quality Reviewer (Phase 7)
 
 Searches ACM Console and kubevirt-plugin source code on GitHub. Provides selectors, translations, routes, wizard steps, component source, and test IDs.
 
@@ -69,7 +69,7 @@ Always call `set_acm_version` before any other tool. For Fleet Virt features, al
 
 **Tools:** 3
 **Source:** `mcp/.external/jira-mcp-server/` (cloned from stolostron)
-**Used by:** Feature Investigator
+**Used by:** Data Gatherer (Phase 1)
 
 Connects to Jira Cloud (Red Hat Atlassian) for ticket investigation.
 
@@ -99,7 +99,7 @@ Get API token at: https://id.atlassian.com/manage-profile/security/api-tokens
 
 **Tools:** 7
 **Source:** `mcp/polarion/` (our wrapper)
-**Used by:** Feature Investigator, Quality Reviewer
+**Used by:** Data Gatherer (Phase 1), Quality Reviewer (Phase 7)
 
 Read-only access to Polarion test cases in the RHACM4K project. Runs via `uvx` from PyPI.
 
@@ -132,7 +132,7 @@ Requires Red Hat VPN. Project ID is always `RHACM4K`.
 
 **Tools:** 2
 **Source:** [mcp-neo4j-cypher](https://pypi.org/project/mcp-neo4j-cypher/) (PyPI via uvx)
-**Used by:** Feature Investigator, Code Change Analyzer, UI Discovery
+**Used by:** Data Gatherer (Phase 1), Code Analyzer (Phase 2), UI Discoverer (Phase 3)
 
 RHACM component dependency graph. Runs as a Podman container. Component and relationship counts depend on the loaded graph extensions (base graph has ~291 nodes).
 
@@ -163,7 +163,7 @@ Requires Podman with `neo4j-rhacm` container. The setup script creates the conta
 
 **Tools:** 5
 **Source:** `mcp/.external/acm-mcp-server/servers/postgresql/` (cloned from stolostron)
-**Used by:** Live Validator (Phase 3 only)
+**Used by:** Live Validator (Phase 5 only)
 
 Fleet-wide resource queries across all managed clusters via the ACM search-postgres database. Runs as a pod on the ACM hub, accessed via SSE over an OpenShift route.
 
@@ -190,7 +190,7 @@ Requires:
 
 **Tools:** 3
 **Source:** `mcp/.external/acm-mcp-server/servers/multicluster-kubectl/` (cloned from stolostron)
-**Used by:** Live Validator (Phase 3 only)
+**Used by:** Live Validator (Phase 5 only)
 
 Multicluster kubectl operations: list managed clusters, run kubectl on hub or spoke clusters, generate kubeconfig for managed clusters.
 
@@ -212,7 +212,7 @@ Runs via `npx -y acm-mcp-server@latest`. Requires Node.js 18+ and KUBECONFIG poi
 
 **Tools:** 24
 **Source:** [@playwright/mcp](https://www.npmjs.com/package/@playwright/mcp) (npm)
-**Used by:** UI Discovery (Phase 1, conditional — only when cluster URL provided), Live Validator (Phase 3)
+**Used by:** UI Discoverer (Phase 3, conditional — only when cluster URL provided), Live Validator (Phase 5)
 
 Browser automation for live UI validation. Opens a real browser, navigates pages, takes snapshots of the accessibility tree, clicks elements, fills forms, and takes screenshots.
 
@@ -264,19 +264,19 @@ Runs via `npx @playwright/mcp@latest`. Requires Node.js 18+ and Chromium browser
 ## Agent-to-MCP Matrix
 
 ```
-Feature Investigator:
+Data Gatherer (Phase 1):
+  bash      -> python gather.py, gh pr view, gh pr diff (GitHub CLI via bash)
   jira      -> get_issue, search_issues, get_project_components
   polarion  -> get_polarion_work_items, get_polarion_test_case_summary
   neo4j     -> read_neo4j_cypher (architecture context)
-  bash      -> gh pr view (GitHub CLI via bash)
 
-Code Change Analyzer:
+Code Analyzer (Phase 2):
   bash      -> gh pr view, gh pr diff (GitHub CLI via bash)
   acm-ui    -> set_acm_version, search_code, get_component_source,
                get_component_types, search_translations, get_routes
   neo4j     -> read_neo4j_cypher (component dependencies)
 
-UI Discovery:
+UI Discoverer (Phase 3):
   acm-ui    -> set_acm_version, set_cnv_version, search_code, get_component_source,
                search_translations, get_wizard_steps, get_routes, get_acm_selectors,
                get_fleet_virt_selectors, find_test_ids, get_patternfly_selectors
@@ -284,17 +284,17 @@ UI Discovery:
                (conditional: only when cluster URL provided, for live element verification)
   bash       -> oc login, oc whoami, oc get mch -A (cluster auth for browser verification)
 
-Live Validator:
+Live Validator (Phase 5):
   playwright -> browser_navigate, browser_snapshot, browser_click, browser_fill_form,
                 browser_take_screenshot, browser_console_messages, browser_network_requests
   bash       -> oc get pods/csv/mch/managedcluster (oc CLI via bash)
   acm-search -> find_resources, query_database
   acm-kubectl -> clusters, kubectl, connect_cluster
 
-Test Case Generator (spot-check only):
+Test Case Writer (Phase 6, spot-check only):
   acm-ui    -> set_acm_version, get_routes, search_translations
 
-Quality Reviewer:
+Quality Reviewer (Phase 7):
   acm-ui    -> set_acm_version, search_translations, get_routes, get_wizard_steps
   polarion  -> get_polarion_work_item, get_polarion_test_case_summary
 ```

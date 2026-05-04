@@ -36,9 +36,9 @@ Agents read knowledge at specific pipeline phases:
 | Phase | What is read | Why |
 |-------|-------------|-----|
 | Phase 1 | `conventions/test-case-format.md`, `conventions/polarion-html-templates.md`, `architecture/<area>.md` | Loaded into `gather-output.json` for downstream subagents |
-| Phase 7 (writer) | All conventions files, `architecture/<area>.md` (constraints), peer test cases, patterns | Format and behavioral constraints before writing |
-| Phase 8 (reviewer) | Conventions files, `architecture/<area>.md` (cross-reference), common mistakes (built into agent) | Validation reference + knowledge cross-reference |
-| Phase 9 | `conventions/polarion-html-templates.md` (baked into `generate_html.py`) | HTML generation rules |
+| Phase 6 (writer) | All conventions files, `architecture/<area>.md` (constraints), peer test cases, patterns | Format and behavioral constraints before writing |
+| Phase 7 (reviewer) | Conventions files, `architecture/<area>.md` (cross-reference), common mistakes (built into agent) | Validation reference + knowledge cross-reference |
+| Phase 8 | `conventions/polarion-html-templates.md` (baked into `generate_html.py`) | HTML generation rules |
 
 ## Validation Authority
 

@@ -58,20 +58,20 @@ class TestAppPipelineNames:
 
 
 class TestPortableSkillNames:
-    """Portable skill uses phase2-jira.json, phase3-code.json, etc."""
+    """Portable skill uses phase1-jira.json, phase2-code.json, etc."""
 
     def test_all_present(self, run_dir):
         _touch(
             run_dir,
             "gather-output.json",
             "pr-diff.txt",
-            "phase2-jira.json",
-            "phase3-code.json",
-            "phase4-ui.json",
+            "phase1-jira.json",
+            "phase2-code.json",
+            "phase3-ui.json",
             "synthesized-context.md",
-            "phase6-live-validation.md",
+            "phase5-live-validation.md",
             "test-case.md",
-            "phase8-review.md",
+            "phase7-review.md",
         )
         result = check_artifact_completeness(run_dir)
         assert result["artifacts_present"] == 9
@@ -84,12 +84,12 @@ class TestPortableSkillNames:
             run_dir,
             "gather-output.json",
             "pr-diff.txt",
-            "phase2-jira.json",
-            "phase3-code.json",
-            "phase4-ui.json",
+            "phase1-jira.json",
+            "phase2-code.json",
+            "phase3-ui.json",
             "synthesized-context.md",
             "test-case.md",
-            "phase8-review.md",
+            "phase7-review.md",
         )
         result = check_artifact_completeness(run_dir)
         assert result["artifacts_present"] == 8
@@ -106,10 +106,10 @@ class TestMixedNames:
             "gather-output.json",
             "pr-diff.txt",
             "phase1-feature-investigation.md",
-            "phase3-code.json",
-            "phase4-ui.json",
+            "phase2-code.json",
+            "phase3-ui.json",
             "phase2-synthesized-context.md",
-            "phase6-live-validation.md",
+            "phase5-live-validation.md",
             "test-case.md",
             "phase4.5-quality-review.md",
         )
@@ -131,4 +131,4 @@ class TestEmptyRunDir:
     def test_missing_reports_primary_name(self, run_dir):
         result = check_artifact_completeness(run_dir)
         assert "phase1-feature-investigation.md" in result["artifacts_missing"]
-        assert "phase2-jira.json" not in result["artifacts_missing"]
+        assert "phase1-jira.json" not in result["artifacts_missing"]

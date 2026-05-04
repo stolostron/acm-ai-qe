@@ -24,13 +24,13 @@ from src.services.telemetry import PipelineTelemetry
 EXPECTED_ARTIFACTS = [
     ("gather-output.json",),
     ("pr-diff.txt",),
-    ("phase1-feature-investigation.md", "phase2-jira.json"),
-    ("phase1-code-change-analysis.md", "phase3-code.json"),
-    ("phase1-ui-discovery.md", "phase4-ui.json"),
+    ("phase1-feature-investigation.md", "phase1-jira.json"),
+    ("phase1-code-change-analysis.md", "phase2-code.json"),
+    ("phase1-ui-discovery.md", "phase3-ui.json"),
     ("phase2-synthesized-context.md", "synthesized-context.md"),
-    ("phase3-live-validation.md", "phase6-live-validation.md"),
+    ("phase3-live-validation.md", "phase5-live-validation.md"),
     ("test-case.md",),
-    ("phase4.5-quality-review.md", "phase8-review.md"),
+    ("phase4.5-quality-review.md", "phase7-review.md"),
 ]
 
 

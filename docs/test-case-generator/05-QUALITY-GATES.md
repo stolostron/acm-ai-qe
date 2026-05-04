@@ -1,36 +1,36 @@
 # Quality Gates
 
-The pipeline has three independent validation systems. Artifact validation (Phases 1-7) ensures each phase produces structurally valid output with required data. Phase 8 validates semantic correctness (are the right things tested?). Phase 9 validates structural correctness (is the format right?).
+The pipeline has three independent validation systems. Artifact validation (Phases 1-6) ensures each phase produces structurally valid output with required data. Phase 7 validates semantic correctness (are the right things tested?). Phase 8 validates structural correctness (is the format right?).
 
 ## Validation Layers
 
 | Layer | When | Type | What it checks | Authoritative for |
 |-------|------|------|---------------|-------------------|
-| Artifact Validation | After each phase (1-5, 7) | Deterministic (`scripts/validate_artifact.py`) | Required fields, types, non-empty constraints, nested keys, patterns | Data completeness at each handoff |
-| Pre-Synthesis Gate | Between Phase 4 and Phase 5 | Deterministic (`scripts/validate_artifact.py --pre-synthesis`) | 8 minimum data points across 3 investigation artifacts | Minimum viable synthesis inputs |
-| Phase 8 | Before Phase 9 | AI (quality-reviewer subagent) | MCP verification of UI elements, Polarion coverage, peer consistency, discovered vs assumed, AC vs implementation | Semantic correctness |
-| Phase 9 | After Phase 8 | Deterministic (`scripts/report.py`) | Title pattern, metadata fields, section order, step format, entry point, teardown | Structural correctness |
+| Artifact Validation | After each phase (1-4, 6) | Deterministic (`scripts/validate_artifact.py`) | Required fields, types, non-empty constraints, nested keys, patterns | Data completeness at each handoff |
+| Pre-Synthesis Gate | Between Phase 3 and Phase 4 | Deterministic (`scripts/validate_artifact.py --pre-synthesis`) | 8 minimum data points across 3 investigation artifacts | Minimum viable synthesis inputs |
+| Phase 7 | Before Phase 8 | AI (quality-reviewer subagent) | MCP verification of UI elements, Polarion coverage, peer consistency, discovered vs assumed, AC vs implementation | Semantic correctness |
+| Phase 8 | After Phase 7 | Deterministic (`scripts/report.py`) | Title pattern, metadata fields, section order, step format, entry point, teardown | Structural correctness |
 
 ---
 
-## Artifact Validation (Phases 1-7)
+## Artifact Validation (Phases 1-6)
 
 **Script:** `scripts/validate_artifact.py`
 **Invocation:** `python validate_artifact.py <artifact-path> <schema-name>`
 **Verdict:** Exit 0 = PASS, exit 1 = FAIL with structured error output
 
-After each AI-produced phase (2, 3, 4, 5, 7), the orchestrator runs schema validation on the output artifact. Phase 1 (gather.py) is also validated but fails hard on error (deterministic script, no retry). Phase 6 (live validation) produces unstructured markdown — no schema validation. Phase 8 has its own enforcement via `review_enforcement.py`.
+After each AI-produced phase (1, 2, 3, 4, 6), the orchestrator runs schema validation on the output artifact. Phase 1 produces two artifacts: `gather-output.json` (deterministic, from gather.py — fails hard on error) and `phase1-jira.json` (AI-produced — retries on failure). Phase 5 (live validation) produces unstructured markdown — no schema validation. Phase 7 has its own enforcement via `review_enforcement.py`.
 
 ### Schemas
 
 | Schema | Phase | Artifact | Key checks |
 |--------|:-----:|----------|------------|
 | `gather-output` | 1 | `gather-output.json` | `jira_id`, `run_dir`, `timestamp`, `options` present |
-| `phase2-jira` | 2 | `phase2-jira.json` | `story` (with nested `key` + `summary`), `acceptance_criteria` non-empty, `test_scenarios` non-empty |
-| `phase3-code` | 3 | `phase3-code.json` | `pr` (with nested `number` + `repo` + `title`), `primary_files` non-empty, `test_scenarios` non-empty |
-| `phase4-ui` | 4 | `phase4-ui.json` | `acm_version`, `routes` non-empty, `entry_point` |
-| `synthesized-context` | 5 | `synthesized-context.md` | Required sections: JIRA INVESTIGATION, CODE CHANGE ANALYSIS, UI DISCOVERY, TEST PLAN |
-| `analysis-results` | 7 | `analysis-results.json` | `jira_id` (ACM- pattern), `acm_version`, `area`, `steps_count` > 0, `test_case_file` |
+| `phase1-jira` | 1 | `phase1-jira.json` | `story` (with nested `key` + `summary`), `acceptance_criteria` non-empty, `test_scenarios` non-empty |
+| `phase2-code` | 2 | `phase2-code.json` | `pr` (with nested `number` + `repo` + `title`), `primary_files` non-empty, `test_scenarios` non-empty |
+| `phase3-ui` | 3 | `phase3-ui.json` | `acm_version`, `routes` non-empty, `entry_point` |
+| `synthesized-context` | 4 | `synthesized-context.md` | Required sections: JIRA INVESTIGATION, CODE CHANGE ANALYSIS, UI DISCOVERY, TEST PLAN |
+| `analysis-results` | 6 | `analysis-results.json` | `jira_id` (ACM- pattern), `acm_version`, `area`, `steps_count` > 0, `test_case_file` |
 
 ### Error Categories
 
@@ -47,7 +47,7 @@ After each AI-produced phase (2, 3, 4, 5, 7), the orchestrator runs schema valid
 
 ### Pre-Synthesis Readiness Check
 
-Before Phase 5 (synthesis), a cross-artifact check verifies minimum viable data exists across all three investigation artifacts. This runs after individual phase validations and retries are exhausted.
+Before Phase 4 (synthesis), a cross-artifact check verifies minimum viable data exists across all three investigation artifacts. This runs after individual phase validations and retries are exhausted.
 
 **Invocation:** `python validate_artifact.py --pre-synthesis <run-dir>`
 
@@ -55,20 +55,20 @@ Before Phase 5 (synthesis), a cross-artifact check verifies minimum viable data 
 
 | Artifact | Data Point | Why required |
 |----------|-----------|--------------|
-| `phase2-jira.json` | `story.key` | Test case identity |
-| `phase2-jira.json` | `story.summary` | Test case title |
-| `phase2-jira.json` | `acceptance_criteria` (non-empty) | Scope gate + test plan anchors |
-| `phase3-code.json` | `pr.number` | Code context identity |
-| `phase3-code.json` | `pr.repo` | Code context identity |
-| `phase3-code.json` | `primary_files` (non-empty) | AC cross-reference requires knowing what changed |
-| `phase4-ui.json` | `entry_point` | Test case navigation start |
-| `phase4-ui.json` | `routes` (non-empty) | Entry point verification |
+| `phase1-jira.json` | `story.key` | Test case identity |
+| `phase1-jira.json` | `story.summary` | Test case title |
+| `phase1-jira.json` | `acceptance_criteria` (non-empty) | Scope gate + test plan anchors |
+| `phase2-code.json` | `pr.number` | Code context identity |
+| `phase2-code.json` | `pr.repo` | Code context identity |
+| `phase2-code.json` | `primary_files` (non-empty) | AC cross-reference requires knowing what changed |
+| `phase3-ui.json` | `entry_point` | Test case navigation start |
+| `phase3-ui.json` | `routes` (non-empty) | Entry point verification |
 
 If FAIL: the pipeline stops. Upstream phases already exhausted their retry attempts — there is nothing left to retry. The check reports exactly which data points are missing.
 
 ### Retry Protocol
 
-When artifact validation fails for an AI-produced phase (2, 3, 4, 5, or 7), the orchestrator retries up to 3 times before proceeding with incomplete data.
+When artifact validation fails for an AI-produced phase (1, 2, 3, 4, or 6), the orchestrator retries up to 3 times before proceeding with incomplete data.
 
 **For each attempt:** Re-spawn the same agent type with the original input plus a `<retry>` block containing the attempt number, path to the invalid artifact, and the specific validation errors.
 
@@ -77,11 +77,11 @@ When artifact validation fails for an AI-produced phase (2, 3, 4, 5, or 7), the 
 2. Pass `VALIDATION_WARNINGS_PATH` in all downstream `<input>` blocks so agents can degrade gracefully
 3. Downstream agents handle gaps: synthesizer marks `[DATA GAP]` notes, writer adds `[MANUAL VERIFICATION REQUIRED]` to affected steps, reviewer adjusts severity for expected gaps
 
-**Phase 1 exception:** `gather-output.json` is deterministic Python — validation failure means a script bug, not an LLM issue. Stop immediately.
+**Phase 1 exception:** `gather-output.json` is deterministic Python (from gather.py) — validation failure means a script bug, not an LLM issue. Stop immediately. However, `phase1-jira.json` is AI-produced and follows the normal retry protocol.
 
 ---
 
-## Phase 8: Quality Reviewer Agent
+## Phase 7: Quality Reviewer Agent
 
 **Agent:** `references/agents/quality-reviewer.md`
 **Tools:** acm-ui, polarion
@@ -191,7 +191,7 @@ Reads 2-3 existing test cases from the same area and compares:
 Every agent in the pipeline can encounter MCP failures, missing data, or unavailable services. The pipeline uses artifact validation with retry at each handoff, graceful degradation when retries are exhausted, and never aborts on tool failures.
 
 **Artifact validation layer:**
-- After each AI-produced phase (2-5, 7), `validate_artifact.py` checks the output against its schema
+- After each AI-produced phase (1-4, 6), `validate_artifact.py` checks the output against its schema
 - On failure: retry up to 3 times with specific error feedback to the agent
 - After 3 failures: write `validation-warnings.json`, proceed with incomplete data
 - Pre-synthesis gate: cross-artifact check of 8 minimum data points before synthesis
@@ -210,13 +210,13 @@ Every agent in the pipeline can encounter MCP failures, missing data, or unavail
 - Quality Reviewer: adjusts severity — gaps the writer could not fill are WARNING (not BLOCKING), but invented data is still BLOCKING
 
 **Pipeline-level handling:**
-- Phase 2/3/4 agent failure: retry up to 3 times, then proceed with incomplete data
+- Phase 1/2/3 agent failure: retry up to 3 times, then proceed with incomplete data
 - Live validation skip: synthesis proceeds without live data, notes limitation
 - Quality reviewer NEEDS_FIXES: 3-tier escalation (never aborts):
   - Tier 1: targeted MCP re-investigation for factual errors
   - Tier 2: focused retry with accumulated evidence
   - Tier 3: mark unresolvable with `[MANUAL VERIFICATION REQUIRED]`, proceed
-- Phase 9 failure after Phase 8 pass: fix structural issue, re-run `scripts/report.py` only
+- Phase 8 failure after Phase 7 pass: fix structural issue, re-run `scripts/report.py` only
 
 **Anomaly reporting format** (all agents):
 
@@ -257,9 +257,9 @@ Quality review: 1 step flagged for manual verification.
 
 ---
 
-## Phase 9: Structural Validator
+## Phase 8: Structural Validator
 
-Phase 9 processes test cases regardless of manual verification flags. `[MANUAL VERIFICATION REQUIRED]` markers pass through to the Polarion HTML output unchanged. The `SUMMARY.txt` includes a count of flagged steps when present.
+Phase 8 processes test cases regardless of manual verification flags. `[MANUAL VERIFICATION REQUIRED]` markers pass through to the Polarion HTML output unchanged. The `SUMMARY.txt` includes a count of flagged steps when present.
 
 **Script:** `scripts/report.py` (structural validation inlined)
 **Input:** `test-case.md` file path, optional area
@@ -394,7 +394,7 @@ The orchestrator validates this block before accepting the verdict. If the block
 
 A test case must pass all of these before delivery:
 
-| Criterion | Phase 8 | Phase 9 |
+| Criterion | Phase 7 | Phase 8 |
 |-----------|---------|---------|
 | Metadata completeness | Checks all fields present | Validates field format |
 | Title pattern | Checks tag matches area | Validates regex pattern |

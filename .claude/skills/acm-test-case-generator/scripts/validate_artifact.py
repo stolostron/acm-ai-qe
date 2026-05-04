@@ -9,12 +9,12 @@ Usage:
     python validate_artifact.py --pre-synthesis <run-dir>
 
 Schema names:
-    gather-output, phase2-jira, phase3-code, phase4-ui,
+    gather-output, phase1-jira, phase2-code, phase3-ui,
     synthesized-context, analysis-results
 
 Pre-synthesis mode:
-    Checks minimum viable data across phase2-jira.json, phase3-code.json,
-    and phase4-ui.json before synthesis can proceed.
+    Checks minimum viable data across phase1-jira.json, phase2-code.json,
+    and phase3-ui.json before synthesis can proceed.
 
 Exit codes:
     0 -- PASS (artifact conforms to schema)
@@ -42,7 +42,7 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 
 SCHEMAS = {
-    "phase2-jira": {
+    "phase1-jira": {
         "format": "json",
         "required": {
             "story": {
@@ -72,7 +72,7 @@ SCHEMAS = {
             },
         },
     },
-    "phase3-code": {
+    "phase2-code": {
         "format": "json",
         "required": {
             "pr": {
@@ -100,7 +100,7 @@ SCHEMAS = {
             },
         },
     },
-    "phase4-ui": {
+    "phase3-ui": {
         "format": "json",
         "required": {
             "acm_version": {
@@ -313,7 +313,7 @@ def validate_artifact(artifact_path: Path, schema_name: str) -> tuple[bool, list
 
 
 PRE_SYNTHESIS_CHECKS = {
-    "phase2-jira.json": [
+    "phase1-jira.json": [
         {
             "path": ["story", "key"],
             "label": "story.key",
@@ -331,7 +331,7 @@ PRE_SYNTHESIS_CHECKS = {
             "non_empty": True,
         },
     ],
-    "phase3-code.json": [
+    "phase2-code.json": [
         {
             "path": ["pr", "number"],
             "label": "pr.number",
@@ -349,7 +349,7 @@ PRE_SYNTHESIS_CHECKS = {
             "non_empty": True,
         },
     ],
-    "phase4-ui.json": [
+    "phase3-ui.json": [
         {
             "path": ["entry_point"],
             "label": "entry_point",

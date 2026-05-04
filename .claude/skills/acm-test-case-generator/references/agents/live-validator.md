@@ -1,4 +1,4 @@
-# Live Validator Agent (Phase 6)
+# Live Validator Agent (Phase 5)
 
 You are a live environment validation specialist for ACM Console test case generation. You verify feature behavior on actual ACM clusters using browser automation, oc CLI, ACM Search, and multicluster kubectl.
 
@@ -88,7 +88,7 @@ Use oc CLI patterns from `acm-cluster-health` skill (loaded in Step 0) for envir
 
 ## Output
 
-Write `phase6-live-validation.md` to the run directory:
+Write `phase5-live-validation.md` to the run directory:
 
 ```
 LIVE VALIDATION RESULTS

@@ -1,6 +1,6 @@
 # Session Tracing
 
-Claude Code hooks capture every tool call, MCP interaction, prompt, subagent launch, and error into structured JSONL trace files. This provides full observability across all pipeline phases, including the AI subagent phases (2–8) that the Python telemetry does not cover.
+Claude Code hooks capture every tool call, MCP interaction, prompt, subagent launch, and error into structured JSONL trace files. This provides full observability across all pipeline phases, including the AI subagent phases (1–7) that the Python telemetry does not cover.
 
 ## Architecture
 
@@ -8,8 +8,8 @@ The app uses two complementary telemetry systems:
 
 | System | Covers | Format | Location |
 |--------|--------|--------|----------|
-| Pipeline telemetry (`PipelineTelemetry`) | Phases 1 and 9 (deterministic Python scripts) | JSONL | `runs/<run>/pipeline.log.jsonl` |
-| Session tracing (Claude Code hooks) | All phases (0–9), all tool calls | JSONL | `.claude/traces/<session_id>.jsonl` |
+| Pipeline telemetry (`PipelineTelemetry`) | Phases 1 and 8 (deterministic Python scripts) | JSONL | `runs/<run>/pipeline.log.jsonl` |
+| Session tracing (Claude Code hooks) | All phases (0–8), all tool calls | JSONL | `.claude/traces/<session_id>.jsonl` |
 
 Pipeline telemetry captures timing and metadata for the Python scripts. Session tracing captures everything Claude Code does, including the AI agent phases that have no Python instrumentation.
 
@@ -86,7 +86,7 @@ For Agent launches:
 {
   "event": "tool_call",
   "tool": "Agent",
-  "input": {"description": "JIRA Investigation", "subagent_type": "jira-investigator"},
+  "input": {"description": "Data Gathering + JIRA Investigation", "subagent_type": "data-gatherer"},
   "pipeline_phase": "phase_2",
   "agent_prompt": "Investigate ACM-30459..."
 }
@@ -139,7 +139,7 @@ For knowledge file reads:
 {
   "event": "subagent_complete",
   "agent_id": "a1a01994c5deb0ea2",
-  "agent_type": "jira-investigator",
+  "agent_type": "data-gatherer",
   "pipeline_phase": "phase_2"
 }
 ```
@@ -174,13 +174,13 @@ Subagent launches are tagged with their pipeline phase based on `subagent_type`:
 
 | Subagent Type | Phase |
 |---------------|-------|
-| `jira-investigator` | `phase_2` |
-| `code-analyzer` | `phase_3` |
-| `ui-discoverer` | `phase_4` |
-| `synthesizer` | `phase_5` |
-| `live-validator` | `phase_6` |
-| `test-case-writer` | `phase_7` |
-| `quality-reviewer` | `phase_8` |
+| `data-gatherer` | `phase_1` |
+| `code-analyzer` | `phase_2` |
+| `ui-discoverer` | `phase_3` |
+| `synthesizer` | `phase_4` |
+| `live-validator` | `phase_5` |
+| `test-case-writer` | `phase_6` |
+| `quality-reviewer` | `phase_7` |
 
 ### Knowledge Category Detection
 
@@ -262,8 +262,8 @@ On each `Stop` event, the hook reads back the entire trace file and writes a one
 
 Three Python scripts write events to `pipeline.log.jsonl` in each run directory:
 
-- **`gather.py`** and **`report.py`** use `PipelineTelemetry` for Phases 1 and 9
-- **`log_phase.py`** writes `phase_end` events for AI phases (2–8), called by the orchestrator after each subagent completes
+- **`gather.py`** and **`report.py`** use `PipelineTelemetry` for Phases 1 and 8
+- **`log_phase.py`** writes `phase_end` events for AI phases (1–7), called by the orchestrator after each subagent completes
 
 ### Events
 
@@ -304,7 +304,7 @@ Example output:
 }
 ```
 
-### Phase 9 Metadata
+### Phase 8 Metadata
 
 ```json
 {

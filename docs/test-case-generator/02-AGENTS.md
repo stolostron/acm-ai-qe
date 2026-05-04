@@ -6,41 +6,44 @@ Seven specialized subagents, each with a dedicated role in the pipeline. Agent d
 
 | Agent | File | Phase | Tools | Input | Output |
 |-------|------|-------|-------|-------|--------|
-| JIRA Investigator | `jira-investigator.md` | 2 | jira, polarion, neo4j-rhacm, bash | JIRA ID | `phase2-jira.json` |
-| Code Analyzer | `code-analyzer.md` | 3 | acm-ui, neo4j-rhacm, bash | PR number, repo, version | `phase3-code.json` |
-| UI Discoverer | `ui-discoverer.md` | 4 | acm-ui, neo4j-rhacm, bash | Version, area, feature name | `phase4-ui.json` |
-| Synthesizer | `synthesizer.md` | 5 | — | Phase 2-4 outputs | `synthesized-context.md` |
-| Live Validator | `live-validator.md` | 6 | playwright, acm-search, acm-kubectl, bash | Console URL, feature path | `phase6-live-validation.md` |
-| Test Case Writer | `test-case-writer.md` | 7 | acm-ui | Run dir, synthesized context | `test-case.md`, `analysis-results.json` |
-| Quality Reviewer | `quality-reviewer.md` | 8 | acm-ui, polarion | test-case.md path, version, area | PASS or NEEDS_FIXES (`phase8-review.md`) |
+| Data Gatherer | `data-gatherer.md` | 1 | jira, polarion, neo4j-rhacm, bash | JIRA ID | `gather-output.json`, `phase1-jira.json` |
+| Code Analyzer | `code-analyzer.md` | 2 | acm-ui, neo4j-rhacm, bash | PR number, repo, version | `phase2-code.json` |
+| UI Discoverer | `ui-discoverer.md` | 3 | acm-ui, neo4j-rhacm, bash | Version, area, feature name | `phase3-ui.json` |
+| Synthesizer | `synthesizer.md` | 4 | — | Phase 1-3 outputs | `synthesized-context.md` |
+| Live Validator | `live-validator.md` | 5 | playwright, acm-search, acm-kubectl, bash | Console URL, feature path | `phase5-live-validation.md` |
+| Test Case Writer | `test-case-writer.md` | 6 | acm-ui | Run dir, synthesized context | `test-case.md`, `analysis-results.json` |
+| Quality Reviewer | `quality-reviewer.md` | 7 | acm-ui, polarion | test-case.md path, version, area | PASS or NEEDS_FIXES (`phase7-review.md`) |
 
 ---
 
-## JIRA Investigator
+## Data Gatherer
 
-**Phase:** 2
-**File:** `references/agents/jira-investigator.md`
+**Phase:** 1
+**File:** `references/agents/data-gatherer.md`
 **Tools:** jira, polarion, neo4j-rhacm, bash
 
 ### Purpose
 
-Deep JIRA investigation: reads the story, comments, linked tickets, and acceptance criteria. Searches Polarion for existing test coverage. Identifies test scenarios from the acceptance criteria.
+Combined data collection and JIRA investigation: runs `gather.py` to discover PRs across multiple repos, reads the JIRA development panel for additional PR links, then performs deep JIRA investigation including story details, comments, linked tickets, acceptance criteria, Polarion coverage check, and test scenario identification.
 
 ### MCP Tool Usage
 
 | Tool | MCP Server | Purpose |
 |------|-----------|---------|
-| `get_issue` | jira | Fetch full ticket details (summary, description, ACs, fix_versions, status) |
+| `get_issue` | jira | Fetch full ticket details (summary, description, ACs, fix_versions, status, git_pull_requests) |
 | `search_issues` | jira | Find linked tickets via JQL (parent epics, sibling stories, QE tracking) |
 | `get_project_components` | jira | List JIRA project components for the area |
 | `get_polarion_work_items` | polarion | Search for existing test cases matching the feature |
 | `get_polarion_test_case_summary` | polarion | Quick summary of existing coverage |
 | `read_neo4j_cypher` | neo4j-rhacm | Component architecture context |
 | `gh pr view` | bash | PR metadata and description |
+| `gh pr diff` | bash | Download PR diffs for additional PRs found via JIRA |
 
 ### Output Structure
 
-Structured JSON written to `phase2-jira.json`:
+Produces two artifacts: `gather-output.json` (deterministic, from gather.py) and `phase1-jira.json` (AI-produced).
+
+Structured JSON written to `phase1-jira.json`:
 
 ```json
 {
@@ -60,7 +63,7 @@ Structured JSON written to `phase2-jira.json`:
 
 ## Code Analyzer
 
-**Phase:** 3
+**Phase:** 2
 **File:** `references/agents/code-analyzer.md`
 **Tools:** acm-ui, neo4j-rhacm, bash
 
@@ -96,7 +99,7 @@ For new interactive elements (filters, inputs, toggles), the analyzer identifies
 
 ### Output Structure
 
-Structured JSON written to `phase3-code.json`:
+Structured JSON written to `phase2-code.json`:
 
 ```json
 {
@@ -116,7 +119,7 @@ Structured JSON written to `phase3-code.json`:
 
 ## UI Discoverer
 
-**Phase:** 4
+**Phase:** 3
 **File:** `references/agents/ui-discoverer.md`
 **Tools:** acm-ui, neo4j-rhacm, bash
 
@@ -142,7 +145,7 @@ Discovers UI selectors, translations, routes, wizard steps, and test IDs from th
 
 ### Output Structure
 
-Structured JSON written to `phase4-ui.json`:
+Structured JSON written to `phase3-ui.json`:
 
 ```json
 {
@@ -160,22 +163,22 @@ Structured JSON written to `phase4-ui.json`:
 
 ## Synthesizer
 
-**Phase:** 5
+**Phase:** 4
 **File:** `references/agents/synthesizer.md`
 **Tools:** — (no MCP tools; reads files from disk only)
 
 ### Purpose
 
-Merges all three investigation outputs (Phases 2-4) into a unified context document. Applies scope gating, conflict resolution, coverage gap triage, and test design optimization. Produces the primary input for Phase 7 (test case writing).
+Merges all three investigation outputs (Phases 1-3) into a unified context document. Applies scope gating, conflict resolution, coverage gap triage, and test design optimization. Produces the primary input for Phase 6 (test case writing).
 
 ### Process
 
-1. Read `phase2-jira.json`, `phase3-code.json`, `phase4-ui.json` from the run directory
+1. Read `phase1-jira.json`, `phase2-code.json`, `phase3-ui.json` from the run directory
 2. Read the synthesis template from `references/synthesis-template.md`
 3. Concatenate investigation findings
 4. Scope gate: filter to target JIRA story's ACs only
 5. AC vs implementation cross-reference
-6. Conflict resolution (ui-discoverer > jira-investigator > code-analyzer per domain)
+6. Conflict resolution (ui-discoverer > data-gatherer > code-analyzer per domain)
 7. Coverage gap triage (ADD/NOTE/SKIP)
 8. Test design optimization (5 passes)
 9. Write test plan with step estimates
@@ -197,7 +200,7 @@ If the orchestrator's schema validator finds errors in the synthesizer's output,
 
 ## Live Validator
 
-**Phase:** 6 (conditional)
+**Phase:** 5 (conditional)
 **File:** `references/agents/live-validator.md`
 **Tools:** playwright, acm-search, acm-kubectl, bash
 
@@ -223,13 +226,13 @@ Verifies feature behavior on a real ACM cluster using browser automation, oc CLI
 
 ### Output
 
-Markdown written to `phase6-live-validation.md` with cluster info, step-by-step verification results, discrepancies, and confirmed behaviors.
+Markdown written to `phase5-live-validation.md` with cluster info, step-by-step verification results, discrepancies, and confirmed behaviors.
 
 ---
 
 ## Test Case Writer
 
-**Phase:** 7
+**Phase:** 6
 **File:** `references/agents/test-case-writer.md`
 **Tools:** acm-ui (spot-check only)
 
@@ -264,7 +267,7 @@ If the orchestrator's schema validator finds errors in `analysis-results.json`, 
 
 ## Quality Reviewer
 
-**Phase:** 8
+**Phase:** 7
 **File:** `references/agents/quality-reviewer.md`
 **Tools:** acm-ui, polarion
 **Knowledge dependencies:** Reads `knowledge/conventions/test-case-format.md`, `knowledge/conventions/area-naming-patterns.md`, `knowledge/conventions/cli-in-steps-rules.md` as validation reference. Also reads peer test cases from `gather-output.json` `existing_test_cases` field (or `knowledge/examples/sample-test-case.md` as fallback).
@@ -291,7 +294,7 @@ Validates the generated test case against conventions, verifies UI elements were
 
 ### Verdict
 
-- **PASS:** Proceed to Phase 9
+- **PASS:** Proceed to Phase 8
 - **NEEDS_FIXES:** List blocking issues with fix instructions; orchestrator fixes and re-runs
 
 ### Handling Incomplete Upstream Data

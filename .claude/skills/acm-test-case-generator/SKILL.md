@@ -59,7 +59,7 @@ allowed-tools:
 
 Subagent-orchestrated pipeline generating Polarion-ready test cases from JIRA tickets. Each investigation phase runs in an isolated subagent context, writes structured output to disk, and terminates -- preventing context pressure and recency bias. The orchestrator is thin routing logic only.
 
-> **Mapping note:** This skill uses a 10-phase model where investigation is split into 3 sequential phases (2-4). The app pipeline (`apps/test-case-generator/`) consolidates these into 1 parallel phase. See the app README for the mapping table.
+> **Mapping note:** This skill uses a 9-phase model (Phases 0-8) where data gathering and JIRA investigation are merged into Phase 1, and investigation is split into sequential phases (2-3). The app pipeline (`apps/test-case-generator/`) consolidates investigation into 1 parallel phase. See the app README for the mapping table.
 
 ## Pipeline Phases
 
@@ -78,48 +78,36 @@ Resolve before starting the pipeline:
 
 If all inputs can be inferred from the JIRA ticket, proceed without asking.
 
-### Phase 1: Gather Data
+### Phase 1: Gather Data + Investigate JIRA Story
 
-```bash
-python ${CLAUDE_SKILL_DIR}/scripts/gather.py <JIRA_ID> [--version VERSION] [--pr PR_NUMBER] [--area AREA] [--repo REPO]
-```
-
-Produces `gather-output.json` and `pr-diff.txt`. Validate the output:
-
-```bash
-python ${CLAUDE_SKILL_DIR}/scripts/validate_artifact.py <RUN_DIR>/gather-output.json gather-output
-```
-
-If FAIL: **stop the pipeline** (gather.py is deterministic — failures indicate a script bug, not an LLM issue). Report the error.
-
-Read the JSON to fill in any unresolved inputs (PR number, area, repo). Record the run directory path.
-
-Show: "Gathered PR #NNNN, N files changed. Area: [area]."
-
-### Phase 2: Investigate JIRA Story
-
-Read `${CLAUDE_SKILL_DIR}/references/agents/jira-investigator.md`. Spawn a subagent (Agent tool, description: "JIRA Investigation") with the full agent instructions and:
+Read `${CLAUDE_SKILL_DIR}/references/agents/data-gatherer.md`. Spawn a subagent (Agent tool, description: "Data Gathering + JIRA Investigation") with the full agent instructions and:
 
 <input>
 JIRA_ID: <value>
 ACM_VERSION: <value>
 AREA: <value>
-RUN_DIR: <path>
+RUN_DIR: <path (create via gather.py's output)>
 SKILLS_DIR: ${CLAUDE_SKILL_DIR}/..
 </input>
 
-Verify `phase2-jira.json` exists. Run artifact validation:
+The agent runs `gather.py` internally (multi-repo PR search), then performs JIRA investigation including development panel PR discovery. Produces `gather-output.json`, `pr-diff.txt`, and `phase1-jira.json`.
+
+Validate both artifacts:
 
 ```bash
-python ${CLAUDE_SKILL_DIR}/scripts/validate_artifact.py <RUN_DIR>/phase2-jira.json phase2-jira
+python ${CLAUDE_SKILL_DIR}/scripts/validate_artifact.py <RUN_DIR>/gather-output.json gather-output
+python ${CLAUDE_SKILL_DIR}/scripts/validate_artifact.py <RUN_DIR>/phase1-jira.json phase1-jira
 ```
 
-If PASS: continue. If FAIL: enter Retry Protocol (schema: phase2-jira, agent: jira-investigator.md).
+- `gather-output` FAIL: **stop the pipeline** (gather.py is deterministic — failures indicate a script bug, not an LLM issue).
+- `phase1-jira` FAIL: enter Retry Protocol (schema: phase1-jira, agent: data-gatherer.md).
 
-Do NOT read the validated artifact into orchestrator context.
-Show: "Phase 2 complete. JIRA findings written to phase2-jira.json."
+Read `gather-output.json` to fill in any unresolved inputs (PR number, area, repo). Record the run directory path.
 
-### Phase 3: Analyze PR Code Changes
+Do NOT read `phase1-jira.json` into orchestrator context.
+Show: "Phase 1 complete. Gathered N PRs, JIRA findings written to phase1-jira.json."
+
+### Phase 2: Analyze PR Code Changes
 
 Read `${CLAUDE_SKILL_DIR}/references/agents/code-analyzer.md`. Spawn a subagent (description: "Code Analysis") with the instructions and:
 
@@ -135,17 +123,17 @@ KNOWLEDGE_DIR: ${CLAUDE_SKILL_DIR}/../../knowledge/test-case-generator
 SKILLS_DIR: ${CLAUDE_SKILL_DIR}/..
 </input>
 
-Verify `phase3-code.json` exists. Run artifact validation:
+Verify `phase2-code.json` exists. Run artifact validation:
 
 ```bash
-python ${CLAUDE_SKILL_DIR}/scripts/validate_artifact.py <RUN_DIR>/phase3-code.json phase3-code
+python ${CLAUDE_SKILL_DIR}/scripts/validate_artifact.py <RUN_DIR>/phase2-code.json phase2-code
 ```
 
-If PASS: continue. If FAIL: enter Retry Protocol (schema: phase3-code, agent: code-analyzer.md).
+If PASS: continue. If FAIL: enter Retry Protocol (schema: phase2-code, agent: code-analyzer.md).
 
-Show: "Phase 3 complete. Code analysis written to phase3-code.json."
+Show: "Phase 2 complete. Code analysis written to phase2-code.json."
 
-### Phase 4: Discover UI Elements
+### Phase 3: Discover UI Elements
 
 Read `${CLAUDE_SKILL_DIR}/references/agents/ui-discoverer.md`. Spawn a subagent (description: "UI Discovery") with the instructions and:
 
@@ -158,15 +146,15 @@ RUN_DIR: <path>
 SKILLS_DIR: ${CLAUDE_SKILL_DIR}/..
 </input>
 
-Verify `phase4-ui.json` exists. Run artifact validation:
+Verify `phase3-ui.json` exists. Run artifact validation:
 
 ```bash
-python ${CLAUDE_SKILL_DIR}/scripts/validate_artifact.py <RUN_DIR>/phase4-ui.json phase4-ui
+python ${CLAUDE_SKILL_DIR}/scripts/validate_artifact.py <RUN_DIR>/phase3-ui.json phase3-ui
 ```
 
-If PASS: continue. If FAIL: enter Retry Protocol (schema: phase4-ui, agent: ui-discoverer.md).
+If PASS: continue. If FAIL: enter Retry Protocol (schema: phase3-ui, agent: ui-discoverer.md).
 
-Show: "Phase 4 complete. UI elements written to phase4-ui.json."
+Show: "Phase 3 complete. UI elements written to phase3-ui.json."
 
 ### Pre-Synthesis Readiness Check
 
@@ -176,11 +164,11 @@ Before synthesis, verify minimum viable data exists across all investigation art
 python ${CLAUDE_SKILL_DIR}/scripts/validate_artifact.py --pre-synthesis <RUN_DIR>
 ```
 
-If PASS: continue to Phase 5.
+If PASS: continue to Phase 4.
 
 If FAIL: **stop the pipeline**. The check reports exactly which minimum data points are missing (e.g., empty acceptance criteria, missing entry point). Upstream phases already exhausted their retry attempts -- there is nothing left to retry. Report the missing data to the user.
 
-### Phase 5: Synthesize
+### Phase 4: Synthesize
 
 Read `${CLAUDE_SKILL_DIR}/references/agents/synthesizer.md`. Spawn a subagent (description: "Synthesis") with the instructions and:
 
@@ -203,9 +191,9 @@ python ${CLAUDE_SKILL_DIR}/scripts/validate_artifact.py <RUN_DIR>/synthesized-co
 
 If PASS: continue. If FAIL: enter Retry Protocol (schema: synthesized-context, agent: synthesizer.md).
 
-Show: "Phase 5 complete. Synthesized context written."
+Show: "Phase 4 complete. Synthesized context written."
 
-### Phase 6: Live Validation (conditional)
+### Phase 5: Live Validation (conditional)
 
 **Skip** if no cluster URL was resolved in Phase 0: "Skipping live validation -- no cluster available."
 
@@ -220,9 +208,9 @@ GATHER_OUTPUT_PATH: <path to gather-output.json>
 SKILLS_DIR: ${CLAUDE_SKILL_DIR}/..
 </input>
 
-Verify `phase6-live-validation.md` exists. Show: "Phase 6 complete. Live validation written."
+Verify `phase5-live-validation.md` exists. Show: "Phase 5 complete. Live validation written."
 
-### Phase 7: Write Test Case
+### Phase 6: Write Test Case
 
 Read `${CLAUDE_SKILL_DIR}/references/agents/test-case-writer.md`. Spawn a subagent (description: "Test Case Writing") with the instructions and:
 
@@ -232,7 +220,7 @@ ACM_VERSION: <value>
 AREA: <value>
 RUN_DIR: <path>
 SYNTHESIZED_CONTEXT_PATH: <path to synthesized-context.md>
-LIVE_VALIDATION_PATH: <path to phase6-live-validation.md or "N/A">
+LIVE_VALIDATION_PATH: <path to phase5-live-validation.md or "N/A">
 GATHER_OUTPUT_PATH: <path to gather-output.json>
 SKILL_DIR: ${CLAUDE_SKILL_DIR}
 KNOWLEDGE_DIR: ${CLAUDE_SKILL_DIR}/../../knowledge/test-case-generator
@@ -247,9 +235,9 @@ python ${CLAUDE_SKILL_DIR}/scripts/validate_artifact.py <RUN_DIR>/analysis-resul
 
 If PASS: continue. If FAIL: enter Retry Protocol (schema: analysis-results, agent: test-case-writer.md).
 
-Show: "Phase 7 complete. Test case written."
+Show: "Phase 6 complete. Test case written."
 
-### Phase 8: Quality Review (MANDATORY GATE)
+### Phase 7: Quality Review (MANDATORY GATE)
 
 Read `${CLAUDE_SKILL_DIR}/references/agents/quality-reviewer.md`. Spawn a subagent (description: "Quality Review") with the instructions and:
 
@@ -270,7 +258,7 @@ Read the review output. Run programmatic enforcement:
 python ${CLAUDE_SKILL_DIR}/scripts/review_enforcement.py <review-output-file>
 ```
 
-**If PASS:** proceed to Phase 9.
+**If PASS:** proceed to Phase 8.
 
 **If NEEDS_FIXES -- 3-tier escalation:**
 
@@ -278,11 +266,11 @@ python ${CLAUDE_SKILL_DIR}/scripts/review_enforcement.py <review-output-file>
 
 **Tier 2 (writer retry):** Spawn NEW test-case-writer subagent with `MODE: REVISION` and reviewer flags. Spawn NEW quality-reviewer subagent. Re-run enforcement.
 
-**Tier 3 (proceed):** Mark unresolvable steps with `[MANUAL VERIFICATION REQUIRED: <issue>]`. Proceed to Phase 9.
+**Tier 3 (proceed):** Mark unresolvable steps with `[MANUAL VERIFICATION REQUIRED: <issue>]`. Proceed to Phase 8.
 
 Show: "Quality review PASSED." or "Quality review: N steps flagged for manual verification."
 
-### Phase 9: Generate Reports
+### Phase 8: Generate Reports
 
 ```bash
 python ${CLAUDE_SKILL_DIR}/scripts/report.py <run-directory>
@@ -292,7 +280,7 @@ Show the final summary with all output file paths.
 
 ## Retry Protocol
 
-When artifact validation fails for an AI-produced phase (2, 3, 4, 5, or 7), retry up to 3 times before proceeding with incomplete data.
+When artifact validation fails for an AI-produced phase (1, 2, 3, 4, or 6), retry up to 3 times before proceeding with incomplete data.
 
 **For each attempt:** Re-spawn the SAME agent type with the original `<input>` block PLUS a `<retry>` block appended:
 
@@ -313,9 +301,9 @@ to the same path.
 2. Print: `"Phase N: validation failed after 3 attempts. Proceeding with incomplete data."`
 3. Pass `VALIDATION_WARNINGS_PATH` in all downstream `<input>` blocks so agents are aware of gaps
 
-**Phase 1 exception:** `gather-output.json` is produced by deterministic Python (gather.py), not an LLM. Validation failure means a script bug — stop the pipeline immediately instead of retrying.
+**Phase 1 exception:** `gather-output.json` is produced by deterministic Python (gather.py) within the data-gatherer agent. Validation failure means a script bug — stop the pipeline immediately instead of retrying. However, `phase1-jira.json` is AI-produced and follows the normal retry protocol.
 
-**Phase 6 and 8 exceptions:** Phase 6 (live validation) produces unstructured markdown — no schema validation. Phase 8 (quality review) has its own enforcement via `review_enforcement.py` — no change.
+**Phase 5 and 7 exceptions:** Phase 5 (live validation) produces unstructured markdown — no schema validation. Phase 7 (quality review) has its own enforcement via `review_enforcement.py` — no change.
 
 ## Run Directory
 
@@ -324,18 +312,18 @@ Each run: `runs/<JIRA_ID>/<timestamp>/`
 ```
 gather-output.json        -- Phase 1: PR metadata, conventions
 pr-diff.txt               -- Phase 1: full PR diff
-phase2-jira.json          -- Phase 2: JIRA findings
-phase3-code.json          -- Phase 3: code analysis
-phase4-ui.json            -- Phase 4: UI elements
-synthesized-context.md    -- Phase 5: merged test plan
-phase6-live-validation.md -- Phase 6: live results (optional)
-test-case.md              -- Phase 7: primary deliverable
-analysis-results.json     -- Phase 7: investigation metadata
-test-case-setup.html      -- Phase 9: Polarion setup HTML
-test-case-steps.html      -- Phase 9: Polarion steps HTML
+phase1-jira.json          -- Phase 1: JIRA findings
+phase2-code.json          -- Phase 2: code analysis
+phase3-ui.json            -- Phase 3: UI elements
+synthesized-context.md    -- Phase 4: merged test plan
+phase5-live-validation.md -- Phase 5: live results (optional)
+test-case.md              -- Phase 6: primary deliverable
+analysis-results.json     -- Phase 6: investigation metadata
+test-case-setup.html      -- Phase 8: Polarion setup HTML
+test-case-steps.html      -- Phase 8: Polarion steps HTML
 validation-warnings.json  -- Retry Protocol: present only if validation failed after 3 attempts
-review-results.json       -- Phase 9: structural validation
-SUMMARY.txt               -- Phase 9: human-readable summary
+review-results.json       -- Phase 8: structural validation
+SUMMARY.txt               -- Phase 8: human-readable summary
 ```
 
 ## Safety Rules

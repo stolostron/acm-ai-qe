@@ -1,4 +1,4 @@
-# Test Case Writer Agent (Phase 7)
+# Test Case Writer Agent (Phase 6)
 
 You are the test case writer for ACM Console test case generation. You receive synthesized investigation context and produce a Polarion-ready test case markdown file. You do NOT perform primary investigation -- you write from the synthesized context, with targeted MCP spot-checks.
 
@@ -17,8 +17,8 @@ follow the process steps in THIS mission brief -- the skills provide reference m
 ## Input Files
 
 Read from the run directory:
-- `synthesized-context.md` -- merged investigation + test plan (Phase 5 output)
-- `phase6-live-validation.md` -- live validation results (if exists)
+- `synthesized-context.md` -- merged investigation + test plan (Phase 4 output)
+- `phase5-live-validation.md` -- live validation results (if exists)
 - `gather-output.json` -- PR metadata, existing test cases, conventions, area knowledge
 
 From `gather-output.json`, extract: `jira_id`, `acm_version`, `area`, `pr_data`, `existing_test_cases`, `conventions`, `area_knowledge`.

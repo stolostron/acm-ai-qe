@@ -78,7 +78,14 @@ def _run_gh(args: list, timeout: int = 30):
         return None
 
 
-def search_pr_for_jira(jira_id: str, repo: str = "stolostron/console"):
+DEFAULT_SEARCH_REPOS = [
+    "stolostron/console",
+    "stolostron/multiclusterhub-operator",
+]
+
+
+def search_prs_for_jira(jira_id: str, repo: str = "stolostron/console"):
+    """Search a single repo for PRs matching a JIRA ID. Returns list of dicts."""
     output = _run_gh([
         "search", "prs", jira_id,
         "--repo", repo,
@@ -86,14 +93,31 @@ def search_pr_for_jira(jira_id: str, repo: str = "stolostron/console"):
         "--limit", "5",
     ])
     if not output:
-        return None
+        return []
     try:
         results = json.loads(output)
-        if results:
-            return results[0]["number"]
+        return [
+            {"number": r["number"], "title": r["title"], "state": r["state"], "repo": repo}
+            for r in results
+        ]
     except (json.JSONDecodeError, KeyError, IndexError):
-        pass
-    return None
+        return []
+
+
+def search_prs_multi_repo(jira_id: str, repos: list = None):
+    """Search multiple repos for PRs matching a JIRA ID. Returns deduplicated list."""
+    if repos is None:
+        repos = DEFAULT_SEARCH_REPOS
+    all_prs = []
+    seen = set()
+    for repo in repos:
+        prs = search_prs_for_jira(jira_id, repo)
+        for pr in prs:
+            key = (pr["repo"], pr["number"])
+            if key not in seen:
+                seen.add(key)
+                all_prs.append(pr)
+    return all_prs
 
 
 def get_pr_metadata(pr_number: int, repo: str = "stolostron/console"):
@@ -309,45 +333,61 @@ def main():
     telemetry = PipelineTelemetry(str(run_dir), jira_id)
     telemetry.start_stage("gather")
 
-    pr_number = args.pr
-    pr_data = None
     area = args.area
+    pr_data_list = []
 
-    # --- PR Discovery ---
-    if not pr_number:
-        print(f"  Searching for PR associated with {jira_id}...")
-        pr_number = search_pr_for_jira(jira_id, args.repo)
-        if pr_number:
-            print(f"  Found PR #{pr_number}")
+    # --- PR Discovery (multi-repo) ---
+    if args.pr:
+        print(f"  Using specified PR #{args.pr} in {args.repo}")
+        prs_found = [{"number": args.pr, "title": "", "state": "", "repo": args.repo}]
+    else:
+        repos_to_search = list(dict.fromkeys([args.repo] + DEFAULT_SEARCH_REPOS))
+        print(f"  Searching for PRs associated with {jira_id} across {len(repos_to_search)} repo(s)...")
+        prs_found = search_prs_multi_repo(jira_id, repos_to_search)
+        if prs_found:
+            print(f"  Found {len(prs_found)} PR(s):")
+            for pr_info in prs_found:
+                print(f"    PR #{pr_info['number']} ({pr_info['repo']}) - {pr_info['title']}")
         else:
-            print(f"  No PR found for {jira_id} in {args.repo}")
+            print(f"  No PRs found for {jira_id}")
 
-    # --- PR Metadata ---
-    if pr_number:
-        print(f"  Fetching PR #{pr_number} metadata...")
-        pr_data = get_pr_metadata(pr_number, args.repo)
-        if pr_data:
-            print(f"  PR: {pr_data['title']}")
-            print(f"  Files: {len(pr_data['files'])} changed ({pr_data['additions']}+ / {pr_data['deletions']}-)")
+    # --- PR Metadata + Diffs ---
+    all_files = []
+    all_diffs = []
+    for pr_info in prs_found:
+        print(f"  Fetching PR #{pr_info['number']} ({pr_info['repo']}) metadata...")
+        metadata = get_pr_metadata(pr_info["number"], pr_info["repo"])
+        if metadata:
+            print(f"    {metadata['title']}")
+            print(f"    Files: {len(metadata['files'])} changed ({metadata['additions']}+ / {metadata['deletions']}-)")
+            pr_data_list.append(metadata)
+            all_files.extend(metadata["files"])
 
-            if not area:
-                area = detect_area_from_files(pr_data["files"])
-                if area:
-                    print(f"  Area detected: {area}")
-
-            print("  Fetching PR diff...")
-            diff_path = run_dir / "pr-diff.txt"
-            diff_result = get_pr_diff(pr_number, args.repo, diff_path)
-            if diff_result:
-                pr_data["diff_file"] = str(diff_path)
-                print(f"  Diff saved: {diff_path.name}")
+            diff_text = get_pr_diff(pr_info["number"], pr_info["repo"])
+            if diff_text:
+                header = f"# PR #{pr_info['number']} ({pr_info['repo']})"
+                all_diffs.append(f"{'=' * 60}\n{header}\n{'=' * 60}\n{diff_text}")
         else:
-            print(f"  Failed to fetch PR #{pr_number} metadata")
+            print(f"    Failed to fetch PR #{pr_info['number']} metadata")
+
+    # --- Write concatenated diff ---
+    diff_path = run_dir / "pr-diff.txt"
+    if all_diffs:
+        diff_path.write_text("\n\n".join(all_diffs), encoding="utf-8")
+        for pr_meta in pr_data_list:
+            pr_meta["diff_file"] = str(diff_path)
+        print(f"  Diff saved: {diff_path.name} ({len(all_diffs)} PR(s))")
+
+    # --- Area Detection (across all PRs) ---
+    if not area and all_files:
+        area = detect_area_from_files(all_files)
+        if area:
+            print(f"  Area detected: {area}")
 
     # --- Version ---
     acm_version = args.version
     if not acm_version:
-        print("  ACM version not specified (will be detected from JIRA in Phase 2)")
+        print("  ACM version not specified (will be detected from JIRA)")
 
     # --- Existing Test Cases ---
     version_for_search = acm_version or "latest"
@@ -375,22 +415,24 @@ def main():
         else:
             print(f"  No architecture knowledge found for area: {area}")
 
-    # --- Classify PR files ---
+    # --- Classify PR files (across all PRs) ---
     test_files = []
     production_files = []
-    if pr_data and pr_data["files"]:
-        for f in pr_data["files"]:
+    for pr_meta in pr_data_list:
+        for f in pr_meta.get("files", []):
             if ".test." in f or ".spec." in f or "/tests/" in f or "/__tests__/" in f:
                 test_files.append(f)
             else:
                 production_files.append(f)
 
-    # --- Build Output (plain dict, same schema as Pydantic version) ---
+    # --- Build Output ---
+    pr_data = pr_data_list[0] if pr_data_list else None
     output = {
         "jira_id": jira_id,
         "acm_version": acm_version,
         "area": area,
         "pr_data": pr_data,
+        "pr_data_list": pr_data_list,
         "existing_test_cases": existing,
         "conventions": conventions,
         "area_knowledge": area_knowledge,
@@ -414,8 +456,9 @@ def main():
     )
 
     telemetry.end_stage("gather", {
-        "pr_found": pr_data is not None,
-        "pr_number": pr_number,
+        "pr_found": len(pr_data_list) > 0,
+        "pr_count": len(pr_data_list),
+        "pr_numbers": [p["number"] for p in pr_data_list],
         "area": area,
         "existing_test_cases_count": len(existing),
         "conventions_loaded": bool(conventions),

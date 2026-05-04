@@ -74,7 +74,7 @@ def find_existing_test_cases(version: str, area: Optional[str] = None, max_count
                     search_paths.append(tc_path)
 
     # 2. Previous pipeline runs
-    search_paths.append(get_app_root() / "runs")
+    search_paths.append(get_app_root() / "runs" / "test-case-generator")
 
     # 3. Shipped sample test case (always available as fallback)
     search_paths.append(get_knowledge_dir() / "examples")
@@ -84,7 +84,7 @@ def find_existing_test_cases(version: str, area: Optional[str] = None, max_count
         if not search_path.exists():
             continue
         # For runs/ directory, search recursively
-        glob_pattern = "**/*.md" if search_path == get_app_root() / "runs" else "*.md"
+        glob_pattern = "**/*.md" if search_path == get_app_root() / "runs" / "test-case-generator" else "*.md"
         for md_file in sorted(search_path.glob(glob_pattern), key=lambda p: p.stat().st_mtime, reverse=True):
             if md_file.name.startswith("RHACM4K-") or md_file.name == "test-case.md" or md_file.name.startswith("sample-"):
                 results.append(str(md_file))

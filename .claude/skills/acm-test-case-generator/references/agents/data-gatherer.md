@@ -33,11 +33,13 @@ gh pr diff <N> --repo <REPO>
 
 ### Part A: Run Gather Script
 
-1. **Run `gather.py`** via Bash to create the run directory, discover initial PRs via `gh search`, download diffs, and load conventions:
+1. **Run `gather.py`** via Bash. It creates the run directory (`runs/test-case-generator/<JIRA_ID>/<JIRA_ID>-<YYYY-MM-DDTHH-MM-SS>/`), discovers initial PRs via `gh search`, downloads diffs, and loads conventions. **The last line of stdout is the run directory path** -- capture it.
 
 ```bash
 python ${CLAUDE_SKILL_DIR}/scripts/gather.py <JIRA_ID> [--version VERSION] [--pr PR_NUMBER] [--area AREA] [--repo REPO]
 ```
+
+**Do NOT pre-create a run directory.** gather.py is the single source of truth for the directory path and naming convention. Use the path it returns for all subsequent artifact writes.
 
 2. **Read `gather-output.json`** from the run directory. Note the PR count, area, version, and whether PRs were found.
 

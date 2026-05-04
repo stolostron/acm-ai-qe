@@ -87,7 +87,7 @@ Plan the test case:
 1. **Step count** -- typically 5-10 for medium complexity
 2. **Setup** -- prerequisites, test users, resources (ALL environmental dependencies declared)
 3. **Per-step validations** -- one behavior per step
-4. **CLI checkpoints** -- dedicated backend validation steps (after UI steps)
+4. **CLI checkpoints** -- dedicated backend validation steps (after UI steps). Omit when UI steps already verify the data (see cli-in-steps-rules.md "When CLI Backend Validation Is NOT Needed")
 5. **Teardown** -- resources to clean up
 6. **Negative scenarios** -- if conditional rendering exists, plan at least one step verifying absence
 

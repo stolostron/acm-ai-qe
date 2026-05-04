@@ -170,7 +170,7 @@ The portable skill pack (`.claude/skills/acm-test-case-generator/`) uses a 10-ph
 The `/review` skill runs independently on any test case markdown file:
 
 ```
-/review runs/ACM-30459/<run-dir>/test-case.md
+/review runs/test-case-generator/ACM-30459/<run-dir>/test-case.md
 ```
 
 For manual pipeline steps, see [Pipeline Phases](docs/01-PIPELINE-PHASES.md).
@@ -379,7 +379,7 @@ First-time setup: from the repo root, run `claude` and then `/onboard`.
 <summary><b>Run Directory Structure</b></summary>
 
 ```
-runs/ACM-30459/ACM-30459-2026-04-08T12-00-00/
+runs/test-case-generator/ACM-30459/ACM-30459-2026-04-08T12-00-00/
 ├── gather-output.json              # Stage 1: all gathered data
 ├── pr-diff.txt                     # Stage 1: full PR diff
 ├── phase1-feature-investigation.md # Phase 1: feature investigator output

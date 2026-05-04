@@ -286,8 +286,8 @@ Show the summary including:
 
 ```
 Pipeline complete.
-  Test case:  runs/ACM-30459/.../test-case.md
-  Setup HTML: runs/ACM-30459/.../test-case-setup.html
-  Steps HTML: runs/ACM-30459/.../test-case-steps.html
-  Summary:    runs/ACM-30459/.../SUMMARY.txt
+  Test case:  runs/test-case-generator/ACM-30459/.../test-case.md
+  Setup HTML: runs/test-case-generator/ACM-30459/.../test-case-setup.html
+  Steps HTML: runs/test-case-generator/ACM-30459/.../test-case-steps.html
+  Summary:    runs/test-case-generator/ACM-30459/.../SUMMARY.txt
 ```

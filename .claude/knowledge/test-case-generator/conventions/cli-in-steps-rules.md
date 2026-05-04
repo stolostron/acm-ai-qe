@@ -19,6 +19,21 @@ Place CLI backend validation in a DEDICATED step titled "Verify [what] via CLI (
 
 **Why:** Embedding CLI in UI steps creates an unclear context switch (browser → terminal) that testers may miss. Separate steps allow precise pass/fail attribution and map cleanly to automation (browser tests vs shell tests).
 
+## When CLI Backend Validation Is NOT Needed
+
+Do NOT add a CLI backend validation step when UI steps already provide full coverage of the behavior. Specifically, omit CLI cross-checks when:
+
+- The UI displays data derived from a backend source (metric, API, resource) and the UI steps already verify the data is correct (values, counts, labels)
+- The test is purely about UI rendering, column behavior, or display logic — not about resource creation or mutation
+- The CLI step would only confirm what the UI already shows (consistency check), rather than verifying something the UI cannot show
+
+CLI backend validation adds value when:
+- A UI action creates or modifies a backend resource (e.g., creating a policy, role assignment, or cluster) and you need to verify the resource was written correctly
+- The UI shows a summary but the full state is only visible via CLI (e.g., resource YAML fields not exposed in UI)
+- The test verifies a backend-only behavior with no UI representation
+
+**Rule of thumb:** If the UI already shows the data and your steps verify it, a CLI step repeating the same check is redundant complexity.
+
 ## When CLI Is NOT Allowed in Test Steps
 
 - As a substitute for navigating the UI

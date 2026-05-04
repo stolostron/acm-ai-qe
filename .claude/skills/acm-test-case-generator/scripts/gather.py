@@ -228,12 +228,12 @@ def _resolve_knowledge_dir():
 def _resolve_runs_dir():
     """Find the runs directory."""
     for candidate in [
-        Path.cwd() / "runs",
-        Path.cwd() / "apps" / "test-case-generator" / "runs",
+        Path.cwd() / "runs" / "test-case-generator",
+        Path.cwd() / "apps" / "test-case-generator" / "runs" / "test-case-generator",
     ]:
         if candidate.exists():
             return candidate
-    return Path.cwd() / "runs"
+    return Path.cwd() / "runs" / "test-case-generator"
 
 
 def read_conventions():

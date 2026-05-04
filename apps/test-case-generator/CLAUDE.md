@@ -63,7 +63,7 @@ The pipeline is invoked via `/generate`. See `.claude/skills/generate/SKILL.md` 
 /batch ACM-30459,ACM-30460,ACM-30461 --version 2.17
 
 # Review existing test case
-/review runs/ACM-30459/<run-dir>/test-case.md
+/review runs/test-case-generator/ACM-30459/<run-dir>/test-case.md
 ```
 
 ---
@@ -198,10 +198,10 @@ knowledge/
 
 ## Run Directory Layout
 
-Each run produces artifacts under `runs/<JIRA_ID>/<JIRA_ID>-<timestamp>/`:
+Each run produces artifacts under `runs/test-case-generator/<JIRA_ID>/<JIRA_ID>-<timestamp>/`:
 
 ```
-runs/ACM-30459/ACM-30459-2026-04-08T12-00-00/
+runs/test-case-generator/ACM-30459/ACM-30459-2026-04-08T12-00-00/
   gather-output.json                 # Stage 1: all gathered data
   pr-diff.txt                        # Stage 1: full PR diff (if PR found)
   phase1-feature-investigation.md    # Phase 1: feature investigator agent output
@@ -212,6 +212,7 @@ runs/ACM-30459/ACM-30459-2026-04-08T12-00-00/
   test-case.md                       # Phase 4: primary deliverable
   analysis-results.json              # Phase 4: investigation metadata (audit/debugging)
   phase4.5-quality-review.md         # Phase 4.5: quality reviewer agent output (JSON block + review)
+  test-case-description.html          # Stage 3: Polarion description section HTML
   test-case-setup.html               # Stage 3: Polarion setup section HTML
   test-case-steps.html               # Stage 3: Polarion steps table HTML
   review-results.json                # Stage 3: structural validation + artifact completeness

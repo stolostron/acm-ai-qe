@@ -93,7 +93,9 @@ Signs a step needs splitting:
 
 #### Backend Validation Placement Rule
 
-When a test case includes CLI-based backend verification (checking resource state, querying APIs, verifying metric data), place it in a DEDICATED step titled "Verify [what] via CLI (Backend Validation)" — do NOT embed CLI commands within a UI-focused step. This ensures:
+First, decide whether a CLI backend validation step is needed at all. **Omit it** when UI steps already provide full coverage — e.g., the UI displays data from a backend source and the test steps already verify the values are correct. A CLI step that only confirms what the UI already shows is redundant. See `cli-in-steps-rules.md` "When CLI Backend Validation Is NOT Needed" for the full rule.
+
+When a CLI backend validation step IS needed (UI action creates/modifies a resource, or backend state is not visible in UI), place it in a DEDICATED step titled "Verify [what] via CLI (Backend Validation)" — do NOT embed CLI commands within a UI-focused step. This ensures:
 - Clear context switch (browser → terminal) is visible in the step title
 - Pass/fail is cleanly attributed to UI behavior vs backend state
 - Automation can map UI steps to browser functions and CLI steps to shell functions
@@ -128,6 +130,7 @@ Check before completing:
 11. Any step combining passive observation with active interaction (click/navigate)? Split them.
 12. Is CLI backend validation in its own dedicated step, not embedded in a UI step?
 13. Are implementation details (sort algorithm, default values, parsing logic) translated into observable verifications?
+14. Is any CLI backend validation step redundant because UI steps already verify the same data?
 
 ## Critical Rules
 

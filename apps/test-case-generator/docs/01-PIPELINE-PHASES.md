@@ -98,7 +98,7 @@ Returns up to 3 test cases matching the area and version.
   "conventions": "# Test Case Conventions\n...",
   "area_knowledge": "# Governance Area Knowledge\n...",
   "html_templates": "# Polarion HTML Templates\n...",
-  "run_dir": "/path/to/runs/ACM-30459/ACM-30459-2026-04-18T02-00-46",
+  "run_dir": "/path/to/runs/test-case-generator/ACM-30459/ACM-30459-2026-04-18T02-00-46",
   "options": {
     "skip_live": false,
     "cluster_url": null,

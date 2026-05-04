@@ -81,6 +81,7 @@ def write_summary(
     run_dir: Path,
     test_case_path: Path,
     review_result: ReviewResult,
+    desc_path: str | None,
     setup_path: str | None,
     steps_path: str | None,
     jira_id: str,
@@ -133,6 +134,7 @@ def write_summary(
 
     summary_lines.append(f"")
     summary_lines.append(f"Polarion HTML:")
+    summary_lines.append(f"  Description: {'Generated' if desc_path else 'Not generated'}")
     summary_lines.append(f"  Setup: {'Generated' if setup_path else 'Not generated'}")
     summary_lines.append(f"  Steps: {'Generated' if steps_path else 'Not generated'}")
 
@@ -220,17 +222,19 @@ def main() -> None:
 
     # --- Generate Polarion HTML ---
     print("  Generating Polarion HTML...")
-    setup_path, steps_path = generate_html(str(test_case_path), str(run_dir))
+    desc_path, setup_path, steps_path = generate_html(str(test_case_path), str(run_dir))
 
+    if desc_path:
+        print(f"  Description HTML: {Path(desc_path).name}")
     if setup_path:
         print(f"  Setup HTML: {Path(setup_path).name}")
     if steps_path:
         print(f"  Steps HTML: {Path(steps_path).name}")
-    if not setup_path and not steps_path:
+    if not desc_path and not setup_path and not steps_path:
         print("  Warning: No HTML generated (could not parse test case sections)")
 
     # --- Write summary ---
-    summary_path = write_summary(run_dir, test_case_path, review_result, setup_path, steps_path, jira_id, artifact_check)
+    summary_path = write_summary(run_dir, test_case_path, review_result, desc_path, setup_path, steps_path, jira_id, artifact_check)
     print(f"  Summary: {summary_path.name}")
 
     # --- Telemetry ---

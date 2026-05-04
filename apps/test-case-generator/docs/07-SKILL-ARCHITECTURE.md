@@ -683,10 +683,10 @@ If Phase 9 fails after Phase 8 passed, fix the structural issue and re-run `repo
 
 ## Run Directory Layout
 
-Each run produces artifacts under `runs/<JIRA_ID>/<JIRA_ID>-<timestamp>/`:
+Each run produces artifacts under `runs/test-case-generator/<JIRA_ID>/<JIRA_ID>-<timestamp>/`:
 
 ```
-runs/ACM-30459/ACM-30459-2026-04-08T12-00-00/
+runs/test-case-generator/ACM-30459/ACM-30459-2026-04-08T12-00-00/
   gather-output.json                 Phase 1: collected data (deterministic)
   pr-diff.txt                        Phase 1: full PR diff (deterministic)
   phase1-feature-investigation.md    Phase 2: feature investigator output

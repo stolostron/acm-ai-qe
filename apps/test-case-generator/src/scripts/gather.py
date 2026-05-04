@@ -35,7 +35,7 @@ from src.services.telemetry import PipelineTelemetry
 def create_run_directory(jira_id: str) -> Path:
     """Create a timestamped run directory."""
     timestamp = datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
-    run_dir = PROJECT_ROOT / "runs" / jira_id / f"{jira_id}-{timestamp}"
+    run_dir = PROJECT_ROOT / "runs" / "test-case-generator" / jira_id / f"{jira_id}-{timestamp}"
     run_dir.mkdir(parents=True, exist_ok=True)
     return run_dir
 

@@ -86,11 +86,12 @@ Read `${CLAUDE_SKILL_DIR}/references/agents/data-gatherer.md`. Spawn a subagent 
 JIRA_ID: <value>
 ACM_VERSION: <value>
 AREA: <value>
-RUN_DIR: <path (create via gather.py's output)>
 SKILLS_DIR: ${CLAUDE_SKILL_DIR}/..
 </input>
 
-The agent runs `gather.py` internally (multi-repo PR search), then performs JIRA investigation including development panel PR discovery. Produces `gather-output.json`, `pr-diff.txt`, and `phase1-jira.json`.
+**Do NOT pre-create a run directory.** The agent runs `gather.py` internally, which creates the run directory at `runs/test-case-generator/<JIRA_ID>/<JIRA_ID>-<YYYY-MM-DDTHH-MM-SS>/` and prints the path on its last stdout line. The agent writes all artifacts to that directory and returns the path. Capture `RUN_DIR` from the agent's result.
+
+The agent produces `gather-output.json`, `pr-diff.txt`, and `phase1-jira.json`.
 
 Validate both artifacts:
 
@@ -307,7 +308,9 @@ to the same path.
 
 ## Run Directory
 
-Each run: `runs/<JIRA_ID>/<timestamp>/`
+Each run: `runs/test-case-generator/<JIRA_ID>/<JIRA_ID>-<YYYY-MM-DDTHH-MM-SS>/` (e.g., `runs/test-case-generator/ACM-32280/ACM-32280-2026-05-04T15-09-19/`).
+
+The directory is created by `gather.py` — do NOT pre-create it. The orchestrator captures the path from gather.py's stdout (last line) via the data-gatherer agent.
 
 ```
 gather-output.json        -- Phase 1: PR metadata, conventions
@@ -319,6 +322,7 @@ synthesized-context.md    -- Phase 4: merged test plan
 phase5-live-validation.md -- Phase 5: live results (optional)
 test-case.md              -- Phase 6: primary deliverable
 analysis-results.json     -- Phase 6: investigation metadata
+test-case-description.html -- Phase 8: Polarion description HTML
 test-case-setup.html      -- Phase 8: Polarion setup HTML
 test-case-steps.html      -- Phase 8: Polarion steps HTML
 validation-warnings.json  -- Retry Protocol: present only if validation failed after 3 attempts

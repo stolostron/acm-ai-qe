@@ -344,7 +344,6 @@ def validate_test_case(file_path: str, area: str = None) -> dict:
 # ---------------------------------------------------------------------------
 
 BASE_STYLE = 'font-size:11pt;font-family:Arial,Helvetica,sans-serif;color:#000000;line-height:1.5'
-BOLD_STYLE = f'{BASE_STYLE};font-weight:bold'
 CODE_STYLE = 'font-family:Consolas,Monaco,monospace;font-size:10pt;background-color:#f5f5f5;padding:10px;border:1px solid #ccc;overflow-x:auto'
 
 
@@ -379,6 +378,8 @@ def generate_setup_html(content: str) -> str:
     in_code_block = False
     for line in lines:
         stripped = line.strip()
+        if stripped == "---":
+            continue
         if stripped.startswith("```"):
             if in_code_block:
                 html_parts.append("</pre>")
@@ -392,12 +393,12 @@ def generate_setup_html(content: str) -> str:
             continue
         if stripped.startswith("**") and stripped.endswith("**"):
             label = stripped.strip("*").strip(":")
-            html_parts.append(f'<span style="{BOLD_STYLE}">{_escape_html(label)}:</span><br>')
+            html_parts.append(f'<span style="font-weight:bold;">{_escape_html(label)}:</span><br>')
         elif stripped.startswith("- "):
-            bullet_text = stripped[2:]
+            bullet_text = stripped[2:].replace('`', '')
             html_parts.append(f"&bull; {_escape_html(bullet_text)}<br>")
         elif stripped:
-            html_parts.append(f"{_escape_html(stripped)}<br>")
+            html_parts.append(f"{_escape_html(stripped.replace('`', ''))}<br>")
     if in_code_block:
         html_parts.append("</pre>")
     html_parts.append("</span>")
@@ -484,6 +485,63 @@ def generate_steps_html(content: str) -> str:
     return "\n".join(rows)
 
 
+def generate_description_html(content: str) -> str:
+    desc_text = _extract_section(content, "Description", ["Setup", "Test Steps"])
+    if not desc_text:
+        return ""
+    html_parts = [f'<span style="{BASE_STYLE}">']
+    lines = desc_text.split("\n")
+    in_code_block = False
+    for line in lines:
+        stripped = line.strip()
+        if stripped == "---":
+            continue
+        if stripped.startswith("```"):
+            if in_code_block:
+                html_parts.append("</pre>")
+                in_code_block = False
+            else:
+                html_parts.append(f'<pre style="{CODE_STYLE}">')
+                in_code_block = True
+            continue
+        if in_code_block:
+            html_parts.append(_escape_html(line))
+            continue
+        if re.match(r"^\d+\.\s", stripped):
+            html_parts.append(f"{_escape_html(stripped.replace('`', ''))}<br>")
+        elif stripped.startswith("- "):
+            bullet_text = stripped[2:].replace('`', '')
+            if re.match(r"\*\*[^*]+\*\*", bullet_text):
+                bold_match = re.match(r"\*\*([^*]+)\*\*\s*(.*)", bullet_text)
+                if bold_match:
+                    html_parts.append(f'<span style="font-weight:bold;">{_escape_html(bold_match.group(1))}</span> {_escape_html(bold_match.group(2))}<br>')
+                else:
+                    html_parts.append(f"&bull; {_escape_html(bullet_text)}<br>")
+            else:
+                html_parts.append(f"&bull; {_escape_html(bullet_text)}<br>")
+        elif re.match(r"^\*\*[^*]+:\*\*", stripped):
+            bold_match = re.match(r"\*\*([^*]+):\*\*\s*(.*)", stripped)
+            if bold_match:
+                rest = bold_match.group(2).replace('`', '')
+                html_parts.append(f'<span style="font-weight:bold;">{_escape_html(bold_match.group(1))}:</span> {_escape_html(rest)}<br>')
+            else:
+                html_parts.append(f"{_escape_html(stripped.replace('`', ''))}<br>")
+        elif stripped:
+            processed = _escape_html(stripped.replace('`', ''))
+            processed = re.sub(
+                r"\*\*([^*]+)\*\*",
+                lambda m: f'<span style="font-weight:bold;">{m.group(1)}</span>',
+                processed,
+            )
+            html_parts.append(f"{processed}<br>")
+        else:
+            html_parts.append("<br>")
+    if in_code_block:
+        html_parts.append("</pre>")
+    html_parts.append("</span>")
+    return "\n".join(html_parts)
+
+
 def generate_html(test_case_path: str, output_dir: str):
     path = Path(test_case_path)
     if not path.exists():
@@ -491,12 +549,18 @@ def generate_html(test_case_path: str, output_dir: str):
     content = path.read_text(encoding="utf-8")
     out = Path(output_dir)
 
+    desc_html = generate_description_html(content)
     setup_html = generate_setup_html(content)
     steps_html = generate_steps_html(content)
 
+    desc_path = None
     setup_path = None
     steps_path = None
 
+    if desc_html:
+        p = out / "test-case-description.html"
+        p.write_text(desc_html, encoding="utf-8")
+        desc_path = str(p)
     if setup_html:
         p = out / "test-case-setup.html"
         p.write_text(setup_html, encoding="utf-8")
@@ -506,7 +570,7 @@ def generate_html(test_case_path: str, output_dir: str):
         p.write_text(steps_html, encoding="utf-8")
         steps_path = str(p)
 
-    return setup_path, steps_path
+    return desc_path, setup_path, steps_path
 
 
 # ---------------------------------------------------------------------------
@@ -523,7 +587,7 @@ def find_test_case(run_dir: Path):
     return None
 
 
-def write_summary(run_dir, test_case_path, review_result, setup_path, steps_path, jira_id, artifact_check=None):
+def write_summary(run_dir, test_case_path, review_result, desc_path, setup_path, steps_path, jira_id, artifact_check=None):
     blocking = [i for i in review_result["issues"] if i["severity"] == "blocking"]
     warnings = [i for i in review_result["issues"] if i["severity"] == "warning"]
 
@@ -577,6 +641,7 @@ def write_summary(run_dir, test_case_path, review_result, setup_path, steps_path
     summary_lines.extend([
         "",
         "Polarion HTML:",
+        f"  Description: {'Generated' if desc_path else 'Not generated'}",
         f"  Setup: {'Generated' if setup_path else 'Not generated'}",
         f"  Steps: {'Generated' if steps_path else 'Not generated'}",
         "",
@@ -666,16 +731,18 @@ def main():
             print(f"    Missing: {name}")
 
     print("  Generating Polarion HTML...")
-    setup_path, steps_path = generate_html(str(test_case_path), str(run_dir))
+    desc_path, setup_path, steps_path = generate_html(str(test_case_path), str(run_dir))
 
+    if desc_path:
+        print(f"  Description HTML: {Path(desc_path).name}")
     if setup_path:
         print(f"  Setup HTML: {Path(setup_path).name}")
     if steps_path:
         print(f"  Steps HTML: {Path(steps_path).name}")
-    if not setup_path and not steps_path:
+    if not desc_path and not setup_path and not steps_path:
         print("  Warning: No HTML generated (could not parse test case sections)")
 
-    summary_path = write_summary(run_dir, test_case_path, review_result, setup_path, steps_path, jira_id, artifact_check)
+    summary_path = write_summary(run_dir, test_case_path, review_result, desc_path, setup_path, steps_path, jira_id, artifact_check)
     print(f"  Summary: {summary_path.name}")
 
     telemetry.end_stage("report", {

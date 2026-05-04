@@ -91,10 +91,10 @@ The pipeline has 8 steps: 2 deterministic stages + 6 AI phases. "6-phase" in the
 
 ## Run Directory Layout
 
-Each pipeline run produces artifacts under `runs/<JIRA_ID>/<JIRA_ID>-<timestamp>/`:
+Each pipeline run produces artifacts under `runs/test-case-generator/<JIRA_ID>/<JIRA_ID>-<timestamp>/`:
 
 ```
-runs/ACM-30459/ACM-30459-2026-04-18T02-00-46/
+runs/test-case-generator/ACM-30459/ACM-30459-2026-04-18T02-00-46/
   gather-output.json                 # Stage 1: all gathered data
   pr-diff.txt                        # Stage 1: full PR diff
   phase1-feature-investigation.md    # Phase 1: feature investigator output

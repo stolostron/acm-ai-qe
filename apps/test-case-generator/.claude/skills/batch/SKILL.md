@@ -71,7 +71,7 @@ Batch Results
 =============
 | JIRA ID    | Status  | Steps | Complexity | Output |
 |------------|---------|-------|------------|--------|
-| ACM-30459  | PASS    | 8     | medium     | runs/ACM-30459/... |
-| ACM-30460  | PARTIAL | 5     | simple     | runs/ACM-30460/... (1 step needs manual verification) |
+| ACM-30459  | PASS    | 8     | medium     | runs/test-case-generator/ACM-30459/... |
+| ACM-30460  | PARTIAL | 5     | simple     | runs/test-case-generator/ACM-30460/... (1 step needs manual verification) |
 | ACM-30461  | FAIL    | -     | -          | Stage 1 failed: no JIRA ticket found |
 ```

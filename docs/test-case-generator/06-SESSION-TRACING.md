@@ -1,6 +1,6 @@
 # Session Tracing
 
-Claude Code hooks capture every tool call, MCP interaction, prompt, subagent launch, and error into structured JSONL trace files. This provides full observability across all pipeline phases, including the AI agent phases (1-4.5) that the Python telemetry does not cover.
+Claude Code hooks capture every tool call, MCP interaction, prompt, subagent launch, and error into structured JSONL trace files. This provides full observability across all pipeline phases, including the AI subagent phases (2–8) that the Python telemetry does not cover.
 
 ## Architecture
 
@@ -8,8 +8,8 @@ The app uses two complementary telemetry systems:
 
 | System | Covers | Format | Location |
 |--------|--------|--------|----------|
-| Pipeline telemetry (`PipelineTelemetry`) | Stage 1 + Stage 3 (deterministic Python scripts) | JSONL | `runs/<run>/pipeline.log.jsonl` |
-| Session tracing (Claude Code hooks) | All phases (0-4.5 + Stage 3), all tool calls | JSONL | `.claude/traces/<session_id>.jsonl` |
+| Pipeline telemetry (`PipelineTelemetry`) | Phases 1 and 9 (deterministic Python scripts) | JSONL | `runs/<run>/pipeline.log.jsonl` |
+| Session tracing (Claude Code hooks) | All phases (0–9), all tool calls | JSONL | `.claude/traces/<session_id>.jsonl` |
 
 Pipeline telemetry captures timing and metadata for the Python scripts. Session tracing captures everything Claude Code does, including the AI agent phases that have no Python instrumentation.
 
@@ -86,8 +86,8 @@ For Agent launches:
 {
   "event": "tool_call",
   "tool": "Agent",
-  "input": {"description": "JIRA deep dive", "subagent_type": "feature-investigator"},
-  "pipeline_phase": "phase_1",
+  "input": {"description": "JIRA Investigation", "subagent_type": "jira-investigator"},
+  "pipeline_phase": "phase_2",
   "agent_prompt": "Investigate ACM-30459..."
 }
 ```
@@ -109,7 +109,7 @@ For knowledge file reads:
 {
   "event": "tool_result",
   "tool": "Bash",
-  "output": "Stage 1: Gathering data for ACM-30459..."
+  "output": "Phase 1: Gathering data for ACM-30459..."
 }
 ```
 
@@ -139,8 +139,8 @@ For knowledge file reads:
 {
   "event": "subagent_complete",
   "agent_id": "a1a01994c5deb0ea2",
-  "agent_type": "feature-investigator",
-  "pipeline_phase": "phase_1"
+  "agent_type": "jira-investigator",
+  "pipeline_phase": "phase_2"
 }
 ```
 
@@ -174,12 +174,13 @@ Subagent launches are tagged with their pipeline phase based on `subagent_type`:
 
 | Subagent Type | Phase |
 |---------------|-------|
-| `feature-investigator` | `phase_1` |
-| `code-change-analyzer` | `phase_1` |
-| `ui-discovery` | `phase_1` |
-| `live-validator` | `phase_3` |
-| `test-case-generator` | `phase_4` |
-| `quality-reviewer` | `phase_4_5` |
+| `jira-investigator` | `phase_2` |
+| `code-analyzer` | `phase_3` |
+| `ui-discoverer` | `phase_4` |
+| `synthesizer` | `phase_5` |
+| `live-validator` | `phase_6` |
+| `test-case-writer` | `phase_7` |
+| `quality-reviewer` | `phase_8` |
 
 ### Knowledge Category Detection
 
@@ -225,7 +226,7 @@ On each `Stop` event, the hook reads back the entire trace file and writes a one
   "session_id": "d9b279cd-c560-4fae-a2cd-70414b71e62c",
   "timestamp": "2026-04-18T03:48:36.771524+00:00",
   "pipeline_command": "generate",
-  "phases_seen": ["phase_1", "phase_4", "phase_4_5"],
+  "phases_seen": ["phase_2", "phase_3", "phase_4", "phase_5", "phase_7", "phase_8"],
   "duration_sec": 180,
   "prompts": 1,
   "tool_calls": 57,
@@ -261,19 +262,19 @@ On each `Stop` event, the hook reads back the entire trace file and writes a one
 
 Three Python scripts write events to `pipeline.log.jsonl` in each run directory:
 
-- **`gather.py`** and **`report.py`** use `PipelineTelemetry` (69 lines, `src/services/telemetry.py`) for Stage 1 and Stage 3
-- **`log_phase.py`** (`src/scripts/log_phase.py`) writes `phase_end` events for AI phases (1-4.5), called by the orchestrator after each phase completes
+- **`gather.py`** and **`report.py`** use `PipelineTelemetry` for Phases 1 and 9
+- **`log_phase.py`** writes `phase_end` events for AI phases (2–8), called by the orchestrator after each subagent completes
 
 ### Events
 
 | Event | Source | Fields | When |
 |-------|--------|--------|------|
 | `pipeline_start` | `gather.py` | `jira_id` | Script initialization |
-| `stage_start` | `gather.py`/`report.py` | `stage` | Stage begins |
-| `stage_end` | `gather.py`/`report.py` | `stage`, `elapsed_seconds`, custom metadata | Stage completes |
-| `phase_end` | `log_phase.py` | `phase`, custom metadata (agents, verdict, etc.) | AI phase completes |
+| `phase_start` | `gather.py`/`report.py` | `phase` | Phase begins |
+| `phase_end` | `gather.py`/`report.py` | `phase`, `elapsed_seconds`, custom metadata | Phase completes |
+| `phase_end` | `log_phase.py` | `phase`, custom metadata (verdict, mcp_verifications, etc.) | AI subagent completes |
 | `pipeline_end` | `report.py` | `total_elapsed_seconds`, `verdict` | Script finishes |
-| `error` | `gather.py`/`report.py` | `stage`, `error` | Error occurs |
+| `error` | `gather.py`/`report.py` | `phase`, `error` | Error occurs |
 
 ### Phase Telemetry (log_phase.py)
 
@@ -285,15 +286,15 @@ Writes one JSONL entry per call. Reads `jira_id` from `gather-output.json` autom
 
 Example output:
 ```json
-{"timestamp": "2026-04-28T03:55:10Z", "event": "phase_end", "jira_id": "ACM-30459", "phase": "phase_1", "agents": 3}
-{"timestamp": "2026-04-28T03:56:20Z", "event": "phase_end", "jira_id": "ACM-30459", "phase": "phase_4_5", "verdict": "PASS", "mcp_verifications": 5}
+{"timestamp": "2026-04-28T03:55:10Z", "event": "phase_end", "jira_id": "ACM-30459", "phase": "phase_2"}
+{"timestamp": "2026-04-28T03:56:20Z", "event": "phase_end", "jira_id": "ACM-30459", "phase": "phase_8", "verdict": "PASS", "mcp_verifications": 5}
 ```
 
-### Stage 1 Metadata
+### Phase 1 Metadata
 
 ```json
 {
-  "stage": "gather",
+  "phase": "gather",
   "elapsed_seconds": 1.72,
   "pr_found": true,
   "pr_number": 5790,
@@ -303,11 +304,11 @@ Example output:
 }
 ```
 
-### Stage 3 Metadata
+### Phase 9 Metadata
 
 ```json
 {
-  "stage": "report",
+  "phase": "report",
   "elapsed_seconds": 0.5,
   "verdict": "PASS",
   "total_steps": 8,

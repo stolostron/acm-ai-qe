@@ -1,6 +1,6 @@
 # Pipeline Phases
 
-The test case generator runs an 8-step pipeline from JIRA ticket to Polarion-ready output. Two steps are deterministic Python scripts (Stage 1, Stage 3). Six steps are AI-driven (Phases 0-4.5). The portable skill pack uses a 10-phase model (Phases 0-9) that breaks investigation into 3 sequential phases; the app consolidates them into 1 parallel phase. This document describes each step in execution order using the app pipeline numbering.
+The test case generator runs a 10-phase pipeline (Phases 0-9) from JIRA ticket to Polarion-ready output. Two phases are deterministic Python scripts (Phases 1 and 9). Seven phases are AI-driven subagents (Phases 2-8). Phase 0 is interactive orchestrator logic. Each subagent runs in an isolated context, writes structured output to disk, and terminates. The orchestrator sequences phases and routes file paths between them.
 
 ## Phase 0: Parse Inputs and Ask Questions
 
@@ -16,7 +16,7 @@ The orchestrator checks if critical inputs are missing and asks the user before 
 | JIRA ID | CLI arg | Always | Always |
 | ACM version | JIRA `fix_versions` or `--version` | Yes | Yes, if not in JIRA |
 | CNV version | CLI arg `--cnv-version` | Only for Fleet Virt | Yes |
-| Cluster URL | CLI arg `--cluster-url` | No (skips Phase 3) | Yes (offer to skip) |
+| Cluster URL | CLI arg `--cluster-url` | No (skips Phase 6) | Yes (offer to skip) |
 | Feature scope | JIRA ACs | Only if multiple ACs | Yes |
 
 ### Decision Logic
@@ -27,10 +27,10 @@ If JIRA has multiple acceptance criteria with distinct flows: ask which to cover
 
 ---
 
-## Stage 1: Gather Data
+## Phase 1: Gather Data
 
 **Type:** Deterministic Python script
-**Script:** `src/scripts/gather.py`
+**Script:** `scripts/gather.py`
 **Duration:** ~2-5 seconds
 **Output:** `gather-output.json`, `pr-diff.txt`
 
@@ -50,7 +50,7 @@ If JIRA has multiple acceptance criteria with distinct flows: ask which to cover
 
 ### Area Detection
 
-The `detect_area_from_files()` function in `github_service.py` maps PR file paths to areas:
+The `detect_area_from_files()` function in `scripts/gather.py` maps PR file paths to areas:
 
 | Path Patterns | Detected Area |
 |--------------|--------------|
@@ -68,7 +68,7 @@ Detection uses a scoring system: each file path match increments the area's scor
 
 ### Peer Test Case Discovery
 
-The `find_existing_test_cases()` function in `file_service.py` searches three locations in priority order:
+The `find_existing_test_cases()` function in `scripts/gather.py` searches three locations in priority order:
 
 1. External automation workspace (opt-in via `$ACM_AUTOMATION_WORKSPACE` env var)
 2. Previous pipeline runs (`runs/`)
@@ -112,69 +112,110 @@ Returns up to 3 test cases matching the area and version.
 
 ### Telemetry
 
-Stage 1 emits three events to `pipeline.log.jsonl`:
+Phase 1 emits three events to `pipeline.log.jsonl`:
 
 ```
 pipeline_start  {"jira_id": "ACM-30459"}
-stage_start     {"stage": "gather"}
-stage_end       {"stage": "gather", "elapsed_seconds": 1.72, "pr_found": true, "pr_number": 5790, "area": "governance", "existing_test_cases_count": 3, "conventions_loaded": true}
+phase_start     {"phase": "gather"}
+phase_end       {"phase": "gather", "elapsed_seconds": 1.72, "pr_found": true, "pr_number": 5790, "area": "governance", "existing_test_cases_count": 3, "conventions_loaded": true}
 ```
 
 ---
 
-## Phase 1: Parallel Investigation
+## Phase 2: Investigate JIRA Story
 
-**Type:** AI (3 subagents launched simultaneously)
-**Duration:** ~30-60 seconds total
-**Agents:** feature-investigator, code-change-analyzer, ui-discovery
+**Type:** AI (subagent)
+**Duration:** ~15-30 seconds
+**Agent:** `references/agents/jira-investigator.md`
+**Output:** `phase2-jira.json`
 
-Three agents run in parallel. Each receives specific inputs from `gather-output.json` and returns a structured block. See [02-AGENTS.md](02-AGENTS.md) for detailed agent specifications.
+The jira-investigator subagent performs a deep dive into the JIRA ticket. It receives the JIRA ID, ACM version, area, and run directory path. It writes structured JSON output to disk and terminates. See [02-AGENTS.md](02-AGENTS.md) for the full agent specification.
 
-**Artifact persistence:** Each agent's full output is saved to the run directory. The app pipeline uses `phase1-feature-investigation.md`, `phase1-code-change-analysis.md`, `phase1-ui-discovery.md`. The portable skill uses `phase2-jira.json`, `phase3-code.json`, `phase4-ui.json`. Both naming schemes are recognized by `report.py` artifact completeness checks. Phase telemetry logged via `python -m src.scripts.log_phase <run-dir> phase_1 --agents 3`.
+### MCP Tools
 
-### Agent A: Feature Investigator
+| Server | Tools Used |
+|--------|-----------|
+| jira | `get_issue`, `search_issues` |
+| polarion | `get_polarion_work_items`, `get_polarion_test_case_summary` |
+| neo4j-rhacm | `read_neo4j_cypher` |
+| bash | `gh` CLI for PR metadata |
 
-**Input:** JIRA ID
-**MCP:** jira, polarion, neo4j-rhacm, bash (gh CLI)
-**Output:** `FEATURE INVESTIGATION` block containing:
+### Output Contents
+
 - Story summary, acceptance criteria, fix versions
 - Comments with design decisions
 - Linked tickets (parent epic, sibling stories)
 - Existing Polarion coverage
 - Test scenarios derived from ACs
+- Anomalies array (data quality issues encountered)
 
-### Agent B: Code Change Analyzer
+---
 
-**Input:** PR number, repo, ACM version
-**MCP:** acm-ui, neo4j-rhacm, bash (gh CLI)
-**Output:** `CODE CHANGE ANALYSIS` block containing:
+## Phase 3: Analyze PR Code Changes
+
+**Type:** AI (subagent)
+**Duration:** ~15-30 seconds
+**Agent:** `references/agents/code-analyzer.md`
+**Output:** `phase3-code.json`
+
+The code-analyzer subagent examines the PR diff and source code. It receives the PR number, repo, ACM version, area, run directory, and path to `pr-diff.txt`. It writes structured JSON output to disk and terminates.
+
+### MCP Tools
+
+| Server | Tools Used |
+|--------|-----------|
+| acm-ui | `get_component_source`, `search_code`, `find_test_ids` |
+| neo4j-rhacm | `read_neo4j_cypher` |
+| bash | `gh` CLI for PR diff analysis |
+
+### Output Contents
+
 - Changed components (file-by-file)
 - New UI elements (columns, fields, filters)
 - UI interaction models (dropdown vs text input, PatternFly component types)
 - Affected routes
 - Discovered translations
 - Test scenarios from code changes
+- Anomalies array
 
-### Agent C: UI Discovery
+---
 
-**Input:** ACM version, CNV version (if Fleet Virt), feature name, area, cluster URL (optional)
-**MCP:** acm-ui, neo4j-rhacm, playwright (conditional — only with cluster URL), bash (oc CLI for cluster auth)
-**Output:** `UI DISCOVERY RESULTS` block containing:
+## Phase 4: Discover UI Elements
+
+**Type:** AI (subagent)
+**Duration:** ~15-30 seconds
+**Agent:** `references/agents/ui-discoverer.md`
+**Output:** `phase4-ui.json`
+
+The ui-discoverer subagent searches ACM Console source code for UI elements relevant to the feature. It receives the ACM version, CNV version (if Fleet Virt), area, feature name, and run directory. It writes structured JSON output to disk and terminates.
+
+### MCP Tools
+
+| Server | Tools Used |
+|--------|-----------|
+| acm-ui | `set_acm_version`, `search_translations`, `get_routes`, `get_acm_selectors`, `search_component`, `get_wizard_steps` |
+| neo4j-rhacm | `read_neo4j_cypher` |
+| bash | `oc` CLI (only if cluster URL available for live spot-check) |
+
+### Output Contents
+
 - Translations (key → UI string)
 - Routes (route name → path pattern)
 - Selectors (component → CSS selector)
 - Test IDs
 - Component structure
-- Live verification status (if cluster URL provided)
+- Anomalies array
 
 ---
 
-## Phase 2: Synthesize
+## Phase 5: Synthesize
 
-**Type:** AI (orchestrator in main conversation)
+**Type:** AI (subagent)
 **Duration:** ~10 seconds
+**Agent:** `references/agents/synthesizer.md`
+**Output:** `synthesized-context.md`
 
-The orchestrator merges all three Phase 1 outputs into a `SYNTHESIZED CONTEXT` block. This block becomes the primary input to Phase 4.
+The synthesizer subagent merges all three investigation outputs (Phases 2-4) into a unified context document. It reads the JSON files from the run directory, applies scope gating and conflict resolution, and writes `synthesized-context.md`. This file becomes the primary input to Phase 7.
 
 ### Synthesis Steps
 
@@ -183,10 +224,10 @@ The orchestrator merges all three Phase 1 outputs into a `SYNTHESIZED CONTEXT` b
 3. **AC vs Implementation cross-reference:** Compare each AC bullet against code behavior, flag discrepancies
 4. **Write TEST PLAN:** Scenario count, step estimates, setup/teardown, CLI checkpoints
 5. **Resolve conflicts:** If agents disagree:
-   - UI elements: trust UI Discovery (reads source directly)
-   - Business requirements: trust Feature Investigator (reads JIRA)
-   - What changed: trust Code Change Analyzer (reads diff)
-6. **Coverage gap triage:** If code-change-analyzer identified code behaviors not covered by any AC, triage each gap:
+   - UI elements: trust ui-discoverer (reads source directly)
+   - Business requirements: trust jira-investigator (reads JIRA)
+   - What changed: trust code-analyzer (reads diff)
+6. **Coverage gap triage:** If code-analyzer identified code behaviors not covered by any AC, triage each gap:
    - `ADD TO TEST PLAN` — user-visible behavior worth testing, gets a test step
    - `NOTE ONLY` — real but minor, mentioned in Notes section
    - `SKIP` — internal implementation detail, not UI-testable
@@ -204,13 +245,13 @@ SYNTHESIZED CONTEXT
 ===================
 
 --- FEATURE INVESTIGATION ---
-[full output from feature-investigator]
+[full output from jira-investigator]
 
 --- CODE CHANGE ANALYSIS ---
-[full output from code-change-analyzer]
+[full output from code-analyzer]
 
 --- UI DISCOVERY RESULTS ---
-[full output from ui-discovery]
+[full output from ui-discoverer]
 
 AC-IMPLEMENTATION DISCREPANCIES:
 - AC: "[exact text]"
@@ -228,14 +269,15 @@ Teardown: [cleanup plan]
 
 ---
 
-## Phase 3: Live Validation (Conditional)
+## Phase 6: Live Validation (Conditional)
 
 **Type:** AI (subagent)
 **Duration:** ~2-5 minutes
 **Condition:** Runs only when `--cluster-url` is provided and `--skip-live` is not set
-**Agent:** live-validator
+**Agent:** `references/agents/live-validator.md`
+**Output:** `phase6-live-validation.md`
 
-The live-validator agent opens the ACM console in a real browser, navigates to the feature, exercises the UI flow, and compares observed behavior against source code expectations.
+The live-validator subagent opens the ACM console in a real browser, navigates to the feature, exercises the UI flow, and compares observed behavior against source code expectations.
 
 ### Tools Used
 
@@ -278,11 +320,12 @@ Confirmed Behavior:
 
 ---
 
-## Phase 4: Write Test Case
+## Phase 7: Write Test Case
 
 **Type:** AI (subagent)
 **Duration:** ~30-60 seconds
-**Agent:** test-case-generator
+**Agent:** `references/agents/test-case-writer.md`
+**Output:** `test-case.md`, `analysis-results.json`
 
 Produces the primary deliverable: a Polarion-ready test case markdown file.
 
@@ -322,11 +365,12 @@ Produces the primary deliverable: a Polarion-ready test case markdown file.
 
 ---
 
-## Phase 4.5: Quality Review (Mandatory Gate)
+## Phase 8: Quality Review (Mandatory Gate)
 
 **Type:** AI (subagent, 3-tier escalation)
 **Duration:** ~30-60 seconds per iteration
-**Agent:** quality-reviewer
+**Agent:** `references/agents/quality-reviewer.md`
+**Output:** `phase8-review.md`
 **Recovery:** 3-tier escalation (targeted MCP re-investigation, focused retry with evidence, placeholder and proceed)
 
 The quality reviewer validates the generated test case. If it returns `NEEDS_FIXES`, the orchestrator escalates through 3 tiers: targeted MCP re-investigation for factual errors, focused retry with evidence, then marking unresolvable steps with `[MANUAL VERIFICATION REQUIRED]` and proceeding. The pipeline does not abort.
@@ -346,29 +390,31 @@ See [05-QUALITY-GATES.md](05-QUALITY-GATES.md) for the full checklist.
 | UI labels | Warning | Spot-checked via `search_translations()` |
 | AC vs implementation | Blocking | Expected results consistent with JIRA ACs |
 | Scope alignment | Blocking | Steps match target story, not broader PR |
+| Design efficiency | Warning | Resource optimization, entry point selection, step design anti-patterns |
+| Coverage gaps | Warning | Code behaviors triaged as ADD/NOTE are covered |
 | Polarion duplicates | Info | Search for existing coverage |
 | Peer consistency | Info | Format matches existing test cases |
 
 ---
 
-## Stage 3: Generate Reports
+## Phase 9: Generate Reports
 
 **Type:** Deterministic Python script
-**Script:** `src/scripts/report.py`
+**Script:** `scripts/report.py`
 **Duration:** ~1 second
 **Output:** `test-case-setup.html`, `test-case-steps.html`, `review-results.json`, `SUMMARY.txt`
 
 ### Process
 
 1. Find the test case file in the run directory
-2. Run structural validation via `convention_validator.py`
-3. Generate Polarion HTML via `html_generator.py`
+2. Run structural validation (inlined in `scripts/report.py`)
+3. Generate Polarion HTML via `generate_html.py`
 4. Write human-readable `SUMMARY.txt`
 5. Log telemetry events
 
 ### Structural Validation
 
-`convention_validator.py` checks (319 lines, 11 validation checks):
+The structural validator in `scripts/report.py` applies 11 checks:
 
 | Check | Severity | Pattern |
 |-------|----------|---------|
@@ -386,7 +432,7 @@ See [05-QUALITY-GATES.md](05-QUALITY-GATES.md) for the full checklist.
 
 ### Polarion HTML Generation
 
-`html_generator.py` converts test case markdown to Polarion-compatible HTML:
+`generate_html.py` converts test case markdown to Polarion-compatible HTML:
 
 - **Setup HTML:** Prerequisites, test environment, bash code blocks with inline styles
 - **Steps HTML:** Two-column table (Step | Expected Result) matching Polarion's import format
@@ -400,10 +446,10 @@ Templates follow `knowledge/conventions/polarion-html-templates.md` exactly:
 
 ### Telemetry
 
-Stage 3 emits events to `pipeline.log.jsonl`:
+Phase 9 emits events to `pipeline.log.jsonl`:
 
 ```
-stage_start     {"stage": "report"}
-stage_end       {"stage": "report", "verdict": "PASS", "total_steps": 8, "blocking_issues": 0, "warnings": 0, "html_generated": true}
+phase_start     {"phase": "report"}
+phase_end       {"phase": "report", "verdict": "PASS", "total_steps": 8, "blocking_issues": 0, "warnings": 0, "html_generated": true}
 pipeline_end    {"total_elapsed_seconds": 0.5, "verdict": "PASS"}
 ```

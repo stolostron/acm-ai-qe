@@ -287,7 +287,7 @@ flowchart TD
 ### 4. acm-test-case-reviewer — Quality Gate (Phase 8)
 
 **Pipeline stage:** 8 (mandatory, cannot skip)
-**Files:** SKILL.md (portable: standalone with inlined validation; app: uses convention_validator.py)
+**Files:** SKILL.md (standalone with inlined validation)
 **Depends on:** acm-ui-source (MCP spot-checks), acm-polarion-client (coverage), acm-knowledge-base (conventions)
 
 The mandatory quality gate. No test case is delivered without passing this review. Operates as a 3-tier escalation loop — targeted MCP re-investigation, focused retry with evidence, then placeholder and proceed. Never retries with the same context.
@@ -532,31 +532,21 @@ flowchart TD
 
 ---
 
-## App Agents vs Portable Skills
+## Subagent Execution Model
 
-The test case generator has two execution paths that use the same underlying logic:
+The pipeline runs 7 subagents sequentially (Phases 2–8), each spawned via the Agent tool into a fresh context. Each subagent receives file paths as input, reads from disk, writes structured output to disk, and terminates — preventing context pressure and recency bias.
 
-**App agents** (`.claude/agents/`) — used when running the pipeline from inside the app directory:
+| Subagent | File | Phase | Role |
+|----------|------|-------|------|
+| JIRA Investigator | `references/agents/jira-investigator.md` | 2 | JIRA deep dive |
+| Code Analyzer | `references/agents/code-analyzer.md` | 3 | PR diff analysis |
+| UI Discoverer | `references/agents/ui-discoverer.md` | 4 | Source code discovery |
+| Synthesizer | `references/agents/synthesizer.md` | 5 | Merge + scope gate + test plan |
+| Live Validator | `references/agents/live-validator.md` | 6 | Browser + oc + acm-search |
+| Test Case Writer | `references/agents/test-case-writer.md` | 7 | Write test case |
+| Quality Reviewer | `references/agents/quality-reviewer.md` | 8 | Quality gate |
 
-| Agent | File | Pipeline Phase | Role |
-|-------|------|---------------|------|
-| Feature Investigator | `feature-investigator.md` | Phase 1 (parallel) | JIRA deep dive |
-| Code Change Analyzer | `code-change-analyzer.md` | Phase 1 (parallel) | PR diff analysis |
-| UI Discovery | `ui-discovery.md` | Phase 1 (parallel) | Source code discovery |
-| Live Validator | `live-validator.md` | Phase 3 | Browser + oc + acm-search |
-| Test Case Generator | `test-case-generator.md` | Phase 4 | Write test case |
-| Quality Reviewer | `quality-reviewer.md` | Phase 4.5 | Quality gate |
-
-**Portable skills** (`.claude/skills/`) — used from the repo root or any other context:
-
-| Skill | Equivalent Agent(s) | Difference |
-|-------|---------------------|------------|
-| acm-test-case-generator | All 6 agents orchestrated | Thin orchestrator spawning 7 subagents (phases 2-8) |
-| acm-test-case-writer | test-case-generator agent | Can also run standalone (lightweight investigation) |
-| acm-test-case-reviewer | quality-reviewer agent | Same review process, independent invocation |
-| acm-code-analyzer | code-change-analyzer agent | Same analysis, portable |
-
-The app pipeline runs Phase 1 with **3 parallel agents** (feature-investigator, code-change-analyzer, ui-discovery), while the portable skill runs the same investigation phases sequentially as isolated subagents (one per phase, spawned via the Agent tool). Both produce equivalent results; the app pipeline is faster due to parallelism. The portable skill's subagent model prevents context pressure — each subagent writes structured output to disk and terminates.
+> **App pipeline note:** The app pipeline (`apps/test-case-generator/`) consolidates Phases 2–4 into one parallel Phase 1 for speed. The portable skill runs them sequentially for context isolation. Both produce equivalent results.
 
 ---
 
@@ -586,45 +576,39 @@ This model means no single context window holds more than one phase's data. The 
 
 ---
 
-## Parallel Execution: App Pipeline Phase 1
+## Sequential Investigation: Phases 2–4
 
-When running via the app (`/generate`), Phase 1 launches three agents simultaneously:
+The investigation phases run sequentially, each as an isolated subagent:
 
 ```mermaid
-flowchart LR
-    GO[gather-output.json\npr-diff.txt] --> A
-    GO --> B
-    GO --> C
+flowchart TD
+    GO[gather-output.json\npr-diff.txt] --> P2
 
-    subgraph "Phase 1 — Parallel"
-        A["Agent A: Feature Investigator\n(JIRA + Polarion + Neo4j)"]
-        B["Agent B: Code Change Analyzer\n(gh CLI + acm-ui + Neo4j)"]
-        C["Agent C: UI Discovery\n(acm-ui full sweep)"]
-    end
+    P2["Phase 2: JIRA Investigator\n(jira + polarion + neo4j)"] --> J[phase2-jira.json]
+    J --> P3
+    P3["Phase 3: Code Analyzer\n(acm-ui + neo4j + gh CLI)"] --> C[phase3-code.json]
+    C --> P4
+    P4["Phase 4: UI Discoverer\n(acm-ui full sweep)"] --> U[phase4-ui.json]
 
-    A --> FA[phase1-feature-\ninvestigation.md]
-    B --> FB[phase1-code-change-\nanalysis.md]
-    C --> FC[phase1-ui-\ndiscovery.md]
-
-    FA --> SYN[Phase 2:\nSynthesize]
-    FB --> SYN
-    FC --> SYN
+    U --> SYN[Phase 5:\nSynthesize]
+    J --> SYN
+    C --> SYN
 ```
 
-**Agent A: Feature Investigator**
-- Input: JIRA ID
+**Phase 2: JIRA Investigator**
+- Input: JIRA ID, ACM version, area, run directory
 - Tools: jira MCP, polarion MCP, neo4j MCP, gh CLI
-- Output: Story summary, ACs, comments (with decisions/edge cases), linked tickets, existing Polarion coverage, sibling story context
+- Output: `phase2-jira.json` — story summary, ACs, comments, linked tickets, existing Polarion coverage, sibling story context
 
-**Agent B: Code Change Analyzer**
-- Input: PR number, repo, ACM version, JIRA ID
+**Phase 3: Code Analyzer**
+- Input: PR number, repo, ACM version, JIRA ID, area, run directory, pr-diff.txt path
 - Tools: gh CLI, acm-ui MCP, neo4j MCP, jira MCP
-- Output: Changed components, new UI elements, modified behavior, routes, translations, filtering logic, follow-up PRs, test scenarios, coverage gaps
+- Output: `phase3-code.json` — changed components, new UI elements, modified behavior, routes, translations, filtering logic, follow-up PRs, test scenarios, coverage gaps
 
-**Agent C: UI Discovery**
-- Input: ACM version, CNV version (if Fleet Virt), feature name, area
-- Tools: acm-ui MCP (full sweep), playwright MCP (if cluster URL provided)
-- Output: Selectors, translation keys, routes with parameterized paths, wizard steps, test IDs, QE selectors, PatternFly fallbacks
+**Phase 4: UI Discoverer**
+- Input: ACM version, CNV version (if Fleet Virt), feature name, area, run directory
+- Tools: acm-ui MCP (full sweep)
+- Output: `phase4-ui.json` — selectors, translation keys, routes with parameterized paths, wizard steps, test IDs, QE selectors, PatternFly fallbacks
 
 ---
 
@@ -651,7 +635,7 @@ Phase 5 merges all investigation outputs using explicit precedence rules:
 3. If a step tests functionality from a different story (even in same PR), exclude it
 4. Mention other stories in Notes as "Related but scoped to [other-story]"
 
-**Coverage gap triage:** If the code-change-analyzer identified code behaviors not covered by any AC, the synthesis phase triages each gap: ADD TO TEST PLAN (user-visible, worth testing), NOTE ONLY (real but minor), or SKIP (internal, not UI-testable). Gaps triaged as ADD get corresponding test steps.
+**Coverage gap triage:** If the code analyzer (Phase 3) identified code behaviors not covered by any AC, the synthesis phase triages each gap: ADD TO TEST PLAN (user-visible, worth testing), NOTE ONLY (real but minor), or SKIP (internal, not UI-testable). Gaps triaged as ADD get corresponding test steps.
 
 **Test design optimization:** 5 passes applied to the planned steps before writing: state transition consolidation (test state changes on one entity instead of creating multiple), resource minimization, step flow sequencing (observe → act → verify), deduplication, and negative scenario placement (before positive when no extra setup needed).
 
@@ -673,7 +657,7 @@ flowchart TD
     FIXES --> FIX["Fix issues\nin test case"]
     FIX --> TC
 
-    FIX -.Tier 3.-> ABORT["Mark [MANUAL\nVERIFICATION REQUIRED]\nproceed to Stage 3"]
+    FIX -.Tier 3.-> ABORT["Mark [MANUAL\nVERIFICATION REQUIRED]\nproceed to Phase 9"]
 ```
 
 **Layer 1: AI Review** (acm-test-case-reviewer skill)
@@ -697,9 +681,9 @@ flowchart TD
 |-----------|------|-------------|-----------|
 | `gather.py` | Deterministic (Python) | PR metadata, file list, peer test cases, area knowledge | Always produces `gather-output.json` + `pr-diff.txt` |
 | `review_enforcement.py` | Deterministic (Python) | Parses reviewer output, counts MCP verifications | Cannot be skipped by AI |
-| `validate_conventions.py` | Deterministic (Python) | Structural validation of test case markdown (app version) | Title format, metadata, step format |
+| `report.py` (validation) | Deterministic (Python) | Structural validation of test case markdown (inlined) | Title format, metadata, step format |
 | `generate_html.py` | Deterministic (Python) | Polarion-compatible HTML from markdown | Setup + steps HTML |
-| `report.py` | Deterministic (Python) | Orchestrates validation + HTML + summary + artifact completeness check (portable version inlines validator + HTML generator) | Always produces output files; reports artifact completeness in `review-results.json` and `SUMMARY.txt` |
+| `report.py` | Deterministic (Python) | Orchestrates validation + HTML + summary + artifact completeness check (inlines validator + HTML generator) | Always produces output files; reports artifact completeness in `review-results.json` and `SUMMARY.txt` |
 | `log_phase` | Deterministic (Python) | Write telemetry entries between AI phases | Pipeline observability |
 | Phase 2–7 | AI (Skills) | Investigation, analysis, synthesis, writing | Evidence-based, MCP-verified |
 | Phase 8 | AI + Deterministic | Review (AI) + enforcement (Python) | Two-layer quality gate |
@@ -714,12 +698,12 @@ The pipeline has two independent validation systems. Both must pass:
 
 | Layer | When | What it checks | Authoritative for |
 |-------|------|---------------|-------------------|
-| **Phase 8** (quality-reviewer + enforcement) | Before Stage 3 | MCP verification of UI elements, AC vs implementation, scope alignment, numeric thresholds, Polarion coverage, peer consistency, discovered vs assumed | Semantic correctness (are the right things tested?) |
-| **Phase 9** (report.py / convention_validator.py) | After Phase 8 | Title pattern, metadata fields, section order, step format, entry point, teardown, artifact completeness | Structural correctness (is the format right?) |
+| **Phase 8** (quality-reviewer + enforcement) | Before Phase 9 | MCP verification of UI elements, AC vs implementation, scope alignment, numeric thresholds, Polarion coverage, peer consistency, discovered vs assumed | Semantic correctness (are the right things tested?) |
+| **Phase 9** (report.py) | After Phase 8 | Title pattern, metadata fields, section order, step format, entry point, teardown, artifact completeness | Structural correctness (is the format right?) |
 
-Phase 9 also checks pipeline artifact completeness (9 expected files) and includes the result in `review-results.json` and `SUMMARY.txt`. The checker recognizes both the app pipeline naming scheme (`phase1-feature-investigation.md`, `phase2-synthesized-context.md`, `phase4.5-quality-review.md`) and the portable skill naming scheme (`phase2-jira.json`, `synthesized-context.md`, `phase8-review.md`). This is reporting-only — it does not block the pipeline.
+Phase 9 also checks pipeline artifact completeness (9 expected files: `gather-output.json`, `pr-diff.txt`, `phase2-jira.json`, `phase3-code.json`, `phase4-ui.json`, `synthesized-context.md`, `test-case.md`, `phase8-review.md`, `analysis-results.json`) and includes the result in `review-results.json` and `SUMMARY.txt`. This is reporting-only — it does not block the pipeline.
 
-All 6 agents include an optional Anomalies section in their return format for surfacing data quality issues (empty MCP results, missing JIRA ACs, unexpected PR structure).
+All 7 subagents include an `anomalies` array in their structured output for surfacing data quality issues (empty MCP results, missing JIRA ACs, unexpected PR structure).
 
 If Phase 9 fails after Phase 8 passed, fix the structural issue and re-run `report.py`. Do not re-run the quality reviewer unless the fix changed test content.
 
@@ -733,20 +717,14 @@ Each run produces artifacts under `runs/<JIRA_ID>/<JIRA_ID>-<timestamp>/`:
 runs/ACM-30459/ACM-30459-2026-04-08T12-00-00/
   gather-output.json                 Phase 1: collected data (deterministic)
   pr-diff.txt                        Phase 1: full PR diff (deterministic)
-  phase1-feature-investigation.md    Phase 2: feature investigator (app pipeline)
-  phase2-jira.json                   Phase 2: JIRA findings (portable skill)
-  phase1-code-change-analysis.md     Phase 3: code change analyzer (app pipeline)
-  phase3-code.json                   Phase 3: code analysis (portable skill)
-  phase1-ui-discovery.md             Phase 4: UI discovery (app pipeline)
-  phase4-ui.json                     Phase 4: UI elements (portable skill)
-  phase2-synthesized-context.md      Phase 5: merged context + test plan (app pipeline)
-  synthesized-context.md             Phase 5: merged context (portable skill)
-  phase3-live-validation.md          Phase 6: live validation (app pipeline)
-  phase6-live-validation.md          Phase 6: live validation (portable skill)
+  phase2-jira.json                   Phase 2: JIRA investigation findings
+  phase3-code.json                   Phase 3: code change analysis
+  phase4-ui.json                     Phase 4: UI element discovery
+  synthesized-context.md             Phase 5: merged context + test plan
+  phase6-live-validation.md          Phase 6: live validation (optional)
   test-case.md                       Phase 7: PRIMARY DELIVERABLE
   analysis-results.json              Phase 7: investigation metadata (audit)
-  phase4.5-quality-review.md         Phase 8: reviewer output (app pipeline)
-  phase8-review.md                   Phase 8: reviewer output (portable skill)
+  phase8-review.md                   Phase 8: quality review output
   test-case-setup.html               Phase 9: Polarion setup section HTML
   test-case-steps.html               Phase 9: Polarion steps table HTML
   review-results.json                Phase 9: structural validation + artifact completeness
@@ -822,7 +800,7 @@ Which tools each skill uses, and when:
 - **Convention validation** (`test_convention_validator.py`): Title patterns, metadata fields, step format, section order, CLI-in-steps rules
 - **Model fields** (`test_models.py`): Analysis result model fields, required attributes
 - **File operations** (`test_file_service.py`): File read/write, path handling
-- **Artifact completeness** (`test_artifact_completeness.py`): Pipeline artifact detection for both app and portable skill naming schemes
+- **Artifact completeness** (`test_artifact_completeness.py`): Pipeline artifact detection and completeness reporting
 
 ```bash
 # Run unit tests (45 tests, no external deps)

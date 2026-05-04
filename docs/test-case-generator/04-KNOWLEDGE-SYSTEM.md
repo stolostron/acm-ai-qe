@@ -2,7 +2,7 @@
 
 The `knowledge/` directory contains curated domain knowledge that agents read during the pipeline. Knowledge is organized into three categories: conventions (authoritative format rules), architecture (per-area domain knowledge), and examples (sample test cases).
 
-**Two copies, same content:** The app pipeline reads from `apps/test-case-generator/knowledge/` (app-local). Portable skills (`.claude/skills/acm-test-case-generator/`) read from `.claude/knowledge/test-case-generator/` via `KNOWLEDGE_DIR`. Both contain the same 14 files. Changes to domain knowledge should be applied to both locations.
+**Location:** `.claude/knowledge/test-case-generator/`, resolved via `KNOWLEDGE_DIR = ${CLAUDE_SKILL_DIR}/../../knowledge/test-case-generator/` from the portable skill pack. Contains 14 files.
 
 ## Directory Structure
 
@@ -35,10 +35,10 @@ Agents read knowledge at specific pipeline phases:
 
 | Phase | What is read | Why |
 |-------|-------------|-----|
-| Stage 1 | `conventions/test-case-format.md`, `conventions/polarion-html-templates.md`, `architecture/<area>.md` | Loaded into `gather-output.json` for downstream agents |
-| Phase 4 (writer) | All conventions files, `architecture/<area>.md` (constraints), peer test cases, patterns | Format and behavioral constraints before writing |
-| Phase 4.5 (reviewer) | Conventions files, `architecture/<area>.md` (cross-reference), common mistakes (built into agent) | Validation reference + knowledge cross-reference |
-| Stage 3 | `conventions/polarion-html-templates.md` (baked into `html_generator.py`) | HTML generation rules |
+| Phase 1 | `conventions/test-case-format.md`, `conventions/polarion-html-templates.md`, `architecture/<area>.md` | Loaded into `gather-output.json` for downstream subagents |
+| Phase 7 (writer) | All conventions files, `architecture/<area>.md` (constraints), peer test cases, patterns | Format and behavioral constraints before writing |
+| Phase 8 (reviewer) | Conventions files, `architecture/<area>.md` (cross-reference), common mistakes (built into agent) | Validation reference + knowledge cross-reference |
+| Phase 9 | `conventions/polarion-html-templates.md` (baked into `generate_html.py`) | HTML generation rules |
 
 ## Validation Authority
 
@@ -178,7 +178,7 @@ The sample uses governance area conventions (`[GRC-2.17]` tag, Governance compon
 
 ## Diagnostics
 
-Common mistake checks are built into the quality-reviewer agent definition (`.claude/agents/quality-reviewer.md`, "Common Mistakes to Flag" section) rather than stored as a separate knowledge file. The reviewer also reads conventions files directly during its validation process (see Step 2 in the agent definition).
+Common mistake checks are built into the quality-reviewer agent definition (`references/agents/quality-reviewer.md`, "Common Mistakes to Flag" section) rather than stored as a separate knowledge file. The reviewer also reads conventions files directly during its validation process (see Step 2 in the agent definition).
 
 ---
 

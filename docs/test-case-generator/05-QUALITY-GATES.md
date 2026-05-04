@@ -1,19 +1,19 @@
 # Quality Gates
 
-The pipeline has two independent validation systems. Both must pass before a test case is considered complete. Phase 4.5 validates semantic correctness (are the right things tested?). Stage 3 validates structural correctness (is the format right?).
+The pipeline has two independent validation systems. Both must pass before a test case is considered complete. Phase 8 validates semantic correctness (are the right things tested?). Phase 9 validates structural correctness (is the format right?).
 
 ## Validation Layers
 
 | Layer | When | Type | What it checks | Authoritative for |
 |-------|------|------|---------------|-------------------|
-| Phase 4.5 | Before Stage 3 | AI (quality-reviewer agent) | MCP verification of UI elements, Polarion coverage, peer consistency, discovered vs assumed, AC vs implementation | Semantic correctness |
-| Stage 3 | After Phase 4.5 | Deterministic (`convention_validator.py`) | Title pattern, metadata fields, section order, step format, entry point, teardown | Structural correctness |
+| Phase 8 | Before Phase 9 | AI (quality-reviewer subagent) | MCP verification of UI elements, Polarion coverage, peer consistency, discovered vs assumed, AC vs implementation | Semantic correctness |
+| Phase 9 | After Phase 8 | Deterministic (`scripts/report.py`) | Title pattern, metadata fields, section order, step format, entry point, teardown | Structural correctness |
 
 ---
 
-## Phase 4.5: Quality Reviewer Agent
+## Phase 8: Quality Reviewer Agent
 
-**Agent:** `.claude/agents/quality-reviewer.md`
+**Agent:** `references/agents/quality-reviewer.md`
 **Tools:** acm-ui, polarion
 **Verdict:** `PASS` or `NEEDS_FIXES`
 **Recovery:** 3-tier escalation -- targeted MCP re-investigation, focused retry with evidence, placeholder and proceed (pipeline does not abort)
@@ -121,20 +121,20 @@ Reads 2-3 existing test cases from the same area and compares:
 Every agent in the pipeline can encounter MCP failures, missing data, or unavailable services. The pipeline never aborts on tool failures -- it degrades gracefully.
 
 **Agent-level handling:**
-- All 6 agents include an `anomalies` array in their output for surfacing data quality issues
+- All 7 subagents include an `anomalies` array in their output for surfacing data quality issues
 - Missing MCP results: note in anomalies, proceed with available data
 - MCP timeout or error: skip that verification, flag in anomalies
 - Missing JIRA ACs: investigate from PR description and comments instead
 - Empty Polarion results: note "no existing coverage found", proceed
 
 **Pipeline-level handling:**
-- Phase 1 agent failure: pipeline continues with remaining agents' data
+- Phase 2/3/4 agent failure: pipeline continues with remaining agents' data
 - Live validation skip: synthesis proceeds without live data, notes limitation
 - Quality reviewer NEEDS_FIXES: 3-tier escalation (never aborts):
   - Tier 1: targeted MCP re-investigation for factual errors
   - Tier 2: focused retry with accumulated evidence
   - Tier 3: mark unresolvable with `[MANUAL VERIFICATION REQUIRED]`, proceed
-- Stage 3 failure after Phase 8 pass: fix structural issue, re-run `report.py` only
+- Phase 9 failure after Phase 8 pass: fix structural issue, re-run `scripts/report.py` only
 
 **Anomaly reporting format** (all agents):
 
@@ -175,17 +175,17 @@ Quality review: 1 step flagged for manual verification.
 
 ---
 
-## Stage 3: Structural Validator
+## Phase 9: Structural Validator
 
-Stage 3 processes test cases regardless of manual verification flags. `[MANUAL VERIFICATION REQUIRED]` markers pass through to the Polarion HTML output unchanged. The `SUMMARY.txt` includes a count of flagged steps when present.
+Phase 9 processes test cases regardless of manual verification flags. `[MANUAL VERIFICATION REQUIRED]` markers pass through to the Polarion HTML output unchanged. The `SUMMARY.txt` includes a count of flagged steps when present.
 
-**Script:** `src/services/convention_validator.py`
+**Script:** `scripts/report.py` (structural validation inlined)
 **Input:** `test-case.md` file path, optional area
 **Output:** `ReviewResult` model (written to `review-results.json`)
 
 ### Validation Rules
 
-The validator (`validate_test_case()`, 319 lines) applies 11 structural checks across 7 categories:
+The structural validator applies 11 checks:
 
 #### 1. Title Pattern
 
@@ -296,7 +296,7 @@ class ValidationIssue(BaseModel):
 
 Warnings do not cause FAIL but are reported in `SUMMARY.txt`.
 
-### Phase 4.5 Enforcement
+### Phase 8 Enforcement
 
 The quality reviewer must start its output with a JSON verification block containing:
 - `mcp_verifications` (array of verification entries, min 3)
@@ -312,8 +312,8 @@ The orchestrator validates this block before accepting the verdict. If the block
 
 A test case must pass all of these before delivery:
 
-| Criterion | Phase 4.5 | Stage 3 |
-|-----------|-----------|---------|
+| Criterion | Phase 8 | Phase 9 |
+|-----------|---------|---------|
 | Metadata completeness | Checks all fields present | Validates field format |
 | Title pattern | Checks tag matches area | Validates regex pattern |
 | Section order | Checks against conventions | Validates ordering |

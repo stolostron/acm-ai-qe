@@ -1,24 +1,25 @@
 # Agent Definitions
 
-Six specialized agents, each with a dedicated role in the pipeline. Agent definitions are in `.claude/agents/`. Each agent receives specific inputs, uses designated MCP tools, and returns a structured output block.
+Seven specialized subagents, each with a dedicated role in the pipeline. Agent definitions are in `references/agents/`. Each subagent runs in an isolated context, receives file paths as input, uses designated MCP tools, writes structured output to disk, and terminates.
 
 ## Agent Summary
 
 | Agent | File | Phase | Tools | Input | Output |
 |-------|------|-------|-------|-------|--------|
-| Feature Investigator | `feature-investigator.md` | 1 (parallel) | jira, polarion, neo4j-rhacm, bash | JIRA ID | FEATURE INVESTIGATION block |
-| Code Change Analyzer | `code-change-analyzer.md` | 1 (parallel) | acm-ui, neo4j-rhacm, bash | PR number, repo, version | CODE CHANGE ANALYSIS block |
-| UI Discovery | `ui-discovery.md` | 1 (parallel) | acm-ui, neo4j-rhacm, playwright (conditional), bash | Version, area, feature name, cluster URL (optional) | UI DISCOVERY RESULTS block (+ live verification) |
-| Live Validator | `live-validator.md` | 3 | playwright, acm-search, acm-kubectl, bash | Console URL, feature path | LIVE VALIDATION RESULTS block |
-| Test Case Generator | `test-case-generator.md` | 4 | acm-ui | Run dir, synthesized context | `test-case.md`, `analysis-results.json` |
-| Quality Reviewer | `quality-reviewer.md` | 4.5 | acm-ui, polarion | test-case.md path, version, area | PASS or NEEDS_FIXES |
+| JIRA Investigator | `jira-investigator.md` | 2 | jira, polarion, neo4j-rhacm, bash | JIRA ID | `phase2-jira.json` |
+| Code Analyzer | `code-analyzer.md` | 3 | acm-ui, neo4j-rhacm, bash | PR number, repo, version | `phase3-code.json` |
+| UI Discoverer | `ui-discoverer.md` | 4 | acm-ui, neo4j-rhacm, bash | Version, area, feature name | `phase4-ui.json` |
+| Synthesizer | `synthesizer.md` | 5 | — | Phase 2-4 outputs | `synthesized-context.md` |
+| Live Validator | `live-validator.md` | 6 | playwright, acm-search, acm-kubectl, bash | Console URL, feature path | `phase6-live-validation.md` |
+| Test Case Writer | `test-case-writer.md` | 7 | acm-ui | Run dir, synthesized context | `test-case.md`, `analysis-results.json` |
+| Quality Reviewer | `quality-reviewer.md` | 8 | acm-ui, polarion | test-case.md path, version, area | PASS or NEEDS_FIXES (`phase8-review.md`) |
 
 ---
 
-## Feature Investigator
+## JIRA Investigator
 
-**Phase:** 1 (parallel)
-**File:** `.claude/agents/feature-investigator.md`
+**Phase:** 2
+**File:** `references/agents/jira-investigator.md`
 **Tools:** jira, polarion, neo4j-rhacm, bash
 
 ### Purpose
@@ -39,37 +40,28 @@ Deep JIRA investigation: reads the story, comments, linked tickets, and acceptan
 
 ### Output Structure
 
-```
-FEATURE INVESTIGATION
-=====================
-Story: [JIRA ID] - [summary]
-Fix Version: [version]
-Status: [status]
+Structured JSON written to `phase2-jira.json`:
 
-Acceptance Criteria:
-1. [AC bullet from JIRA]
-2. [AC bullet]
-
-Linked Tickets:
-- [related-ticket]: [relationship]
-
-Comments Summary:
-- [design decisions, testing notes]
-
-Existing Polarion Coverage:
-- [existing test cases or "None found"]
-
-Test Scenarios:
-1. [scenario from ACs]
-2. [scenario]
+```json
+{
+  "story_summary": "[JIRA ID] - [summary]",
+  "fix_version": "[version]",
+  "status": "[status]",
+  "acceptance_criteria": ["AC bullet 1", "AC bullet 2"],
+  "linked_tickets": [{"key": "[ticket]", "relationship": "[type]"}],
+  "comments_summary": ["design decisions", "testing notes"],
+  "existing_polarion_coverage": ["existing test cases or empty"],
+  "test_scenarios": ["scenario from ACs"],
+  "anomalies": []
+}
 ```
 
 ---
 
-## Code Change Analyzer
+## Code Analyzer
 
-**Phase:** 1 (parallel)
-**File:** `.claude/agents/code-change-analyzer.md`
+**Phase:** 3
+**File:** `references/agents/code-analyzer.md`
 **Tools:** acm-ui, neo4j-rhacm, bash
 
 ### Purpose
@@ -104,39 +96,33 @@ For new interactive elements (filters, inputs, toggles), the analyzer identifies
 
 ### Output Structure
 
-```
-CODE CHANGE ANALYSIS
-====================
-PR: #NNNN - [title]
-Files Changed: N (+additions, -deletions)
+Structured JSON written to `phase3-code.json`:
 
-Changed Components:
-- [file path]: [what changed]
-
-New UI Elements:
-- [element]: [description]
-
-UI Interaction Models:
-- [element]: [PatternFly component type] -- [interaction pattern]
-
-Translation Strings:
-- "[UI text]": [context]
-
-Test Scenarios from Code Changes:
-1. [scenario]
+```json
+{
+  "pr_number": 5790,
+  "pr_title": "[title]",
+  "files_changed": 12,
+  "changed_components": [{"file": "[path]", "changes": "[what changed]"}],
+  "new_ui_elements": [{"element": "[name]", "description": "[what it does]"}],
+  "ui_interaction_models": [{"element": "[name]", "component_type": "[PatternFly type]", "interaction": "[pattern]"}],
+  "translation_strings": [{"text": "[UI text]", "context": "[where used]"}],
+  "test_scenarios": ["scenario from code changes"],
+  "anomalies": []
+}
 ```
 
 ---
 
-## UI Discovery
+## UI Discoverer
 
-**Phase:** 1 (parallel)
-**File:** `.claude/agents/ui-discovery.md`
-**Tools:** acm-ui, neo4j-rhacm, playwright (conditional), bash
+**Phase:** 4
+**File:** `references/agents/ui-discoverer.md`
+**Tools:** acm-ui, neo4j-rhacm, bash
 
 ### Purpose
 
-Discovers UI selectors, translations, routes, wizard steps, and test IDs from the ACM Console source code via the acm-ui MCP server. When a cluster URL is provided, performs optional live browser verification (Step 9) to confirm that discovered elements actually render on a real cluster.
+Discovers UI selectors, translations, routes, wizard steps, and test IDs from the ACM Console source code via the acm-ui MCP server.
 
 ### MCP Tool Usage
 
@@ -156,33 +142,55 @@ Discovers UI selectors, translations, routes, wizard steps, and test IDs from th
 
 ### Output Structure
 
+Structured JSON written to `phase4-ui.json`:
+
+```json
+{
+  "acm_version": "[version]",
+  "translations": [{"key": "[key]", "value": "[UI string]"}],
+  "routes": [{"name": "[route name]", "path": "[path pattern]"}],
+  "selectors": [{"component": "[name]", "selector": "[CSS selector]"}],
+  "test_ids": ["[test ID and location]"],
+  "component_structure": ["[how components fit together]"],
+  "anomalies": []
+}
 ```
-UI DISCOVERY RESULTS
-====================
-ACM Version: [version]
 
-Translations Found:
-- [key] -> [UI string]
+---
 
-Routes Found:
-- [route name] -> [path pattern]
+## Synthesizer
 
-Selectors Found:
-- [component] -> [selector]
+**Phase:** 5
+**File:** `references/agents/synthesizer.md`
+**Tools:** — (no MCP tools; reads files from disk only)
 
-Test IDs Found:
-- [test ID and location]
+### Purpose
 
-Component Structure:
-- [how components fit together]
-```
+Merges all three investigation outputs (Phases 2-4) into a unified context document. Applies scope gating, conflict resolution, coverage gap triage, and test design optimization. Produces the primary input for Phase 7 (test case writing).
+
+### Process
+
+1. Read `phase2-jira.json`, `phase3-code.json`, `phase4-ui.json` from the run directory
+2. Read the synthesis template from `references/synthesis-template.md`
+3. Concatenate investigation findings
+4. Scope gate: filter to target JIRA story's ACs only
+5. AC vs implementation cross-reference
+6. Conflict resolution (ui-discoverer > jira-investigator > code-analyzer per domain)
+7. Coverage gap triage (ADD/NOTE/SKIP)
+8. Test design optimization (5 passes)
+9. Write test plan with step estimates
+10. Self-verification against synthesis template
+
+### Output
+
+Markdown written to `synthesized-context.md` containing all investigation data, discrepancies, and the test plan.
 
 ---
 
 ## Live Validator
 
-**Phase:** 3 (conditional)
-**File:** `.claude/agents/live-validator.md`
+**Phase:** 6 (conditional)
+**File:** `references/agents/live-validator.md`
 **Tools:** playwright, acm-search, acm-kubectl, bash
 
 ### Purpose
@@ -205,12 +213,16 @@ Verifies feature behavior on a real ACM cluster using browser automation, oc CLI
 5. Check for errors: `browser_console_messages()`, `browser_network_requests()`
 6. Document discrepancies
 
+### Output
+
+Markdown written to `phase6-live-validation.md` with cluster info, step-by-step verification results, discrepancies, and confirmed behaviors.
+
 ---
 
-## Test Case Generator
+## Test Case Writer
 
-**Phase:** 4
-**File:** `.claude/agents/test-case-generator.md`
+**Phase:** 7
+**File:** `references/agents/test-case-writer.md`
 **Tools:** acm-ui (spot-check only)
 
 ### Purpose
@@ -227,12 +239,17 @@ Writes the Polarion-ready test case markdown from the synthesized investigation 
 - AC discrepancy notes: if synthesized context has discrepancies, includes Notes explaining each
 - Self-reviews before writing the file
 
+### Output
+
+- `test-case.md` — primary deliverable
+- `analysis-results.json` — investigation metadata
+
 ---
 
 ## Quality Reviewer
 
-**Phase:** 4.5
-**File:** `.claude/agents/quality-reviewer.md`
+**Phase:** 8
+**File:** `references/agents/quality-reviewer.md`
 **Tools:** acm-ui, polarion
 **Knowledge dependencies:** Reads `knowledge/conventions/test-case-format.md`, `knowledge/conventions/area-naming-patterns.md`, `knowledge/conventions/cli-in-steps-rules.md` as validation reference. Also reads peer test cases from `gather-output.json` `existing_test_cases` field (or `knowledge/examples/sample-test-case.md` as fallback).
 
@@ -258,7 +275,7 @@ Validates the generated test case against conventions, verifies UI elements were
 
 ### Verdict
 
-- **PASS:** Proceed to Stage 3
+- **PASS:** Proceed to Phase 9
 - **NEEDS_FIXES:** List blocking issues with fix instructions; orchestrator fixes and re-runs
 
 ### Re-Review Protocol

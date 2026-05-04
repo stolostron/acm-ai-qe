@@ -832,7 +832,7 @@ setup_playwright() {
         return
     fi
 
-    ok "npx available -- playwright will run via: npx @playwright/mcp@latest"
+    ok "npx available -- playwright will use explicit node path with --ignore-https-errors"
 
     # Check if Playwright browsers are installed
     if npx playwright install --dry-run chromium &>/dev/null 2>&1; then
@@ -914,6 +914,15 @@ def read_env_file(path):
 jira_env = read_env_file(f'{ext_dir}/jira-mcp-server/.env')
 jenkins_env = read_env_file(f'{ext_dir}/jenkins-mcp/.env')
 polarion_env = read_env_file(f'{mcp_dir}/polarion/.env')
+
+# Resolve node paths for Playwright MCP (explicit paths avoid npx resolution failures)
+import shutil
+node_path = shutil.which('node') or 'node'
+node_bin = os.path.dirname(node_path) if node_path != 'node' else '/usr/local/bin'
+_node_prefix = os.path.dirname(node_bin)
+npx_cli_path = os.path.join(_node_prefix, 'lib', 'node_modules', 'npm', 'bin', 'npx-cli.js')
+if not os.path.isfile(npx_cli_path):
+    npx_cli_path = shutil.which('npx') or 'npx'
 
 def _build_acm_search_config():
     \"\"\"Build acm-search MCP config. Reads marker file first, falls back to live cluster query.\"\"\"
@@ -1010,9 +1019,10 @@ all_servers = {
         'timeout': 60
     },
     'playwright': {
-        'command': 'npx',
-        'args': ['@playwright/mcp@latest'],
-        'timeout': 30
+        'command': node_path,
+        'args': [npx_cli_path, '@playwright/mcp@latest', '--ignore-https-errors', '--test-id-attribute', 'data-test', '--codegen', 'typescript', '--caps', 'core,testing'],
+        'env': {'PATH': node_bin + ':/usr/bin:/bin:/usr/sbin:/sbin'},
+        'timeout': 60
     }
 }
 

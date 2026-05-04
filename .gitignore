@@ -85,6 +85,9 @@ mcp/.acm-search-config.json
 # setup.sh clones these from upstream repos into mcp/.external/
 mcp/.external/
 
+# Playwright MCP runtime data (console logs, session state)
+.playwright-mcp/
+
 # Python virtual environments
 **/.venv/
 

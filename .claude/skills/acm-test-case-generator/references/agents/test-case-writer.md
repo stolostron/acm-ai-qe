@@ -99,3 +99,16 @@ Write two files to the run directory:
 - ALWAYS self-review before writing
 - NEVER state specific numeric thresholds unless found in PR diff, JIRA AC, MCP source, or area knowledge
 - If MCP unavailable for spot-check, note and proceed with investigation data
+
+## Handling Incomplete Upstream Data
+
+If `VALIDATION_WARNINGS_PATH` is present in your input, upstream phases produced incomplete artifacts. Read the warnings file.
+
+**Behavior:** Proceed with available data. Write the test case from whatever the synthesized context contains.
+- If the synthesized context has `[DATA GAP]` notes, do not invent data to fill the gaps
+- If MCP spot-checks cannot verify a claim marked as `[INFERRED]`, add `[MANUAL VERIFICATION REQUIRED]` to the affected step's expected result
+- Record `"validation_warnings_present": true` in `analysis-results.json`
+
+## Retry Handling
+
+If a `<retry>` block is present in your input, the orchestrator's schema validator found errors in your previous `analysis-results.json`. Read your previous output at the path given in `PREVIOUS_OUTPUT_PATH`. Review each `VALIDATION_ERRORS` entry. Fix the malformed metadata fields — do not add placeholder values. Write corrected output to the same path (`analysis-results.json`), preserving valid data from the previous attempt. The `test-case.md` does not need to be rewritten unless the errors indicate content issues.

@@ -206,6 +206,16 @@ The ui-discoverer subagent searches ACM Console source code for UI elements rele
 - Component structure
 - Anomalies array
 
+### Artifact Validation (Phases 1-5, 7)
+
+After each phase that produces structured output, the orchestrator runs `validate_artifact.py` to check the artifact against its schema. If validation fails for an AI-produced phase, the agent is retried up to 3 times with specific error feedback. After 3 failures, the pipeline proceeds with incomplete data and passes `VALIDATION_WARNINGS_PATH` to downstream agents.
+
+Phase 1 (gather.py) is deterministic — validation failure stops the pipeline immediately (no retry). Phase 6 (live validation) produces unstructured markdown — no schema validation. Phase 8 has its own enforcement via `review_enforcement.py`.
+
+### Pre-Synthesis Readiness Check
+
+Before Phase 5, a cross-artifact check verifies minimum viable data exists across all three investigation artifacts (8 data points: `story.key`, `story.summary`, `acceptance_criteria` non-empty, `pr.number`, `pr.repo`, `primary_files` non-empty, `entry_point`, `routes` non-empty). If any are missing, the pipeline stops — upstream phases already exhausted their retry attempts.
+
 ---
 
 ## Phase 5: Synthesize

@@ -1,13 +1,83 @@
 # Quality Gates
 
-The pipeline has two independent validation systems. Both must pass before a test case is considered complete. Phase 8 validates semantic correctness (are the right things tested?). Phase 9 validates structural correctness (is the format right?).
+The pipeline has three independent validation systems. Artifact validation (Phases 1-7) ensures each phase produces structurally valid output with required data. Phase 8 validates semantic correctness (are the right things tested?). Phase 9 validates structural correctness (is the format right?).
 
 ## Validation Layers
 
 | Layer | When | Type | What it checks | Authoritative for |
 |-------|------|------|---------------|-------------------|
+| Artifact Validation | After each phase (1-5, 7) | Deterministic (`scripts/validate_artifact.py`) | Required fields, types, non-empty constraints, nested keys, patterns | Data completeness at each handoff |
+| Pre-Synthesis Gate | Between Phase 4 and Phase 5 | Deterministic (`scripts/validate_artifact.py --pre-synthesis`) | 8 minimum data points across 3 investigation artifacts | Minimum viable synthesis inputs |
 | Phase 8 | Before Phase 9 | AI (quality-reviewer subagent) | MCP verification of UI elements, Polarion coverage, peer consistency, discovered vs assumed, AC vs implementation | Semantic correctness |
 | Phase 9 | After Phase 8 | Deterministic (`scripts/report.py`) | Title pattern, metadata fields, section order, step format, entry point, teardown | Structural correctness |
+
+---
+
+## Artifact Validation (Phases 1-7)
+
+**Script:** `scripts/validate_artifact.py`
+**Invocation:** `python validate_artifact.py <artifact-path> <schema-name>`
+**Verdict:** Exit 0 = PASS, exit 1 = FAIL with structured error output
+
+After each AI-produced phase (2, 3, 4, 5, 7), the orchestrator runs schema validation on the output artifact. Phase 1 (gather.py) is also validated but fails hard on error (deterministic script, no retry). Phase 6 (live validation) produces unstructured markdown — no schema validation. Phase 8 has its own enforcement via `review_enforcement.py`.
+
+### Schemas
+
+| Schema | Phase | Artifact | Key checks |
+|--------|:-----:|----------|------------|
+| `gather-output` | 1 | `gather-output.json` | `jira_id`, `run_dir`, `timestamp`, `options` present |
+| `phase2-jira` | 2 | `phase2-jira.json` | `story` (with nested `key` + `summary`), `acceptance_criteria` non-empty, `test_scenarios` non-empty |
+| `phase3-code` | 3 | `phase3-code.json` | `pr` (with nested `number` + `repo` + `title`), `primary_files` non-empty, `test_scenarios` non-empty |
+| `phase4-ui` | 4 | `phase4-ui.json` | `acm_version`, `routes` non-empty, `entry_point` |
+| `synthesized-context` | 5 | `synthesized-context.md` | Required sections: JIRA INVESTIGATION, CODE CHANGE ANALYSIS, UI DISCOVERY, TEST PLAN |
+| `analysis-results` | 7 | `analysis-results.json` | `jira_id` (ACM- pattern), `acm_version`, `area`, `steps_count` > 0, `test_case_file` |
+
+### Error Categories
+
+| Tag | Meaning |
+|-----|---------|
+| `[MISSING]` | Required key not found |
+| `[TYPE]` | Wrong type (e.g., expected dict, got null) |
+| `[EMPTY]` | Required non-empty field is empty |
+| `[NESTED]` | Missing required nested key (e.g., `story.summary`) |
+| `[PATTERN]` | Value doesn't match required pattern (e.g., `ACM-` prefix) |
+| `[VALUE]` | Value constraint violated (e.g., `steps_count` must be > 0) |
+| `[PARSE]` | JSON parse error or file unreadable |
+| `[SECTION]` | Required markdown section missing |
+
+### Pre-Synthesis Readiness Check
+
+Before Phase 5 (synthesis), a cross-artifact check verifies minimum viable data exists across all three investigation artifacts. This runs after individual phase validations and retries are exhausted.
+
+**Invocation:** `python validate_artifact.py --pre-synthesis <run-dir>`
+
+**8 minimum data points checked:**
+
+| Artifact | Data Point | Why required |
+|----------|-----------|--------------|
+| `phase2-jira.json` | `story.key` | Test case identity |
+| `phase2-jira.json` | `story.summary` | Test case title |
+| `phase2-jira.json` | `acceptance_criteria` (non-empty) | Scope gate + test plan anchors |
+| `phase3-code.json` | `pr.number` | Code context identity |
+| `phase3-code.json` | `pr.repo` | Code context identity |
+| `phase3-code.json` | `primary_files` (non-empty) | AC cross-reference requires knowing what changed |
+| `phase4-ui.json` | `entry_point` | Test case navigation start |
+| `phase4-ui.json` | `routes` (non-empty) | Entry point verification |
+
+If FAIL: the pipeline stops. Upstream phases already exhausted their retry attempts — there is nothing left to retry. The check reports exactly which data points are missing.
+
+### Retry Protocol
+
+When artifact validation fails for an AI-produced phase (2, 3, 4, 5, or 7), the orchestrator retries up to 3 times before proceeding with incomplete data.
+
+**For each attempt:** Re-spawn the same agent type with the original input plus a `<retry>` block containing the attempt number, path to the invalid artifact, and the specific validation errors.
+
+**After 3 failures:** Proceed with incomplete data:
+1. Write `validation-warnings.json` to the run directory (phase name, schema, attempt count, final errors)
+2. Pass `VALIDATION_WARNINGS_PATH` in all downstream `<input>` blocks so agents can degrade gracefully
+3. Downstream agents handle gaps: synthesizer marks `[DATA GAP]` notes, writer adds `[MANUAL VERIFICATION REQUIRED]` to affected steps, reviewer adjusts severity for expected gaps
+
+**Phase 1 exception:** `gather-output.json` is deterministic Python — validation failure means a script bug, not an LLM issue. Stop immediately.
 
 ---
 
@@ -118,7 +188,14 @@ Reads 2-3 existing test cases from the same area and compares:
 
 ### Error Handling and Graceful Degradation
 
-Every agent in the pipeline can encounter MCP failures, missing data, or unavailable services. The pipeline never aborts on tool failures -- it degrades gracefully.
+Every agent in the pipeline can encounter MCP failures, missing data, or unavailable services. The pipeline uses artifact validation with retry at each handoff, graceful degradation when retries are exhausted, and never aborts on tool failures.
+
+**Artifact validation layer:**
+- After each AI-produced phase (2-5, 7), `validate_artifact.py` checks the output against its schema
+- On failure: retry up to 3 times with specific error feedback to the agent
+- After 3 failures: write `validation-warnings.json`, proceed with incomplete data
+- Pre-synthesis gate: cross-artifact check of 8 minimum data points before synthesis
+- Pre-synthesis failure: stop the pipeline (upstream retries already exhausted)
 
 **Agent-level handling:**
 - All 7 subagents include an `anomalies` array in their output for surfacing data quality issues
@@ -127,8 +204,13 @@ Every agent in the pipeline can encounter MCP failures, missing data, or unavail
 - Missing JIRA ACs: investigate from PR description and comments instead
 - Empty Polarion results: note "no existing coverage found", proceed
 
+**Downstream graceful degradation (when `VALIDATION_WARNINGS_PATH` is present):**
+- Synthesizer: proceeds with available data, marks gaps as `[DATA GAP: <field> unavailable from <phase>]`
+- Test Case Writer: does not invent data for gaps, adds `[MANUAL VERIFICATION REQUIRED]` to affected steps
+- Quality Reviewer: adjusts severity — gaps the writer could not fill are WARNING (not BLOCKING), but invented data is still BLOCKING
+
 **Pipeline-level handling:**
-- Phase 2/3/4 agent failure: pipeline continues with remaining agents' data
+- Phase 2/3/4 agent failure: retry up to 3 times, then proceed with incomplete data
 - Live validation skip: synthesis proceeds without live data, notes limitation
 - Quality reviewer NEEDS_FIXES: 3-tier escalation (never aborts):
   - Tier 1: targeted MCP re-investigation for factual errors

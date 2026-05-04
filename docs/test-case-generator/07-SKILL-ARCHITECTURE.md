@@ -87,7 +87,7 @@ flowchart TD
     P9 --> OUT["test-case.md\ntest-case-setup.html\ntest-case-steps.html\nSUMMARY.txt"]
 ```
 
-Deterministic scripts (gather.py, report.py, review_enforcement.py) handle data collection, structural validation, and Polarion HTML generation. AI skills handle investigation, analysis, discovery, synthesis, writing, and quality review.
+Deterministic scripts (gather.py, report.py, review_enforcement.py, validate_artifact.py) handle data collection, artifact validation, structural validation, and Polarion HTML generation. AI skills handle investigation, analysis, discovery, synthesis, writing, and quality review. After each AI phase (2-5, 7), `validate_artifact.py` validates the output and triggers retry on failure (up to 3 attempts). A pre-synthesis readiness check verifies minimum viable data across all investigation artifacts before Phase 5.
 
 ---
 
@@ -96,7 +96,7 @@ Deterministic scripts (gather.py, report.py, review_enforcement.py) handle data 
 ### 1. acm-test-case-generator — Pipeline Orchestrator
 
 **Pipeline stage:** All phases
-**Files:** SKILL.md + 3 reference files (phase-gates.md, pipeline-workflow.md, synthesis-template.md) + 4 script files (gather.py, report.py, generate_html.py, review_enforcement.py)
+**Files:** SKILL.md + 3 reference files (phase-gates.md, pipeline-workflow.md, synthesis-template.md) + 5 script files (gather.py, report.py, generate_html.py, review_enforcement.py, validate_artifact.py)
 **Depends on:** All 8 other skills
 
 The entry point. Receives a JIRA ticket ID and orchestrates the 10-phase pipeline with visible phase-by-phase progress:
@@ -680,6 +680,7 @@ flowchart TD
 | Component | Type | What it does | Guarantees |
 |-----------|------|-------------|-----------|
 | `gather.py` | Deterministic (Python) | PR metadata, file list, peer test cases, area knowledge | Always produces `gather-output.json` + `pr-diff.txt` |
+| `validate_artifact.py` | Deterministic (Python) | Schema validation for all phase artifacts + pre-synthesis readiness check | Exit 0 = PASS, exit 1 = FAIL; cannot be skipped by AI |
 | `review_enforcement.py` | Deterministic (Python) | Parses reviewer output, counts MCP verifications | Cannot be skipped by AI |
 | `report.py` (validation) | Deterministic (Python) | Structural validation of test case markdown (inlined) | Title format, metadata, step format |
 | `generate_html.py` | Deterministic (Python) | Polarion-compatible HTML from markdown | Setup + steps HTML |
@@ -688,16 +689,18 @@ flowchart TD
 | Phase 2–7 | AI (Skills) | Investigation, analysis, synthesis, writing | Evidence-based, MCP-verified |
 | Phase 8 | AI + Deterministic | Review (AI) + enforcement (Python) | Two-layer quality gate |
 
-**Portable skill scripts:** The portable skill pack (`.claude/skills/acm-test-case-generator/scripts/`) contains standalone versions of `gather.py`, `report.py`, `review_enforcement.py`, and `generate_html.py` with zero external dependencies — all `src/` imports are inlined. Referenced via `${CLAUDE_SKILL_DIR}/scripts/` for portability.
+**Portable skill scripts:** The portable skill pack (`.claude/skills/acm-test-case-generator/scripts/`) contains standalone versions of `gather.py`, `report.py`, `review_enforcement.py`, `generate_html.py`, and `validate_artifact.py` with zero external dependencies — all `src/` imports are inlined. Referenced via `${CLAUDE_SKILL_DIR}/scripts/` for portability.
 
 ---
 
 ## Validation Layers
 
-The pipeline has two independent validation systems. Both must pass:
+The pipeline has three independent validation systems. All must pass at their respective checkpoints:
 
 | Layer | When | What it checks | Authoritative for |
 |-------|------|---------------|-------------------|
+| **Artifact Validation** (validate_artifact.py) | After each phase (1-5, 7) | Required fields, types, non-empty constraints, nested keys, patterns | Data completeness at each handoff |
+| **Pre-Synthesis Gate** (validate_artifact.py --pre-synthesis) | Between Phase 4 and Phase 5 | 8 minimum data points across 3 investigation artifacts | Minimum viable synthesis inputs |
 | **Phase 8** (quality-reviewer + enforcement) | Before Phase 9 | MCP verification of UI elements, AC vs implementation, scope alignment, numeric thresholds, Polarion coverage, peer consistency, discovered vs assumed | Semantic correctness (are the right things tested?) |
 | **Phase 9** (report.py) | After Phase 8 | Title pattern, metadata fields, section order, step format, entry point, teardown, artifact completeness | Structural correctness (is the format right?) |
 
@@ -729,6 +732,7 @@ runs/ACM-30459/ACM-30459-2026-04-08T12-00-00/
   test-case-steps.html               Phase 9: Polarion steps table HTML
   review-results.json                Phase 9: structural validation + artifact completeness
   SUMMARY.txt                        Phase 9: human-readable summary + artifact completeness
+  validation-warnings.json           Retry Protocol: present only if validation failed after 3 attempts
   pipeline.log.jsonl                 All phases: telemetry log
 ```
 
@@ -795,15 +799,16 @@ Which tools each skill uses, and when:
 
 ## Unit Testing
 
-45 automated tests in `tests/unit/` validate pipeline components:
+93 automated tests in `tests/unit/` validate pipeline components:
 
 - **Convention validation** (`test_convention_validator.py`): Title patterns, metadata fields, step format, section order, CLI-in-steps rules
 - **Model fields** (`test_models.py`): Analysis result model fields, required attributes
 - **File operations** (`test_file_service.py`): File read/write, path handling
 - **Artifact completeness** (`test_artifact_completeness.py`): Pipeline artifact detection and completeness reporting
+- **Artifact validation** (`test_validate_artifact.py`): Schema validation for all 6 artifact schemas (phase2-jira, phase3-code, phase4-ui, analysis-results, gather-output, synthesized-context), pre-synthesis readiness check (8 data points across 3 artifacts), edge cases (invalid JSON, unknown schema, empty file, null values), output format
 
 ```bash
-# Run unit tests (45 tests, no external deps)
+# Run unit tests (93 tests, no external deps)
 cd apps/test-case-generator/
 python -m pytest tests/unit/ -q
 ```

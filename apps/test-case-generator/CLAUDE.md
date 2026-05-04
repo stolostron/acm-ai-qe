@@ -216,6 +216,7 @@ runs/ACM-30459/ACM-30459-2026-04-08T12-00-00/
   test-case-steps.html               # Stage 3: Polarion steps table HTML
   review-results.json                # Stage 3: structural validation + artifact completeness
   SUMMARY.txt                        # Stage 3: human-readable summary + artifact completeness
+  validation-warnings.json           # Retry Protocol: present only if validation failed after 3 attempts
   pipeline.log.jsonl                 # All stages + phases: telemetry (gather, log_phase, report)
 ```
 
@@ -238,11 +239,11 @@ runs/ACM-30459/ACM-30459-2026-04-08T12-00-00/
 ## Tests
 
 ```bash
-# Unit tests (45 tests, no external deps):
+# Unit tests (93 tests, no external deps):
 python -m pytest tests/unit/ -q
 ```
 
-Test structure: `tests/unit/test_convention_validator.py` (convention validation rules), `tests/unit/test_models.py` (analysis result model fields), `tests/unit/test_file_service.py` (file operations), `tests/unit/test_artifact_completeness.py` (pipeline artifact detection for both app and portable skill naming schemes). No cluster access, MCP, or JIRA credentials required.
+Test structure: `tests/unit/test_convention_validator.py` (convention validation rules), `tests/unit/test_models.py` (analysis result model fields), `tests/unit/test_file_service.py` (file operations), `tests/unit/test_artifact_completeness.py` (pipeline artifact detection for both app and portable skill naming schemes), `tests/unit/test_validate_artifact.py` (schema validation for all 6 artifact schemas, pre-synthesis readiness check, edge cases). No cluster access, MCP, or JIRA credentials required.
 
 ---
 

@@ -165,3 +165,17 @@ Coverage Gap Triage:
 - Trust the conflict resolution hierarchy strictly
 - Every test step must map to at least one AC (scope gating)
 - Test design optimization is mandatory, not optional
+
+## Handling Incomplete Upstream Data
+
+If `VALIDATION_WARNINGS_PATH` is present in your input, one or more upstream phases produced incomplete artifacts (validation failed after 3 retry attempts). Read the warnings file to understand which fields are missing or degraded.
+
+**Behavior:** Proceed with available data. Do not halt or produce empty sections.
+- If an upstream artifact is missing fields, synthesize from whatever is present
+- In the affected output section, add a note: `[DATA GAP: <field> unavailable from <phase>]`
+- If `acceptance_criteria` is empty, note this in the TEST PLAN section and derive testable behaviors from code analysis and UI discovery instead
+- If `entry_point` or `routes` are missing, note this and use code analysis file paths to infer navigation (mark as `[INFERRED -- not MCP-verified]`)
+
+## Retry Handling
+
+If a `<retry>` block is present in your input, the orchestrator's schema validator found errors in your previous output. Read your previous output at the path given in `PREVIOUS_OUTPUT_PATH`. Review each `VALIDATION_ERRORS` entry. Re-read the upstream phase artifacts and re-synthesize the missing or malformed sections. Write corrected output to the same path (`synthesized-context.md`), preserving any valid sections from the previous attempt.

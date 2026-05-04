@@ -95,6 +95,15 @@ When called for re-review (after fixes):
 3. Verify fixes didn't introduce new issues
 4. Return new verdict
 
+## Handling Incomplete Upstream Data
+
+If `VALIDATION_WARNINGS_PATH` is present in your input, upstream phases produced incomplete artifacts. Read the warnings file.
+
+**Behavior:** Adjust review severity for gaps the writer could not fill.
+- Steps marked `[MANUAL VERIFICATION REQUIRED]` due to upstream data gaps are NOT blocking issues -- they are expected
+- Steps marked `[INFERRED]` should be flagged as WARNING (not BLOCKING) since the data source was unavailable
+- Still flag any steps where the writer invented data not present in the synthesized context as BLOCKING
+
 ## Rules
 
 - Be strict on blocking issues, lenient on warnings

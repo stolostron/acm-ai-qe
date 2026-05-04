@@ -128,11 +128,13 @@ def check_artifact_completeness(run_dir):
             present.append(found)
         else:
             missing.append(alternates[0])
+    validation_warnings = (run_dir / "validation-warnings.json").exists()
     return {
         "artifacts_present": len(present),
         "artifacts_expected": len(EXPECTED_ARTIFACTS),
         "artifacts_missing": missing,
         "pipeline_complete": len(missing) == 0,
+        "validation_warnings_present": validation_warnings,
     }
 
 
@@ -564,6 +566,13 @@ def write_summary(run_dir, test_case_path, review_result, setup_path, steps_path
             summary_lines.extend(["", f"Pipeline Artifacts: {count}/{total} (INCOMPLETE)"])
             for name in artifact_check["artifacts_missing"]:
                 summary_lines.append(f"  Missing: {name}")
+
+    if artifact_check and artifact_check.get("validation_warnings_present"):
+        summary_lines.extend([
+            "",
+            "VALIDATION WARNINGS: validation-warnings.json present",
+            "  Some pipeline artifacts failed schema validation after 3 retry attempts.",
+        ])
 
     summary_lines.extend([
         "",

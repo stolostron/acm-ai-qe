@@ -132,6 +132,7 @@ runs/ACM-30459/ACM-30459-2026-04-18T02-00-46/
   test-case-steps.html               # Phase 9: Polarion steps table HTML
   review-results.json                # Phase 9: structural validation + artifact completeness
   SUMMARY.txt                        # Phase 9: human-readable summary + artifact completeness
+  validation-warnings.json           # Retry Protocol: present only if validation failed after 3 attempts
   pipeline.log.jsonl                 # All phases: telemetry log
 ```
 
@@ -160,7 +161,8 @@ All 9 areas have architecture knowledge files providing domain context for subag
 │   ├── gather.py                    # Phase 1: deterministic data gathering
 │   ├── report.py                    # Phase 9: validation + HTML + summary
 │   ├── review_enforcement.py        # Phase 8: programmatic enforcement layer
-│   └── generate_html.py             # Phase 9: Polarion HTML generation
+│   ├── generate_html.py             # Phase 9: Polarion HTML generation
+│   └── validate_artifact.py         # Phases 1-7: schema validation + pre-synthesis gate
 ├── references/
 │   ├── agents/                      # 7 subagent definitions
 │   │   ├── jira-investigator.md     # Phase 2

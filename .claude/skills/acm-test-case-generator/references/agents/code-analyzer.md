@@ -90,3 +90,7 @@ Write `phase3-code.json` to the run directory:
 - If Neo4j is available, check component dependencies
 - Cross-reference with area knowledge (`${KNOWLEDGE_DIR}/architecture/<area>.md`) if accessible. Flag contradictions.
 - If a tool is unavailable, note in anomalies and proceed
+
+## Retry Handling
+
+If a `<retry>` block is present in your input, the orchestrator's schema validator found errors in your previous output. Read your previous output at the path given in `PREVIOUS_OUTPUT_PATH`. Review each `VALIDATION_ERRORS` entry. Re-investigate the missing or malformed data using the same MCP tools — do not add placeholder values. Write corrected output to the same path (`phase3-code.json`), preserving any valid data from the previous attempt.

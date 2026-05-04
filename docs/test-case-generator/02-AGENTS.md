@@ -185,6 +185,14 @@ Merges all three investigation outputs (Phases 2-4) into a unified context docum
 
 Markdown written to `synthesized-context.md` containing all investigation data, discrepancies, and the test plan.
 
+### Handling Incomplete Upstream Data
+
+If `VALIDATION_WARNINGS_PATH` is present in input, one or more upstream phases produced incomplete artifacts after exhausting 3 retry attempts. The synthesizer proceeds with available data: missing fields are marked as `[DATA GAP: <field> unavailable from <phase>]`, empty `acceptance_criteria` triggers derivation from code analysis and UI discovery, and missing `entry_point` or `routes` are inferred from code analysis file paths (marked `[INFERRED -- not MCP-verified]`).
+
+### Retry Handling
+
+If the orchestrator's schema validator finds errors in the synthesizer's output, it re-spawns the agent with a `<retry>` block containing the specific validation errors. The synthesizer re-reads upstream artifacts and re-synthesizes the missing or malformed sections, preserving valid sections from the previous attempt.
+
 ---
 
 ## Live Validator
@@ -244,6 +252,14 @@ Writes the Polarion-ready test case markdown from the synthesized investigation 
 - `test-case.md` — primary deliverable
 - `analysis-results.json` — investigation metadata
 
+### Handling Incomplete Upstream Data
+
+If `VALIDATION_WARNINGS_PATH` is present, upstream phases produced incomplete artifacts. The writer proceeds with available data: `[DATA GAP]` notes in the synthesized context are not filled with invented data, `[INFERRED]` claims that fail MCP spot-checks get `[MANUAL VERIFICATION REQUIRED]` added to the affected step's expected result, and `"validation_warnings_present": true` is recorded in `analysis-results.json`.
+
+### Retry Handling
+
+If the orchestrator's schema validator finds errors in `analysis-results.json`, it re-spawns the writer with a `<retry>` block. The writer fixes the malformed metadata fields without adding placeholder values, preserving valid data from the previous attempt. The `test-case.md` is not rewritten unless the errors indicate content issues.
+
 ---
 
 ## Quality Reviewer
@@ -277,6 +293,10 @@ Validates the generated test case against conventions, verifies UI elements were
 
 - **PASS:** Proceed to Phase 9
 - **NEEDS_FIXES:** List blocking issues with fix instructions; orchestrator fixes and re-runs
+
+### Handling Incomplete Upstream Data
+
+If `VALIDATION_WARNINGS_PATH` is present, upstream phases produced incomplete artifacts. The reviewer adjusts severity: steps marked `[MANUAL VERIFICATION REQUIRED]` due to upstream data gaps are NOT blocking (they are expected), steps marked `[INFERRED]` are flagged as WARNING (not BLOCKING), and steps where the writer invented data not present in the synthesized context are still flagged as BLOCKING.
 
 ### Re-Review Protocol
 

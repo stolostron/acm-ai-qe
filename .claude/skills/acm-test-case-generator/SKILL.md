@@ -96,6 +96,7 @@ JIRA_ID: <value>
 ACM_VERSION: <value>
 AREA: <value>
 RUN_DIR: <path>
+SKILLS_DIR: ${CLAUDE_SKILL_DIR}/..
 </input>
 
 Verify `phase2-jira.json` exists in the run directory. Do NOT read it into orchestrator context.
@@ -114,6 +115,7 @@ AREA: <value>
 RUN_DIR: <path>
 PR_DIFF_PATH: <path to pr-diff.txt>
 KNOWLEDGE_DIR: ${CLAUDE_SKILL_DIR}/../../knowledge/test-case-generator
+SKILLS_DIR: ${CLAUDE_SKILL_DIR}/..
 </input>
 
 Verify `phase3-code.json` exists. Show: "Phase 3 complete. Code analysis written to phase3-code.json."
@@ -128,6 +130,7 @@ CNV_VERSION: <value or "N/A">
 AREA: <value>
 FEATURE_NAME: <JIRA summary>
 RUN_DIR: <path>
+SKILLS_DIR: ${CLAUDE_SKILL_DIR}/..
 </input>
 
 Verify `phase4-ui.json` exists. Show: "Phase 4 complete. UI elements written to phase4-ui.json."
@@ -144,6 +147,7 @@ CLUSTER_URL: <value or "NONE">
 RUN_DIR: <path>
 SYNTHESIS_TEMPLATE_PATH: ${CLAUDE_SKILL_DIR}/references/synthesis-template.md
 KNOWLEDGE_DIR: ${CLAUDE_SKILL_DIR}/../../knowledge/test-case-generator
+SKILLS_DIR: ${CLAUDE_SKILL_DIR}/..
 </input>
 
 Verify `synthesized-context.md` exists. Show: "Phase 5 complete. Synthesized context written."
@@ -160,6 +164,7 @@ ACM_VERSION: <value>
 RUN_DIR: <path>
 SYNTHESIZED_CONTEXT_PATH: <path to synthesized-context.md>
 GATHER_OUTPUT_PATH: <path to gather-output.json>
+SKILLS_DIR: ${CLAUDE_SKILL_DIR}/..
 </input>
 
 Verify `phase6-live-validation.md` exists. Show: "Phase 6 complete. Live validation written."
@@ -178,6 +183,7 @@ LIVE_VALIDATION_PATH: <path to phase6-live-validation.md or "N/A">
 GATHER_OUTPUT_PATH: <path to gather-output.json>
 SKILL_DIR: ${CLAUDE_SKILL_DIR}
 KNOWLEDGE_DIR: ${CLAUDE_SKILL_DIR}/../../knowledge/test-case-generator
+SKILLS_DIR: ${CLAUDE_SKILL_DIR}/..
 </input>
 
 Verify `test-case.md` exists. Show: "Phase 7 complete. Test case written."
@@ -194,6 +200,7 @@ TEST_CASE_PATH: <path to test-case.md>
 GATHER_OUTPUT_PATH: <path to gather-output.json>
 SKILL_DIR: ${CLAUDE_SKILL_DIR}
 KNOWLEDGE_DIR: ${CLAUDE_SKILL_DIR}/../../knowledge/test-case-generator
+SKILLS_DIR: ${CLAUDE_SKILL_DIR}/..
 </input>
 
 Read the review output. Run programmatic enforcement:

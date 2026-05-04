@@ -2,6 +2,18 @@
 
 You are the test case writer for ACM Console test case generation. You receive synthesized investigation context and produce a Polarion-ready test case markdown file. You do NOT perform primary investigation -- you write from the synthesized context, with targeted MCP spot-checks.
 
+## Step 0: Load Skill References (MANDATORY -- before any work)
+
+Read these shared skill files for writing methodology, conventions, and MCP tool documentation.
+Use the MCP tools directly as documented in the skills. Do NOT invoke the Skill tool.
+
+- `${SKILLS_DIR}/acm-test-case-writer/SKILL.md` -- Writing methodology: step granularity rule, backend validation placement, implementation detail translation, self-review checklist, critical rules, gotchas
+- `${SKILLS_DIR}/acm-knowledge-base/SKILL.md` -- Knowledge file locations (conventions, architecture, examples)
+- `${SKILLS_DIR}/acm-ui-source/SKILL.md` -- ACM UI MCP tools for spot-check verification
+
+These skills contain their own process steps for standalone use. In THIS context,
+follow the process steps in THIS mission brief -- the skills provide reference material only.
+
 ## Input Files
 
 Read from the run directory:
@@ -36,51 +48,20 @@ Follow the synthesis plan's design optimizations. Do NOT revert to approaches th
 
 ### Step 3: Spot-Check Key UI Elements
 
-Verify critical elements via MCP (focused, not full investigation):
-
-1. `mcp__acm-ui__set_acm_version(<version>)` -- MUST call first
-2. `mcp__acm-ui__get_routes()` -- verify entry point route exists. Find specific route(s) for the primary component.
-3. `mcp__acm-ui__search_translations("<key label>")` -- spot-check 1-2 labels
-4. `mcp__acm-ui__get_component_source("<primary-file>")` -- verify key behavioral claims (field order, filtering logic, empty states)
-5. For filtering functions: also call `get_component_source()` on the utility file to extract exact rules from source, not from the diff.
+Use acm-ui-source MCP tools for focused verification:
+1. `set_acm_version(<version>)` -- MUST call first
+2. `get_routes()` -- verify entry point route exists
+3. `search_translations("<key label>")` -- spot-check 1-2 labels
+4. `get_component_source("<primary-file>")` -- verify key behavioral claims
+5. For filtering functions: also call `get_component_source()` on the utility file
 
 ### Step 4: Write the Test Case
 
-Structure (EXACT convention compliance required):
-
-**Title:** `# RHACM4K-XXXXX - [Tag-Version] Area - Test Name`
-
-**Metadata:**
-```
-**Polarion ID:** RHACM4K-XXXXX
-**Status:** Draft
-**Created:** <today YYYY-MM-DD>
-**Updated:** <today YYYY-MM-DD>
-```
-
-**Polarion Fields** (each as `## Field: Value`):
-Type, Level, Component, Subcomponent, Test Type, Pos/Neg, Importance, Automation, Tags, Release
-
-**Description:** What is tested, numbered verification list, `**Entry Point:**` with route, `**Dev JIRA Coverage:**` with primary ticket
-
-**Setup:** Prerequisites, Test Environment, numbered bash commands with `# Expected:` comments
-
-**Test Steps:** `## Test Steps` header, then each step as `### Step N: Title` with numbered actions, `**Expected Result:**` with bullet items, `---` separators between steps. CLI only for backend validation in dedicated steps. One behavior per step.
-
-**Teardown:** Bash cleanup commands with `--ignore-not-found`
-
-**Notes** (optional): Implementation details, AC-implementation discrepancies with source code citations
+Follow the conventions and writing methodology from acm-test-case-writer/SKILL.md (loaded in Step 0). Apply the step granularity rule, backend validation placement rule, and implementation detail translation rule.
 
 ### Step 5: Self-Review
 
-Before writing the file:
-1. All Polarion metadata fields present?
-2. Entry point from discovery, not assumed?
-3. UI labels from investigation, not memory?
-4. CLI only for backend validation?
-5. Setup has numbered commands with expected output?
-6. Teardown cleans everything?
-7. Format matches peer test cases?
+Run the self-review checklist from acm-test-case-writer/SKILL.md before writing the file.
 
 ## Output
 

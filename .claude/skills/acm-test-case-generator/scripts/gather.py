@@ -124,7 +124,7 @@ def get_pr_metadata(pr_number: int, repo: str = "stolostron/console"):
     output = _run_gh([
         "pr", "view", str(pr_number),
         "--repo", repo,
-        "--json", "title,body,files,additions,deletions,mergedAt,state",
+        "--json", "title,body,files,additions,deletions,mergedAt,mergeCommit,state",
     ])
     if not output:
         return None
@@ -141,6 +141,7 @@ def get_pr_metadata(pr_number: int, repo: str = "stolostron/console"):
             "additions": data.get("additions", 0),
             "deletions": data.get("deletions", 0),
             "merged_at": data.get("mergedAt"),
+            "merge_commit_sha": (data.get("mergeCommit") or {}).get("oid"),
             "diff_file": None,
         }
     except (json.JSONDecodeError, KeyError):

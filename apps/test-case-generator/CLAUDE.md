@@ -92,7 +92,7 @@ Six agents, each with a dedicated role in the pipeline:
 | **Feature Investigator** | `.claude/agents/feature-investigator.md` | Phase 1 (parallel) | Deep JIRA investigation: story, comments, linked tickets, Polarion coverage, PR discovery |
 | **Code Change Analyzer** | `.claude/agents/code-change-analyzer.md` | Phase 1 (parallel) | PR diff analysis: changed components, new UI elements, Neo4j impact, test scenarios, coverage gap analysis |
 | **UI Discovery** | `.claude/agents/ui-discovery.md` | Phase 1 (parallel) | Source code discovery: selectors, translations, routes, wizard steps, test IDs + optional live browser verification |
-| **Live Validator** | `.claude/agents/live-validator.md` | Phase 3 | Live cluster verification: browser UI, oc CLI, acm-search, acm-kubectl |
+| **Live Validator** | `.claude/agents/live-validator.md` | Phase 3 | Live cluster verification: env verification, OAuth browser auth, oc CLI, acm-search, acm-kubectl |
 | **Test Case Generator** | `.claude/agents/test-case-generator.md` | Phase 4 | Write test case markdown from synthesized investigation context |
 | **Quality Reviewer** | `.claude/agents/quality-reviewer.md` | Phase 4.5 | Validate conventions, verify discovered vs assumed, AC vs implementation, scope alignment, numeric thresholds, PASS/NEEDS_FIXES |
 
@@ -149,8 +149,10 @@ UI Discovery:
 
 Live Validator:
   playwright -> browser_navigate, browser_snapshot, browser_click, browser_fill_form,
-                browser_take_screenshot, browser_console_messages, browser_network_requests
-  bash       -> oc get pods/csv/mch/managedcluster (oc CLI via bash)
+                browser_take_screenshot, browser_console_messages, browser_network_requests,
+                browser_wait_for, browser_hover (OAuth form login + UI validation)
+  bash       -> oc get mch/managedcluster/deploy (env health + image tag),
+                gh api repos/.../compare (merge commit ancestry check for env verification)
   acm-search -> find_resources, query_database
   acm-kubectl -> clusters, kubectl, connect_cluster
 

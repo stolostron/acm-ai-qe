@@ -75,6 +75,7 @@ Resolve before starting the pipeline:
 4. **Area**: Auto-detect from PR file paths (governance, rbac, fleet-virt, clusters, search, applications, credentials, cclm, mtv)
 5. **Cluster URL** (optional): Run `oc whoami --show-server 2>/dev/null`. If logged in, derive console URL via `oc get route console -n openshift-console -o jsonpath='{.spec.host}' 2>/dev/null`. If unavailable, ask or skip live validation. In headless mode (`-p`), auto-detect only.
 6. **CNV Version** (Fleet Virt only): Ask or auto-detect via `mcp__acm-source__detect_cnv_version`
+7. **Console Credentials** (optional): Check env vars `CONSOLE_PASSWORD` / `KUBEADMIN_PASSWORD`. If not set, Phase 5 will skip browser authentication and use backend-only validation.
 
 If all inputs can be inferred from the JIRA ticket, proceed without asking.
 
@@ -206,6 +207,7 @@ ACM_VERSION: <value>
 RUN_DIR: <path>
 SYNTHESIZED_CONTEXT_PATH: <path to synthesized-context.md>
 GATHER_OUTPUT_PATH: <path to gather-output.json>
+AUTH_REFERENCE_PATH: ${CLAUDE_SKILL_DIR}/references/console-auth.md
 SKILLS_DIR: ${CLAUDE_SKILL_DIR}/..
 </input>
 

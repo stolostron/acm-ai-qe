@@ -286,8 +286,10 @@ UI Discoverer (Phase 3):
 
 Live Validator (Phase 5):
   playwright -> browser_navigate, browser_snapshot, browser_click, browser_fill_form,
-                browser_take_screenshot, browser_console_messages, browser_network_requests
-  bash       -> oc get pods/csv/mch/managedcluster (oc CLI via bash)
+                browser_take_screenshot, browser_console_messages, browser_network_requests,
+                browser_wait_for, browser_hover (OAuth form login + UI validation)
+  bash       -> oc get mch/managedcluster/deploy (env health + image tag),
+                gh api repos/.../compare (merge commit ancestry check for env verification)
   acm-search -> find_resources, query_database
   acm-kubectl -> clusters, kubectl, connect_cluster
 

@@ -16,7 +16,8 @@ The orchestrator checks if critical inputs are missing and asks the user before 
 | JIRA ID | CLI arg | Always | Always |
 | ACM version | JIRA `fix_versions` or `--version` | Yes | Yes, if not in JIRA |
 | CNV version | CLI arg `--cnv-version` | Only for Fleet Virt | Yes |
-| Cluster URL | CLI arg `--cluster-url` | No (skips Phase 6) | Yes (offer to skip) |
+| Cluster URL | CLI arg `--cluster-url` | No (skips Phase 5) | Yes (offer to skip) |
+| Console credentials | Env vars `CONSOLE_PASSWORD` / `KUBEADMIN_PASSWORD` | No (skips browser auth) | No (auto-detect) |
 | Feature scope | JIRA ACs | Only if multiple ACs | Yes |
 
 ### Decision Logic
@@ -95,6 +96,8 @@ Returns up to 3 test cases matching the area and version.
     "files": ["frontend/src/routes/..."],
     "additions": 1238,
     "deletions": 16,
+    "merged_at": "2026-04-15T17:14:20Z",
+    "merge_commit_sha": "a1c662535f0dba517435e755331e5a10a772d626",
     "diff_file": "/path/to/pr-diff.txt"
   },
   "existing_test_cases": ["/path/to/peer1.md", "/path/to/peer2.md"],
@@ -282,27 +285,31 @@ Teardown: [cleanup plan]
 **Duration:** ~2-5 minutes
 **Condition:** Runs only when `--cluster-url` is provided and `--skip-live` is not set
 **Agent:** `references/agents/live-validator.md`
+**Auth Reference:** `references/console-auth.md`
 **Output:** `phase5-live-validation.md`
 
-The live-validator subagent opens the ACM console in a real browser, navigates to the feature, exercises the UI flow, and compares observed behavior against source code expectations.
+The live-validator subagent first verifies the PR's code change is deployed on the target environment, then authenticates to the console via form-based OAuth login, navigates to the feature, exercises the UI flow, and compares observed behavior against source code expectations. Environment verification and browser auth are non-blocking — the pipeline continues regardless of outcome.
 
 ### Tools Used
 
 | Tool | Purpose |
 |------|---------|
-| Playwright MCP (24 tools) | Browser navigation, snapshot, click, fill, screenshot |
-| oc CLI (via bash) | Verify cluster health, check backend resource state |
+| Playwright MCP (24 tools) | Browser navigation, snapshot, click, fill, hover, screenshot |
+| oc CLI (via bash) | Environment verification, cluster health, backend resource state |
+| gh CLI (via bash) | Merge commit ancestry check for environment verification |
 | ACM Search MCP (5 tools) | Query resources across managed clusters |
 | ACM Kubectl MCP (3 tools) | Run kubectl on hub/spoke clusters |
 
 ### Process
 
-1. Verify environment (oc whoami, mch health, managed clusters)
-2. Navigate to feature entry point in browser
-3. Walk through test steps (click, fill, observe)
-4. Verify backend state after UI actions
-5. Check for JavaScript errors and failed API calls
-6. Document discrepancies between source code expectations and live behavior
+1. **Environment verification:** Extract PR metadata from `gather-output.json`, get deployment info (MCH version, console image tag), determine if PR code is deployed using 3-method tiered verification (merge commit ancestry → image tag date → MCH version heuristic)
+2. **Browser authentication:** Resolve credentials from env vars (`CONSOLE_PASSWORD` / `KUBEADMIN_PASSWORD`), navigate to console, detect IDP selection page, authenticate via form-based OAuth login (see `console-auth.md`)
+3. Navigate to feature entry point in browser (requires authentication)
+4. Walk through test steps (click, fill, hover, observe, snapshot after each action)
+5. Verify backend state after UI actions (`oc get`, `find_resources` via acm-search)
+6. Check for JavaScript errors (`browser_console_messages`) and failed API calls (`browser_network_requests`)
+7. Build corrections table if live UI differs from Phase 3 source-code inferences
+8. Document discrepancies between source code expectations and live behavior
 
 ### Output
 
@@ -310,20 +317,38 @@ The live-validator subagent opens the ACM console in a real browser, navigates t
 LIVE VALIDATION RESULTS
 =======================
 Cluster: [hub name]
-ACM Version: [version]
+ACM Version: [version from MCH]
+Console URL: [url]
+Environment Match: [YES/NO/UNKNOWN] -- [evidence summary]
+Browser Auth: [authenticated | no-credentials (<reason>) | failed (<reason>)]
+
+Environment Health:
+- ACM: [healthy/degraded]
+- Spokes: [N connected]
 
 Feature Verification:
-Step 1: [action]
+Step 1: [action taken]
   UI State: [observed]
-  Backend: [oc get result]
-  Match: [yes/no]
+  Backend: [oc/search result]
+  Match: [yes/no + details]
+
+Console Errors: [none | list]
+Failed API Calls: [none | list]
 
 Discrepancies Found:
 - [source says X, live shows Y]
 
 Confirmed Behavior:
-- [list of confirmed behaviors]
+- [behavior confirmed on live cluster]
+
+## Corrections
+| Field | Phase 3 Value | Correct Value (from live UI) | Evidence |
+|-------|---------------|------------------------------|----------|
 ```
+
+### Post-Phase 5 Corrections
+
+After the live validator subagent returns, the orchestrator checks its output for a `## Corrections` section. If corrections exist, they are applied to the synthesized context before Phase 6. Arbitration rule: for user-visible labels (tab names, button text, breadcrumbs), live UI observation always overrides source-code-inferred values.
 
 ---
 

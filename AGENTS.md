@@ -63,7 +63,7 @@ Diagnostic agent for ACM hub clusters. Single-agent architecture with 6 diagnost
 
 ### Test Case Generator (`apps/test-case-generator/`)
 
-Generates Polarion-ready test cases from JIRA tickets. 6-phase subagent pipeline with 6 specialized agents (each with structured anomaly reporting): feature-investigator, code-change-analyzer (with coverage gap analysis), ui-discovery, live-validator, test-case-generator, quality-reviewer (with design efficiency and coverage gap verification). report.py includes artifact completeness check (9 expected files). Portable standalone scripts for repo-root execution.
+Generates Polarion-ready test cases from JIRA tickets. 6-phase subagent pipeline with 6 specialized agents (each with structured anomaly reporting): feature-investigator, code-change-analyzer (with coverage gap analysis), ui-discovery, live-validator (with environment verification and form-based OAuth browser authentication), test-case-generator, quality-reviewer (with design efficiency and coverage gap verification). report.py includes artifact completeness check (9 expected files). Portable standalone scripts for repo-root execution.
 
 3 skills in `.claude/skills/`: `/generate`, `/review`, `/batch`
 

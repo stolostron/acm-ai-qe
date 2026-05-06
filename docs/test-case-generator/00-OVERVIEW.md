@@ -89,7 +89,7 @@ Generates Polarion-ready test cases for ACM Console UI features from JIRA ticket
 | Code Analyzer | 2 | acm-source, neo4j-rhacm, bash | PR diff analysis: changed components, UI elements, interaction models |
 | UI Discoverer | 3 | acm-source, neo4j-rhacm, playwright (conditional), bash | ACM Console source: selectors, translations, routes, wizard steps |
 | Synthesizer | 4 | — | Merge investigation outputs, scope gate, AC cross-reference, test plan |
-| Live Validator | 5 | playwright, acm-search, acm-kubectl, bash | Browser + oc CLI + fleet queries on real cluster |
+| Live Validator | 5 | playwright, acm-search, acm-kubectl, bash, gh CLI | Env verification + OAuth browser auth + oc CLI + fleet queries on real cluster |
 | Test Case Writer | 6 | acm-source | Write test case markdown from synthesized context |
 | Quality Reviewer | 7 | acm-source | Convention compliance, discovered vs assumed, AC vs implementation |
 
@@ -165,6 +165,7 @@ All 9 areas have architecture knowledge files providing domain context for subag
 │   │   ├── live-validator.md        # Phase 5
 │   │   ├── test-case-writer.md      # Phase 6
 │   │   └── quality-reviewer.md      # Phase 7
+│   ├── console-auth.md              # Phase 5: headless browser OAuth login reference
 │   ├── synthesis-template.md        # Phase 4: conflict resolution + optimization passes
 │   ├── phase-gates.md               # Gate rules and progress indicators
 │   └── pipeline-workflow.md         # Context flow and subagent spawning

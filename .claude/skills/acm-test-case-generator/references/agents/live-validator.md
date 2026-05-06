@@ -14,19 +14,81 @@ follow the process steps in THIS mission brief -- the skills provide reference m
 
 ## Environment Verification (MANDATORY first step)
 
-Before validating the NEW feature, verify the environment has the change:
+Before validating the NEW feature, verify the environment has the PR's code change deployed.
 
-1. Get the PR merge date from `gather-output.json` in the run directory
-2. Get the MCH version: `oc get mch -A -o jsonpath='{.items[0].status.currentVersion}'`
-3. Compare: is the PR included in this build?
-   - **YES**: proceed with full validation, discrepancies are significant
-   - **NO**: note "Environment does not contain PR changes" and skip new-feature UI checks. Validate only prerequisites and existing features.
-   - **UNKNOWN**: proceed but flag all discrepancies as "environmental"
+### Step 1: Extract PR metadata
+Read `gather-output.json` from the run directory. Extract:
+- `pr_data.merged_at` -- PR merge timestamp
+- `pr_data.repo` -- Repository (e.g., "stolostron/console")
+- `pr_data.merge_commit_sha` -- Merge commit SHA (if available)
+- `pr_data.number` -- PR number
+
+### Step 2: Get deployment info
+```bash
+# MCH namespace and version
+MCH_NS=$(oc get mch -A --no-headers -o custom-columns=NS:.metadata.namespace | head -1)
+MCH_VERSION=$(oc get mch -n $MCH_NS -o jsonpath='{.items[0].status.currentVersion}')
+
+# Console container image (for stolostron/console PRs)
+CONSOLE_IMAGE=$(oc get deploy console-chart-console-v2 -n $MCH_NS \
+  -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null)
+```
+
+For PRs to other repos, get the corresponding component's deployment image instead.
+
+### Step 3: Determine environment match (3 methods, stop at first definitive answer)
+
+**Method A -- Merge commit ancestry check** (most reliable, requires gh CLI):
+If `merge_commit_sha` is available:
+```bash
+gh api repos/<repo>/compare/release-<version>...<merge_commit_sha> -q '.status'
+```
+If the commit is reachable from the build branch -> YES.
+
+**Method B -- Image tag analysis** (no external calls):
+Parse `CONSOLE_IMAGE` tag for build date indicators:
+- Date pattern (YYYY-MM-DD or SNAPSHOT-date): compare against `merged_at`
+- If image date >= PR merge date -> YES
+- If image date < PR merge date -> NO
+
+**Method C -- MCH version heuristic** (weakest, fallback only):
+MCH version format: `X.Y.Z-NNN` (NNN = build number).
+- For dev/nightly builds: build numbers increase daily. If the PR merged more than
+  7 days before today and the build is recent -> likely YES.
+- If the PR merged less than 24 hours ago and this is not a brand-new build -> likely NO.
+- If uncertain -> UNKNOWN.
+
+### Decision
+- **YES** (with evidence): Proceed with full validation. Discrepancies are significant.
+- **NO** (with evidence): Log "Environment does not contain PR #N changes
+  (evidence: <reason>). Skipping UI validation of new features." Skip live validation
+  of the NEW feature entirely. Backend health checks still run.
+- **UNKNOWN**: Proceed but flag all discrepancies as "environmental -- PR inclusion uncertain."
 
 **Arbitration hierarchy** (when change IS deployed but discrepancy found):
 - Source code = structural truth (what the developer built)
 - Live cluster = environmental truth (what's running now)
 - When they disagree: KEEP source-based test step, ADD prerequisite note, NEVER let transient state remove a source-verified step
+
+## Browser Authentication (MANDATORY before UI validation)
+
+Read the auth reference: `${SKILLS_DIR}/acm-test-case-generator/references/console-auth.md`
+
+Execute the 3-step auth flow before any UI validation:
+
+1. **Resolve credentials:**
+   ```bash
+   echo "${CONSOLE_PASSWORD:-${KUBEADMIN_PASSWORD:-}}"
+   ```
+   If empty: set AUTH_STATUS=no-credentials, skip to backend-only validation.
+
+2. **Navigate and detect IDP:** Follow Step 2 from console-auth.md.
+
+3. **Form login:** Follow Step 3 from console-auth.md.
+
+Record AUTH_STATUS for output. If not "authenticated", all UI validation steps
+produce "SKIPPED -- browser not authenticated" but backend validation (oc,
+acm-search, acm-kubectl) still runs normally.
 
 ## Tools
 
@@ -41,7 +103,12 @@ mcp__playwright__browser_take_screenshot(type)    # Capture state
 mcp__playwright__browser_console_messages(level)  # Check JS errors
 mcp__playwright__browser_network_requests(static) # Inspect API calls
 mcp__playwright__browser_wait_for(time)           # Wait for changes
+mcp__playwright__browser_hover(target)            # Hover element (tooltips)
 ```
+
+### Shell (oc CLI + gh CLI)
+
+Use oc CLI patterns from `acm-cluster-health` skill (loaded in Step 0) for environment verification and resource state checks. Use gh CLI for merge commit ancestry verification (Method A in Environment Verification).
 
 Workflow: navigate -> snapshot (get refs) -> interact -> snapshot (verify)
 
@@ -68,23 +135,23 @@ Call `get_database_stats()` first. If unavailable, fall back to `oc` CLI.
 | `mcp__acm-kubectl__kubectl(command, cluster)` | Run kubectl on hub or spoke |
 | `mcp__acm-kubectl__connect_cluster(cluster)` | Generate kubeconfig for spoke |
 
-### Shell (oc CLI -- last fallback)
-
-Use oc CLI patterns from `acm-cluster-health` skill (loaded in Step 0) for environment verification and resource state checks.
-
 ## Process
 
-1. **Verify environment:** oc whoami, MCH health, managed clusters, acm-kubectl clusters.
+1. **Environment verification:** Follow the 3-step procedure in Environment Verification section above. Record the decision (YES/NO/UNKNOWN) with evidence.
 
-2. **Navigate to the feature:** `browser_navigate(console_url + path)`, `browser_snapshot()`, verify expected elements.
+2. **Browser authentication:** Follow the 3-step auth flow from console-auth.md. Record AUTH_STATUS. If not "authenticated", skip UI interaction steps and use backend validation only.
 
-3. **Test the feature flow:** Follow synthesized test steps. Snapshot after each action.
+3. **Navigate to the feature:** Browser must be authenticated first. `browser_navigate(console_url + path)`, `browser_snapshot()`, verify expected elements.
 
-4. **Verify backend state:** `oc get` or `find_resources` for expected K8s resources. Compare UI with backend.
+4. **Test the feature flow:** Follow synthesized test steps. Snapshot after each action.
 
-5. **Check for errors:** `browser_console_messages()`, `browser_network_requests()`.
+5. **Verify backend state:** `oc get` or `find_resources` for expected K8s resources. Compare UI with backend.
 
-6. **Document discrepancies:** Source says X but live UI shows Y. UI shows success but resource missing.
+6. **Check for errors:** `browser_console_messages()`, `browser_network_requests()`.
+
+7. **Build corrections table:** If live UI differs from Phase 3 source-code inferences, document each correction with evidence.
+
+8. **Document discrepancies:** Source says X but live UI shows Y. UI shows success but resource missing.
 
 ## Output
 
@@ -96,7 +163,8 @@ LIVE VALIDATION RESULTS
 Cluster: [hub name]
 ACM Version: [version from MCH]
 Console URL: [url]
-Environment Match: [YES/NO/UNKNOWN] -- PR included in this build?
+Environment Match: [YES/NO/UNKNOWN] -- [evidence summary]
+Browser Auth: [authenticated | no-credentials (<reason>) | failed (<reason>)]
 
 Environment Health:
 - ACM: [healthy/degraded]

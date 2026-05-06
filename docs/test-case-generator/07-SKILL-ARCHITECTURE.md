@@ -500,7 +500,7 @@ The pipeline runs 7 subagents sequentially (Phases 1–7), each spawned via the 
 | Code Analyzer | `references/agents/code-analyzer.md` | 2 | PR diff analysis |
 | UI Discoverer | `references/agents/ui-discoverer.md` | 3 | Source code discovery |
 | Synthesizer | `references/agents/synthesizer.md` | 4 | Merge + scope gate + test plan |
-| Live Validator | `references/agents/live-validator.md` | 5 | Browser + oc + acm-search |
+| Live Validator | `references/agents/live-validator.md` | 5 | Browser (with OAuth auth) + env verification + oc + acm-search |
 | Test Case Writer | `references/agents/test-case-writer.md` | 6 | Write test case |
 | Quality Reviewer | `references/agents/quality-reviewer.md` | 7 | Quality gate |
 

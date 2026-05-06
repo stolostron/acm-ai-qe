@@ -10,7 +10,7 @@ Seven specialized subagents, each with a dedicated role in the pipeline. Agent d
 | Code Analyzer | `code-analyzer.md` | 2 | acm-source, neo4j-rhacm, bash | PR number, repo, version | `phase2-code.json` |
 | UI Discoverer | `ui-discoverer.md` | 3 | acm-source, neo4j-rhacm, bash | Version, area, feature name | `phase3-ui.json` |
 | Synthesizer | `synthesizer.md` | 4 | — | Phase 1-3 outputs | `synthesized-context.md` |
-| Live Validator | `live-validator.md` | 5 | playwright, acm-search, acm-kubectl, bash | Console URL, feature path | `phase5-live-validation.md` |
+| Live Validator | `live-validator.md` | 5 | playwright, acm-search, acm-kubectl, bash, gh CLI | Console URL, feature path | `phase5-live-validation.md` |
 | Test Case Writer | `test-case-writer.md` | 6 | acm-source | Run dir, synthesized context | `test-case.md`, `analysis-results.json` |
 | Quality Reviewer | `quality-reviewer.md` | 7 | acm-source | test-case.md path, version, area | PASS or NEEDS_FIXES (`phase7-review.md`) |
 
@@ -202,11 +202,30 @@ If the orchestrator's schema validator finds errors in the synthesizer's output,
 
 **Phase:** 5 (conditional)
 **File:** `references/agents/live-validator.md`
-**Tools:** playwright, acm-search, acm-kubectl, bash
+**Auth Reference:** `references/console-auth.md`
+**Tools:** playwright, acm-search, acm-kubectl, bash, gh CLI
 
 ### Purpose
 
-Verifies feature behavior on a real ACM cluster using browser automation, oc CLI, and fleet-wide resource queries. This is the only agent that interacts with a live environment.
+Verifies feature behavior on a real ACM cluster. First confirms the PR's code change is deployed (environment verification), then authenticates to the console via form-based OAuth login, navigates to the feature, exercises the UI flow, and compares observed behavior against source code expectations. This is the only agent that interacts with a live environment. Environment verification and browser auth are non-blocking — the pipeline continues regardless of outcome.
+
+### Environment Verification
+
+Before validating the new feature, the agent verifies the PR's code is deployed using a 3-method tiered approach:
+1. **Merge commit ancestry** (most reliable): Uses `gh api` to check if the PR's `merge_commit_sha` is reachable from the deployed branch
+2. **Image tag analysis** (no external calls): Parses the console container image tag for build date, compares against PR `merged_at`
+3. **MCH version heuristic** (fallback): Compares MCH build number against PR merge timing
+
+Decision: YES (full validation), NO (skip new feature UI validation, backend checks still run), UNKNOWN (proceed with environmental flags).
+
+### Browser Authentication
+
+Credentials sourced from env vars (`CONSOLE_PASSWORD` or `KUBEADMIN_PASSWORD`). If available, the agent:
+1. Navigates to console URL, detects IDP selection page via `browser_snapshot()`
+2. Clicks the matching IDP link (e.g., "kube:admin" for kubeadmin user)
+3. Fills username/password form, submits, verifies console nav elements appear
+
+Auth failure never blocks the pipeline — falls back to backend-only validation (oc CLI, ACM Search, ACM Kubectl).
 
 ### Safety Rules
 
@@ -217,16 +236,17 @@ Verifies feature behavior on a real ACM cluster using browser automation, oc CLI
 
 ### Process
 
-1. Verify environment: `oc whoami`, `oc get mch`, `oc get managedcluster`, `clusters()` via acm-kubectl
-2. Navigate to feature: `browser_navigate(url)` → `browser_snapshot()`
-3. Test feature flow: click, fill, observe, snapshot after each action
-4. Verify backend: `oc get <resource> -o yaml`, `find_resources()` via acm-search
-5. Check for errors: `browser_console_messages()`, `browser_network_requests()`
-6. Document discrepancies
+1. **Environment verification:** Extract PR metadata, get deployment info, determine if PR code is deployed (3 methods)
+2. **Browser authentication:** Resolve credentials, navigate to console, authenticate via form-based OAuth login
+3. Navigate to feature entry point (requires authenticated session)
+4. Test feature flow: click, fill, hover, observe, snapshot after each action
+5. Verify backend: `oc get <resource> -o yaml`, `find_resources()` via acm-search
+6. Check for errors: `browser_console_messages()`, `browser_network_requests()`
+7. Document discrepancies and build corrections table
 
 ### Output
 
-Markdown written to `phase5-live-validation.md` with cluster info, step-by-step verification results, discrepancies, and confirmed behaviors.
+Markdown written to `phase5-live-validation.md` with environment match evidence, browser auth status, step-by-step verification results, discrepancies, confirmed behaviors, and a corrections table for any Phase 3 data that was inaccurate (live UI observations override source-code-inferred values for user-visible labels).
 
 ---
 

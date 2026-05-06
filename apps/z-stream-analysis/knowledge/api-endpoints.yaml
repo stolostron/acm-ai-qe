@@ -3,7 +3,7 @@
 # Used by the AI agent to understand backend probe results and cross-check
 # UI failures against backend health.
 #
-# Populated by: refresh.py (ACM-UI MCP search_code for route registrations)
+# Populated by: refresh.py (ACM Source MCP search_code for route registrations)
 # Refresh frequency: on ACM version change
 
 acm_version: "2.17"

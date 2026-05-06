@@ -1,6 +1,6 @@
-# ACM UI MCP Server
+# ACM Source MCP Server
 
-An MCP server that provides knowledge about the ACM UI and Fleet Virtualization codebase by interfacing with GitHub repositories via the `gh` CLI.
+An MCP server that provides knowledge about the ACM Source and Fleet Virtualization codebase by interfacing with GitHub repositories via the `gh` CLI.
 
 ## Supported Repositories
 
@@ -51,10 +51,10 @@ Add the following to your `~/.cursor/mcp.json`:
 ```json
 {
   "mcpServers": {
-    "acm-ui": {
+    "acm-source": {
       "command": "python",
-      "args": ["-m", "acm_ui_mcp_server.main"],
-      "cwd": "/path/to/acm-ui-mcp-server",
+      "args": ["-m", "acm_source_mcp_server.main"],
+      "cwd": "/path/to/acm-source-mcp-server",
       "timeout": 60
     }
   }
@@ -75,7 +75,6 @@ Add the following to your `~/.cursor/mcp.json`:
 | Tool | Description |
 |------|-------------|
 | `list_repos` | List available repositories and their current versions |
-| `set_version(version, repo)` | Set the active branch for a repository |
 | `get_current_version(repo)` | Get the current version for a repository |
 
 ### Code Discovery
@@ -84,8 +83,8 @@ Add the following to your `~/.cursor/mcp.json`:
 |------|-------------|
 | `find_test_ids(path, repo)` | Find automation attributes in a file |
 | `get_component_source(path, repo)` | Get raw source code for a file |
-| `search_component(query, repo)` | Search for components by name |
 | `search_code(query, repo)` | Search code using GitHub code search |
+| `search_code(query, repo, scope="components")` | Search for components by name |
 | `get_route_component(url_path)` | Map URL to source files |
 
 ### Fleet Virtualization
@@ -117,7 +116,7 @@ find_test_ids("src/views/search/components/SearchBar.tsx", "kubevirt")
 list_repos()
 
 # Manually set kubevirt-plugin branch (if needed)
-set_version("release-4.20", "kubevirt")
+set_cnv_version("4.20")
 
 # Find test IDs in the SearchBar component
 find_test_ids("src/views/search/components/SearchBar.tsx", "kubevirt")
@@ -130,13 +129,13 @@ get_fleet_virt_selectors()
 
 ```
 # Set ACM version
-set_version("release-2.15", "acm")
+set_acm_version("2.15")
 
 # Find test IDs in AcmTable
 find_test_ids("frontend/src/ui-components/AcmTable/AcmTableToolbar.tsx", "acm")
 
 # Search for components
-search_component("Credentials", "acm")
+search_code("Credentials", "acm", scope="components")
 ```
 
 ### Map URL to source files

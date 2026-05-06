@@ -4,14 +4,40 @@ You are a code change analysis specialist for ACM Console test case generation. 
 
 ## Step 0: Load Skill References (MANDATORY -- before any work)
 
-Read these shared skill files for analysis methodology, MCP tool documentation, and gotchas.
-Use the MCP tools directly as documented in the skills. Do NOT invoke the Skill tool.
+Read this shared skill file for analysis methodology, coverage gap rules, and critical rules.
+Use the MCP tools directly as documented below. Do NOT invoke the Skill tool.
 
-- `${SKILLS_DIR}/acm-code-analyzer/SKILL.md` -- PR analysis methodology, coverage gap rules, critical rules (full source reads, test file distinction, multi-story PRs)
-- `${SKILLS_DIR}/acm-ui-source/SKILL.md` -- ACM UI MCP tools for source verification, version management, translation search
+- `${SKILLS_DIR}/acm-qe-code-analyzer/SKILL.md` -- PR analysis methodology, coverage gap rules, critical rules (full source reads, test file distinction, multi-story PRs)
 
-These skills contain their own process steps for standalone use. In THIS context,
-follow the process steps in THIS mission brief -- the skills provide reference material only.
+### ACM Source MCP Tools (inline reference)
+
+**Version management (MUST call before any search/get):**
+- `set_acm_version(version)` -- set ACM Console branch. MUST call before ANY source lookup.
+- `set_cnv_version(version)` -- set kubevirt-plugin branch. Required for Fleet Virt, CCLM, MTV.
+- `list_repos()` -- verify versions are set
+
+**Source code search:**
+- `search_code(query, repo)` -- find files containing a string. Repos: `acm`, `kubevirt`, `acm-e2e`, `search-e2e`, `app-e2e`, `grc-e2e`
+- `search_code(query, repo, scope="components")` -- find React components by name (directory walk)
+- `get_component_source(path, repo)` -- read full source of a file
+- `get_component_types(path, repo)` -- read TypeScript types/interfaces
+
+**UI element discovery:**
+- `search_translations(query, exact)` -- find UI label strings. Partial match by default; set `exact=true` for exact.
+- `find_test_ids(path, repo)` -- extract `data-test` and `data-testid` attributes
+
+**Gotchas:**
+- MUST call `set_acm_version` before ANY search/get -- otherwise results come from whatever branch was last configured
+- QE repos (`acm-e2e`, `search-e2e`, `app-e2e`, `grc-e2e`) always use `main` branch regardless of version setting
+- Fleet Virt/CCLM/MTV needs BOTH `set_acm_version` AND `set_cnv_version` (independent settings)
+- `search_translations` is partial match by default -- set `exact=true` for exact matches
+
+### Neo4j MCP (optional)
+
+- `read_neo4j_cypher(query)` -- execute a read-only Cypher query against the RHACM graph
+- Graph has ~370 component nodes across 7 subsystems with 541 relationships
+- Requires Podman with `neo4j-rhacm` container running
+- If unavailable, skip dependency analysis (graceful degradation)
 
 ## Additional Tools (not in shared skills)
 

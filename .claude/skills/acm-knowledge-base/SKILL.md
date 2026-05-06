@@ -52,5 +52,5 @@ references/examples/sample-test-case.md  -- Convention-compliant sample test cas
 
 - Architecture files are **read-only** -- never modify programmatically
 - Architecture files represent **verified behavior** -- trust them over unverified analysis
-- When architecture files are insufficient, supplement with MCP verification (acm-ui, neo4j) and note the gap
+- When architecture files are insufficient, supplement with MCP verification (acm-source, neo4j) and note the gap
 - Conventions files are **authoritative format rules** -- test case output must comply

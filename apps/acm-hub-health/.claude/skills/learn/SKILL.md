@@ -36,7 +36,7 @@ allowed-tools:
   - Bash(find:*)
   - Bash(python3:*)
   - Bash(python:*)
-  - mcp__acm-ui__*
+  - mcp__acm-source__*
   - mcp__neo4j-rhacm__*
   - mcp__acm-search__*
 ---
@@ -90,12 +90,12 @@ introspection procedure.
 
 ## Step 4: Enrich with MCPs (optional)
 
-If **acm-neo4j-explorer** skill is available:
+If **neo4j-rhacm MCP** is available:
 ```
 read_neo4j_cypher("MATCH (n:RHACMComponent) WHERE n.label CONTAINS '<component>' RETURN n.label, n.description, n.subsystem")
 ```
 
-If **acm-ui** MCP is available:
+If **acm-source** MCP is available:
 ```
 search_code("<component>", repo="acm")
 ```

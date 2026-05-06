@@ -89,7 +89,7 @@ When investigating a component, the agent follows this priority order:
    - Reverse-engineer dependencies from live cluster metadata
      (owner refs, OLM labels, CSVs, env vars, webhooks, ConsolePlugins, APIServices)
    - Cross-reference with neo4j-rhacm knowledge graph MCP
-   - Use acm-ui MCP to understand dependency implementation (source code)
+   - Use acm-source MCP to understand dependency implementation (source code)
    - Write findings to `learned/` for future runs
 
 ## Refreshing Knowledge

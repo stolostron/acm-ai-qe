@@ -44,7 +44,7 @@
       "prompt": "Analyze pipeline runs with varied failure modes: selector not found, timeout, assertion failure, page crash, hook failure, API error.",
       "expected_output": "Each failure type is routed through the correct investigation path. No pattern-matching to previously seen failures.",
       "assertions": [
-        "Selector not found: triggers MCP verification via acm-ui-source before classifying",
+        "Selector not found: triggers MCP verification via acm-source MCP before classifying",
         "Timeout failures: checks subsystem health and backend state before attributing to infrastructure",
         "After-all hook failures: correctly identified as cascade from prior failure, classified as NO_BUG",
         "Each failure type follows its investigation path generically, not by matching known error strings"

@@ -4,10 +4,10 @@
 
 ### Test Case Generator Skills
 
-The test case generation capability is available as a portable skill pack (10 skills) that works on Claude.ai, Claude Code, and API. The orchestrator skill (`acm-test-case-generator`) coordinates the pipeline.
+The test case generation capability is available as a portable skill pack (7 skills) that works on Claude.ai, Claude Code, and API. The orchestrator skill (`acm-test-case-generator`) coordinates the pipeline. MCP tools (jira, acm-source, polarion, neo4j-rhacm) are called directly by subagents.
 
 **MCP servers needed:**
-- Required: acm-ui, jira, polarion
+- Required: acm-source, jira, polarion
 - Recommended: neo4j-rhacm (architecture dependency analysis)
 - Optional: acm-search (live cluster queries), acm-kubectl (spoke access), playwright (browser validation)
 
@@ -15,7 +15,7 @@ The test case generation capability is available as a portable skill pack (10 sk
 
 **Additional requirements:** GitHub CLI (`gh`) authenticated
 
-**Usage:** Claude loads the `acm-test-case-generator` skill automatically when you ask to generate a test case. It orchestrates the other skills (acm-jira-client, acm-code-analyzer, acm-ui-source, etc.) sequentially.
+**Usage:** Claude loads the `acm-test-case-generator` skill automatically when you ask to generate a test case. It orchestrates subagents (code-analyzer, test-case-writer, quality-reviewer, etc.) that call MCP tools directly.
 
 ---
 
@@ -51,7 +51,7 @@ The z-stream failure analysis capability is available as a portable skill pack (
 - `acm-jenkins-client` -- Jenkins CI interface
 
 **MCP servers needed:**
-- Required: acm-ui, jira, jenkins, polarion
+- Required: acm-source, jira, jenkins, polarion
 - Recommended: neo4j-rhacm (dependency analysis)
 - Optional: acm-search (fleet queries), acm-kubectl (spoke access)
 
@@ -76,7 +76,7 @@ Classifies Jenkins pipeline test failures using a 5-stage pipeline with a 12-lay
 
 **Slash commands:** `/analyze`, `/gather`, `/quick`
 
-**MCP servers needed:** acm-ui, jira, jenkins, polarion, neo4j-rhacm
+**MCP servers needed:** acm-source, jira, jenkins, polarion, neo4j-rhacm
 
 **Credentials needed:** JIRA (email + API token), Jenkins (username + API token), Polarion (JWT token)
 
@@ -90,7 +90,7 @@ AI-powered diagnostic agent for ACM hub clusters. 6-phase investigation pipeline
 
 **Slash commands:** `/sanity`, `/health-check`, `/deep`, `/investigate`, `/learn`
 
-**MCP servers needed:** acm-ui, neo4j-rhacm, acm-search
+**MCP servers needed:** acm-source, neo4j-rhacm, acm-search
 
 **Credentials needed:** None (uses `oc login` for cluster access)
 
@@ -104,11 +104,11 @@ Generates Polarion-ready test cases from JIRA tickets. 6-phase subagent pipeline
 
 **Slash commands:** `/generate`, `/review`, `/batch`
 
-**MCP servers needed:** acm-ui, jira, polarion, neo4j-rhacm, acm-search, acm-kubectl, playwright
+**MCP servers needed:** acm-source, jira, polarion, neo4j-rhacm, acm-search, acm-kubectl, playwright
 
 **Credentials needed:** JIRA (email + API token), Polarion (JWT token)
 
-**Additional requirements:** GitHub CLI (`gh`) authenticated for ACM UI source searches
+**Additional requirements:** GitHub CLI (`gh`) authenticated for ACM Source source searches
 
 ---
 
@@ -116,7 +116,7 @@ Generates Polarion-ready test cases from JIRA tickets. 6-phase subagent pipeline
 
 | Server | Type | Credentials | Optional? |
 |--------|------|-------------|-----------|
-| acm-ui | Local (this repo) | GitHub CLI auth (`gh auth login`) | No |
+| acm-source | Local (this repo) | GitHub CLI auth (`gh auth login`) | No |
 | jira | External (cloned) | JIRA email + API token | No (for z-stream, test-case-gen) |
 | jenkins | External (cloned) | Jenkins username + API token | No (for z-stream only) |
 | polarion | Local (this repo) | Polarion JWT token (VPN required) | No (for z-stream, test-case-gen) |

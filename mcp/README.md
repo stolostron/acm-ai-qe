@@ -10,7 +10,7 @@ and query component dependency graphs -- without needing API keys embedded in pr
 ## Prerequisites
 
 - **Python 3.10+** (required) -- `brew install python3` (macOS) or `sudo dnf install python3` (Fedora/RHEL)
-- **`gh` CLI** (required for acm-ui) -- `brew install gh` (macOS)
+- **`gh` CLI** (required for acm-source) -- `brew install gh` (macOS)
 - **`uvx`** (optional, needed for polarion + neo4j) -- `pip install uv`
 - **Podman** (optional, needed for neo4j-rhacm) -- `brew install podman` (macOS)
 - **Node.js 18+** (needed for acm-search, acm-kubectl, playwright) -- `brew install node` (macOS) or `sudo dnf install nodejs` (Fedora/RHEL)
@@ -21,7 +21,7 @@ and query component dependency graphs -- without needing API keys embedded in pr
 
 | Server | Used by | What it does | Tools | Source |
 |--------|---------|--------------|-------|--------|
-| **acm-ui** | Hub Health, Z-Stream, Test Case Gen | Searches ACM Console & Fleet Virt source code on GitHub | 20 | This repo |
+| **acm-source** | Hub Health, Z-Stream, Test Case Gen | Searches ACM Console & Fleet Virt source code on GitHub | 18 | This repo |
 | **jira** | Z-Stream, Test Case Gen | Searches/creates JIRA issues for bug correlation | 25 | [stolostron/jira-mcp-server](https://github.com/stolostron/jira-mcp-server) |
 | **jenkins** | Z-Stream | Jenkins pipeline analysis, build monitoring, failure investigation | 11 | [redhat-community-ai-tools/jenkins-mcp](https://github.com/redhat-community-ai-tools/jenkins-mcp) |
 | **polarion** | Z-Stream, Test Case Gen | Reads/writes Polarion test cases (RHACM4K project) | 25 | This repo (wrapper around [polarion-mcp](https://pypi.org/project/polarion-mcp/)) |
@@ -80,8 +80,8 @@ mcp/
 |-- deploy-acm-search.sh            <-- Deploy ACM Search MCP to a cluster (oc login first)
 |-- README.md                       <-- This file
 |
-|-- acm-ui-mcp-server/              <-- Our code: ACM Console source search (20 tools)
-|   |-- acm_ui_mcp_server/          <-- Python package
+|-- acm-source-mcp-server/              <-- Our code: ACM Console source search (18 tools)
+|   |-- acm_source_mcp_server/          <-- Python package
 |   |-- pyproject.toml
 |   \-- docs/
 |
@@ -117,7 +117,7 @@ External MCPs are cloned from forks with pending upstream PRs. Once merged,
 
 | Server | Credential file | Gitignored? |
 |--------|----------------|-------------|
-| acm-ui | `gh auth` (system) | N/A |
+| acm-source | `gh auth` (system) | N/A |
 | jira | `mcp/.external/jira-mcp-server/.env` | Yes (entire `.external/` dir) |
 | jenkins | `mcp/.external/jenkins-mcp/.env` | Yes (entire `.external/` dir) |
 | polarion | `mcp/polarion/.env` | Yes (`*.env`) |
@@ -144,7 +144,7 @@ claude mcp list
 ```
 
 To test individual servers, ask the AI agent:
-- "List the MCP repos" -- tests acm-ui
+- "List the MCP repos" -- tests acm-source
 - "Search JIRA for project=ACM" -- tests jira
 - "Get all Jenkins jobs" -- tests jenkins
 - "Query the knowledge graph: MATCH (n) RETURN count(n)" -- tests neo4j-rhacm

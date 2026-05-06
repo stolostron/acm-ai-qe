@@ -65,7 +65,7 @@ Steps:
 
 ## Translation Keys
 
-CCLM UI strings are in the kubevirt-plugin, not in stolostron/console translations. Use `set_cnv_version()` in acm-ui MCP and search in `repo="kubevirt"`.
+CCLM UI strings are in the kubevirt-plugin, not in stolostron/console translations. Use `set_cnv_version()` in acm-source MCP and search in `repo="kubevirt"`.
 
 | Context | Search Strategy |
 |---------|----------------|
@@ -75,7 +75,7 @@ CCLM UI strings are in the kubevirt-plugin, not in stolostron/console translatio
 
 ## Setup Prerequisites
 
-- **MCP**: Call `set_acm_version()` AND `set_cnv_version()` before any acm-ui search
+- **MCP**: Call `set_acm_version()` AND `set_cnv_version()` before any acm-source search
 - **MCP repo**: Use `repo="kubevirt"` for CCLM component searches (not `repo="acm"`)
 - At least two spoke clusters with CNV 4.16+ installed
 - At least one running VM on the source spoke cluster
@@ -84,7 +84,7 @@ CCLM UI strings are in the kubevirt-plugin, not in stolostron/console translatio
 ## Testing Considerations
 
 - CCLM is a kubevirt-plugin feature — search in `repo="kubevirt"`, not `repo="acm"`
-- Set BOTH `set_acm_version()` AND `set_cnv_version()` in acm-ui MCP
+- Set BOTH `set_acm_version()` AND `set_cnv_version()` in acm-source MCP
 - Migration requires TWO spoke clusters with CNV — setup is more complex than single-cluster features
 - Migration is a state-changing operation — test cases should verify both success and rollback scenarios
 - Target cluster selection depends on which managed clusters have CNV installed

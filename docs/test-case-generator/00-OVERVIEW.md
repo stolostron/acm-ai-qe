@@ -86,18 +86,18 @@ Generates Polarion-ready test cases for ACM Console UI features from JIRA ticket
 | Agent | Phase | MCP Tools | Role |
 |-------|:-----:|-----------|------|
 | Data Gatherer | 1 | jira, polarion, neo4j-rhacm, bash | Data collection + JIRA deep dive: ACs, comments, linked tickets, Polarion coverage |
-| Code Analyzer | 2 | acm-ui, neo4j-rhacm, bash | PR diff analysis: changed components, UI elements, interaction models |
-| UI Discoverer | 3 | acm-ui, neo4j-rhacm, playwright (conditional), bash | ACM Console source: selectors, translations, routes, wizard steps |
+| Code Analyzer | 2 | acm-source, neo4j-rhacm, bash | PR diff analysis: changed components, UI elements, interaction models |
+| UI Discoverer | 3 | acm-source, neo4j-rhacm, playwright (conditional), bash | ACM Console source: selectors, translations, routes, wizard steps |
 | Synthesizer | 4 | — | Merge investigation outputs, scope gate, AC cross-reference, test plan |
 | Live Validator | 5 | playwright, acm-search, acm-kubectl, bash | Browser + oc CLI + fleet queries on real cluster |
-| Test Case Writer | 6 | acm-ui | Write test case markdown from synthesized context |
-| Quality Reviewer | 7 | acm-ui, polarion | Convention compliance, discovered vs assumed, AC vs implementation |
+| Test Case Writer | 6 | acm-source | Write test case markdown from synthesized context |
+| Quality Reviewer | 7 | acm-source | Convention compliance, discovered vs assumed, AC vs implementation |
 
 ## MCP Servers
 
 | Server | Tools | Source | Purpose |
 |--------|-------|--------|---------|
-| acm-ui | 20 | This repo (`mcp/acm-ui-mcp-server/`) | ACM Console source code search via GitHub |
+| acm-source | 18 | This repo (`mcp/acm-source-mcp-server/`) | ACM Console source code search via GitHub |
 | jira | 3 | [stolostron/jira-mcp-server](https://github.com/stolostron/jira-mcp-server) | JIRA ticket investigation |
 | polarion | 7 | This repo (`mcp/polarion/`) | Existing Polarion test case coverage |
 | neo4j-rhacm | 2 | [mcp-neo4j-cypher](https://pypi.org/project/mcp-neo4j-cypher/) (PyPI) | Component dependency analysis |

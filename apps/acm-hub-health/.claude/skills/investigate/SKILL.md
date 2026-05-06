@@ -40,7 +40,7 @@ allowed-tools:
   - Bash(find:*)
   - Bash(python3:*)
   - Bash(python:*)
-  - mcp__acm-ui__*
+  - mcp__acm-source__*
   - mcp__neo4j-rhacm__*
   - mcp__acm-search__*
 ---
@@ -50,7 +50,7 @@ allowed-tools:
 Runs all 6 diagnostic phases focused on a specific component, symptom, or
 area. Uses the `acm-hub-health-check` portable skill for phase methodology
 and the `acm-cluster-health` portable skill for the 12-layer diagnostic
-model. Optionally uses `acm-neo4j-explorer` for dependency analysis.
+model. Optionally uses `neo4j-rhacm MCP` for dependency analysis.
 
 ALL cluster operations are strictly **read-only**.
 
@@ -98,7 +98,7 @@ and `knowledge/failure-patterns.md`.
 
 **Phase 5 (Correlate):** Trace dependency chains involving the target.
 Read `knowledge/diagnostics/dependency-chains.md` (12 chains). Use
-`acm-neo4j-explorer` for broader dependency coverage if available.
+`neo4j-rhacm MCP` for broader dependency coverage if available.
 
 **Phase 6 (Deep Investigate):** Deep dive into the target. Pod logs,
 events, data flow tracing. Follow the target's playbook from

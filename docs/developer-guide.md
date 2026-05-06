@@ -4,9 +4,11 @@
 
 The skill pack has 3 layers:
 
-1. **Shared skills** (7): Raw tool interfaces and methodology with zero workflow logic. Safe to modify independently.
-2. **App-specific skills** (11): Workflow logic for specific use cases. Modify with awareness of the orchestrator that calls them.
+1. **Shared skills** (3): Methodology and domain knowledge with zero workflow logic. Safe to modify independently.
+2. **App-specific skills** (8): Workflow logic for specific use cases. Modify with awareness of the orchestrator that calls them.
 3. **Orchestrators** (3): Pipeline controllers that compose shared and app-specific skills. Modify with full system understanding.
+
+MCP tools (acm-source, jira, polarion, neo4j-rhacm) are called directly by subagents -- no wrapper skill needed.
 
 See `docs/skill-architecture.md` for the complete inventory with MCP dependencies.
 
@@ -18,10 +20,6 @@ When you modify a skill, here's what could be affected:
 
 | Skill | What Could Break | Risk |
 |---|---|---|
-| `acm-jira-client` | Nothing (vanilla MCP interface) | Low |
-| `acm-ui-source` | Nothing (vanilla MCP interface) | Low |
-| `acm-polarion-client` | Nothing (vanilla MCP interface) | Low |
-| `acm-neo4j-explorer` | Nothing (vanilla MCP interface) | Low |
 | `acm-jenkins-client` | Nothing (vanilla MCP interface) | Low |
 | `acm-cluster-health` | Nothing (methodology/reference only, no executable logic) | Low |
 | `acm-knowledge-base` | Area knowledge consumers (writer, reviewer) may see different constraints | Low -- verify downstream |
@@ -30,7 +28,7 @@ When you modify a skill, here's what could be affected:
 
 | Skill | Consumed By | What Could Break | Risk |
 |---|---|---|---|
-| `acm-code-analyzer` | TC-gen Phase 3 | Code analysis output format changes affect synthesis | Medium |
+| `acm-qe-code-analyzer` | TC-gen Phase 3 | Code analysis output format changes affect synthesis | Medium |
 | `acm-test-case-writer` | TC-gen Phase 7 | Test case markdown format changes affect quality review and report.py | Medium |
 | `acm-test-case-reviewer` | TC-gen Phase 8 | Verdict logic changes affect whether pipeline proceeds | Medium |
 | `acm-failure-classifier` | Z-stream Stage 2 | Classification logic changes affect all failure reports | High |
@@ -50,28 +48,24 @@ When you modify a skill, here's what could be affected:
 
 ## Hello World: Your First Contribution
 
-### Task 1: Add a JQL pattern to acm-jira-client
+### Task 1: Add an area architecture file to acm-knowledge-base
 
-You've been asked to add a JQL pattern for finding tickets by sprint.
+You've been asked to document a new ACM area's architecture.
 
-**Step 1:** Open the file:
+**Step 1:** Create the file:
 ```
-.claude/skills/acm-jira-client/references/jql-patterns.md
+.claude/skills/acm-knowledge-base/references/architecture/new-area.md
 ```
 
-**Step 2:** Add your pattern:
-```markdown
-### Find tickets in current sprint
-project = ACM AND sprint in openSprints() AND component = "Governance"
-```
+**Step 2:** Add the architecture documentation following the pattern in existing area files (governance.md, rbac.md, etc.).
 
 **Step 3:** Test it in isolation:
 ```bash
 claude
-> Search JIRA for governance tickets in the current sprint
+> Use the acm-knowledge-base skill. What do you know about the new-area architecture?
 ```
 
-Claude loads the acm-jira-client skill and uses your new pattern. No orchestrator involved, no pipeline, no risk to other skills.
+Claude loads the acm-knowledge-base skill and reads your new area file. No orchestrator involved, no pipeline, no risk to other skills.
 
 ### Task 2: Fix an area knowledge file
 
@@ -87,7 +81,7 @@ You've discovered that the governance area's field order documentation is wrong.
 **Step 3:** Verify via MCP (recommended):
 ```bash
 claude
-> Use the acm-ui-source skill. Set ACM version to 2.17, then read the source of
+> Set ACM version to 2.17, then read the source of
   PolicyTemplateDetails.tsx and tell me the description list field order.
 ```
 
@@ -118,17 +112,9 @@ claude
 Every skill can be tested independently without the full pipeline:
 
 ```bash
-# Test JIRA client
-claude
-> Use the acm-jira-client skill to read ACM-30459. Show me the ACs and comments.
-
-# Test UI source
-claude
-> Use the acm-ui-source skill. Set version 2.17, search translations for "Labels".
-
 # Test code analyzer
 claude
-> Use the acm-code-analyzer skill to analyze PR #5790 in stolostron/console.
+> Use the acm-qe-code-analyzer skill to analyze PR #5790 in stolostron/console.
 
 # Test writer (with manual context)
 claude
@@ -139,13 +125,18 @@ claude
 claude
 > Use the acm-test-case-reviewer skill to review the test case at
   runs/ACM-30459/.../test-case.md
+
+# Test MCP tools directly (no wrapper skill needed)
+claude
+> Read JIRA ticket ACM-30459, show me the ACs and comments.
+> Set ACM version to 2.17, search translations for "Labels".
 ```
 
 Each runs in isolation -- no orchestrator, no pipeline, no multi-minute wait.
 
 ## Reusing Shared Skills for a New Domain
 
-The 7 shared skills (jira-client, ui-source, polarion-client, neo4j-explorer, cluster-health, jenkins-client, knowledge-base) are designed for reuse by any ACM-related application.
+The 3 shared skills (cluster-health, jenkins-client, knowledge-base) are designed for reuse by any ACM-related application. MCP tools (acm-source, jira, polarion, neo4j-rhacm) are called directly by subagents without wrapper skills.
 
 To build a new application (e.g., "ACM Release Readiness Checker"):
 

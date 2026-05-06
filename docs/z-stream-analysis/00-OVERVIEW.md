@@ -160,7 +160,7 @@ Five MCP servers provide tools during Stage 2 (AI Analysis). The Knowledge Graph
 
 ```
 ┌─────────────────────┐  ┌─────────────────────┐  ┌─────────────────────┐
-│   ACM-UI MCP (20)   │  │  Knowledge Graph    │  │   JIRA MCP (25)     │
+│   ACM Source MCP (18)   │  │  Knowledge Graph    │  │   JIRA MCP (25)     │
 │  ─────────────────  │  │  ─────────────────  │  │  ─────────────────  │
 │  Code search        │  │  Component deps     │  │  Search issues      │
 │  Find selectors     │  │  Cascading failure  │  │  Get/create/update  │
@@ -241,7 +241,7 @@ python -m src.scripts.report <dir> --keep-repos    # Don't delete repos/
 | Stage 2: AI analysis (Phases A-E) | [02-STAGE2-AI-ANALYSIS.md](02-STAGE2-AI-ANALYSIS.md) |
 | Stage 3: Report generation | [03-STAGE3-REPORT-GENERATION.md](03-STAGE3-REPORT-GENERATION.md) |
 | All services reference | [04-SERVICES-REFERENCE.md](04-SERVICES-REFERENCE.md) |
-| MCP integration (ACM-UI, Jenkins, JIRA, Polarion, Knowledge Graph) | [05-MCP-INTEGRATION.md](05-MCP-INTEGRATION.md) |
+| MCP integration (ACM Source, Jenkins, JIRA, Polarion, Knowledge Graph) | [05-MCP-INTEGRATION.md](05-MCP-INTEGRATION.md) |
 | Knowledge database reference | [06-KNOWLEDGE-DATABASE.md](06-KNOWLEDGE-DATABASE.md) |
 
 ---
@@ -265,5 +265,5 @@ python -m src.scripts.report <dir> --keep-repos    # Don't delete repos/
 | v2.5 | 5-Phase Systematic Investigation Framework, multi-evidence requirement |
 | v2.4 | Complete Context Upfront, extracted_context per test |
 | v2.3 | Knowledge Graph integration, component extraction |
-| v2.2 | ACM-UI MCP integration, JenkinsAPIClient |
+| v2.2 | ACM Source MCP integration, JenkinsAPIClient |
 | v2.0 | AI-driven classification, repos cloned to run directory |

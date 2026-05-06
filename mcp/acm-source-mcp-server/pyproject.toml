@@ -1,7 +1,7 @@
 [project]
-name = "acm-ui-mcp-server"
-version = "0.1.0"
-description = "MCP server for ACM UI knowledge base"
+name = "acm-source-mcp-server"
+version = "0.2.0"
+description = "MCP server for ACM source code exploration via GitHub"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -16,4 +16,4 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project.scripts]
-acm-ui-mcp-server = "acm_ui_mcp_server.main:main"
+acm-source-mcp-server = "acm_source_mcp_server.main:main"

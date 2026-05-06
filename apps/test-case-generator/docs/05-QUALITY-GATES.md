@@ -6,7 +6,7 @@ The pipeline has two independent validation systems. Both must pass before a tes
 
 | Layer | When | Type | What it checks | Authoritative for |
 |-------|------|------|---------------|-------------------|
-| Phase 4.5 | Before Stage 3 | AI (quality-reviewer agent) | MCP verification of UI elements, Polarion coverage, peer consistency, discovered vs assumed, AC vs implementation | Semantic correctness |
+| Phase 4.5 | Before Stage 3 | AI (quality-reviewer agent) | MCP verification of UI elements, discovered vs assumed, AC vs implementation | Semantic correctness |
 | Stage 3 | After Phase 4.5 | Deterministic (`convention_validator.py`) | Title pattern, metadata fields, section order, step format, entry point, teardown | Structural correctness |
 
 ---
@@ -14,7 +14,7 @@ The pipeline has two independent validation systems. Both must pass before a tes
 ## Phase 4.5: Quality Reviewer Agent
 
 **Agent:** `.claude/agents/quality-reviewer.md`
-**Tools:** acm-ui, polarion
+**Tools:** acm-source
 **Verdict:** `PASS` or `NEEDS_FIXES`
 **Recovery:** 3-tier escalation -- targeted MCP re-investigation, focused retry with evidence, placeholder and proceed (pipeline does not abort)
 
@@ -51,7 +51,7 @@ The pipeline has two independent validation systems. Both must pass before a tes
 
 The reviewer performs **minimum 3 MCP verifications**. Fewer than 3 = automatic `NEEDS_FIXES`.
 
-1. `set_acm_version(<version>)` on acm-ui
+1. `set_acm_version(<version>)` on acm-source
 2. Check UI labels via `search_translations` — verify they match test case
 3. Check entry point via `get_routes` — verify navigation path exists
 4. If wizard steps mentioned: verify via `get_wizard_steps`
@@ -80,24 +80,6 @@ Read `knowledge/architecture/<area>.md` and verify:
 3. Component names and CRD references are consistent
 4. Flag contradictions as BLOCKING
 
-#### Step 5: Polarion Coverage Check
-
-Search for duplicate test cases via Polarion MCP:
-
-```
-get_polarion_work_items(project_id="RHACM4K", query='type:testcase AND title:"<feature>"')
-```
-
-Reports existing similar test cases and potential duplication.
-
-#### Step 6: Peer Consistency Check
-
-Reads 2-3 existing test cases from the same area and compares:
-- Section structure and formatting
-- Level of detail in expected results
-- Setup section format
-- Teardown approach
-
 ---
 
 ### Failure State: Tier 3 Partial Pass
@@ -113,7 +95,7 @@ When quality review escalates to Tier 3, unresolvable steps are marked and the p
 2. Observe the Clusters tab filters to show non-compliant clusters only
 
 **Expected Result:**
-- [MANUAL VERIFICATION REQUIRED: filter condition could not be verified via MCP -- acm-ui search_translations returned no match for "Non-compliant" label. Verify the exact label text on a cluster running this build.]
+- [MANUAL VERIFICATION REQUIRED: filter condition could not be verified via MCP -- acm-source search_translations returned no match for "Non-compliant" label. Verify the exact label text on a cluster running this build.]
 - Only clusters with violations are displayed
 ```
 
@@ -279,7 +261,5 @@ A test case must pass all of these before delivery:
 | Step format | Checks H3 heading, actions, results | Validates `### Step N:` + `**Expected Result:**` |
 | Teardown | Checks cleanup coverage | Checks `--ignore-not-found` |
 | AC vs implementation | Compares JIRA ACs against test expectations | Not checked |
-| Peer consistency | Compares with existing test cases | Not checked |
-| Polarion duplicates | Searches Polarion for existing coverage | Not checked |
 | Metric/label name accuracy | Verifies names match current source code, not stale JIRA text | Not checked |
 | Negative scenario coverage | Warns if conditional feature lacks negative step (non-blocking) | Not checked |

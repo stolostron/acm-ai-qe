@@ -1,7 +1,7 @@
 ---
 name: acm-data-enricher
 description: Enrich test failure data with AI-analyzed context -- resolve page objects, verify selector existence in product source, analyze selector change history, and fill feature knowledge gaps. Use when test failure data needs enrichment before classification analysis.
-compatibility: "Uses acm-ui-source skill (requires acm-ui MCP) for selector verification. Optional: acm-jira-client (for commit intent disambiguation). Needs gh CLI for git history analysis."
+compatibility: "Requires acm-source MCP for selector verification. Optional: jira MCP (for commit intent disambiguation). Needs gh CLI for git history analysis."
 metadata:
   author: acm-qe
   version: "1.0.0"
@@ -43,9 +43,9 @@ Output: `extracted_context.page_objects` per test.
 
 ### Task 2: Verify Selector Existence in Product Source
 
-For each unique `failing_selector`, use the acm-ui-source skill to verify whether it exists in the official product source code. This replaces simple grep -- it handles PatternFly class derivation (e.g., `pf-v6-c-tree-view` -> component `TreeView`), route-aware verification, and false positive detection.
+For each unique `failing_selector`, use the acm-source MCP tools directly to verify whether it exists in the official product source code. This replaces simple grep -- it handles PatternFly class derivation (e.g., `pf-v6-c-tree-view` -> component `TreeView`), route-aware verification, and false positive detection.
 
-**Critical:** Set ACM version via acm-ui-source before any search. For VM selectors, also set CNV version.
+**Critical:** Set ACM version via `set_acm_version` before any search. For VM selectors, also set CNV version via `set_cnv_version`.
 
 Output: `extracted_context.console_search` per test with `found`, `verification.method`, `verification.detail`.
 
@@ -79,7 +79,7 @@ Output: `feature_knowledge.ai_enrichment` in core-data.json, plus `${KNOWLEDGE_D
 
 ## Gotchas
 
-1. **PatternFly class names are not data-test selectors** -- A selector like `pf-v6-c-tree-view` is a CSS class from PatternFly, not a `data-test` attribute. Derive the component name (`TreeView`) and search for it via `search_component`, not `search_code` with the raw class string.
+1. **PatternFly class names are not data-test selectors** -- A selector like `pf-v6-c-tree-view` is a CSS class from PatternFly, not a `data-test` attribute. Derive the component name (`TreeView`) and search for it via `search_code(query, repo, scope="components")`, not `search_code` with the raw class string.
 2. **Hex color values trigger false positive selector matches** -- Strings like `#c0c0c0` or `#ffffff` in test errors are color values, not selectors. Skip selector verification for any string that matches a hex color pattern.
 3. **`git log -S` is case-sensitive** -- Searching for `data-test="SearchBar"` will NOT find commits that changed `data-test="searchbar"`. When selector case is uncertain, run two searches or use `git log -S --regexp-ignore-case`.
 4. **The `direction` field in selector timeline must be computed** -- `recent_selector_changes.direction` must be one of `added`, `removed`, `renamed`, `modified`. Never leave it empty or set it to the raw commit message. Compute it from the diff hunks.

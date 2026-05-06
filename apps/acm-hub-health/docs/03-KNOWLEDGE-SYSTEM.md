@@ -344,7 +344,7 @@ static knowledge and cluster state during Phase 2 (Learn):
 ## Evidence
 - **Cluster**: <what oc commands revealed>
 - **Docs**: <what rhacm-docs said, with file references>
-- **Source**: <what acm-ui MCP revealed, if applicable>
+- **Source**: <what acm-source MCP revealed, if applicable>
 
 ## Understanding
 <synthesized explanation of the component/behavior>
@@ -403,8 +403,8 @@ When a mismatch is detected, the agent runs a self-healing process:
            ▼
   ┌──────────────────┐
   │ Step 4: UNDERSTAND│     For each dependency from steps 2-3:
-  │ DEPENDENCIES      │     acm-ui MCP: search source code for
-  │ (acm-ui MCP +     │     implementation details, data flow
+  │ DEPENDENCIES      │     acm-source MCP: search source code for
+  │ (acm-source MCP +     │     implementation details, data flow
   │  rhacm-docs)      │     rhacm-docs: search for intended behavior
   └────────┬─────────┘
            │

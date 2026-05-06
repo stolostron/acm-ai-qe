@@ -87,19 +87,19 @@ Actions available depend on current state:
 - CNV 4.14+: Basic VM management
 - CNV 4.15+: Live migration support, migration policies
 - CNV 4.16+: CCLM (cross-cluster live migration) support
-- Set `set_cnv_version()` in acm-ui MCP to match spoke CNV version
+- Set `set_cnv_version()` in acm-source MCP to match spoke CNV version
 
 ## Setup Prerequisites
 
 - **Hub**: `cnv-mtv-integrations` MCH component enabled (disabled by default)
 - **Spokes**: CNV/KubeVirt operator installed with HyperConverged CR
-- **MCP**: Call `set_acm_version()` AND `set_cnv_version()` before any acm-ui search
+- **MCP**: Call `set_acm_version()` AND `set_cnv_version()` before any acm-source search
 - At least one running VM on a spoke cluster for action testing
 - For CCLM (cross-cluster live migration): network connectivity, compatible storage, matching CNV versions
 
 ## Testing Considerations
 
-- Set BOTH `set_acm_version()` AND `set_cnv_version()` in acm-ui MCP — they are independent settings
+- Set BOTH `set_acm_version()` AND `set_cnv_version()` in acm-source MCP — they are independent settings
 - VM actions depend on VM state (running vs stopped) — verify state before testing actions
 - Tree view toggle persists across page navigations — test persistence
 - VM list is entirely sourced from Search subsystem — if search is down, VM list is empty

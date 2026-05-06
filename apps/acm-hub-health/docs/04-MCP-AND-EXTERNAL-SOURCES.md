@@ -1,7 +1,7 @@
 # MCP Integration and External Sources
 
 The agent augments its cluster observations with four external information
-sources: the ACM UI MCP server (source code search), the Neo4j RHACM knowledge
+sources: the ACM Source MCP server (source code search), the Neo4j RHACM knowledge
 graph (component dependency analysis), the ACM search database (fleet-wide
 resource queries), and the official ACM documentation (AsciiDoc reference).
 These are used during self-healing (Phase 2), health checking (Phase 3),
@@ -17,7 +17,7 @@ the static knowledge doesn't cover a component or dependency path.
 │                              Agent Investigation                                     │
 │                                                                                      │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  ┌─────────────────────┐  │
-│  │ Live Cluster │  │ ACM-UI MCP   │  │ neo4j-rhacm MCP  │  │ acm-search MCP      │  │
+│  │ Live Cluster │  │ ACM-Source MCP   │  │ neo4j-rhacm MCP  │  │ acm-search MCP      │  │
 │  │ (oc CLI)     │  │ Server       │  │ (Knowledge Graph)│  │ (Search Database)   │  │
 │  │              │  │              │  │                  │  │                     │  │
 │  │ Primary      │  │ Source code  │  │ 370 component    │  │ Fleet-wide resource │  │
@@ -37,21 +37,21 @@ the static knowledge doesn't cover a component or dependency path.
 
 ---
 
-## ACM-UI MCP Server
+## ACM-Source MCP Server
 
-The `acm-ui` MCP server provides access to the stolostron/console and
+The `acm-source` MCP server provides access to the stolostron/console and
 kubevirt-plugin source code via GitHub. It is configured in `.mcp.json` at
 the app root.
 
 ### Configuration
 
-`.mcp.json` (acm-ui entry shown; see neo4j-rhacm section for its config):
+`.mcp.json` (acm-source entry shown; see neo4j-rhacm section for its config):
 ```json
 {
   "mcpServers": {
-    "acm-ui": {
+    "acm-source": {
       "command": "<venv>/bin/python",
-      "args": ["-m", "acm_ui_mcp_server.main"],
+      "args": ["-m", "acm_source_mcp_server.main"],
       "timeout": 30
     },
     "neo4j-rhacm": { "..." : "see Knowledge Graph section below" }
@@ -74,7 +74,7 @@ bash mcp/setup.sh
 ```
 
 Either script creates the virtual environment, generates the `.mcp.json`
-config (with acm-ui, neo4j-rhacm, and acm-search), and checks
+config (with acm-source, neo4j-rhacm, and acm-search), and checks
 prerequisites. The app-level `setup.sh` also clones rhacm-docs.
 
 ### Available Tools
@@ -82,7 +82,7 @@ prerequisites. The app-level `setup.sh` also clones rhacm-docs.
 | Tool | Purpose | When Used |
 |------|---------|-----------|
 | `search_code` | Search for keywords across console + kubevirt-plugin codebase | Understanding how a component integrates |
-| `search_component` | Find a specific React component by name | Finding UI component architecture |
+| `search_code(scope="components")` | Find a specific React component by name | Finding UI component architecture |
 | `get_component_source` | Get the full source code of a component | Understanding component behavior |
 | `get_component_types` | Get TypeScript type definitions for a component | Understanding data contracts |
 | `get_routes` | Find route definitions and navigation paths | Understanding UI navigation |
@@ -94,7 +94,6 @@ prerequisites. The app-level `setup.sh` also clones rhacm-docs.
 | `search_translations` | Search i18n translation strings | Finding user-visible text |
 | `get_wizard_steps` | Get wizard step definitions | Multi-step flow analysis |
 | `get_current_version` | Get the currently selected ACM version | Version context |
-| `set_version` | Set version context for searches | Version-scoped queries |
 | `set_acm_version` | Set ACM version context | Version-scoped queries |
 | `set_cnv_version` | Set CNV version context | Version-scoped queries |
 | `list_versions` | List available ACM/CNV versions | Version discovery |
@@ -119,7 +118,7 @@ This ensures search results match the code that's actually running on the cluste
 
 | Scenario | MCP Tool(s) |
 |----------|-------------|
-| New component not in knowledge base | `search_code`, `search_component` |
+| New component not in knowledge base | `search_code`, `search_code(scope="components")` |
 | Understanding console integration | `get_routes`, `get_route_component` |
 | Verifying component architecture | `get_component_source`, `get_component_types` |
 | Finding UI navigation paths | `get_routes` |
@@ -412,7 +411,7 @@ cat docs/rhacm-docs/troubleshooting/<file>.adoc
 ### When rhacm-docs Is Not Present
 
 If `docs/rhacm-docs/` has not been cloned, the agent skips documentation
-searches during self-healing. It relies on cluster evidence and the acm-ui
+searches during self-healing. It relies on cluster evidence and the acm-source
 MCP server instead. The agent operates correctly without the docs -- they
 provide additional context but are not required.
 
@@ -438,7 +437,7 @@ the external sources are consulted in sequence:
          (cross-reference)                     Supplement cluster-derived map
          │                                     with broader ACM relationships
          ▼
-  Step 4: Understand dependencies           ← acm-ui MCP + rhacm-docs
+  Step 4: Understand dependencies           ← acm-source MCP + rhacm-docs
          (source code + docs)                  For each dep from steps 2-3:
          │                                     HOW does it work?
          ▼
@@ -451,7 +450,7 @@ the external sources are consulted in sequence:
 The self-healing process uses a **layered discovery flow**: cluster
 introspection builds a dependency map from live metadata (always
 available, no external tools), the knowledge graph supplements it with
-broader ACM relationships, then acm-ui MCP and rhacm-docs fill in the
+broader ACM relationships, then acm-source MCP and rhacm-docs fill in the
 implementation details. Each step is informed by the previous step's output.
 
 Each source provides different context:
@@ -462,11 +461,11 @@ Each source provides different context:
 | Cluster introspection | Dependencies from owner refs, OLM labels, CSVs, env vars, webhooks | The map (always available) |
 | acm-search MCP | Spoke-side resources: pods, deployments, addons across all managed clusters | What IS (fleet-wide) |
 | neo4j-rhacm MCP | Broader ACM component relationships, subsystem membership | Supplements the map |
-| acm-ui MCP | Implementation: source code, data flow, integration points | How it works |
+| acm-source MCP | Implementation: source code, data flow, integration points | How it works |
 | rhacm-docs | Intent: what the component is designed to do, how it should be configured | Why it exists |
 
 Cluster introspection provides the map from live metadata. The knowledge
-graph supplements it. The acm-ui MCP provides implementation details.
+graph supplements it. The acm-source MCP provides implementation details.
 Together they let the agent understand any component's full context --
 including third-party operators not in the knowledge database.
 
@@ -477,7 +476,7 @@ including third-party operators not in the knowledge database.
 The `.claude/settings.json` file auto-approves two categories of commands:
 
 - **Diagnostic** (always available): read-only `oc`/`kubectl` commands,
-  text processing utilities, file inspection, `git clone`, all acm-ui
+  text processing utilities, file inspection, `git clone`, all acm-source
   MCP tools, all neo4j-rhacm MCP tools (read-only Cypher queries), and
   all acm-search MCP tools (read-only search database queries).
   File writes limited to `knowledge/learned/` only.

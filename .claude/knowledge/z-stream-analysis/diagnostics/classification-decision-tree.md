@@ -98,7 +98,7 @@ selector patterns).
 
 ### D0: Backend Caused UI Failure?
 - **Data source:** Steps 2+4+9 (console log 500s, pod health + backend probes, KG dependencies)
-- **How it works:** Cross-references console log for 500 errors, checks component health via KG dependency chain, verifies with ACM-UI MCP
+- **How it works:** Cross-references console log for 500 errors, checks component health via KG dependency chain, verifies with ACM Source MCP
 - **If YES:** Forces Path B2 (overrides selector-based Path A)
 - **If NO:** Proceed to 3-path routing
 

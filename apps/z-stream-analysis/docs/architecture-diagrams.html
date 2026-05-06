@@ -289,7 +289,7 @@ graph TD
   <p class="desc">How the AI agent investigates each pipeline failure. Five phases run in sequence: assess the environment and group tests via provably linked criteria (once), investigate each test/group using the 12-layer diagnostic model with optional investigation agents (per test/group), validate evidence, classify via D-V validation + PR cross-checks (see Diagram 3b), and correlate with JIRA. Click any phase to see its sub-steps and data sources.</p>
   <div class="mermaid">
 graph TD
-    PHASE_A["PHASE A: INITIAL ASSESSMENT\n(runs once for entire pipeline)\nRead cluster-diagnosis.json\n(structured health + counter-signals)\nRe-auth to cluster\nFeature area grounding\nEnvironment health check\nFailure pattern detection\nCross-test correlation scan\nA4: Provably linked grouping"]:::clickable --> PHASE_B["PHASE B: DEEP INVESTIGATION\n(runs per test/group)\n12-layer diagnostic model (v3.8)\nTrace symptom through infra layers\nPer-group investigation agents\nPer-test 4-point verification (v3.9)\nMCP queries: ACM-UI + KG\nTiered investigation: Tier 0-4"]:::clickable
+    PHASE_A["PHASE A: INITIAL ASSESSMENT\n(runs once for entire pipeline)\nRead cluster-diagnosis.json\n(structured health + counter-signals)\nRe-auth to cluster\nFeature area grounding\nEnvironment health check\nFailure pattern detection\nCross-test correlation scan\nA4: Provably linked grouping"]:::clickable --> PHASE_B["PHASE B: DEEP INVESTIGATION\n(runs per test/group)\n12-layer diagnostic model (v3.8)\nTrace symptom through infra layers\nPer-group investigation agents\nPer-test 4-point verification (v3.9)\nMCP queries: ACM Source + KG\nTiered investigation: Tier 0-4"]:::clickable
     PHASE_B --> PHASE_C["PHASE C: CROSS-REFERENCE\nVALIDATION (per test)\nMulti-evidence check: 2+ sources\nCascading failure detection\nCorrelation with Phase A findings"]:::clickable
     PHASE_C --> PHASE_D_REF["PHASE D: CLASSIFICATION\n+ VALIDATION (per test)\nSymmetric D-V5/c/e (v4.0)\nPR-6b Polarion + PR-7 context signals\nLayer discrepancy = Tier 1 PRODUCT_BUG\nD4b causal link, D5 counter-bias\nSee Diagram 3b for details"]:::clickable
     PHASE_D_REF --> PHASE_E["PHASE E: FEATURE CONTEXT\n+ JIRA CORRELATION\nKG subsystem context\nJIRA story + POR search\nAcceptance criteria review\nKnown issue matching\nOptional: create/link bugs"]:::clickable
@@ -737,7 +737,7 @@ const DATA = {
   },
   's7-search': {
     title: 'Step 7.3: Console Search (data-collector agent)',
-    html: `<div class="detail-section"><h4>Verify selector existence in product source</h4><div class="value">Selector verification is handled by the <strong>data-collector agent</strong> after gather.py completes. The agent uses MCP tools (ACM-UI <code>search_code</code>, <code>search_component</code>) to verify selector existence with full context &mdash; understanding PatternFly components, runtime-generated selectors, and correct route/page context. Results include a <code>verification</code> sub-key with method and detail. gather.py initializes the field as <code>null</code>.</div></div>`
+    html: `<div class="detail-section"><h4>Verify selector existence in product source</h4><div class="value">Selector verification is handled by the <strong>data-collector agent</strong> after gather.py completes. The agent uses MCP tools (ACM Source <code>search_code</code>, <code>search_code(scope="components")</code>) to verify selector existence with full context &mdash; understanding PatternFly components, runtime-generated selectors, and correct route/page context. Results include a <code>verification</code> sub-key with method and detail. gather.py initializes the field as <code>null</code>.</div></div>`
   },
   's7-changes': {
     title: 'Step 7.4: Selector Change History (data-collector agent)',
@@ -1304,7 +1304,7 @@ No CSV found but pods Running &rarr; "healthy" (not "missing")
         <div class="label">Kubeconfig persistence:</div>
         <div class="value">After environment validation, creates <code>cluster.kubeconfig</code> in the run directory. Stage 2 uses <code>--kubeconfig</code> on all <code>oc</code> commands instead of re-authenticating with the (masked) password.</div>
         <div class="label">Services used:</div>
-        <div class="value">JenkinsAPIClient, JenkinsIntelligenceService, StackTraceParser, EnvironmentValidationService, ClusterInvestigationService, EnvironmentOracleService, RepositoryAnalysisService, TimelineComparisonService, ComponentExtractor, FeatureAreaService, FeatureKnowledgeService, KnowledgeGraphClient, ACMUIMCPClient</div>
+        <div class="value">JenkinsAPIClient, JenkinsIntelligenceService, StackTraceParser, EnvironmentValidationService, ClusterInvestigationService, EnvironmentOracleService, RepositoryAnalysisService, TimelineComparisonService, ComponentExtractor, FeatureAreaService, FeatureKnowledgeService, KnowledgeGraphClient, ACMSourceMCPClient</div>
       </div>
     `
   },
@@ -1543,7 +1543,7 @@ at Context.eval
         <div class="label">Cluster re-authentication:</div>
         <div class="value">Phase A-1 verifies the kubeconfig with <code>oc whoami --kubeconfig cluster.kubeconfig</code>. If verification fails, reduces all classification confidence by 0.15 and proceeds with snapshot data only.</div>
         <div class="label">MCP servers available:</div>
-        <div class="value">ACM-UI (20 tools) &bull; JIRA (25 tools) &bull; Jenkins (11 tools) &bull; Polarion (25 tools) &bull; Neo4j RHACM (2 tools)</div>
+        <div class="value">ACM Source (18 tools) &bull; JIRA (25 tools) &bull; Jenkins (11 tools) &bull; Polarion (25 tools) &bull; Neo4j RHACM (2 tools)</div>
         <div class="label">Runtime:</div>
         <div class="value">~20-60 minutes for full build analysis</div>
       </div>
@@ -1674,7 +1674,7 @@ If any check fails &rarr; split to individual investigation</pre>
         <div class="label">Supplemental evidence gathering (B1-B8d):</div>
 <pre class="data-block"><span class="key">B1-B3:</span> Extracted context, timeline, console log
 <span class="key">B3b:</span> External service dependencies (Minio, Gogs, AAP)
-<span class="key">B4:</span> MCP queries (ACM-UI, Knowledge Graph)
+<span class="key">B4:</span> MCP queries (ACM Source, Knowledge Graph)
 <span class="key">B5/B5b:</span> Backend component analysis + live pod health
 <span class="key">B7/B7c:</span> Backend health check (via cluster-diagnosis.json)
 <span class="key">B6:</span> Repo deep dive (read test code, trace imports)
@@ -1683,7 +1683,7 @@ If any check fails &rarr; split to individual investigation</pre>
         <div class="label">Real example (RHACM4K-2576):</div>
 <pre class="data-block"><span class="key">B0:</span> Symptom: timeout on selector &rarr; Layer 12 (UI)
 <span class="key">B1:</span> Selector <span class="str">.tf--list-box__menu-item</span> not found
-<span class="key">B4:</span> ACM-UI search_code(".tf--list-box") &rarr; <span class="str">found=false</span>
+<span class="key">B4:</span> ACM Source search_code(".tf--list-box") &rarr; <span class="str">found=false</span>
     tf-- prefix = legacy Carbon component (removed)
 <span class="key">B5:</span> CLC subsystem healthy, console pods Running
 <span class="key">Root cause layer:</span> Layer 12 (UI) &mdash; test code uses
@@ -2016,8 +2016,8 @@ test_name = <span class="str">"RHACM4K-2576: CLC: Verify..."</span>
    &rarr; cluster-image-set-controller &rarr; <span class="str">Running</span>
    &rarr; No cascade from any failed component
 
-<span class="dim">// 4. MCP: ACM-UI search for the feature</span>
-   mcp__acm-ui__search_code("Release Images")
+<span class="dim">// 4. MCP: ACM Source search for the feature</span>
+   mcp__acm-source__search_code("Release Images")
    &rarr; Component exists, renders correctly in source</pre>
         <div class="separator"></div>
         <div class="label">AI decision:</div>
@@ -2065,7 +2065,7 @@ test_name = <span class="str">"RHACM4K-2576: CLC: Verify..."</span>
         <div class="value" style="color:var(--accent);font-weight:700">failure_type = "timeout" + console_search.found = false + backend OK &rarr; PATH A (selector mismatch)</div>
         <div class="separator"></div>
         <div class="label">Additional MCP verification:</div>
-        <div class="value">The AI also called <code>mcp__acm-ui__get_acm_selectors</code> for the Release Images component. The MCP confirmed that the current selectors use PatternFly classes (e.g., <code>.pf-v6-c-menu__list-item</code>), not the Carbon <code>.tf--list-box__menu-item</code> class.</div>
+        <div class="value">The AI also called <code>mcp__acm-source__get_acm_selectors</code> for the Release Images component. The MCP confirmed that the current selectors use PatternFly classes (e.g., <code>.pf-v6-c-menu__list-item</code>), not the Carbon <code>.tf--list-box__menu-item</code> class.</div>
       </div>
     `
   },

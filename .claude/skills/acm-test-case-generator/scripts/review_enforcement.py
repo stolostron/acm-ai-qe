@@ -35,8 +35,7 @@ def count_mcp_verifications(review_text: str) -> int:
     section = section_match.group(0)
     entries = re.findall(
         r"\d+\.\s+`?(?:search_translations|get_routes|get_component_source|"
-        r"search_code|get_wizard_steps|find_test_ids|get_acm_selectors|"
-        r"get_polarion_work_items|get_polarion_test_case_summary)",
+        r"search_code|get_wizard_steps|find_test_ids|get_acm_selectors)",
         section,
         re.IGNORECASE,
     )

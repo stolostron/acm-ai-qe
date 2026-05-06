@@ -2,7 +2,7 @@
 name: code-change-analyzer
 description: Analyze PR diffs to understand what changed and what needs testing
 tools:
-  - acm-ui
+  - acm-source
   - neo4j-rhacm
   - jira
   - bash
@@ -26,7 +26,7 @@ gh pr diff <N> --repo stolostron/console
 gh pr view <N> --repo kubevirt-ui/kubevirt-plugin --json title,body,files  # For Fleet Virt PRs
 ```
 
-### ACM UI MCP -- Read component source
+### ACM Source MCP -- Read component source
 
 ```
 set_acm_version('VERSION')                              # MUST call first
@@ -68,7 +68,7 @@ Requires Podman with `neo4j-rhacm` container running.
    - `gh pr diff <N> --repo stolostron/console`
    - Categorize changes: new files vs modified files
 
-3. **Set ACM version in acm-ui MCP:**
+3. **Set ACM version in acm-source MCP:**
    - `set_acm_version('VERSION')` -- MUST call before any source lookups
 
 4. **For each changed file, identify:**

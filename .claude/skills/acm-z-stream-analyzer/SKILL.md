@@ -1,7 +1,7 @@
 ---
 name: acm-z-stream-analyzer
 description: Analyze Jenkins pipeline test failures and classify each as PRODUCT_BUG, AUTOMATION_BUG, INFRASTRUCTURE, or NO_BUG. Runs a 4-stage pipeline with data gathering, cluster diagnostics, AI classification, and report generation. Use when asked to analyze a Jenkins run, classify test failures, or investigate pipeline results.
-compatibility: "Required MCPs: acm-ui, jira, polarion. Recommended: neo4j-rhacm, jenkins. Requires oc CLI and gh CLI. Run /onboard to configure all MCPs."
+compatibility: "Required MCPs: acm-source, jira, polarion. Recommended: neo4j-rhacm, jenkins. Requires oc CLI and gh CLI. Run /onboard to configure all MCPs."
 metadata:
   author: acm-qe
   version: "1.0.0"
@@ -24,10 +24,10 @@ This skill orchestrates the following skills:
 | **acm-data-enricher** | Post-Stage 1 | Enrich core-data.json with selector verification, timeline analysis, page object resolution |
 | **acm-failure-classifier** | Stage 2 | Full 5-phase classification analysis (A through E) |
 | **acm-cluster-investigator** | Stage 2 | Per-group deep investigation dispatched by the classifier |
-| **acm-ui-source** | Stages 1.5-2 | Selector verification, source code search |
-| **acm-neo4j-explorer** | Stages 1.5-2 | Component dependency analysis |
-| **acm-jira-client** | Stage 2 | Bug correlation and story context |
-| **acm-polarion-client** | Stage 2 | Test case expected behavior |
+| **acm-source** (MCP) | Stages 1.5-2 | Selector verification, source code search |
+| **neo4j-rhacm** (MCP) | Stages 1.5-2 | Component dependency analysis |
+| **jira** (MCP) | Stage 2 | Bug correlation and story context |
+| **polarion** (MCP) | Stage 2 | Test case expected behavior |
 | **acm-knowledge-base** | All stages | Shared area architecture context |
 
 ## Pipeline Stages
@@ -84,7 +84,7 @@ Skip if `--skip-env` was used or cluster access is unavailable.
 
 Using the acm-data-enricher skill, enrich `core-data.json`:
 - Task 1: Resolve page objects (trace imports)
-- Task 2: Verify selector existence (via acm-ui-source MCP)
+- Task 2: Verify selector existence (via acm-source MCP)
 - Task 3: Selector timeline analysis (git history + intent)
 - Task 4: Feature knowledge gap filling (conditional)
 

@@ -71,17 +71,17 @@ The pipeline has 8 steps: 2 deterministic stages + 6 AI phases. "6-phase" in the
 | Agent | Phase | MCP Tools | Role |
 |-------|-------|-----------|------|
 | Feature Investigator | 1 (parallel) | jira, polarion, neo4j-rhacm, bash | JIRA deep dive: ACs, comments, linked tickets, Polarion coverage |
-| Code Change Analyzer | 1 (parallel) | acm-ui, neo4j-rhacm, bash | PR diff analysis: changed components, UI elements, interaction models |
-| UI Discovery | 1 (parallel) | acm-ui, neo4j-rhacm, playwright (conditional), bash | ACM Console source: selectors, translations, routes, wizard steps + optional live verification |
+| Code Change Analyzer | 1 (parallel) | acm-source, neo4j-rhacm, bash | PR diff analysis: changed components, UI elements, interaction models |
+| UI Discovery | 1 (parallel) | acm-source, neo4j-rhacm, playwright (conditional), bash | ACM Console source: selectors, translations, routes, wizard steps + optional live verification |
 | Live Validator | 3 | playwright, acm-search, acm-kubectl, bash | Browser + oc CLI + fleet queries on real cluster |
-| Test Case Generator | 4 | acm-ui | Write test case markdown from synthesized context |
-| Quality Reviewer | 4.5 | acm-ui, polarion | Convention compliance, discovered vs assumed, AC vs implementation |
+| Test Case Generator | 4 | acm-source | Write test case markdown from synthesized context |
+| Quality Reviewer | 4.5 | acm-source | Convention compliance, discovered vs assumed, AC vs implementation |
 
 ## MCP Servers
 
 | Server | Tools | Source | Purpose |
 |--------|-------|--------|---------|
-| acm-ui | 20 | This repo (`mcp/acm-ui-mcp-server/`) | ACM Console source code search via GitHub |
+| acm-source | 18 | This repo (`mcp/acm-source-mcp-server/`) | ACM Console source code search via GitHub |
 | jira | 3 | [stolostron/jira-mcp-server](https://github.com/stolostron/jira-mcp-server) | JIRA ticket investigation |
 | polarion | 7 | This repo (`mcp/polarion/`) | Existing Polarion test case coverage |
 | neo4j-rhacm | 2 | [mcp-neo4j-cypher](https://pypi.org/project/mcp-neo4j-cypher/) (PyPI) | Component dependency analysis |

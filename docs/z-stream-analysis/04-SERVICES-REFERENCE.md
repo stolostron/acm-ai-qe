@@ -16,7 +16,7 @@ gather.py ──┬── JenkinsAPIClient ──────────── 
             ├── TimelineComparisonService ──── Git date comparison
             ├── ComponentExtractor ─────────── Error → component names
             ├── ACMConsoleKnowledge ─────────── Directory structure mapping
-            ├── ACMUIMCPClient ─────────────── MCP fallback for Stage 1
+            ├── ACMSourceMCPClient ─────────────── MCP fallback for Stage 1
             ├── ClusterInvestigationService ── Cluster landscape + pod diagnostics (v3.0)
             ├── FeatureAreaService ────────── Test-to-feature-area mapping (v3.0)
             ├── FeatureKnowledgeService ──── Playbook loading + symptom matching (v3.1)
@@ -204,15 +204,15 @@ Stage 1+2 ─── KnowledgeGraphClient ─────────── Neo4j
 | `find_element_with_mcp(selector, search_all_repos)` | Search via MCP integration |
 ---
 
-### 8. ACMUIMCPClient
+### 8. ACMSourceMCPClient
 
 | Property | Value |
 |----------|-------|
-| **File** | `src/services/acm_ui_mcp_client.py` (295 lines) |
+| **File** | `src/services/acm_source_mcp_client.py` (295 lines) |
 | **Purpose** | Python MCP client for Stage 1 data gathering; Stage 2 uses Claude Code's native MCP |
 | **Used by** | Stage 1 (CNV detection) |
 
-**Key exports:** `ACMUIMCPClient`, `ElementInfo`, `SearchResult`, `CNVVersionInfo`, `FleetVirtSelectors`, `get_acm_ui_mcp_client`, `is_acm_ui_mcp_available`
+**Key exports:** `ACMSourceMCPClient`, `ElementInfo`, `SearchResult`, `CNVVersionInfo`, `FleetVirtSelectors`, `get_acm_source_mcp_client`, `is_acm_source_mcp_available`
 
 **Key methods:**
 
@@ -519,7 +519,7 @@ is handled by Stage 1.5 (cluster-diagnostic agent) and Stage 2 (analysis agent).
 | StackTraceParser | Steps 3, 7 | | |
 | TimelineComparisonService | Step 6 (repo cloning) | | |
 | ACMConsoleKnowledge | Step 7 | Phase B | |
-| ACMUIMCPClient | Step 6 (CNV detection) | | |
+| ACMSourceMCPClient | Step 6 (CNV detection) | | |
 | ComponentExtractor | Step 7 | | |
 | KnowledgeGraphClient | Step 9 | Phases B5, C2, E0 | |
 | ClusterInvestigationService | Step 4 | Phase B5b | |

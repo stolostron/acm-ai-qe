@@ -77,9 +77,9 @@ Sufficient for clear cases:
 
 ### Tier 1: + MCP Selector Verification
 When Tier 0 is ambiguous:
-- Use acm-ui-source `search_code` to verify selector in official source
-- Use acm-ui-source `search_translations` to verify UI text
-- Use acm-ui-source `get_component_source` to read the component
+- Use acm-source MCP `search_code` to verify selector in official source
+- Use acm-source MCP `search_translations` to verify UI text
+- Use acm-source MCP `get_component_source` to read the component
 
 ### Tier 2: + Repo Code Reading
 When MCP alone is insufficient:
@@ -101,9 +101,9 @@ oc get pods -n <ns> | grep <component>
 
 ### Tier 4: + Cross-System
 For complex cases:
-- acm-jira-client: search for known bugs matching the pattern
-- acm-polarion-client: read test case expected behavior
-- acm-neo4j-explorer: query component dependencies
+- jira MCP: search for known bugs matching the pattern
+- polarion MCP: read test case expected behavior
+- neo4j-rhacm MCP: query component dependencies
 - Knowledge graph subsystem analysis
 
 ## Backend Cross-Check (B7)

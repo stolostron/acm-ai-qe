@@ -11,7 +11,7 @@ metadata:
 
 Diagnoses ACM hub cluster health using a 6-phase pipeline. Works at 4 depth levels from a 30-second sanity check to a 10-minute deep investigation. Produces a structured health report with evidence-based findings.
 
-**Standalone operation:** This skill works independently. Give it cluster access (`oc` logged in) and it runs the full diagnostic. When used with the acm-cluster-health skill, it follows the 12-layer methodology. When used with acm-neo4j-explorer, it gets richer dependency analysis. Without those skills, it still works -- just with less depth.
+**Standalone operation:** This skill works independently. Give it cluster access (`oc` logged in) and it runs the full diagnostic. When used with the acm-cluster-health skill, it follows the 12-layer methodology. When used with the neo4j-rhacm MCP, it gets richer dependency analysis. Without those, it still works -- just with less depth.
 
 ## Knowledge Directory
 
@@ -175,7 +175,7 @@ Trace dependency chains when multiple issues found:
 
 1. Read `${KNOWLEDGE_DIR}/diagnostics/dependency-chains.md` (12 chains)
 2. For each chain: check each link against Phase 3 findings. Record broken links and root causes.
-3. Use acm-neo4j-explorer skill for dependencies not in curated chains (if available)
+3. Use neo4j-rhacm MCP for dependencies not in curated chains (if available)
 4. If acm-search MCP available: spoke-side chain verification
 5. Weight evidence per `${KNOWLEDGE_DIR}/diagnostics/evidence-tiers.md`: minimum 2 sources per conclusion, at least 1 Tier 1
 6. Verify conclusions against trap list -- is this a diagnostic trap?

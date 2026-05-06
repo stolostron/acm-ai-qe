@@ -24,7 +24,7 @@ The 5-phase structure (A-E) is preserved. The layer-based investigation is the m
 
 **Invocation:** The analysis agent reads the run directory and applies the 12-layer investigation methodology within a 5-phase framework.
 
-**Input:** `core-data.json` + `cluster-diagnosis.json` (from Stages 1/1.5), `repos/` (fallback), MCP servers (ACM-UI, Jenkins, JIRA, Polarion, Knowledge Graph)
+**Input:** `core-data.json` + `cluster-diagnosis.json` (from Stages 1/1.5), `repos/` (fallback), MCP servers (ACM Source, Jenkins, JIRA, Polarion, Knowledge Graph)
 
 **Output:** `analysis-results.json` (classification per test with root cause layer, evidence, and investigation steps)
 
@@ -33,8 +33,8 @@ core-data.json ──► AI Agent ──► analysis-results.json
                       │
      ┌────────┬───────┼───────┬──────────┐
      ▼        ▼       ▼       ▼          ▼
-  ACM-UI   Jenkins   JIRA  Polarion  Knowledge
-  (20)     (11)     (25)   (25)     Graph MCP
+  ACM Source   Jenkins   JIRA  Polarion  Knowledge
+  (18)     (11)     (25)   (25)     Graph MCP
 ```
 
 ### Full Investigation Flow
@@ -66,7 +66,7 @@ core-data.json ──► AI Agent ──► analysis-results.json
 │  B1: Check extracted_context (test code, page objects, selectors)   │
 │  B2: Check recent_selector_changes + temporal_summary (renamed?)   │
 │  B3: Check console_log (500s? network errors? auth errors?)        │
-│  B4: Query MCP tools (ACM-UI search, JIRA, Knowledge Graph)        │
+│  B4: Query MCP tools (ACM Source search, JIRA, Knowledge Graph)        │
 │  B5: Backend component analysis (detected_components → KG)          │
 │  B5b: Targeted pod investigation [conditional]                      │
 │        └── Trigger: 500 errors OR ambiguous classification          │
@@ -276,7 +276,7 @@ For each test in test_report.failed_tests[]:
       └── Auth errors → PRODUCT_BUG signal
 
   B4: Query MCP tools (if needed)
-      ├── ACM-UI: search_code, find_test_ids, get_component_source
+      ├── ACM Source: search_code, find_test_ids, get_component_source
       ├── JIRA: search_issues (for related bugs)
       └── Knowledge Graph: read_neo4j_cypher (component dependencies)
 

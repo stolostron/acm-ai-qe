@@ -30,13 +30,13 @@
 ### Process
 1. Deduplicate by `failing_selector`
 2. Determine ACM version from `cluster_landscape.mch_version` (extract major.minor)
-3. Set ACM version via acm-ui-source skill
+3. Set ACM version via acm-source MCP `set_acm_version`
 4. Classify selector type:
    - `data-testid` / `data-test` / `id` -> search as literal string
    - `pf-v5-c-*` / `pf-v6-c-*` -> derive PatternFly component name, search for component
    - `.custom-class` -> search as literal
    - Hex colors like `#DB242F` -> skip (false selector from parser)
-5. Search product source via acm-ui-source `search_code`
+5. Search product source via acm-source MCP `search_code`
 6. For VM/virt selectors: also search `repo="kubevirt"`
 
 ### PatternFly class derivation rules

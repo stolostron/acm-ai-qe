@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Unit tests for ACM UI MCP Client Service
+Unit tests for ACM Source MCP Client Service
 
-Note: The ACM UI MCP Client has been simplified in v2.2.
+Note: The ACM Source MCP Client has been simplified in v2.2.
 - MCP protocol calls are now handled by Claude Code's native MCP integration
 - Python client provides only fallback CNV version detection for Phase 1
 - Tests updated to reflect this simplified behavior
@@ -15,26 +15,26 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch, MagicMock
 
-from src.services.acm_ui_mcp_client import (
-    ACMUIMCPClient,
+from src.services.acm_source_mcp_client import (
+    ACMSourceMCPClient,
     ElementInfo,
     SearchResult,
     CNVVersionInfo,
     FleetVirtSelectors,
-    get_acm_ui_mcp_client,
-    is_acm_ui_mcp_available
+    get_acm_source_mcp_client,
+    is_acm_source_mcp_available
 )
 
 
-class TestACMUIMCPClientInit:
-    """Tests for ACM UI MCP Client initialization."""
+class TestACMSourceMCPClientInit:
+    """Tests for ACM Source MCP Client initialization."""
 
     def test_init_without_config(self):
         """Test initialization - config parameter is now ignored."""
         with TemporaryDirectory() as tmpdir:
             # Point to non-existent config - should not matter now
             fake_config_path = Path(tmpdir) / 'nonexistent.json'
-            client = ACMUIMCPClient(mcp_config_path=fake_config_path)
+            client = ACMSourceMCPClient(mcp_config_path=fake_config_path)
 
             # is_available always returns False (use Claude Code native MCP instead)
             assert client.is_available is False
@@ -45,7 +45,7 @@ class TestACMUIMCPClientInit:
             config_path = Path(tmpdir) / 'mcp.json'
             config = {
                 'mcpServers': {
-                    'acm-ui': {
+                    'acm-source': {
                         'command': 'node',
                         'args': ['server.js'],
                         'env': {'DEBUG': '1'}
@@ -54,14 +54,14 @@ class TestACMUIMCPClientInit:
             }
             config_path.write_text(json.dumps(config))
 
-            client = ACMUIMCPClient(mcp_config_path=config_path)
+            client = ACMSourceMCPClient(mcp_config_path=config_path)
 
             # is_available always returns False now (use Claude Code native MCP)
             assert client.is_available is False
 
     def test_init_with_alternate_server_names(self):
         """Test initialization - config parsing removed in v2.2."""
-        client = ACMUIMCPClient()
+        client = ACMSourceMCPClient()
         # is_available always returns False now
         assert client.is_available is False
 
@@ -71,7 +71,7 @@ class TestACMUIMCPClientInit:
             config_path = Path(tmpdir) / 'mcp.json'
             config_path.write_text('{ invalid json }')
 
-            client = ACMUIMCPClient(mcp_config_path=config_path)
+            client = ACMSourceMCPClient(mcp_config_path=config_path)
 
             assert client.is_available is False
 
@@ -89,7 +89,7 @@ class TestACMUIMCPClientInit:
             }
             config_path.write_text(json.dumps(config))
 
-            client = ACMUIMCPClient(mcp_config_path=config_path)
+            client = ACMSourceMCPClient(mcp_config_path=config_path)
 
             assert client.is_available is False
 
@@ -99,10 +99,10 @@ class TestCNVVersionDetection:
 
     def test_detect_cnv_version_from_env(self):
         """Test CNV version detection from environment variable."""
-        client = ACMUIMCPClient()
+        client = ACMSourceMCPClient()
 
         # Mock subprocess to fail (force fallback to env)
-        with patch('src.services.acm_ui_mcp_client.run_subprocess') as mock_run:
+        with patch('src.services.acm_source_mcp_client.run_subprocess') as mock_run:
             mock_run.return_value = (False, '', 'error')
 
             with patch.dict(os.environ, {'CNV_VERSION': '4.20.3'}):
@@ -115,10 +115,10 @@ class TestCNVVersionDetection:
 
     def test_detect_cnv_version_fallback_returns_none(self):
         """Test CNV version detection returns None when nothing available."""
-        client = ACMUIMCPClient()
+        client = ACMSourceMCPClient()
 
         # Mock subprocess to fail
-        with patch('src.services.acm_ui_mcp_client.run_subprocess') as mock_run:
+        with patch('src.services.acm_source_mcp_client.run_subprocess') as mock_run:
             mock_run.return_value = (False, '', 'error')
 
             # Clear environment variable
@@ -131,10 +131,10 @@ class TestCNVVersionDetection:
 
     def test_detect_cnv_version_from_cluster(self):
         """Test CNV version detection from cluster."""
-        client = ACMUIMCPClient()
+        client = ACMSourceMCPClient()
 
         # Mock subprocess to return valid CSV info
-        with patch('src.services.acm_ui_mcp_client.run_subprocess') as mock_run:
+        with patch('src.services.acm_source_mcp_client.run_subprocess') as mock_run:
             mock_run.return_value = (True, 'kubevirt-hyperconverged-operator.v4.19.2,4.19.2', '')
 
             # Clear env to force cluster detection
@@ -152,13 +152,13 @@ class TestFleetVirtSelectors:
 
     def test_get_fleet_virt_selectors_unavailable(self):
         """Test get_fleet_virt_selectors returns None (use Claude Code MCP instead)."""
-        client = ACMUIMCPClient()
+        client = ACMSourceMCPClient()
         result = client.get_fleet_virt_selectors()
         assert result is None
 
     def test_get_fleet_virt_selectors_with_version(self):
         """Test get_fleet_virt_selectors with version - returns None."""
-        client = ACMUIMCPClient()
+        client = ACMSourceMCPClient()
         result = client.get_fleet_virt_selectors(version='4.20')
         assert result is None
 
@@ -168,13 +168,13 @@ class TestFindTestIds:
 
     def test_find_test_ids_unavailable(self):
         """Test find_test_ids returns empty list (use Claude Code MCP instead)."""
-        client = ACMUIMCPClient()
+        client = ACMSourceMCPClient()
         result = client.find_test_ids('some/path')
         assert result == []
 
     def test_find_test_ids_with_repository(self):
         """Test find_test_ids with repository - returns empty list."""
-        client = ACMUIMCPClient()
+        client = ACMSourceMCPClient()
         result = client.find_test_ids('some/path', repository='kubevirt')
         assert result == []
 
@@ -184,13 +184,13 @@ class TestSearchCode:
 
     def test_search_code_unavailable(self):
         """Test search_code returns empty list (use Claude Code MCP instead)."""
-        client = ACMUIMCPClient()
+        client = ACMSourceMCPClient()
         result = client.search_code('test-query')
         assert result == []
 
     def test_search_code_with_options(self):
         """Test search_code with options - returns empty list."""
-        client = ACMUIMCPClient()
+        client = ACMSourceMCPClient()
         result = client.search_code('test-query', repository='acm', max_results=50)
         assert result == []
 
@@ -200,13 +200,13 @@ class TestFindElementDefinition:
 
     def test_find_element_definition_returns_empty(self):
         """Test find_element_definition returns empty dict."""
-        client = ACMUIMCPClient()
+        client = ACMSourceMCPClient()
         result = client.find_element_definition('#my-element')
         assert result == {}
 
     def test_find_element_definition_with_options(self):
         """Test find_element_definition with options - returns empty dict."""
-        client = ACMUIMCPClient()
+        client = ACMSourceMCPClient()
         result = client.find_element_definition('#my-element', search_all_repos=False)
         assert result == {}
 
@@ -216,13 +216,13 @@ class TestGetElementInventory:
 
     def test_get_element_inventory_unavailable(self):
         """Test get_element_inventory returns empty dict."""
-        client = ACMUIMCPClient()
+        client = ACMSourceMCPClient()
         result = client.get_element_inventory()
         assert result == {}
 
     def test_get_element_inventory_with_paths(self):
         """Test get_element_inventory with custom paths - returns empty dict."""
-        client = ACMUIMCPClient()
+        client = ACMSourceMCPClient()
         result = client.get_element_inventory(component_paths=['src/components/'])
         assert result == {}
 
@@ -311,20 +311,20 @@ class TestDataclasses:
 class TestSingletonFunctions:
     """Tests for singleton helper functions."""
 
-    def test_get_acm_ui_mcp_client_returns_same_instance(self):
-        """Test get_acm_ui_mcp_client returns singleton."""
+    def test_get_acm_source_mcp_client_returns_same_instance(self):
+        """Test get_acm_source_mcp_client returns singleton."""
         # Reset singleton for test
-        import src.services.acm_ui_mcp_client as module
-        module._acm_ui_mcp_client = None
+        import src.services.acm_source_mcp_client as module
+        module._acm_source_mcp_client = None
 
-        client1 = get_acm_ui_mcp_client()
-        client2 = get_acm_ui_mcp_client()
+        client1 = get_acm_source_mcp_client()
+        client2 = get_acm_source_mcp_client()
 
         assert client1 is client2
 
-    def test_is_acm_ui_mcp_available_returns_bool(self):
-        """Test is_acm_ui_mcp_available returns boolean."""
-        result = is_acm_ui_mcp_available()
+    def test_is_acm_source_mcp_available_returns_bool(self):
+        """Test is_acm_source_mcp_available returns boolean."""
+        result = is_acm_source_mcp_available()
         assert isinstance(result, bool)
         # Should be False since MCP is handled by Claude Code native MCP
         assert result is False
@@ -335,7 +335,7 @@ class TestToDictHelper:
 
     def test_to_dict_with_dataclass(self):
         """Test to_dict converts dataclass to dict."""
-        client = ACMUIMCPClient()
+        client = ACMSourceMCPClient()
         info = CNVVersionInfo(
             version='4.20.3',
             branch='release-4.20',
@@ -350,7 +350,7 @@ class TestToDictHelper:
 
     def test_to_dict_with_non_dataclass(self):
         """Test to_dict with non-dataclass returns empty dict."""
-        client = ACMUIMCPClient()
+        client = ACMSourceMCPClient()
 
         result = client.to_dict({'not': 'a dataclass'})
 
@@ -362,7 +362,7 @@ class TestVersionToBranch:
 
     def test_version_to_branch_standard(self):
         """Test standard version to branch conversion."""
-        client = ACMUIMCPClient()
+        client = ACMSourceMCPClient()
 
         assert client._version_to_branch('4.20.3') == 'release-4.20'
         assert client._version_to_branch('4.19.0') == 'release-4.19'
@@ -370,13 +370,13 @@ class TestVersionToBranch:
 
     def test_version_to_branch_short_version(self):
         """Test short version returns main."""
-        client = ACMUIMCPClient()
+        client = ACMSourceMCPClient()
 
         assert client._version_to_branch('4') == 'main'
         assert client._version_to_branch('') == 'main'
 
     def test_version_to_branch_two_parts(self):
         """Test two-part version."""
-        client = ACMUIMCPClient()
+        client = ACMSourceMCPClient()
 
         assert client._version_to_branch('4.20') == 'release-4.20'

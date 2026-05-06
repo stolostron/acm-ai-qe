@@ -104,7 +104,7 @@ PATTERNFLY_SELECTORS = {
 }
 
 # Initialize FastMCP
-mcp = FastMCP("acm-ui")
+mcp = FastMCP("acm-source")
 
 # Search paths for each repository
 SEARCH_PATHS = {
@@ -351,7 +351,7 @@ def list_repos() -> str:
     Lists all available repositories and their current version settings.
     Shows active ACM and CNV versions with their corresponding branches.
     """
-    output = ["=== ACM UI MCP Server ===", ""]
+    output = ["=== ACM Source MCP Server ===", ""]
     
     # Active versions
     output.append("Active Versions:")
@@ -479,41 +479,23 @@ def get_cluster_virt_info() -> str:
 
 
 @mcp.tool()
-def set_version(version: str, repo: str = "acm") -> str:
-    """
-    Sets the active branch for a repository (low-level).
-    
-    Prefer using set_acm_version() or set_cnv_version() for semantic version switching.
-    
-    Args:
-        version: Branch name (e.g., 'release-2.15', 'main', 'release-4.20')
-        repo: Repository key - 'acm' for stolostron/console, 'kubevirt' for kubevirt-ui/kubevirt-plugin
-    """
-    if repo not in REPOS:
-        return f"Error: Unknown repo '{repo}'. Available: {list(REPOS.keys())}"
-    
-    if state.gh_client.validate_ref(version, repo):
-        state.set_version(repo, version)
-        return f"Active version for {repo} ({REPOS[repo]}) set to {version}"
-    else:
-        return f"Error: Version '{version}' not found in {REPOS[repo]}"
-
-
-@mcp.tool()
 def set_acm_version(version: str) -> str:
     """
     Sets the ACM Console (stolostron/console) branch by ACM version number.
     Does NOT affect kubevirt-plugin - use set_cnv_version() or detect_cnv_version() for that.
-    
+
     Args:
         version: ACM version (e.g., '2.16', '2.15', 'latest', 'main')
                  - 'latest' = latest GA version (currently 2.16)
                  - 'main' = next unreleased version (currently 2.17)
-    
+
     Examples:
         set_acm_version('2.16')  # Use ACM 2.16 console features
         set_acm_version('main')  # Use development/next release
         set_acm_version('latest') # Use latest GA version
+
+    IMPORTANT: Does NOT affect kubevirt-plugin searches. For Fleet Virt/CCLM/MTV,
+    ALSO call set_cnv_version() -- they are independent version controls.
     """
     success, message = state.set_acm_version(version)
     
@@ -632,15 +614,22 @@ def get_current_version(repo: str = "acm") -> str:
 def find_test_ids(component_path: str, repo: str = "acm") -> str:
     """
     Searches for data-testid, id, aria-label, and data-test attributes in a specific file.
-    
+
     Args:
         component_path: Path to the file in the repository
         repo: Repository key - 'acm' for ACM Console, 'kubevirt' for Fleet Virt UI
-    
+
     Examples:
         - find_test_ids('frontend/src/ui-components/AcmTable/AcmTableToolbar.tsx', 'acm')
         - find_test_ids('src/views/search/components/SearchBar.tsx', 'kubevirt')
         - find_test_ids('cypress/views/selector-common.ts', 'kubevirt')
+
+    IMPORTANT: Results depend on the currently active version branch.
+    Call set_acm_version() BEFORE this tool to ensure correct results.
+    Without it, results come from whatever branch was last configured.
+
+    QE repos (acm-e2e, search-e2e, app-e2e, grc-e2e) always use 'main' branch
+    regardless of set_acm_version() setting. Only source repos are version-scoped.
     """
     if repo not in REPOS:
         return f"Error: Unknown repo '{repo}'. Available: {list(REPOS.keys())}"
@@ -668,14 +657,21 @@ def find_test_ids(component_path: str, repo: str = "acm") -> str:
 def get_component_source(path: str, repo: str = "acm") -> str:
     """
     Retrieves the raw source code for a file.
-    
+
     Args:
         path: Path to the file in the repository
         repo: Repository key - 'acm' or 'kubevirt'
-    
+
     Examples:
         - get_component_source('frontend/src/routes/Infrastructure/VirtualMachines/VirtualMachines.tsx', 'acm')
         - get_component_source('src/multicluster/components/CrossClusterMigration/CrossClusterMigration.tsx', 'kubevirt')
+
+    IMPORTANT: Results depend on the currently active version branch.
+    Call set_acm_version() BEFORE this tool to ensure correct results.
+    Without it, results come from whatever branch was last configured.
+
+    Returns full raw source code. For TypeScript types/interfaces only,
+    use get_component_types() instead (cleaner output, no implementation noise).
     """
     if repo not in REPOS:
         return f"Error: Unknown repo '{repo}'. Available: {list(REPOS.keys())}"
@@ -688,60 +684,52 @@ def get_component_source(path: str, repo: str = "acm") -> str:
 
 
 @mcp.tool()
-def search_component(query: str, repo: str = "acm") -> str:
-    """
-    Searches for a component file by name in the repository.
-    Uses heuristic search in common directories for each repo.
-    
-    Args:
-        query: Search term (e.g., 'SearchBar', 'Migration', 'TreeView')
-        repo: Repository key - 'acm' or 'kubevirt'
-    """
-    if repo not in REPOS:
-        return f"Error: Unknown repo '{repo}'. Available: {list(REPOS.keys())}"
-    
-    version = state.get_version(repo)
-    search_paths = SEARCH_PATHS.get(repo, [])
-    
-    results = []
-    
-    for base_path in search_paths:
-        tree = state.gh_client.get_tree(base_path, version, repo)
-        if isinstance(tree, list):
-            for item in tree:
-                if query.lower() in item.get('name', '').lower():
-                    results.append(item['path'])
-    
-    if not results:
-        return f"No components found matching '{query}' in {REPOS[repo]} common paths."
-    
-    return f"Found components in {REPOS[repo]}:\n" + "\n".join(results)
-
-
-@mcp.tool()
-def search_code(query: str, repo: str = "acm") -> str:
+def search_code(query: str, repo: str = "acm", scope: str = "all") -> str:
     """
     Searches for code containing the query string in a repository.
-    Uses GitHub code search.
-    
+
     Args:
         query: Search term (e.g., 'data-test-id', 'CrossClusterMigration', 'vm-search-input')
-        repo: Repository key - 'acm' or 'kubevirt'
+        repo: Repository key - 'acm', 'kubevirt', 'acm-e2e', 'search-e2e', 'app-e2e', 'grc-e2e'
+        scope: Search scope - 'all' (full repo via GitHub code search),
+               'components' (common component directories only, searches by filename)
+
+    IMPORTANT: Results depend on the currently active version branch.
+    Call set_acm_version() BEFORE this tool to ensure correct results.
+    Without it, results come from whatever branch was last configured.
+
+    Uses GitHub code search (scope='all') or directory tree walk (scope='components').
+    Returns file paths, not content. Limited to ~30 results.
+    To read actual file content, use get_component_source() with the file path.
     """
     if repo not in REPOS:
         return f"Error: Unknown repo '{repo}'. Available: {list(REPOS.keys())}"
-    
+
+    if scope == "components":
+        version = state.get_version(repo)
+        search_paths = SEARCH_PATHS.get(repo, [])
+        results = []
+        for base_path in search_paths:
+            tree = state.gh_client.get_tree(base_path, version, repo)
+            if isinstance(tree, list):
+                for item in tree:
+                    if query.lower() in item.get('name', '').lower():
+                        results.append(item['path'])
+        if not results:
+            return f"No components found matching '{query}' in {REPOS[repo]} common paths."
+        return f"Found components in {REPOS[repo]}:\n" + "\n".join(results)
+
     results = state.gh_client.search_code_in_repo(query, repo)
-    
+
     if not results:
         return f"No code found matching '{query}' in {REPOS[repo]}"
-    
+
     output = [f"Found {len(results)} files matching '{query}' in {REPOS[repo]}:"]
     for item in results:
         path = item.get('path', 'unknown')
         output.append(f"  - {path}")
         output.append(f"    URL: https://github.com/{REPOS[repo]}/blob/main/{path}")
-    
+
     return "\n".join(output)
 
 
@@ -750,27 +738,39 @@ def get_fleet_virt_selectors() -> str:
     """
     Returns common Fleet Virtualization UI selectors from kubevirt-plugin.
     Useful for Cypress test automation.
+
+    IMPORTANT: Results depend on the currently active CNV version branch.
+    Call set_cnv_version() or detect_cnv_version() BEFORE this tool.
+    Without it, results come from whatever branch was last configured.
     """
-    # Fetch the selector files from kubevirt-plugin
     selector_files = [
         "cypress/views/selector.ts",
         "cypress/views/selector-common.ts",
         "cypress/views/actions.ts",
     ]
-    
+
     version = state.get_version("kubevirt")
-    output = ["Fleet Virtualization UI Selectors (kubevirt-plugin):"]
-    
+    output = [f"Fleet Virtualization UI Selectors (kubevirt-plugin @ {version}):", ""]
+
     for file_path in selector_files:
         content = state.gh_client.get_file_content(file_path, version, "kubevirt")
         if content:
-            output.append(f"\n=== {file_path} ===")
-            # Extract export const lines (selector definitions)
+            output.append(f"=== {file_path} ===")
             for line in content.split('\n'):
-                if line.strip().startswith('export const') or line.strip().startswith('export const'):
-                    output.append(line.strip())
-    
-    output.append(f"\nSource: https://github.com/kubevirt-ui/kubevirt-plugin/tree/{version}/cypress/views")
+                stripped = line.strip()
+                if stripped.startswith('export const'):
+                    # Parse "export const NAME = 'value'" into structured format
+                    rest = stripped[len('export const'):].strip()
+                    if '=' in rest:
+                        name, _, value = rest.partition('=')
+                        name = name.strip().rstrip(':').strip()
+                        value = value.strip().rstrip(';').strip()
+                        output.append(f"  Selector: {name} = {value}")
+                    else:
+                        output.append(f"  {stripped}")
+            output.append("")
+
+    output.append(f"Source: https://github.com/kubevirt-ui/kubevirt-plugin/tree/{version}/cypress/views")
     return "\n".join(output)
 
 
@@ -779,6 +779,10 @@ def get_route_component(url_path: str) -> str:
     """
     Attempts to map a URL path to source files in both ACM and kubevirt-plugin repos.
     Note: This is a heuristic mapping based on standard UI structure.
+
+    IMPORTANT: Results depend on the currently active version branch.
+    Call set_acm_version() BEFORE this tool to ensure correct results.
+    Without it, results come from whatever branch was last configured.
     """
     path_parts = url_path.lower().strip('/').split('/')
     
@@ -809,7 +813,7 @@ def get_route_component(url_path: str) -> str:
         results.append("KubeVirt: src/multicluster/components/CrossClusterMigration/CrossClusterMigrationWizard.tsx")
     
     if not results:
-        return "Could not automatically map URL to component. Try using search_component with repo='acm' or repo='kubevirt'."
+        return "Could not automatically map URL to component. Try using search_code(query, scope='components') with repo='acm' or repo='kubevirt'."
     
     return "Possible source files:\n" + "\n".join(results)
 
@@ -823,16 +827,23 @@ def search_translations(query: str, exact: bool = False) -> str:
     """
     Searches ACM Console translation strings for matching text.
     Useful for finding exact UI text (button labels, messages, etc.) for test cases.
-    
+
     Args:
         query: Text to search for (e.g., 'Create cluster', 'role assignment', 'error')
         exact: If True, only return exact matches. Default False for partial matches.
-    
+
     Examples:
         search_translations('Create role assignment')  # Find button text
         search_translations('validate')  # Find all validation messages
         search_translations('error')  # Find all error-related strings
-    
+
+    IMPORTANT: Results depend on the currently active version branch.
+    Call set_acm_version() BEFORE this tool to ensure correct results.
+    Without it, results come from whatever branch was last configured.
+
+    Partial match by default. Set exact=True for exact key lookup.
+    Returns max 30 results. For all matches, use exact=True with the specific key.
+
     Returns:
         Matching translation keys and their English values.
     """
@@ -884,7 +895,7 @@ def search_translations(query: str, exact: bool = False) -> str:
 def get_acm_selectors(source: str = "both", component: str = "all") -> str:
     """
     Returns ACM Console UI selectors for test automation.
-    
+
     Args:
         source: Where to get selectors from:
                 - 'catalog': Curated selectors from QE repos (organized, proven)
@@ -896,13 +907,18 @@ def get_acm_selectors(source: str = "both", component: str = "all") -> str:
                 - 'search': Search component (search-e2e-test)
                 - 'app': Applications/ALC (application-ui-test)
                 - 'grc': Governance/GRC (acmqe-grc-test)
-    
+
     Examples:
         get_acm_selectors()  # Get all selectors from all components
         get_acm_selectors('catalog')  # Get curated selectors only
         get_acm_selectors('catalog', 'search')  # Get Search selectors only
         get_acm_selectors('catalog', 'grc')  # Get GRC selectors only
-    
+
+    IMPORTANT: Source selectors depend on the currently active version branch.
+    Call set_acm_version() BEFORE this tool to ensure correct results.
+    Without it, results come from whatever branch was last configured.
+    Catalog selectors (from QE repos) always use 'main' branch.
+
     Returns:
         Organized selector catalog and/or extracted selectors from source.
     """
@@ -1001,15 +1017,19 @@ def get_component_types(path: str, repo: str = "acm") -> str:
     """
     Extracts TypeScript type and interface definitions from a source file.
     Useful for understanding data models, props, and state structures.
-    
+
     Args:
         path: Path to the TypeScript file in the repository
         repo: Repository key - 'acm' or 'kubevirt'
-    
+
     Examples:
         get_component_types('frontend/src/routes/UserManagement/RoleAssignments/model/role-assignment-preselected.ts', 'acm')
         get_component_types('src/utils/types.ts', 'kubevirt')
-    
+
+    IMPORTANT: Results depend on the currently active version branch.
+    Call set_acm_version() BEFORE this tool to ensure correct results.
+    Without it, results come from whatever branch was last configured.
+
     Returns:
         Extracted type/interface definitions with their fields.
     """
@@ -1053,15 +1073,19 @@ def get_wizard_steps(path: str, repo: str = "acm") -> str:
     """
     Analyzes a wizard component to extract step structure and visibility conditions.
     Useful for understanding wizard flow and writing test cases for wizard-based features.
-    
+
     Args:
         path: Path to the wizard component file
         repo: Repository key - 'acm' or 'kubevirt'
-    
+
     Examples:
         get_wizard_steps('frontend/src/wizards/RoleAssignment/RoleAssignmentWizardModal.tsx', 'acm')
         get_wizard_steps('src/views/virtualmachines/wizards/CreateVMWizard.tsx', 'kubevirt')
-    
+
+    IMPORTANT: Results depend on the currently active version branch.
+    Call set_acm_version() BEFORE this tool to ensure correct results.
+    Without it, results come from whatever branch was last configured.
+
     Returns:
         Wizard steps with their names, order, and visibility conditions.
     """
@@ -1120,13 +1144,17 @@ def get_routes(repo: str = "acm") -> str:
     """
     Extracts navigation paths and route definitions from ACM Console.
     Useful for understanding the full navigation structure of the UI.
-    
+
     Args:
         repo: Repository key - currently only 'acm' is supported
-    
+
     Examples:
         get_routes()  # Get all ACM Console navigation paths
-    
+
+    IMPORTANT: Results depend on the currently active version branch.
+    Call set_acm_version() BEFORE this tool to ensure correct results.
+    Without it, results come from whatever branch was last configured.
+
     Returns:
         List of navigation paths with their URL patterns.
     """

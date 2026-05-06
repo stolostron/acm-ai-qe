@@ -26,25 +26,25 @@ APP_MCP_MAP = {
     1: {
         "name": "ACM Hub Health",
         "dir": "acm-hub-health",
-        "mcps": ["acm-ui", "neo4j-rhacm", "acm-search"],
+        "mcps": ["acm-source", "neo4j-rhacm", "acm-search"],
     },
     2: {
         "name": "Z-Stream Analysis",
         "dir": "z-stream-analysis",
-        "mcps": ["acm-ui", "jira", "jenkins", "polarion", "neo4j-rhacm"],
+        "mcps": ["acm-source", "jira", "jenkins", "polarion", "neo4j-rhacm"],
     },
     3: {
         "name": "Test Case Generator",
         "dir": "test-case-generator",
         "mcps": [
-            "acm-ui", "jira", "polarion", "neo4j-rhacm",
+            "acm-source", "jira", "polarion", "neo4j-rhacm",
             "acm-search", "acm-kubectl", "playwright",
         ],
     },
 }
 
 ALL_MCPS = [
-    "acm-ui", "jira", "jenkins", "polarion",
+    "acm-source", "jira", "jenkins", "polarion",
     "neo4j-rhacm", "acm-search", "acm-kubectl", "playwright",
 ]
 
@@ -203,9 +203,9 @@ def check_artifacts(app_nums, needed_mcps):
             ))
 
     venv_checks = {
-        "acm-ui": (
-            MCP_DIR / "acm-ui-mcp-server" / ".venv",
-            "import acm_ui_mcp_server",
+        "acm-source": (
+            MCP_DIR / "acm-source-mcp-server" / ".venv",
+            "import acm_source_mcp_server",
         ),
         "jira": (
             EXTERNAL_DIR / "jira-mcp-server" / ".venv",

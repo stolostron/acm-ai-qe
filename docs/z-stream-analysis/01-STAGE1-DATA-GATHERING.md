@@ -22,7 +22,7 @@ gather.py, then spawns the data-collector agent to enrich the output.
 2. **data-collector agent** (AI, ~3-5 min) — Enriches `core-data.json` with
    fields that require intelligent code analysis:
    - Task 1: Resolves `page_objects` by tracing imports in `repos/automation/`
-   - Task 2: Verifies `console_search` via MCP tools (ACM-UI)
+   - Task 2: Verifies `console_search` via MCP tools (ACM-Source)
    - Task 3: Analyzes `recent_selector_changes` and `temporal_summary` using
      git history with intent assessment
 
@@ -559,7 +559,7 @@ Page object resolution is handled by the **data-collector agent** after gather.p
 
 ### Sub-step 7c: Console Search (data-collector agent)
 
-Selector verification in product source is handled by the **data-collector agent** after gather.py completes. The agent uses MCP tools (ACM-UI `search_code`, `search_component`) to verify selector existence with full context — understanding PatternFly components, runtime-generated selectors, and correct route/page context. gather.py initializes the field as `null`.
+Selector verification in product source is handled by the **data-collector agent** after gather.py completes. The agent uses MCP tools (ACM-Source `search_code`, `search_code(scope="components")`) to verify selector existence with full context — understanding PatternFly components, runtime-generated selectors, and correct route/page context. gather.py initializes the field as `null`.
 
 **Output:**
 ```json
@@ -844,7 +844,7 @@ core-data.json
   "gathered_at": "",
   "gatherer_version": "4.0.0",
   "jenkins_api_available": true,
-  "acm_ui_mcp_available": true,
+  "acm_source_mcp_available": true,
   "knowledge_graph_available": false,
   "run_directory": "runs/<dir>",
   "gathering_time_seconds": 0.0,
@@ -1143,7 +1143,7 @@ kubevirt-plugin is only cloned when VM/virt tests are detected.
 | `FeatureAreaService` | 8 | Test-to-feature-area mapping (v3.0) |
 | `FeatureKnowledgeService` | 9 | Playbook loading, prerequisite checks, symptom matching (v3.1) |
 | `KnowledgeGraphClient` | 9 | Neo4j dependency queries for kg_dependency_context (v3.2) |
-| `ACMUIMCPClient` | 6 | CNV detection (Step 6) |
+| `ACMSourceMCPClient` | 6 | CNV detection (Step 6) |
 | `shared_utils` | All | Config, subprocess, credentials |
 
 See [04-SERVICES-REFERENCE.md](04-SERVICES-REFERENCE.md) for detailed method signatures.

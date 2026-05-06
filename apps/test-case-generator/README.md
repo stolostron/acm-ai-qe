@@ -141,7 +141,7 @@ Skills are defined in `.claude/skills/` with supporting files for phase gate enf
 | **Phase** | AI-driven orchestration step | 6 (Phase 0 through Phase 4.5) |
 | **Agent** | AI entity executing a phase | 6 (feature-investigator, code-change-analyzer, ui-discovery, live-validator, test-case-generator, quality-reviewer) |
 | **Skill** | Reusable slash command | 3 (/generate, /review, /batch) |
-| **MCP integration** | External tool connection | 7 (JIRA, Polarion, ACM UI, Neo4j, ACM Search, ACM Kubectl, Playwright) |
+| **MCP integration** | External tool connection | 7 (JIRA, Polarion, ACM Source, Neo4j, ACM Search, ACM Kubectl, Playwright) |
 
 The pipeline has **8 steps**: 2 deterministic stages + 6 AI phases. The tagline "6-phase" counts the AI phases only.
 
@@ -182,7 +182,7 @@ Not all MCP servers are required. The pipeline degrades gracefully:
 | MCP Server | Required? | If unavailable |
 |-----------|-----------|---------------|
 | **JIRA** | Yes | Pipeline cannot start (no ticket data) |
-| **acm-ui** | Yes | No UI element discovery; test case quality degrades significantly |
+| **acm-source** | Yes | No UI element discovery; test case quality degrades significantly |
 | **Polarion** | No | Skips existing coverage check; no duplication detection |
 | **Neo4j** | No | Skips architecture dependency analysis |
 | **Playwright** | No | Skips live browser verification (Phase 3) |
@@ -194,7 +194,7 @@ When an optional server is unavailable, the agent logs the gap and proceeds. Aff
 <details>
 <summary><b>Degraded Output Example</b></summary>
 
-When acm-ui is partially unavailable (translations search fails):
+When acm-source is partially unavailable (translations search fails):
 
 ```markdown
 ### Step 3: Verify policy status column shows compliance state
@@ -204,7 +204,7 @@ When acm-ui is partially unavailable (translations search fails):
 3. Check the Status column value
 
 **Expected Result:**
-- [MANUAL VERIFICATION REQUIRED: status column label could not be verified -- acm-ui
+- [MANUAL VERIFICATION REQUIRED: status column label could not be verified -- acm-source
   search_translations unavailable. Verify exact column header text on a running cluster.]
 - Status shows either "Compliant" or "Non-compliant" based on cluster state
 ```
@@ -222,7 +222,7 @@ flowchart LR
     subgraph "Phase 1 — Parallel"
         FI["Feature\nInvestigator\n(JIRA + Polarion)"]
         CA["Code Change\nAnalyzer\n(PR + Neo4j)"]
-        UD["UI Discovery\n(acm-ui + browser)"]
+        UD["UI Discovery\n(acm-source + browser)"]
     end
 
     FI --> P2[Phase 2: Synthesize]
@@ -233,8 +233,8 @@ flowchart LR
 | Agent | What it discovers | MCP tools |
 |-------|-------------------|-----------|
 | **Feature Investigator** | JIRA story, comments, linked tickets, Polarion coverage | jira, polarion, neo4j, bash |
-| **Code Change Analyzer** | Changed components, new UI elements, architecture impact | acm-ui, neo4j, bash |
-| **UI Discovery** | Selectors, translations, routes, wizard steps, test IDs | acm-ui, neo4j, playwright (optional), bash |
+| **Code Change Analyzer** | Changed components, new UI elements, architecture impact | acm-source, neo4j, bash |
+| **UI Discovery** | Selectors, translations, routes, wizard steps, test IDs | acm-source, neo4j, playwright (optional), bash |
 
 ## Supported Areas
 
@@ -316,9 +316,8 @@ The Quality Reviewer agent validates:
 1. Convention compliance (title, metadata, section order)
 2. AC vs implementation (every acceptance criterion covered)
 3. Scope alignment (no out-of-scope steps)
-4. Discovered vs assumed (UI elements verified via acm-ui MCP)
+4. Discovered vs assumed (UI elements verified via acm-source MCP)
 5. Numeric threshold validation
-6. Peer consistency (format matches existing test cases)
 
 Returns `PASS` or `NEEDS_FIXES` with specific issues. On `NEEDS_FIXES`, loops back to Phase 4.
 
@@ -363,7 +362,7 @@ Returns `PASS` or `NEEDS_FIXES` with specific issues. On `NEEDS_FIXES`, loops ba
 
 | Server | Tools | Purpose |
 |--------|:-----:|---------|
-| acm-ui | 20 | ACM Console + kubevirt-plugin source search via GitHub |
+| acm-source | 18 | ACM Console + kubevirt-plugin source search via GitHub |
 | jira | 25 | JIRA ticket investigation (stories, bugs, comments, links) |
 | polarion | 25 | Existing test case coverage (Polarion work items) |
 | neo4j-rhacm | 2 | Architecture dependency graph (component relationships) |

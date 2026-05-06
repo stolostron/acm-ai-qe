@@ -23,10 +23,10 @@ For each classification, explicitly document why the OTHER classifications don't
 
 ### 3. MCP Tools Used
 When trigger conditions are met, leverage MCP servers:
-- **acm-ui-source:** When selector existence needs verification
-- **acm-jira-client:** When classification is PRODUCT_BUG (search for existing bugs)
-- **acm-polarion-client:** When expected test behavior is unclear
-- **acm-neo4j-explorer:** When component dependencies need tracing
+- **acm-source MCP:** When selector existence needs verification
+- **jira MCP:** When classification is PRODUCT_BUG (search for existing bugs)
+- **polarion MCP:** When expected test behavior is unclear
+- **neo4j-rhacm MCP:** When component dependencies need tracing
 
 ### 4. Cross-Test Correlation
 Check for patterns across ALL failures in the run:

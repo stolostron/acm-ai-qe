@@ -1,14 +1,14 @@
-# ACM UI MCP Server - Complete Documentation
+# ACM Source MCP Server - Complete Documentation
 
 ## Overview
 
-The ACM UI MCP Server is a Model Context Protocol (MCP) server designed to provide AI coding assistants (like those in Cursor IDE) with deep, real-time knowledge of the Advanced Cluster Management (ACM) and Fleet Virtualization user interface codebases. It bridges the gap between AI assistants and the complex, multi-repository UI source code that powers Red Hat's ACM and OpenShift Virtualization console experiences.
+The ACM Source MCP Server is a Model Context Protocol (MCP) server designed to provide AI coding assistants (like those in Cursor IDE) with deep, real-time knowledge of the Advanced Cluster Management (ACM) and Fleet Virtualization user interface codebases. It bridges the gap between AI assistants and the complex, multi-repository UI source code that powers Red Hat's ACM and OpenShift Virtualization console experiences.
 
 ---
 
 ## The Problem It Solves
 
-When working on ACM UI automation (e.g., Cypress tests), developers and AI assistants face several challenges:
+When working on ACM Source automation (e.g., Cypress tests), developers and AI assistants face several challenges:
 
 1. **Selector Discovery**: Finding the correct `data-testid`, `data-test`, `id`, or `aria-label` attributes for UI elements requires manually searching through thousands of files across multiple repositories.
 
@@ -33,7 +33,7 @@ When working on ACM UI automation (e.g., Cypress tests), developers and AI assis
 |  +----------------------------+-------------------------------+  |
 |                               | MCP Protocol                      |
 |  +----------------------------v-------------------------------+  |
-|  |              ACM UI MCP Server                              |  |
+|  |              ACM Source MCP Server                              |  |
 |  |  +--------------+  +--------------+  +--------------+       |  |
 |  |  | GitHub       |  | UI           |  | Cluster      |       |  |
 |  |  | Client       |  | Analyzer     |  | Detector     |       |  |
@@ -78,7 +78,7 @@ When working on ACM UI automation (e.g., Cypress tests), developers and AI assis
 ### Repository Organization
 
 **Source Code Repositories:**
-- **ACM Console** (`acm`): The base ACM UI framework, including cluster management, RBAC, and infrastructure pages
+- **ACM Console** (`acm`): The base ACM Source framework, including cluster management, RBAC, and infrastructure pages
 - **KubeVirt Plugin** (`kubevirt`): OpenShift Console plugin for virtualization - Fleet Virtualization UI lives here
 
 **QE Automation Repositories (for selector catalogs):**
@@ -115,7 +115,7 @@ ACM 2.16 can manage clusters running CNV 4.18, 4.19, 4.20, or 4.21.
 
 **Example output**:
 ```
-=== ACM UI MCP Server ===
+=== ACM Source MCP Server ===
 
 Active Versions:
   ACM:  2.16 (Latest GA) -> stolostron/console @ release-2.16
@@ -225,11 +225,9 @@ Note: ACM Console unchanged (2.16).
 
 ---
 
-#### `set_version(version, repo)` (Legacy)
+#### `set_version(version, repo)` (REMOVED)
 
-**Purpose**: Manually sets the active branch for a repository (low-level).
-
-**Note**: Prefer using `set_acm_version()` or `set_cnv_version()` for semantic version switching.
+**Status**: This tool has been removed. Use `set_acm_version()` or `set_cnv_version()` instead.
 
 **Parameters**:
 - `version`: Branch name (e.g., `release-2.15`, `main`, `release-4.20`)
@@ -356,9 +354,9 @@ get_component_source("src/multicluster/components/CrossClusterMigration/CrossClu
 
 ---
 
-#### `search_component(query, repo)`
+#### `search_component(query, repo)` (REMOVED — use `search_code(query, repo, scope="components")`)
 
-**Purpose**: Searches for component files by name within common directories.
+**Status**: This tool has been merged into `search_code` with `scope="components"`. The behavior is identical.
 
 **Search paths for each repo**:
 
@@ -369,7 +367,7 @@ get_component_source("src/multicluster/components/CrossClusterMigration/CrossClu
 
 **Example**:
 ```python
-search_component("Migration", "kubevirt")
+search_code("Migration", "kubevirt", scope="components")
 ```
 
 **Example output**:
@@ -743,7 +741,7 @@ AI calls: set_acm_version('2.16')   # Use semantic version
 
 Step 2: Find table component
 -----------------------------------------
-AI calls: search_component("AcmTable", "acm")
+AI calls: search_code("AcmTable", "acm", scope="components")
 Result: frontend/src/ui-components/AcmTable/AcmTableToolbar.tsx
 
 Step 3: Extract selectors
@@ -861,9 +859,9 @@ Add to your Cursor MCP configuration:
 ```json
 {
   "mcpServers": {
-    "acm-ui": {
+    "acm-source": {
       "command": "/path/to/python",
-      "args": ["-m", "acm_ui_mcp_server.main"]
+      "args": ["-m", "acm_source_mcp_server.main"]
     }
   }
 }
@@ -916,13 +914,13 @@ Add to your Cursor MCP configuration:
 
 ```bash
 # Clone or navigate to the MCP server directory
-cd /path/to/acm-ui-mcp-server
+cd /path/to/acm-source-mcp-server
 
 # Install in development mode
 pip install -e .
 
 # Verify installation
-python -c "from acm_ui_mcp_server.server import list_repos; print(list_repos())"
+python -c "from acm_source_mcp_server.server import list_repos; print(list_repos())"
 ```
 
 ---

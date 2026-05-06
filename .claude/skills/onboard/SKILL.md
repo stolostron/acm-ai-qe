@@ -50,16 +50,13 @@ This repo provides ACM QE capabilities as portable skills:
   Skills (portable, in .claude/skills/):
   ──────────────────────────────────────
   Shared capabilities:
-    acm-jira-client           JIRA ticket investigation interface
-    acm-ui-source             ACM Console source code queries
-    acm-polarion-client       Polarion test case queries
-    acm-neo4j-explorer        RHACM component dependency graph
     acm-cluster-health        12-layer cluster health diagnostics
     acm-knowledge-base        ACM domain knowledge (area architecture, conventions)
+    acm-jenkins-client        Jenkins CI interface
 
   Test case generation:
     acm-test-case-generator   Orchestrator: generate test cases from JIRA tickets
-    acm-code-analyzer         PR diff analysis for code changes
+    acm-qe-code-analyzer         PR diff analysis for code changes
     acm-test-case-writer      Test case markdown authoring
     acm-test-case-reviewer    Quality gate with MCP verification
 
@@ -120,7 +117,7 @@ test -f apps/acm-hub-health/.mcp.json && echo "hub-health: configured" || echo "
 test -f apps/test-case-generator/.mcp.json && echo "test-case-gen: configured" || echo "test-case-gen: not configured"
 
 # venvs
-test -d mcp/acm-ui-mcp-server/.venv && echo "acm-ui venv: exists" || echo "acm-ui venv: missing"
+test -d mcp/acm-source-mcp-server/.venv && echo "acm-source venv: exists" || echo "acm-source venv: missing"
 test -d mcp/.external/jira-mcp-server/.venv && echo "jira venv: exists" || echo "jira venv: missing"
 test -d mcp/.external/jenkins-mcp/.venv && echo "jenkins venv: exists" || echo "jenkins venv: missing"
 
@@ -149,7 +146,7 @@ Prerequisites:
   Podman:    5.3.1            OK (optional)
 
 MCP Servers:
-  acm-ui:      venv exists    OK
+  acm-source:      venv exists    OK
   jira:        configured     OK
   jenkins:     configured     OK
   polarion:    configured     OK
@@ -189,14 +186,14 @@ Then generate the root `.mcp.json` by merging app configs (see Step 4 merge proc
 Otherwise (missing app configs or venvs), ask the user what they want to configure. Present the options:
 
 **Skills (portable):**
-- Test Case Generator skills (needs: acm-ui, jira, polarion; recommended: neo4j-rhacm; optional: acm-search, acm-kubectl, playwright)
+- Test Case Generator skills (needs: acm-source, jira, polarion; recommended: neo4j-rhacm; optional: acm-search, acm-kubectl, playwright)
 - Hub Health Diagnostic skills (needs: oc CLI; recommended: neo4j-rhacm; optional: acm-search)
-- Z-Stream Analysis skills (needs: acm-ui, jira, jenkins, polarion; recommended: neo4j-rhacm; optional: acm-search, acm-kubectl)
+- Z-Stream Analysis skills (needs: acm-source, jira, jenkins, polarion; recommended: neo4j-rhacm; optional: acm-search, acm-kubectl)
 
 **Apps (Claude Code):**
-- Z-Stream Analysis (needs: acm-ui, jira, jenkins, polarion, neo4j-rhacm)
-- ACM Hub Health (needs: acm-ui, neo4j-rhacm, acm-search)
-- Test Case Generator app (needs: acm-ui, jira, polarion, neo4j-rhacm, acm-search, acm-kubectl, playwright)
+- Z-Stream Analysis (needs: acm-source, jira, jenkins, polarion, neo4j-rhacm)
+- ACM Hub Health (needs: acm-source, neo4j-rhacm, acm-search)
+- Test Case Generator app (needs: acm-source, jira, polarion, neo4j-rhacm, acm-search, acm-kubectl, playwright)
 - All apps
 
 Let the user pick one or more.

@@ -42,7 +42,7 @@ The knowledge database (`knowledge/`) provides domain reference data that the AI
                     │                       │
                     │   Sources:            │
                     │   - oc get (cluster)  │
-                    │   - ACM-UI MCP        │
+                    │   - ACM Source MCP        │
                     │   - Neo4j KG          │
                     │   - learned/ entries  │
                     └───────────────────────┘
@@ -84,8 +84,8 @@ The knowledge database (`knowledge/`) provides domain reference data that the AI
 | `failure-patterns.yaml` | 19 patterns + JIRA cache | Short-circuit classification + bug correlation | Manual + learned/ promotion |
 | `service-map.yaml` | 15+ services | Service-to-pod mapping with endpoint diagnostics (validated against live ACM 2.16 GA) | Cluster snapshot + manual |
 | `version-constraints.yaml` | 5 constraints | Version incompatibility detection (OLM ceiling, Submariner, ClusterCurator, console-mce, AnsibleJob) | Manual QE review |
-| `selectors.yaml` | 50+ selectors | UI selector ground truth | ACM-UI MCP |
-| `api-endpoints.yaml` | 5 endpoints | Backend probe reference | ACM-UI MCP code search |
+| `selectors.yaml` | 50+ selectors | UI selector ground truth | ACM Source MCP |
+| `api-endpoints.yaml` | 5 endpoints | Backend probe reference | ACM Source MCP code search |
 | `feature-areas.yaml` | 13 areas | Test-to-feature mapping | Manual + code sync |
 | `test-mapping.yaml` | 10+ suites | Suite-to-area mapping | Manual |
 | `healthy-baseline.yaml` | 7 namespaces | Expected pod counts, deployment states, node thresholds (validated against live cluster) | Cluster snapshot via refresh.py + live cluster |
@@ -513,7 +513,7 @@ python -m knowledge.refresh --acm-version 2.17
 | Flag | Source | Target | Automated? |
 |------|--------|--------|------------|
 | `--components` | `oc get deployments` across ACM namespaces | `components.yaml` | Fully automated |
-| `--selectors` | ACM-UI MCP `get_acm_selectors` | `selectors.yaml` | Prints instructions (requires MCP) |
+| `--selectors` | ACM Source MCP `get_acm_selectors` | `selectors.yaml` | Prints instructions (requires MCP) |
 | `--dependencies` | Neo4j KG transitive queries | `dependencies.yaml` | Prints instructions (requires KG) |
 | `--promote` | `learned/*.yaml` entries | `failure-patterns.yaml` | Fully automated |
 
@@ -607,7 +607,7 @@ Run N+1: Agent reads updated failure-patterns.yaml
 |-------|--------|
 | New ACM version deployed | `python -m knowledge.refresh --components --acm-version X.Y` |
 | After analysis run | `python -m knowledge.refresh --promote` |
-| Selector test failures increasing | Refresh selectors via ACM-UI MCP |
+| Selector test failures increasing | Refresh selectors via ACM Source MCP |
 | New dependency chain discovered | Add to `dependencies.yaml` manually |
 
 ### Adding a New Component

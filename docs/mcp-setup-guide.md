@@ -10,10 +10,10 @@ Run `/onboard` in Claude Code to configure everything interactively.
 
 | Server | Type | Required By | Credentials |
 |--------|------|-------------|-------------|
-| acm-ui | Local Python server | acm-ui-source, acm-code-analyzer, acm-test-case-writer, acm-test-case-reviewer | GitHub CLI auth (`gh auth login`) |
-| jira | Local Python server | acm-jira-client | JIRA email + API token |
-| polarion | uvx + wrapper | acm-polarion-client | Polarion JWT token (VPN required) |
-| neo4j-rhacm | uvx + Podman container | acm-neo4j-explorer | None (local container, password: rhacmgraph) |
+| acm-source | Local Python server | acm-qe-code-analyzer, acm-test-case-writer, acm-test-case-reviewer, acm-data-enricher | GitHub CLI auth (`gh auth login`) |
+| jira | Local Python server | acm-test-case-generator, acm-z-stream-analyzer | JIRA email + API token |
+| polarion | uvx + wrapper | acm-test-case-generator, acm-z-stream-analyzer | Polarion JWT token (VPN required) |
+| neo4j-rhacm | uvx + Podman container | acm-qe-code-analyzer, acm-hub-health-check (optional) | None (local container, password: rhacmgraph) |
 | acm-search | Remote SSE (on-cluster) | acm-cluster-health (optional) | On-cluster service account token |
 | acm-kubectl | npm package | acm-cluster-health (optional) | Uses oc login |
 | playwright | npm package | acm-test-case-generator (optional) | None |
@@ -22,7 +22,7 @@ Run `/onboard` in Claude Code to configure everything interactively.
 ## Which MCPs Do I Need?
 
 ### For Test Case Generation
-- **Required:** acm-ui, jira, polarion
+- **Required:** acm-source, jira, polarion
 - **Recommended:** neo4j-rhacm (richer architecture analysis)
 - **Optional:** acm-search, acm-kubectl, playwright (live cluster validation)
 
@@ -32,7 +32,7 @@ Run `/onboard` in Claude Code to configure everything interactively.
 - **Optional:** acm-search (fleet-wide spoke queries)
 
 ### For Z-Stream Analysis
-- **Required:** acm-ui, jira, jenkins, polarion
+- **Required:** acm-source, jira, jenkins, polarion
 - **Recommended:** neo4j-rhacm
 - **Optional:** acm-search, acm-kubectl
 

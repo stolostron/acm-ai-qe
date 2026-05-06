@@ -7,7 +7,7 @@ tools:
   - Write
   - Glob
   - Grep
-  - mcp__acm-ui
+  - mcp__acm-source
   - mcp__neo4j-rhacm
   - mcp__acm-search
   - mcp__acm-kubectl
@@ -115,7 +115,7 @@ If NO  → the cluster-wide issue is IRRELEVANT to this test → continue invest
 
 | Error type | Verification method | If verification fails |
 |---|---|---|
-| Selector not found | ACM-UI MCP `search_code("<selector>")`. If NOT FOUND in official source → selector is dead regardless of which image runs → AUTOMATION_BUG | Reclassify AUTOMATION_BUG |
+| Selector not found | ACM-Source MCP `search_code("<selector>")`. If NOT FOUND in official source → selector is dead regardless of which image runs → AUTOMATION_BUG | Reclassify AUTOMATION_BUG |
 | Button disabled / aria-disabled | `oc auth can-i <verb> <resource> --as=<test-user>`. If backend GRANTS permission but UI disables → PRODUCT_BUG (UI logic bug). Fallback when kubeconfig expired: check test role against RBAC requirements in `knowledge/architecture/rbac/` | Reclassify PRODUCT_BUG or AUTOMATION_BUG |
 | Timeout waiting for element | Check component health: `oc get deploy <component>` + `oc logs`. If component healthy AND selector exists in official source → AUTOMATION_BUG (test timing). If component unhealthy → verify THIS test depends on that component | Reclassify AUTOMATION_BUG if component healthy |
 | Data assertion (expected X got Y) | Check backend data: `oc get <resource>` or `oc exec curl` to API. Compare API response vs test expectation. If API correct but UI wrong → PRODUCT_BUG (transformation bug). If API wrong → trace upstream | Reclassify PRODUCT_BUG |
@@ -129,7 +129,7 @@ If NO  → the cluster-wide issue is IRRELEVANT to this test → continue invest
 `console_search.found` field in core-data.json was checked against the
 TAMPERED console, not the official one. It tells you the selector isn't
 in the tampered console but says NOTHING about the official console.
-You MUST use ACM-UI MCP `search_code("<selector>")` to check the
+You MUST use ACM-Source MCP `search_code("<selector>")` to check the
 official source. A selector missing from BOTH tampered AND official
 console = AUTOMATION_BUG (dead selector), not INFRASTRUCTURE.
 
@@ -211,7 +211,7 @@ oc logs <related-pod> --tail=100
 oc get events -n <ns> --sort-by=.lastTimestamp
 ```
 
-- ACM-UI MCP: `search_code("<component>")` for intended behavior
+- ACM-Source MCP: `search_code("<component>")` for intended behavior
 - JIRA MCP: `search_issues()` for related bugs
 - Knowledge DB: read failure-signatures.md for known patterns
 
@@ -237,7 +237,7 @@ Based on root cause layer + WHO/WHY:
 
 ## MCP Tools Available
 
-- **ACM-UI:** search_code, search_component, get_component_source, get_routes
+- **ACM-Source:** search_code, search_code(scope="components"), get_component_source, get_routes
 - **Neo4j RHACM:** read_neo4j_cypher (component dependencies)
 - **ACM Search:** find_resources, query_database, list_tables (live cluster resource queries across all managed clusters -- use to verify pods, deployments, policies exist and are healthy)
 - **ACM Kubectl:** clusters, kubectl, connect_cluster (list managed clusters, run kubectl on hub or spoke, generate kubeconfig for managed clusters)
@@ -312,7 +312,7 @@ single result with `affected_tests` listing all test names.
   counterfactual verification (Section 3b) for EACH test. One finding
   does not short-circuit investigation for all tests in the group.
 - **Do NOT assume "selectors may be valid in official console"** without
-  verifying via ACM-UI MCP `search_code`. If the selector doesn't exist
+  verifying via ACM-Source MCP `search_code`. If the selector doesn't exist
   in the official console either, the cluster-wide issue didn't remove
   it — it was never there. That is AUTOMATION_BUG.
 - Do NOT assume AUTOMATION_BUG for selector timeouts — verify the

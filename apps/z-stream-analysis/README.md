@@ -269,7 +269,7 @@ Each of the 12 subsystems has `architecture.md`, `data-flow.md`, and `failure-si
 
 | Server | Tools | Purpose |
 |--------|:-----:|---------|
-| ACM-UI | 20 | ACM Console + kubevirt-plugin source search via GitHub |
+| ACM Source | 18 | ACM Console + kubevirt-plugin source search via GitHub |
 | JIRA | 25 | Issue search and bug correlation (Jira Cloud) |
 | Jenkins | 11 | Pipeline API + ACM analysis tools |
 | Polarion | 25 | Test case content and dependency discovery |
@@ -292,7 +292,7 @@ First-time setup: from the repo root, run `claude` then `/onboard`.
 | `TimelineComparisonService` | Git date comparison, selector drift detection |
 | `StackTraceParser` | JS/TS stack traces to file:line |
 | `ACMConsoleKnowledge` | Console directory structure and feature mapping |
-| `ACMUIMCPClient` | ACM UI MCP integration for element discovery |
+| `ACMSourceMCPClient` | ACM Source MCP integration for element discovery |
 | `ComponentExtractor` | Backend component names from test failures |
 | `KnowledgeGraphClient` | Neo4j knowledge graph queries |
 | `ClusterInvestigationService` | Component diagnostics and cluster landscape |

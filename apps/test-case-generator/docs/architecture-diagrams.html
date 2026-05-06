@@ -182,8 +182,8 @@ graph TD
   <div class="mermaid">
 graph TD
     INPUT["gather-output.json\n+ pr-diff.txt"]:::data --> A["Agent A: Feature Investigator\nJIRA deep dive\nMCP: jira, polarion, neo4j, bash"]:::agent_a
-    INPUT --> B["Agent B: Code Change Analyzer\nPR diff analysis\nMCP: acm-ui, neo4j, bash"]:::agent_b
-    INPUT --> C["Agent C: UI Discovery\nACM Console source\nMCP: acm-ui, neo4j, playwright, bash"]:::agent_c
+    INPUT --> B["Agent B: Code Change Analyzer\nPR diff analysis\nMCP: acm-source, neo4j, bash"]:::agent_b
+    INPUT --> C["Agent C: UI Discovery\nACM Console source\nMCP: acm-source, neo4j, playwright, bash"]:::agent_c
     A --> P1A["phase1-feature-investigation.md"]:::out_a
     B --> P1B["phase1-code-change-analysis.md"]:::out_b
     C --> P1C["phase1-ui-discovery.md"]:::out_c
@@ -256,9 +256,9 @@ graph TD
   <p class="desc">Agent B reads the PR diff, identifies changed components, reads the full source of the primary file via <code>get_component_source()</code>, searches translations and routes, and checks Neo4j for component dependencies. Distinguishes test files from production code.</p>
   <div class="mermaid">
 graph TD
-    CC1["Read PR Diff\nbash: gh pr diff\nChanged files list"]:::step --> CC2["Read Primary Source\nacm-ui.get_component_source()\nFull source of main changed file"]:::step
-    CC2 --> CC3["Search Translations\nacm-ui.search_translations()\nUI labels from i18n"]:::step
-    CC3 --> CC4["Discover Routes\nacm-ui.get_routes()\nNavigation paths"]:::step
+    CC1["Read PR Diff\nbash: gh pr diff\nChanged files list"]:::step --> CC2["Read Primary Source\nacm-source.get_component_source()\nFull source of main changed file"]:::step
+    CC2 --> CC3["Search Translations\nacm-source.search_translations()\nUI labels from i18n"]:::step
+    CC3 --> CC4["Discover Routes\nacm-source.get_routes()\nNavigation paths"]:::step
     CC4 --> CC5["Check Dependencies\nneo4j.read_neo4j_cypher()\nComponent relationships"]:::step
     CC5 --> CC6["Cross-ref Knowledge\nknowledge/architecture/area.md\nVerify against area knowledge"]:::step
     CC6 --> CC_OUT["CODE CHANGE ANALYSIS\nComponents, UI elements,\nroutes, interactions, translations"]:::output
@@ -282,15 +282,15 @@ graph TD
      ═══════════════════════════════════════════════════════════════════════ -->
 <div id="d3c" class="card">
   <h2>Diagram 3c: UI Discovery &mdash; Internal Flow</h2>
-  <p class="desc">Agent C searches ACM Console source for selectors, translations, routes, wizard steps, and test IDs. Must call <code>set_acm_version()</code> first. Optionally verifies elements in a live browser if a cluster URL is provided. Has the widest MCP tool set (12+ acm-ui tools).</p>
+  <p class="desc">Agent C searches ACM Console source for selectors, translations, routes, wizard steps, and test IDs. Must call <code>set_acm_version()</code> first. Optionally verifies elements in a live browser if a cluster URL is provided. Has the widest MCP tool set (12+ acm-source tools).</p>
   <div class="mermaid">
 graph TD
-    UD1["Set Version\nacm-ui.set_acm_version()\nAlso set_cnv_version for Fleet Virt"]:::step --> UD2["Search Code\nacm-ui.search_code()\nComponent files by name"]:::step
-    UD2 --> UD3["Get Source\nacm-ui.get_component_source()\nFull component source"]:::step
-    UD3 --> UD4["Find Selectors\nacm-ui.find_test_ids() +\nget_acm_selectors() +\nget_patternfly_selectors()"]:::step
-    UD4 --> UD5["Find Translations\nacm-ui.search_translations()\nUI labels key-to-string"]:::step
-    UD5 --> UD6["Find Routes\nacm-ui.get_routes()\nNavigation path patterns"]:::step
-    UD6 --> UD7["Wizard Steps\nacm-ui.get_wizard_steps()\n(if wizard feature)"]:::step
+    UD1["Set Version\nacm-source.set_acm_version()\nAlso set_cnv_version for Fleet Virt"]:::step --> UD2["Search Code\nacm-source.search_code()\nComponent files by name"]:::step
+    UD2 --> UD3["Get Source\nacm-source.get_component_source()\nFull component source"]:::step
+    UD3 --> UD4["Find Selectors\nacm-source.find_test_ids() +\nget_acm_selectors() +\nget_patternfly_selectors()"]:::step
+    UD4 --> UD5["Find Translations\nacm-source.search_translations()\nUI labels key-to-string"]:::step
+    UD5 --> UD6["Find Routes\nacm-source.get_routes()\nNavigation path patterns"]:::step
+    UD6 --> UD7["Wizard Steps\nacm-source.get_wizard_steps()\n(if wizard feature)"]:::step
     UD7 --> UD8["Live Verification\nplaywright.browser_snapshot()\n(conditional: cluster URL)"]:::step
     UD8 --> UD_OUT["UI DISCOVERY RESULTS\nSelectors, translations, routes,\nentry point, wizard, live status"]:::output
 
@@ -385,11 +385,11 @@ graph TD
 graph TD
     SYNCTX["SYNTHESIZED CONTEXT\n+ live validation (if any)"]:::data --> P4C["Read Conventions\n+ peer test cases\n+ area knowledge"]:::step
     P4C --> P4P["Plan Steps\nScope gate to target ACs\nONE-BEHAVIOR-PER-STEP"]:::step
-    P4P --> P4V["MCP Spot-Check\nacm-ui: get_routes,\nsearch_translations,\nget_component_source"]:::step
+    P4P --> P4V["MCP Spot-Check\nacm-source: get_routes,\nsearch_translations,\nget_component_source"]:::step
     P4V --> P4W["Write test-case.md\n+ analysis-results.json\nSelf-review before output"]:::step
     P4W --> TC2["test-case.md"]:::data
 
-    TC2 --> QR["Quality Reviewer\n7-step review process\nMin 3 MCP verifications"]:::review
+    TC2 --> QR["Quality Reviewer\n6-step review process\nMin 3 MCP verifications"]:::review
     QR -->|"NEEDS_FIXES"| FIX["Orchestrator\nFixes issues"]:::fix
     FIX --> QR
     QR -->|"PASS"| NEXT["Stage 3\nreport.py"]:::next
@@ -450,11 +450,11 @@ graph TD
      ═══════════════════════════════════════════════════════════════════════ -->
 <div id="d8" class="card">
   <h2>Diagram 8: MCP Server Integration</h2>
-  <p class="desc">Seven MCP servers provide external data across the pipeline. Four serve investigation (Phase 1). Three serve live validation (Phase 3). The test-case-generator (Phase 4) and quality-reviewer (Phase 4.5) also use <code>acm-ui</code> and <code>polarion</code> for spot-checking and verification.</p>
+  <p class="desc">Seven MCP servers provide external data across the pipeline. Four serve investigation (Phase 1). Three serve live validation (Phase 3). The test-case-generator (Phase 4) and quality-reviewer (Phase 4.5) also use <code>acm-source</code> for spot-checking and verification.</p>
   <div class="mermaid">
 graph LR
     subgraph Investigation_Servers
-      ACMUI["acm-ui\n20 tools\nACM Console source"]:::mcp_acm
+      ACMUI["acm-source\n20 tools\nACM Console source"]:::mcp_acm
       JIRA_S["jira\n~3 tools\nTicket investigation"]:::mcp_jira
       POL_S["polarion\n~7 tools\nTest coverage"]:::mcp_pol
       NEO_S["neo4j-rhacm\n2 tools\nDependency graph"]:::mcp_neo
@@ -484,11 +484,11 @@ graph LR
   <div class="example-banner" style="margin-top:24px">
     <h3>Agent-to-MCP Matrix</h3>
     <p><strong>Feature Investigator:</strong> jira, polarion, neo4j, bash<br>
-    <strong>Code Change Analyzer:</strong> acm-ui, neo4j, bash<br>
-    <strong>UI Discovery:</strong> acm-ui, neo4j, playwright (conditional), bash<br>
+    <strong>Code Change Analyzer:</strong> acm-source, neo4j, bash<br>
+    <strong>UI Discovery:</strong> acm-source, neo4j, playwright (conditional), bash<br>
     <strong>Live Validator:</strong> playwright, acm-search, acm-kubectl, bash<br>
-    <strong>Test Case Generator:</strong> acm-ui (spot-check only)<br>
-    <strong>Quality Reviewer:</strong> acm-ui, polarion</p>
+    <strong>Test Case Generator:</strong> acm-source (spot-check only)<br>
+    <strong>Quality Reviewer:</strong> acm-source</p>
   </div>
   <p class="click-hint">Click any server to see its tools and configuration</p>
 </div>
@@ -656,7 +656,7 @@ const DATA = {
         <div class="label">Duration:</div>
         <div class="value">~30-60 seconds (all three run simultaneously)</div>
         <div class="label">Agent definitions:</div>
-        <div class="value"><span class="tag tag-agent">feature-investigator</span> <code>.claude/agents/feature-investigator.md</code> &mdash; JIRA deep dive (jira, polarion, neo4j, bash)<br><span class="tag tag-agent">code-change-analyzer</span> <code>.claude/agents/code-change-analyzer.md</code> &mdash; PR diff analysis (acm-ui, neo4j, bash)<br><span class="tag tag-agent">ui-discovery</span> <code>.claude/agents/ui-discovery.md</code> &mdash; ACM source search (acm-ui, neo4j, playwright, bash)</div>
+        <div class="value"><span class="tag tag-agent">feature-investigator</span> <code>.claude/agents/feature-investigator.md</code> &mdash; JIRA deep dive (jira, polarion, neo4j, bash)<br><span class="tag tag-agent">code-change-analyzer</span> <code>.claude/agents/code-change-analyzer.md</code> &mdash; PR diff analysis (acm-source, neo4j, bash)<br><span class="tag tag-agent">ui-discovery</span> <code>.claude/agents/ui-discovery.md</code> &mdash; ACM source search (acm-source, neo4j, playwright, bash)</div>
       </div>
       <div class="detail-section">
         <h4>Output Files</h4>
@@ -718,7 +718,7 @@ const DATA = {
         <div class="label">Agent:</div>
         <div class="value"><span class="tag tag-agent">test-case-generator</span> <code>.claude/agents/test-case-generator.md</code></div>
         <div class="label">MCP tools (spot-check only):</div>
-        <div class="value"><span class="tag tag-mcp">acm-ui</span> set_acm_version, get_routes, search_translations, get_component_source</div>
+        <div class="value"><span class="tag tag-mcp">acm-source</span> set_acm_version, get_routes, search_translations, get_component_source</div>
       </div>
       <div class="detail-section">
         <h4>5-Step Process</h4>
@@ -762,11 +762,11 @@ const DATA = {
         <div class="label">Agent:</div>
         <div class="value"><span class="tag tag-agent">quality-reviewer</span> <code>.claude/agents/quality-reviewer.md</code></div>
         <div class="label">MCP tools:</div>
-        <div class="value"><span class="tag tag-mcp">acm-ui</span> set_acm_version, search_translations, get_routes, get_wizard_steps, get_component_source<br><span class="tag tag-mcp">polarion</span> get_polarion_work_items, get_polarion_work_item, get_polarion_test_case_summary</div>
+        <div class="value"><span class="tag tag-mcp">acm-source</span> set_acm_version, search_translations, get_routes, get_wizard_steps, get_component_source<br><span class="tag tag-mcp">polarion</span> get_polarion_work_items, get_polarion_work_item, get_polarion_test_case_summary</div>
       </div>
       <div class="detail-section">
-        <h4>7-Step Review Process</h4>
-        <div class="value">1. Read test case<br>2. Read conventions (3 files)<br>3. Structural validation <span class="tag tag-fail">BLOCKING</span><br>4. Discovered vs assumed &mdash; min 3 MCP verifications <span class="tag tag-fail">BLOCKING</span><br>4.5. AC vs implementation check <span class="tag tag-fail">BLOCKING</span><br>4.6. Knowledge file cross-reference <span class="tag tag-fail">BLOCKING</span><br>5. Polarion coverage check<br>6. Peer consistency check<br>7. HTML check (post-hoc <code>/review</code> only)</div>
+        <h4>6-Step Review Process</h4>
+        <div class="value">1. Read test case<br>2. Read conventions (3 files)<br>3. Structural validation <span class="tag tag-fail">BLOCKING</span><br>4. Discovered vs assumed &mdash; min 3 MCP verifications <span class="tag tag-fail">BLOCKING</span><br>4.5. AC vs implementation check <span class="tag tag-fail">BLOCKING</span><br>4.6. Knowledge file cross-reference <span class="tag tag-fail">BLOCKING</span><br>5. HTML check (post-hoc <code>/review</code> only)</div>
         <div class="label">Loop behavior:</div>
         <div class="value">If NEEDS_FIXES: 3-tier escalation. Tier 1: targeted MCP re-investigation for factual errors. Tier 2: focused retry with evidence. Tier 3: marks unresolvable steps with [MANUAL VERIFICATION REQUIRED] and proceeds to Stage 3.</div>
         <div class="label">JSON verification block:</div>
@@ -978,11 +978,11 @@ const DATA = {
         <div class="label">Definition:</div>
         <div class="value"><code>.claude/agents/code-change-analyzer.md</code></div>
         <div class="label">MCP tools:</div>
-        <div class="value"><span class="tag tag-mcp">acm-ui</span> set_acm_version, search_code, get_component_source, get_component_types, search_translations, get_routes<br><span class="tag tag-mcp">neo4j</span> read_neo4j_cypher (component dependencies)<br><span class="tag tag-mcp">bash</span> gh pr view, gh pr diff</div>
+        <div class="value"><span class="tag tag-mcp">acm-source</span> set_acm_version, search_code, get_component_source, get_component_types, search_translations, get_routes<br><span class="tag tag-mcp">neo4j</span> read_neo4j_cypher (component dependencies)<br><span class="tag tag-mcp">bash</span> gh pr view, gh pr diff</div>
       </div>
       <div class="detail-section">
         <h4>Mandatory: Read Primary Source</h4>
-        <div class="value">Must call <code>acm-ui.get_component_source()</code> on the primary changed file. This is the full current source, not just the diff &mdash; needed to understand the complete component behavior.</div>
+        <div class="value">Must call <code>acm-source.get_component_source()</code> on the primary changed file. This is the full current source, not just the diff &mdash; needed to understand the complete component behavior.</div>
         <div class="label">Test vs production:</div>
         <div class="value">Distinguishes <code>.test.tsx</code>/<code>.test.ts</code> files from production code. Mock data from test files is NOT rendering behavior.</div>
       </div>
@@ -1001,11 +1001,11 @@ const DATA = {
         <div class="label">Definition:</div>
         <div class="value"><code>.claude/agents/ui-discovery.md</code></div>
         <div class="label">MCP tools (widest set):</div>
-        <div class="value"><span class="tag tag-mcp">acm-ui</span> set_acm_version, set_cnv_version, search_code, get_component_source, search_translations, get_routes, get_wizard_steps, get_acm_selectors, get_fleet_virt_selectors, find_test_ids, get_patternfly_selectors, get_component_types<br><span class="tag tag-mcp">neo4j</span> read_neo4j_cypher<br><span class="tag tag-mcp">playwright</span> browser_navigate, browser_snapshot, browser_take_screenshot (conditional)<br><span class="tag tag-mcp">bash</span> oc login, oc whoami, oc get mch -A</div>
+        <div class="value"><span class="tag tag-mcp">acm-source</span> set_acm_version, set_cnv_version, search_code, get_component_source, search_translations, get_routes, get_wizard_steps, get_acm_selectors, get_fleet_virt_selectors, find_test_ids, get_patternfly_selectors, get_component_types<br><span class="tag tag-mcp">neo4j</span> read_neo4j_cypher<br><span class="tag tag-mcp">playwright</span> browser_navigate, browser_snapshot, browser_take_screenshot (conditional)<br><span class="tag tag-mcp">bash</span> oc login, oc whoami, oc get mch -A</div>
       </div>
       <div class="detail-section">
         <h4>Version Setting (Mandatory First Step)</h4>
-        <div class="value"><code>set_acm_version("2.17")</code> must be called before any other acm-ui tool. For Fleet Virt, CCLM, or MTV areas, also call <code>set_cnv_version()</code>.</div>
+        <div class="value"><code>set_acm_version("2.17")</code> must be called before any other acm-source tool. For Fleet Virt, CCLM, or MTV areas, also call <code>set_cnv_version()</code>.</div>
         <div class="label">Live browser verification:</div>
         <div class="value">Conditional &mdash; only when cluster URL is provided. Requires <code>oc login</code> first, then <code>browser_navigate</code> + <code>browser_snapshot</code>.</div>
       </div>
@@ -1056,20 +1056,20 @@ const DATA = {
   'FI_OUT': { title: 'FEATURE INVESTIGATION Output', html: `<div class="detail-section"><h4>Saved to phase1-feature-investigation.md</h4><div class="value">Structured block with sections: Story Summary, Acceptance Criteria, Linked Tickets, PR References, JIRA Comments (key decisions), Polarion Coverage, RBAC Impact, Test Scenarios.</div></div>` },
 
   'CC1': { title: 'Read PR Diff', html: `<div class="detail-section"><h4>bash: gh pr diff</h4><div class="value">Reads the full PR diff from <code>pr-diff.txt</code> (saved by gather.py). Identifies all changed files, categorizes them as test vs production, and determines the primary changed component.</div></div>` },
-  'CC2': { title: 'Read Primary Source', html: `<div class="detail-section"><h4>acm-ui.get_component_source()</h4><div class="value"><strong>MANDATORY:</strong> Reads the full current source of the primary changed file (not just the diff). Needed to understand complete component behavior, imports, state management, and rendering logic. Cross-references with area knowledge file.</div></div>` },
-  'CC3': { title: 'Search Translations', html: `<div class="detail-section"><h4>acm-ui.search_translations()</h4><div class="value">Searches ACM Console i18n translation files for UI labels used in the changed components. Maps translation keys to display strings. These are the authoritative source for what the UI shows &mdash; never assume UI labels.</div></div>` },
-  'CC4': { title: 'Discover Routes', html: `<div class="detail-section"><h4>acm-ui.get_routes()</h4><div class="value">Finds navigation path patterns for the changed components. Used to determine entry points and URL structures for test step navigation instructions.</div></div>` },
+  'CC2': { title: 'Read Primary Source', html: `<div class="detail-section"><h4>acm-source.get_component_source()</h4><div class="value"><strong>MANDATORY:</strong> Reads the full current source of the primary changed file (not just the diff). Needed to understand complete component behavior, imports, state management, and rendering logic. Cross-references with area knowledge file.</div></div>` },
+  'CC3': { title: 'Search Translations', html: `<div class="detail-section"><h4>acm-source.search_translations()</h4><div class="value">Searches ACM Console i18n translation files for UI labels used in the changed components. Maps translation keys to display strings. These are the authoritative source for what the UI shows &mdash; never assume UI labels.</div></div>` },
+  'CC4': { title: 'Discover Routes', html: `<div class="detail-section"><h4>acm-source.get_routes()</h4><div class="value">Finds navigation path patterns for the changed components. Used to determine entry points and URL structures for test step navigation instructions.</div></div>` },
   'CC5': { title: 'Check Dependencies', html: `<div class="detail-section"><h4>neo4j.read_neo4j_cypher()</h4><div class="value">Queries the Neo4j knowledge graph for component relationships. Identifies upstream/downstream dependencies, sibling components in the same subsystem, and potential impact areas. Optional &mdash; requires Podman with <code>neo4j-rhacm</code> container running.</div></div>` },
   'CC6': { title: 'Cross-ref Knowledge', html: `<div class="detail-section"><h4>Knowledge File Validation</h4><div class="value">Cross-references findings against <code>knowledge/architecture/&lt;area&gt;.md</code>. If the code analysis contradicts the knowledge file (e.g., different field order, different filtering behavior), flags the discrepancy. Knowledge files are authoritative until verified via <code>get_component_source()</code>.</div></div>` },
   'CC_OUT': { title: 'CODE CHANGE ANALYSIS Output', html: `<div class="detail-section"><h4>Saved to phase1-code-change-analysis.md</h4><div class="value">Structured block with sections: Changed Files, Primary Component, New UI Elements, Modified Behavior, Routes, API Interactions, Conditional Logic, Error Messages, UI Interaction Models, Translations, Dependencies, Test Scenarios.</div></div>` },
 
-  'UD1': { title: 'Set Version', html: `<div class="detail-section"><h4>acm-ui.set_acm_version()</h4><div class="value"><strong>MANDATORY first call.</strong> Sets the ACM Console branch (e.g., <code>release-2.17</code>) for all subsequent acm-ui tool calls. For Fleet Virt, CCLM, or MTV features, also call <code>set_cnv_version()</code> to set the kubevirt-plugin branch.</div></div>` },
-  'UD2': { title: 'Search Code', html: `<div class="detail-section"><h4>acm-ui.search_code()</h4><div class="value">GitHub code search across the ACM Console repository. Finds component files by name, data-testid attributes, CSS classes, or any code pattern. Returns file paths and matching lines.</div></div>` },
-  'UD3': { title: 'Get Source', html: `<div class="detail-section"><h4>acm-ui.get_component_source()</h4><div class="value">Retrieves the full source code of a specific component file. Used to understand component structure, props, state, rendering logic, and imported dependencies.</div></div>` },
+  'UD1': { title: 'Set Version', html: `<div class="detail-section"><h4>acm-source.set_acm_version()</h4><div class="value"><strong>MANDATORY first call.</strong> Sets the ACM Console branch (e.g., <code>release-2.17</code>) for all subsequent acm-source tool calls. For Fleet Virt, CCLM, or MTV features, also call <code>set_cnv_version()</code> to set the kubevirt-plugin branch.</div></div>` },
+  'UD2': { title: 'Search Code', html: `<div class="detail-section"><h4>acm-source.search_code()</h4><div class="value">GitHub code search across the ACM Console repository. Finds component files by name, data-testid attributes, CSS classes, or any code pattern. Returns file paths and matching lines.</div></div>` },
+  'UD3': { title: 'Get Source', html: `<div class="detail-section"><h4>acm-source.get_component_source()</h4><div class="value">Retrieves the full source code of a specific component file. Used to understand component structure, props, state, rendering logic, and imported dependencies.</div></div>` },
   'UD4': { title: 'Find Selectors', html: `<div class="detail-section"><h4>Multiple Selector Tools</h4><div class="value"><code>find_test_ids()</code> &mdash; data-testid, id, aria-label attributes in a specific file<br><code>get_acm_selectors()</code> &mdash; curated QE selectors from test repos<br><code>get_fleet_virt_selectors()</code> &mdash; kubevirt-plugin selectors<br><code>get_patternfly_selectors()</code> &mdash; PatternFly v6 CSS selectors</div></div>` },
-  'UD5': { title: 'Find Translations', html: `<div class="detail-section"><h4>acm-ui.search_translations()</h4><div class="value">Searches i18n translation strings. Returns key-to-string mapping for UI labels, button text, error messages, and tooltips. These translations are the authoritative source for what users see.</div></div>` },
-  'UD6': { title: 'Find Routes', html: `<div class="detail-section"><h4>acm-ui.get_routes()</h4><div class="value">Extracts navigation paths and route definitions from ACM Console. Returns URL patterns (e.g., <code>/multicloud/governance/policies</code>) used to write navigation instructions in test steps.</div></div>` },
-  'UD7': { title: 'Wizard Steps', html: `<div class="detail-section"><h4>acm-ui.get_wizard_steps()</h4><div class="value">Analyzes wizard components to extract step structure and visibility conditions. Used for features that involve multi-step wizards (cluster creation, policy creation, migration).</div></div>` },
+  'UD5': { title: 'Find Translations', html: `<div class="detail-section"><h4>acm-source.search_translations()</h4><div class="value">Searches i18n translation strings. Returns key-to-string mapping for UI labels, button text, error messages, and tooltips. These translations are the authoritative source for what users see.</div></div>` },
+  'UD6': { title: 'Find Routes', html: `<div class="detail-section"><h4>acm-source.get_routes()</h4><div class="value">Extracts navigation paths and route definitions from ACM Console. Returns URL patterns (e.g., <code>/multicloud/governance/policies</code>) used to write navigation instructions in test steps.</div></div>` },
+  'UD7': { title: 'Wizard Steps', html: `<div class="detail-section"><h4>acm-source.get_wizard_steps()</h4><div class="value">Analyzes wizard components to extract step structure and visibility conditions. Used for features that involve multi-step wizards (cluster creation, policy creation, migration).</div></div>` },
   'UD8': { title: 'Live Verification', html: `<div class="detail-section"><h4>Conditional Browser Check</h4><div class="value">Only runs when a cluster URL is available. Uses <code>oc login</code> for cluster auth, then <code>playwright.browser_navigate()</code> + <code>browser_snapshot()</code> to verify that discovered UI elements actually appear in the live console. Confirms translations, routes, and selectors against the real UI.</div></div>` },
   'UD_OUT': { title: 'UI DISCOVERY RESULTS Output', html: `<div class="detail-section"><h4>Saved to phase1-ui-discovery.md</h4><div class="value">Structured block with sections: Component Files, Selectors (data-testid, CSS, QE), Translations (key &rarr; string), Routes (path patterns), Entry Point, Wizard Structure, TypeScript Types, Live Verification Status.</div></div>` },
 
@@ -1196,7 +1196,7 @@ const DATA = {
       <div class="detail-section">
         <h4>UI Element Verification</h4>
         <div class="label">Tools used:</div>
-        <div class="value"><span class="tag tag-mcp">acm-ui</span> set_acm_version, get_routes, search_translations, get_component_source</div>
+        <div class="value"><span class="tag tag-mcp">acm-source</span> set_acm_version, get_routes, search_translations, get_component_source</div>
         <div class="label">Purpose:</div>
         <div class="value">Verify entry point route exists, key UI labels match translations, and at least one behavioral claim is confirmed by reading actual source code. This is a spot-check, not full investigation (that was Phase 1).</div>
       </div>
@@ -1221,11 +1221,11 @@ const DATA = {
     title: 'Quality Reviewer',
     html: `
       <div class="detail-section">
-        <h4>7-Step Review Process</h4>
+        <h4>6-Step Review Process</h4>
         <div class="label">Agent:</div>
         <div class="value"><code>.claude/agents/quality-reviewer.md</code></div>
         <div class="label">Steps:</div>
-        <div class="value">1. Read test case markdown<br>2. Read conventions (3 files)<br>3. Structural validation <span class="tag tag-fail">BLOCKING</span><br>4. Discovered vs assumed (min 3 MCP verifications) <span class="tag tag-fail">BLOCKING</span><br>4.5. AC vs implementation check <span class="tag tag-fail">BLOCKING</span><br>4.6. Knowledge file cross-reference <span class="tag tag-fail">BLOCKING</span><br>5. Polarion coverage + scope alignment check<br>6. Peer consistency check<br>7. HTML check (post-hoc <code>/review</code> only)</div>
+        <div class="value">1. Read test case markdown<br>2. Read conventions (3 files)<br>3. Structural validation <span class="tag tag-fail">BLOCKING</span><br>4. Discovered vs assumed (min 3 MCP verifications) <span class="tag tag-fail">BLOCKING</span><br>4.5. AC vs implementation check <span class="tag tag-fail">BLOCKING</span><br>4.6. Knowledge file cross-reference <span class="tag tag-fail">BLOCKING</span><br>5. HTML check (post-hoc <code>/review</code> only)</div>
       </div>
       <div class="detail-section">
         <h4>JSON Verification Block (Mandatory)</h4>
@@ -1348,14 +1348,14 @@ const DATA = {
      ═══════════════════════════════════════════ */
 
   'ACMUI': {
-    title: 'acm-ui MCP Server',
+    title: 'acm-source MCP Server',
     html: `
       <div class="detail-section">
         <h4>ACM Console Source Search</h4>
         <div class="label">Tools:</div>
         <div class="value"><span class="num">20</span> tools</div>
         <div class="label">Source:</div>
-        <div class="value">This repo (<code>mcp/acm-ui-mcp-server/</code>)</div>
+        <div class="value">This repo (<code>mcp/acm-source-mcp-server/</code>)</div>
         <div class="label">Key tools:</div>
         <div class="value"><code>set_acm_version</code>, <code>set_cnv_version</code>, <code>search_code</code>, <code>get_component_source</code>, <code>get_component_types</code>, <code>search_translations</code>, <code>get_routes</code>, <code>get_wizard_steps</code>, <code>find_test_ids</code>, <code>get_acm_selectors</code>, <code>get_fleet_virt_selectors</code>, <code>get_patternfly_selectors</code>, <code>search_component</code></div>
       </div>

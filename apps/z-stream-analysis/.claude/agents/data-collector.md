@@ -142,11 +142,11 @@ selector, and whether the selector is on the correct route.
 
    b. **Set the ACM version** via MCP:
       ```
-      mcp__acm-ui__set_acm_version(version='2.17')
+      mcp__acm-source__set_acm_version(version='2.17')
       ```
       For VM/virt selectors, also set CNV version:
       ```
-      mcp__acm-ui__set_cnv_version(version='4.21')
+      mcp__acm-source__set_cnv_version(version='4.21')
       ```
 
    c. **Classify the selector type:**
@@ -160,23 +160,23 @@ selector, and whether the selector is on the correct route.
 
       For literal selectors (`data-testid`, `id`, custom classes):
       ```
-      mcp__acm-ui__search_code(query='cluster-dropdown-toggle', repo='acm')
+      mcp__acm-source__search_code(query='cluster-dropdown-toggle', repo='acm')
       ```
 
       For PatternFly classes (derive component name from class):
       - `pf-v6-c-tree-view` → component `TreeView`
       - `pf-v6-c-menu__list-item` → component `Menu` or `MenuList`
       ```
-      mcp__acm-ui__search_code(query='TreeView', repo='acm')
+      mcp__acm-source__search_code(query='TreeView', repo='acm')
       ```
       Also check if relevant:
       ```
-      mcp__acm-ui__search_code(query='TreeView', repo='kubevirt')
+      mcp__acm-source__search_code(query='TreeView', repo='kubevirt')
       ```
 
       For VM/virt selectors, also search kubevirt-plugin:
       ```
-      mcp__acm-ui__search_code(query='<selector>', repo='kubevirt')
+      mcp__acm-source__search_code(query='<selector>', repo='kubevirt')
       ```
 
    e. **Determine the result:**

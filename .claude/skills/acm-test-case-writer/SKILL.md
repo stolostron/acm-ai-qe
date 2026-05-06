@@ -1,7 +1,7 @@
 ---
 name: acm-test-case-writer
 description: Write Polarion-ready ACM Console UI test case markdown from synthesized investigation context. Use when you need to produce a test case document for an ACM Console feature after investigation is complete.
-compatibility: "Uses acm-ui-source skill (requires acm-ui MCP) for spot-check verification. Uses acm-knowledge-base skill (no MCP needed)."
+compatibility: "Requires acm-source MCP for spot-check verification. Uses acm-knowledge-base skill (no MCP needed)."
 metadata:
   author: acm-qe
   version: "1.0.0"
@@ -30,7 +30,7 @@ This ensures missing context is always visible. If the test case has errors, the
 ## Prerequisites
 
 - acm-knowledge-base skill available for conventions and area knowledge
-- acm-ui-source skill available for spot-check verification
+- acm-source MCP server available for spot-check verification
 
 ## Process
 
@@ -49,7 +49,7 @@ Read `references/architecture/<area>.md` from the acm-knowledge-base skill. Extr
 - **Empty state behavior** (shows "-" vs hidden vs "No items")
 - **Component patterns** (compact vs full mode, popover vs inline)
 
-These are **CONSTRAINTS** the test case MUST follow. If the investigation context contradicts the knowledge file, **trust the knowledge file** and flag the discrepancy in the Notes section. Then verify via acm-ui-source skill's `get_component_source` to determine which is correct.
+These are **CONSTRAINTS** the test case MUST follow. If the investigation context contradicts the knowledge file, **trust the knowledge file** and flag the discrepancy in the Notes section. Then verify via the acm-source MCP's `get_component_source` to determine which is correct.
 
 ### Step 3: Scope Gate
 
@@ -57,7 +57,7 @@ Extract the target JIRA story's Acceptance Criteria from the investigation conte
 
 ### Step 4: Spot-Check Key UI Elements
 
-Use the acm-ui-source skill for quick verification:
+Use the acm-source MCP tools directly for quick verification:
 1. `set_acm_version` -- set the target version
 2. `get_routes` -- verify the entry point route exists, get the full parameterized path
 3. `search_translations` -- spot-check 1-2 key labels

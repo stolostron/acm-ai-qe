@@ -89,7 +89,7 @@ reviews:
           Phase B: Per-group investigation agents, per-test 4-point verification
           Phase D: PR-1 through PR-7 pre-routing, D-V5 counterfactual (9 templates),
           symmetric D-V5c (AUTOMATION_BUG) and D-V5e (PRODUCT_BUG)
-          Uses 5 MCP servers: ACM-UI (20 tools), Jenkins (11), JIRA (25),
+          Uses 5 MCP servers: ACM-Source (20 tools), Jenkins (11), JIRA (25),
           Polarion (25), Neo4j RHACM (2)
 
         Stage 3 (report.py) → Detailed-Analysis.md + analysis-report.html +
@@ -292,7 +292,7 @@ reviews:
         === AGENTS (6) ===
 
         feature-investigator.md: Phase 1 — JIRA MCP + Polarion MCP + Neo4j + gh CLI
-        code-change-analyzer.md: Phase 1 — gh CLI + acm-ui MCP + JIRA MCP + Neo4j.
+        code-change-analyzer.md: Phase 1 — gh CLI + acm-source MCP + JIRA MCP + Neo4j.
           Must read primary file via get_component_source (not just diff).
           Must distinguish test files from production code.
           Must cross-reference with knowledge/architecture/<area>.md.
@@ -300,15 +300,15 @@ reviews:
           Step 9: Coverage gap analysis — cross-references code behaviors against
           JIRA ACs (via jira MCP get_issue), identifies user-visible code paths
           not covered by any AC. Gaps reported in output for synthesis triage.
-        ui-discovery.md: Phase 1 — acm-ui MCP (all tools) + Neo4j +
+        ui-discovery.md: Phase 1 — acm-source MCP (all tools) + Neo4j +
           Playwright (conditional: live browser verification when cluster URL provided) +
           bash (oc login for cluster auth)
         live-validator.md: Phase 3 — Playwright (24 tools) + oc CLI + acm-search + acm-kubectl
-        test-case-generator.md: Phase 4 — acm-ui MCP (spot-check + source verification).
+        test-case-generator.md: Phase 4 — acm-source MCP (spot-check + source verification).
           Must read knowledge/architecture/<area>.md as constraints (Step 1.5).
           Must verify filtering functions via get_component_source (Step 3).
           Trusts MCP source over PR diff for filter rules.
-        quality-reviewer.md: Phase 4.5 — acm-ui MCP + Polarion MCP.
+        quality-reviewer.md: Phase 4.5 — acm-source MCP + Polarion MCP.
           Min 3 MCP verifications required (fewer = NEEDS_FIXES).
           Must call get_component_source on primary file (Step 4).
           Must call search_translations at least once (verify metric/label names against source).
@@ -324,7 +324,7 @@ reviews:
 
         - gather.py is deterministic — no AI, no agents, no MCP calls
         - Phase 4 test-case-generator does NOT do primary investigation — only
-          spot-checks 1-2 elements via acm-ui MCP
+          spot-checks 1-2 elements via acm-source MCP
         - Phase 4.5 is a HARD STOP — test case must pass quality review before
           Stage 3 can run
         - Convention files in knowledge/conventions/ are authoritative and must
@@ -432,28 +432,28 @@ reviews:
 
         Agents in test-case-generator:
         - feature-investigator.md: Phase 1 JIRA deep dive (jira, polarion, neo4j, gh CLI)
-        - code-change-analyzer.md: Phase 1 PR diff analysis (gh CLI, acm-ui, jira, neo4j)
-        - ui-discovery.md: Phase 1 source code discovery (acm-ui, neo4j, playwright conditional, bash)
+        - code-change-analyzer.md: Phase 1 PR diff analysis (gh CLI, acm-source, jira, neo4j)
+        - ui-discovery.md: Phase 1 source code discovery (acm-source, neo4j, playwright conditional, bash)
         - live-validator.md: Phase 3 live cluster verification (playwright, oc, acm-search, acm-kubectl)
-        - test-case-generator.md: Phase 4 test case writer (acm-ui spot-check only)
-        - quality-reviewer.md: Phase 4.5 quality gate (acm-ui, polarion)
+        - test-case-generator.md: Phase 4 test case writer (acm-source spot-check only)
+        - quality-reviewer.md: Phase 4.5 quality gate (acm-source)
 
         All 6 tc-gen agents include an optional Anomalies section in their
         output format for surfacing data quality issues (empty MCP results,
         missing JIRA ACs, unexpected PR structure) upstream.
 
         MCP tool signatures (do NOT flag these as incorrect):
-        - mcp__acm-ui__search_code(query='...', repo='acm')
+        - mcp__acm-source__search_code(query='...', repo='acm')
           repo is a string ('acm' or 'kubevirt'), NOT a list
-        - mcp__acm-ui__set_acm_version(version='2.17')
+        - mcp__acm-source__set_acm_version(version='2.17')
           version is a string
-        - mcp__acm-ui__set_cnv_version(version='4.21')
-        - mcp__acm-ui__search_component(query='...', repo='acm')
-        - mcp__acm-ui__detect_cnv_version()
-        - mcp__acm-ui__get_acm_selectors(source='catalog', component='clc')
-        - mcp__acm-ui__get_patternfly_selectors(component='button')
-        - mcp__acm-ui__get_route_component(url_path='/multicloud/...')
-        - mcp__acm-ui__find_test_ids(component_path='...', repo='acm')
+        - mcp__acm-source__set_cnv_version(version='4.21')
+        - mcp__acm-source__search_component(query='...', repo='acm')
+        - mcp__acm-source__detect_cnv_version()
+        - mcp__acm-source__get_acm_selectors(source='catalog', component='clc')
+        - mcp__acm-source__get_patternfly_selectors(component='button')
+        - mcp__acm-source__get_route_component(url_path='/multicloud/...')
+        - mcp__acm-source__find_test_ids(component_path='...', repo='acm')
         - mcp__neo4j-rhacm__read_neo4j_cypher(query='...')
         - mcp__jira__search_issues(jql='...')
         - mcp__jira__get_issue(issue_key='ACM-12345')
@@ -559,7 +559,7 @@ reviews:
         - feature_area_service.py: Test-to-subsystem mapping
         - feature_knowledge_service.py: Playbook loading, prerequisite checks
         - knowledge_graph_client.py: Neo4j KG queries, subsystem mapping
-        - acm_ui_mcp_client.py: ACM-UI MCP wrapper for gather.py
+        - acm_source_mcp_client.py: ACM-Source MCP wrapper for gather.py
         - component_extractor.py: Backend component name extraction
         - acm_console_knowledge.py: PatternFly version detection, feature routes
         - shared_utils.py: KNOWN_REPOS mapping, utility functions
@@ -669,7 +669,7 @@ reviews:
           Cross-chain: shared dependency (klusterlet, storage, addon-manager)?
           Traps: verify conclusion against common-diagnostic-traps.md (14)
           Fallback: cluster introspection (8 metadata sources), then
-            neo4j-rhacm MCP, then acm-ui MCP for source code understanding.
+            neo4j-rhacm MCP, then acm-source MCP for source code understanding.
 
         Phase 6: Deep Investigate (deep/targeted)
           Pod logs (--tail=100, --previous), namespace events (sorted),
@@ -686,7 +686,7 @@ reviews:
             jq, grep, wc, sort, head, tail, awk, cut, cat, ls, find,
             git clone (docs repos), python3/python (data processing)
           Tools: Read, Glob, Grep, Agent, Write/Edit to knowledge/learned/*
-          MCP: acm-ui (20 tools), neo4j-rhacm (2 tools), acm-search (5 tools)
+          MCP: acm-source (20 tools), neo4j-rhacm (2 tools), acm-search (5 tools)
 
         Remediation Mode (NEVER auto-approved):
           Mutation: oc patch, oc scale, oc rollout restart, oc delete pod,
@@ -771,7 +771,7 @@ reviews:
           6. Webhooks (cross-operator validation dependencies)
           7. ConsolePlugins (UI integration topology)
           8. APIServices (API aggregation dependencies)
-        Then: neo4j-rhacm MCP → acm-ui MCP → write to knowledge/learned/.
+        Then: neo4j-rhacm MCP → acm-source MCP → write to knowledge/learned/.
 
         === SESSION TRACING ===
 
@@ -859,7 +859,7 @@ reviews:
         - Diagnostic trap count ("14 traps") ↔ common-diagnostic-traps.md
         - Introspection source count ("8 sources") ↔ listed sources
         - Knowledge file references ↔ files actually in knowledge/
-        - MCP tool names ↔ .mcp.json server configuration (acm-ui, neo4j-rhacm, acm-search)
+        - MCP tool names ↔ .mcp.json server configuration (acm-source, neo4j-rhacm, acm-search)
         - Cascade chain count (12 narrative, 12 YAML) ↔ dependency-chains.md/yaml
 
     - path: "apps/acm-hub-health/.claude/settings.json"
@@ -868,7 +868,7 @@ reviews:
 
         Structure:
         - permissions.allow: Read-only oc commands + MCP tools (auto-approved for diagnosis)
-          Includes mcp__acm-ui__*, mcp__neo4j-rhacm__*, mcp__acm-search__*
+          Includes mcp__acm-source__*, mcp__neo4j-rhacm__*, mcp__acm-search__*
         - hooks: 6 event types triggering agent_trace.py
         - statusLine: command-based status bar (shared script at ../../.claude/statusline.sh)
 
@@ -1059,8 +1059,8 @@ reviews:
     - path: "apps/acm-hub-health/setup.sh"
       instructions: |
         One-time initialization script. Clones rhacm-docs, sets up
-        acm-ui MCP venv, clones and builds acm-search MCP (Node.js),
-        generates .mcp.json (acm-ui, neo4j-rhacm, acm-search), verifies
+        acm-source MCP venv, clones and builds acm-search MCP (Node.js),
+        generates .mcp.json (acm-source, neo4j-rhacm, acm-search), verifies
         prerequisites (oc, claude, uvx, node, podman), checks neo4j-rhacm
         container status.
 
@@ -1074,7 +1074,7 @@ reviews:
     - path: "mcp/**/*.py"
       instructions: |
         MCP server code. This repo maintains:
-        - mcp/acm-ui-mcp-server/: ACM Console + kubevirt-plugin source search
+        - mcp/acm-source-mcp-server/: ACM Console + kubevirt-plugin source search
           via GitHub API. 20 tools. Supports version switching (ACM 2.11-2.17,
           CNV 4.14-4.22).
         - mcp/polarion/: Polarion test case access wrapper. 25 tools.

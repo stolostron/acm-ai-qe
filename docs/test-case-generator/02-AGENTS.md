@@ -7,12 +7,12 @@ Seven specialized subagents, each with a dedicated role in the pipeline. Agent d
 | Agent | File | Phase | Tools | Input | Output |
 |-------|------|-------|-------|-------|--------|
 | Data Gatherer | `data-gatherer.md` | 1 | jira, polarion, neo4j-rhacm, bash | JIRA ID | `gather-output.json`, `phase1-jira.json` |
-| Code Analyzer | `code-analyzer.md` | 2 | acm-ui, neo4j-rhacm, bash | PR number, repo, version | `phase2-code.json` |
-| UI Discoverer | `ui-discoverer.md` | 3 | acm-ui, neo4j-rhacm, bash | Version, area, feature name | `phase3-ui.json` |
+| Code Analyzer | `code-analyzer.md` | 2 | acm-source, neo4j-rhacm, bash | PR number, repo, version | `phase2-code.json` |
+| UI Discoverer | `ui-discoverer.md` | 3 | acm-source, neo4j-rhacm, bash | Version, area, feature name | `phase3-ui.json` |
 | Synthesizer | `synthesizer.md` | 4 | — | Phase 1-3 outputs | `synthesized-context.md` |
 | Live Validator | `live-validator.md` | 5 | playwright, acm-search, acm-kubectl, bash | Console URL, feature path | `phase5-live-validation.md` |
-| Test Case Writer | `test-case-writer.md` | 6 | acm-ui | Run dir, synthesized context | `test-case.md`, `analysis-results.json` |
-| Quality Reviewer | `quality-reviewer.md` | 7 | acm-ui, polarion | test-case.md path, version, area | PASS or NEEDS_FIXES (`phase7-review.md`) |
+| Test Case Writer | `test-case-writer.md` | 6 | acm-source | Run dir, synthesized context | `test-case.md`, `analysis-results.json` |
+| Quality Reviewer | `quality-reviewer.md` | 7 | acm-source | test-case.md path, version, area | PASS or NEEDS_FIXES (`phase7-review.md`) |
 
 ---
 
@@ -65,7 +65,7 @@ Structured JSON written to `phase1-jira.json`:
 
 **Phase:** 2
 **File:** `references/agents/code-analyzer.md`
-**Tools:** acm-ui, neo4j-rhacm, bash
+**Tools:** acm-source, neo4j-rhacm, bash
 
 ### Purpose
 
@@ -75,7 +75,7 @@ Reads the full PR diff to understand what changed and what needs testing. Identi
 
 1. Fetch PR metadata via `gh pr view`
 2. Read the full PR diff from `pr-diff.txt`
-3. Set ACM version in acm-ui MCP
+3. Set ACM version in acm-source MCP
 4. For each changed file, identify: new UI components, modified elements, new routes, API interactions, conditional logic, error handling, translation strings, UI interaction model
 5. **MANDATORY: Read full source of PRIMARY target file** via `get_component_source` (not just the diff)
 6. For multi-story PRs: tag each file with its story, focus output on target story
@@ -121,11 +121,11 @@ Structured JSON written to `phase2-code.json`:
 
 **Phase:** 3
 **File:** `references/agents/ui-discoverer.md`
-**Tools:** acm-ui, neo4j-rhacm, bash
+**Tools:** acm-source, neo4j-rhacm, bash
 
 ### Purpose
 
-Discovers UI selectors, translations, routes, wizard steps, and test IDs from the ACM Console source code via the acm-ui MCP server.
+Discovers UI selectors, translations, routes, wizard steps, and test IDs from the ACM Console source code via the acm-source MCP server.
 
 ### MCP Tool Usage
 
@@ -234,7 +234,7 @@ Markdown written to `phase5-live-validation.md` with cluster info, step-by-step 
 
 **Phase:** 6
 **File:** `references/agents/test-case-writer.md`
-**Tools:** acm-ui (spot-check only)
+**Tools:** acm-source (spot-check only)
 
 ### Purpose
 
@@ -269,8 +269,8 @@ If the orchestrator's schema validator finds errors in `analysis-results.json`, 
 
 **Phase:** 7
 **File:** `references/agents/quality-reviewer.md`
-**Tools:** acm-ui, polarion
-**Knowledge dependencies:** Reads `knowledge/conventions/test-case-format.md`, `knowledge/conventions/area-naming-patterns.md`, `knowledge/conventions/cli-in-steps-rules.md` as validation reference. Also reads peer test cases from `gather-output.json` `existing_test_cases` field (or `knowledge/examples/sample-test-case.md` as fallback).
+**Tools:** acm-source
+**Knowledge dependencies:** Reads `knowledge/conventions/test-case-format.md`, `knowledge/conventions/area-naming-patterns.md`, `knowledge/conventions/cli-in-steps-rules.md` as validation reference.
 
 ### Purpose
 
@@ -288,9 +288,7 @@ Validates the generated test case against conventions, verifies UI elements were
 | 4.6 | Knowledge file cross-reference (field order, filtering, component names vs area knowledge) | Blocking |
 | 4.7 | Design efficiency (resource optimization, entry point selection, prerequisite completeness, step design) | Warning |
 | 4.8 | Coverage gap verification (gaps triaged as ADD have test steps, NOTE gaps mentioned) | Warning |
-| 5 | Polarion coverage check (search for duplicates) | Info |
-| 6 | Peer consistency check (compare with existing test cases) | Info |
-| 7 | Polarion HTML check (only on `/review`, not during `/generate`) | Warning |
+| 5 | Polarion HTML check (only on `/review`, not during `/generate`) | Warning |
 
 ### Verdict
 

@@ -2,7 +2,7 @@
 name: test-case-generator
 description: Write Polarion-ready test case markdown from synthesized investigation context
 tools:
-  - acm-ui
+  - acm-source
 ---
 
 # Test Case Generator Agent (Phase 4: Writer)

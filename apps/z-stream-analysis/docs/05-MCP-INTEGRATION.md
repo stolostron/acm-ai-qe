@@ -19,7 +19,7 @@ Z-Stream Analysis uses five MCP servers:
 │  "What depends on search-api?"                                       │
 │                                                                      │
 │  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐  │
-│  │ ACM-UI  │  │ Jenkins │  │  JIRA   │  │Polarion │  │Knowledge│  │
+│  │ ACM-Source  │  │ Jenkins │  │  JIRA   │  │Polarion │  │Knowledge│  │
 │  │   MCP   │  │   MCP   │  │   MCP   │  │   MCP   │  │  Graph  │  │
 │  │20 tools │  │11 tools │  │25 tools │  │25 tools │  │  MCP    │  │
 │  └────┬────┘  └────┬────┘  └────┬────┘  └────┬────┘  └────┬────┘  │
@@ -51,12 +51,12 @@ MCP tools are accessed differently depending on the stage:
 ┌──────────────────────────────────────────────────────────────────────┐
 │  STAGE 1: Python MCP Clients                                        │
 │  ─────────────────────────────                                       │
-│  gather.py imports ACMUIMCPClient and KnowledgeGraphClient           │
+│  gather.py imports ACMSourceMCPClient and KnowledgeGraphClient           │
 │  These are Python classes that call MCP servers via subprocess        │
 │  Used for pre-computing data before AI analysis                      │
 │                                                                      │
 │  Files:                                                              │
-│    src/services/acm_ui_mcp_client.py (293 lines)                     │
+│    src/services/acm_source_mcp_client.py (293 lines)                     │
 │    src/services/knowledge_graph_client.py (456 lines)                │
 │                                                                      │
 │  Purpose: CNV version detection                                     │
@@ -69,7 +69,7 @@ MCP tools are accessed differently depending on the stage:
 │  MCP integration (no Python client needed)                           │
 │                                                                      │
 │  Tool call format:                                                   │
-│    mcp__acm-ui__search_code(query='create-btn', repo='acm')         │
+│    mcp__acm-source__search_code(query='create-btn', repo='acm')         │
 │    mcp__jira__search_issues(jql='project = ACM AND ...')             │
 │    mcp__neo4j-rhacm__read_neo4j_cypher(query='MATCH ...')      │
 │                                                                      │
@@ -79,28 +79,28 @@ MCP tools are accessed differently depending on the stage:
 
 | Stage | Access Method | MCP Servers Used | Purpose |
 |-------|---------------|------------------|---------|
-| Stage 1 | Python classes (`ACMUIMCPClient`, `KnowledgeGraphClient`) | ACM-UI, Knowledge Graph | Pre-compute CNV version, dependency queries |
+| Stage 1 | Python classes (`ACMSourceMCPClient`, `KnowledgeGraphClient`) | ACM-Source, Knowledge Graph | Pre-compute CNV version, dependency queries |
 | Stage 1.5 | Claude Code native (cluster-diagnostic agent) | ACM Search, ACM Kubectl | Fleet-wide resource queries, spoke cluster access |
-| Stage 2 | Claude Code native (analysis + investigation agents) | ACM-UI, Jenkins, JIRA, Polarion, Knowledge Graph, ACM Search, ACM Kubectl | Active investigation during analysis |
+| Stage 2 | Claude Code native (analysis + investigation agents) | ACM-Source, Jenkins, JIRA, Polarion, Knowledge Graph, ACM Search, ACM Kubectl | Active investigation during analysis |
 | Stage 3 | None | None | Report generation uses no MCP tools |
 
-**Note:** The five primary MCP servers (ACM-UI, Jenkins, JIRA, Polarion, Knowledge Graph) are used directly by the analysis agent. Two additional servers (ACM Search, ACM Kubectl) are used by the cluster-diagnostic agent (Stage 1.5) and investigation agents (spawned per group during Stage 2) for fleet-wide resource queries across managed clusters and multicluster kubectl access. See the parent repo's `CLAUDE.md` for full server documentation.
+**Note:** The five primary MCP servers (ACM-Source, Jenkins, JIRA, Polarion, Knowledge Graph) are used directly by the analysis agent. Two additional servers (ACM Search, ACM Kubectl) are used by the cluster-diagnostic agent (Stage 1.5) and investigation agents (spawned per group during Stage 2) for fleet-wide resource queries across managed clusters and multicluster kubectl access. See the parent repo's `CLAUDE.md` for full server documentation.
 
 ---
 
-## MCP Server 1: ACM-UI (20 Tools)
+## MCP Server 1: ACM-Source (18 Tools)
 
 ### What It Is
 
 A GitHub-backed code search and source access server for the ACM Console (`stolostron/console`) and kubevirt-plugin (`kubevirt-ui/kubevirt-plugin`) repositories. It accesses specific branch versions of these repos via the GitHub API, allowing the agent to search product source code, look up selectors, read component files, and check UI translations.
 
-**Tool prefix:** `mcp__acm-ui__`
+**Tool prefix:** `mcp__acm-source__`
 
 ### Why It Matters
 
-When a Cypress test fails because an element isn't found, the core question is: "Does this element still exist in the product code?" The ACM-UI MCP answers this by searching the actual product repository on the correct branch version.
+When a Cypress test fails because an element isn't found, the core question is: "Does this element still exist in the product code?" The ACM-Source MCP answers this by searching the actual product repository on the correct branch version.
 
-The `console_search` field in core-data.json is pre-verified by the data-collector agent using ACM-UI MCP tools (search_code, search_component). Beyond that, the Stage 2 analysis agent can use ACM-UI MCP for additional investigation:
+The `console_search` field in core-data.json is pre-verified by the data-collector agent using ACM-Source MCP tools (search_code, search_code(scope="components")). Beyond that, the Stage 2 analysis agent can use ACM-Source MCP for additional investigation:
 - Cross-branch search (different ACM versions)
 - QE-proven selector catalogs from test repos
 - UI text and translation lookup
@@ -129,25 +129,25 @@ CNV Version        Branch                  Repository
 
 ```
 At start of Stage 2:
-mcp__acm-ui__set_acm_version(version='2.16')   ← Match target cluster ACM version
+mcp__acm-source__set_acm_version(version='2.16')   ← Match target cluster ACM version
 
 If VM tests are present:
-mcp__acm-ui__detect_cnv_version()               ← Auto-detect from connected cluster
+mcp__acm-source__detect_cnv_version()               ← Auto-detect from connected cluster
   OR
-mcp__acm-ui__set_cnv_version(version='4.21')    ← Set manually
+mcp__acm-source__set_cnv_version(version='4.21')    ← Set manually
 ```
 
 If the wrong version is set, selector searches may return false negatives (element exists in product but on a different branch).
 
 ### How It Is Used: Stage 1
 
-In `gather.py`, the Python `ACMUIMCPClient` class is used for two tasks:
+In `gather.py`, the Python `ACMSourceMCPClient` class is used for two tasks:
 
 ```
 gather.py
     │
     └── Step 5: Repository Cloning
-        └── acm_ui_mcp_client.detect_cnv_version()
+        └── acm_source_mcp_client.detect_cnv_version()
             → Determines which kubevirt-plugin branch to clone
             → Example: CNV 4.20.3 on cluster → clone release-4.20
 ```
@@ -155,7 +155,7 @@ gather.py
 **Example: CNV Version Detection**
 ```python
 # In gather.py, during Step 5
-cnv_info = self.acm_ui_mcp_client.detect_cnv_version()
+cnv_info = self.acm_source_mcp_client.detect_cnv_version()
 # Returns: CNVVersionInfo(version='4.20', branch='release-4.20',
 #                          detected_from='cluster')
 # Used to clone: kubevirt-ui/kubevirt-plugin @ release-4.20
@@ -163,7 +163,7 @@ cnv_info = self.acm_ui_mcp_client.detect_cnv_version()
 
 ### How It Is Used: Stage 2
 
-The AI agent calls ACM-UI tools directly during investigation. Here are the key scenarios:
+The AI agent calls ACM-Source tools directly during investigation. Here are the key scenarios:
 
 #### Scenario 1: Verifying a Selector Exists in Product Code
 
@@ -175,11 +175,11 @@ Agent reads core-data.json:
 
 Agent investigates further via MCP if needed:
 
-  mcp__acm-ui__search_code(query='create-btn', repo='acm')
+  mcp__acm-source__search_code(query='create-btn', repo='acm')
   ─────────────────────────────────────────────────────────
   Result: No matches found in stolostron/console@release-2.16
 
-  mcp__acm-ui__search_code(query='create', repo='acm')
+  mcp__acm-source__search_code(query='create', repo='acm')
   ─────────────────────────────────────────────────────
   Result: Found 'cluster-create-btn' in
     frontend/src/routes/Infrastructure/Clusters/ClusterCreate.tsx:42
@@ -196,7 +196,7 @@ Recommended fix: Update selector in cypress/views/cluster.js
 ```
 Agent checks QE selector catalog:
 
-  mcp__acm-ui__get_acm_selectors(source='catalog', component='clc')
+  mcp__acm-source__get_acm_selectors(source='catalog', component='clc')
   ──────────────────────────────────────────────────────────────────
   Result: Cluster Lifecycle selectors from stolostron/clc-ui-e2e:
     createClusterButton: '[data-testid="createCluster"]'
@@ -212,7 +212,7 @@ Comparison: Test uses '#create-btn', catalog shows '[data-testid="createCluster"
 **When:** Test fails during a multi-step wizard and the agent needs to understand which step is affected
 
 ```
-  mcp__acm-ui__get_wizard_steps(
+  mcp__acm-source__get_wizard_steps(
     path='frontend/src/wizards/ClusterCreation/CreateClusterWizard.tsx',
     repo='acm'
   )
@@ -233,7 +233,7 @@ Product change added a condition (provider !== 'existing').
 **When:** Test asserts on button text or error messages that may have changed
 
 ```
-  mcp__acm-ui__search_translations(query='Create cluster')
+  mcp__acm-source__search_translations(query='Create cluster')
   ──────────────────────────────────────────────────────────
   Result:
     key: "cluster.create.button" → "Create cluster"
@@ -249,18 +249,18 @@ Product text: 'Create cluster'                ← lowercase c
 **When:** Test involves virtualization features (Fleet Virt / kubevirt)
 
 ```
-  mcp__acm-ui__detect_cnv_version()
+  mcp__acm-source__detect_cnv_version()
   ──────────────────────────────────
   Result: CNV 4.20.3, branch release-4.20
 
-  mcp__acm-ui__get_fleet_virt_selectors()
+  mcp__acm-source__get_fleet_virt_selectors()
   ────────────────────────────────────────
   Result: Fleet Virt UI selectors from kubevirt-plugin@release-4.20:
     vmListTable: '[data-test-id="virtual-machine-list"]'
     vmNameColumn: '[data-test-col="name"]'
     ...
 
-  mcp__acm-ui__search_code(query='vm-action-btn', repo='kubevirt')
+  mcp__acm-source__search_code(query='vm-action-btn', repo='kubevirt')
   ──────────────────────────────────────────────────────────────────
   Result: Found in src/views/virtualmachines/actions/VmActions.tsx:89
 ```
@@ -271,7 +271,6 @@ Product text: 'Create cluster'                ← lowercase c
 |----------|------|---------|---------------|
 | **Version** | `set_acm_version` | Set ACM Console branch (2.11-2.17) | Start of Stage 2 |
 | | `set_cnv_version` | Set kubevirt-plugin branch (4.14-4.22) | Start of Stage 2 |
-| | `set_version` | Set version for any supported repo | Start of Stage 2 |
 | | `detect_cnv_version` | Auto-detect CNV from cluster | Start of Stage 2 |
 | | `list_versions` | Show version-to-branch mappings | As needed |
 | | `get_current_version` | Get active version | As needed |
@@ -280,7 +279,7 @@ Product text: 'Create cluster'                ← lowercase c
 | **Search** | `search_code` | GitHub code search across repos | Phase B4 |
 | | `find_test_ids` | Find data-testid/aria-label in a file | Phase B4 |
 | | `get_component_source` | Read raw source code | Phase B4, B6 |
-| | `search_component` | Find component files by name | Phase B4 |
+| | `search_code(scope="components")` | Find component files by name | Phase B4 |
 | | `get_route_component` | Map URL path to source files | Phase B4 |
 | **Selectors** | `get_acm_selectors` | QE-proven selectors from test repos | Phase B4 |
 | | `get_fleet_virt_selectors` | Fleet Virt UI selectors | Phase B4 |
@@ -799,18 +798,18 @@ When should the agent call which MCP tool? This matrix maps investigation trigge
 
 | Trigger | Tool | Call |
 |---------|------|------|
-| Start of investigation | `set_acm_version` | `mcp__acm-ui__set_acm_version(version='2.16')` |
-| VM test detected in job name | `detect_cnv_version` | `mcp__acm-ui__detect_cnv_version()` |
+| Start of investigation | `set_acm_version` | `mcp__acm-source__set_acm_version(version='2.16')` |
+| VM test detected in job name | `detect_cnv_version` | `mcp__acm-source__detect_cnv_version()` |
 
 ### Phase B4 (Per Test)
 
 | Trigger | Tool | Call |
 |---------|------|------|
-| `console_search.found = false` | `search_code` | `mcp__acm-ui__search_code(query='{selector}', repo='acm')` |
-| Need QE-proven selectors | `get_acm_selectors` | `mcp__acm-ui__get_acm_selectors(source='catalog', component='{area}')` |
-| Need to read product source | `get_component_source` | `mcp__acm-ui__get_component_source(path='{file}', repo='acm')` |
-| UI text assertion failure | `search_translations` | `mcp__acm-ui__search_translations(query='{text}')` |
-| Wizard step failure | `get_wizard_steps` | `mcp__acm-ui__get_wizard_steps(path='{file}', repo='acm')` |
+| `console_search.found = false` | `search_code` | `mcp__acm-source__search_code(query='{selector}', repo='acm')` |
+| Need QE-proven selectors | `get_acm_selectors` | `mcp__acm-source__get_acm_selectors(source='catalog', component='{area}')` |
+| Need to read product source | `get_component_source` | `mcp__acm-source__get_component_source(path='{file}', repo='acm')` |
+| UI text assertion failure | `search_translations` | `mcp__acm-source__search_translations(query='{text}')` |
+| Wizard step failure | `get_wizard_steps` | `mcp__acm-source__get_wizard_steps(path='{file}', repo='acm')` |
 
 ### Phase B5 (Per Test)
 
@@ -854,7 +853,7 @@ Each MCP server can be unavailable. The system is designed to work without any M
                         ──────────────────────►
 
 ┌───────────────┐  ┌───────────────┐  ┌───────────────┐  ┌───────────────┐
-│ No MCP        │  │ ACM-UI Only   │  │ ACM-UI +      │  │ All Three     │
+│ No MCP        │  │ ACM-Source Only   │  │ ACM-Source +      │  │ All Three     │
 │               │  │               │  │ JIRA          │  │               │
 │ Uses only     │  │ + Cross-repo  │  │ + Feature     │  │ + Dependency  │
 │ core-data.json│  │   search      │  │   intent      │  │   chains      │
@@ -871,7 +870,7 @@ Each MCP server can be unavailable. The system is designed to work without any M
 
 | Unavailable Server | Fallback | Impact |
 |--------------------|----------|--------|
-| **ACM-UI MCP** | Use `console_search` from core-data.json (verified by data-collector agent), cloned repos in `repos/` directory | Loses cross-branch search, QE selector catalogs, translations |
+| **ACM-Source MCP** | Use `console_search` from core-data.json (verified by data-collector agent), cloned repos in `repos/` directory | Loses cross-branch search, QE selector catalogs, translations |
 | **JIRA MCP** | Skip Phases D-B2 and E2-E6; classify on error evidence alone | Loses feature intent, known bug correlation, bug filing |
 | **Knowledge Graph** | Use `subsystem` field from `ComponentExtractor.detected_components`; skip cascading failure detection | Loses dependency chains, cascading failure grouping, subsystem peer lists |
 | **Polarion MCP** | Environment Oracle Phase B skipped; dependency discovery uses playbook-only sources | Loses Polarion-sourced dependencies not captured in playbooks |
@@ -890,13 +889,13 @@ failure_type: assertion
 console_log: has_500_errors = true (search-api 500 Internal Server Error)
 detected_components: [{name: "search-api", subsystem: "Search"}]
 
-─── Phase B4: ACM-UI MCP ────────────────────────────────────
+─── Phase B4: ACM-Source MCP ────────────────────────────────────
 
   1. Set version:
-     mcp__acm-ui__set_acm_version(version='2.16')
+     mcp__acm-source__set_acm_version(version='2.16')
 
   2. Check if test's data-testid exists in product:
-     mcp__acm-ui__search_code(query='search-result-table', repo='acm')
+     mcp__acm-source__search_code(query='search-result-table', repo='acm')
      → Found: frontend/src/routes/Search/SearchResults.tsx:156
      → Selector EXISTS in product (not a selector mismatch)
 
@@ -964,7 +963,7 @@ detected_components: [{name: "search-api", subsystem: "Search"}]
     "classification_path": "B2",
     "evidence_sources": [
       {"source": "console_log", "finding": "search-api 500", "tier": 1},
-      {"source": "acm_ui_mcp", "finding": "selector exists in product", "tier": 2},
+      {"source": "acm_source_mcp", "finding": "selector exists in product", "tier": 2},
       {"source": "jira_correlation", "finding": "ACM-12345 matches", "tier": 1},
       {"source": "knowledge_graph", "finding": "search-api dependency chain verified", "tier": 2}
     ],

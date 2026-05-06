@@ -1,7 +1,7 @@
 ---
-name: acm-code-analyzer
+name: acm-qe-code-analyzer
 description: Analyze GitHub PR diffs for ACM Console to identify changed components, new UI elements, modified behavior, filtering logic, field orders, and test scenarios. Use when writing test cases that need to understand what code changed in a PR.
-compatibility: "Requires gh CLI (gh auth login). Uses acm-ui-source skill (requires acm-ui MCP). Optional: acm-neo4j-explorer (requires neo4j-rhacm MCP). Optional: acm-jira-client skill (requires jira MCP) for coverage gap analysis."
+compatibility: "Requires gh CLI (gh auth login). Uses acm-source MCP for source verification. Optional: neo4j-rhacm MCP for dependency analysis. Optional: jira MCP for coverage gap analysis."
 metadata:
   author: acm-qe
   version: "1.0.0"
@@ -9,12 +9,12 @@ metadata:
 
 # ACM Code Change Analyzer
 
-Analyzes PR diffs from `stolostron/console` or `kubevirt-ui/kubevirt-plugin` to understand exactly what changed and what needs testing. Uses GitHub CLI for PR data and the acm-ui-source skill for source code verification.
+Analyzes PR diffs from `stolostron/console` or `kubevirt-ui/kubevirt-plugin` to understand exactly what changed and what needs testing. Uses GitHub CLI for PR data and the acm-source MCP for source code verification.
 
 ## Prerequisites
 
 - `gh` CLI authenticated (`gh auth login`)
-- acm-ui-source skill available for MCP verification
+- acm-source MCP server available for source verification
 
 ## Process
 
@@ -29,7 +29,7 @@ gh pr diff <N> --repo <repo>
 ```
 
 ### Step 3: Set ACM Version
-Use the acm-ui-source skill to set the version before any source lookups.
+Use the acm-source MCP `set_acm_version` to set the version before any source lookups.
 
 ### Step 4: Analyze Each Changed File
 
@@ -47,7 +47,7 @@ For each changed file in the diff, identify:
 
 ### Step 5: Read Full Source of Primary Target File
 
-MANDATORY: Read the complete source code of the primary changed component via acm-ui-source skill's `get_component_source`. Do NOT rely solely on the diff. The full source reveals:
+MANDATORY: Read the complete source code of the primary changed component via acm-source MCP `get_component_source`. Do NOT rely solely on the diff. The full source reveals:
 - Array construction patterns (field order in description lists)
 - Import chains (what utility functions are used)
 - Conditional rendering (what conditions control visibility)
@@ -62,11 +62,11 @@ If the diff introduces or modifies filtering functions:
 
 ### Step 7: Check Component Dependencies
 
-Use the acm-neo4j-explorer skill (if available) to understand what depends on changed components and what might be affected.
+Use the neo4j-rhacm MCP (if available) to understand what depends on changed components and what might be affected.
 
 ### Step 8: Verify UI Strings
 
-Use acm-ui-source skill's `search_translations` for any new labels found in the diff. Ensures test cases use exact strings users will see.
+Use acm-source MCP `search_translations` for any new labels found in the diff. Ensures test cases use exact strings users will see.
 
 ### Step 9: Map Changes to Test Scenarios
 
@@ -79,7 +79,7 @@ Use acm-ui-source skill's `search_translations` for any new labels found in the 
 
 ### Step 10: Coverage Gap Analysis
 
-Cross-reference the conditional logic, error handling, and edge cases identified in Steps 4-9 against the JIRA story's Acceptance Criteria. If ACs are provided in the input, use them directly. Otherwise, retrieve them via the acm-jira-client skill's `get_issue`.
+Cross-reference the conditional logic, error handling, and edge cases identified in Steps 4-9 against the JIRA story's Acceptance Criteria. If ACs are provided in the input, use them directly. Otherwise, retrieve them via the jira MCP `get_issue`.
 
 For each code behavior found in the diff, ask:
 - Does any AC explicitly describe this behavior? → Covered.

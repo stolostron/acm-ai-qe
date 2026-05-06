@@ -4,14 +4,14 @@
 # When a test fails with "element not found" and the selector is NOT in
 # this file, it's likely been renamed or removed (AUTOMATION_BUG).
 #
-# Populated by: refresh.py (ACM-UI MCP find_test_ids + search_code)
+# Populated by: refresh.py (ACM Source MCP find_test_ids + search_code)
 # Refresh frequency: on every ACM version change
 
 acm_version: "2.17"
 last_refreshed: "2026-03-27"
 note: >
   This is a representative sample of critical selectors per feature area.
-  For the full selector inventory, query ACM-UI MCP get_acm_selectors.
+  For the full selector inventory, query ACM Source MCP get_acm_selectors.
 
 selectors:
 

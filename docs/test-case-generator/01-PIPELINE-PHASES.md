@@ -161,7 +161,7 @@ The code-analyzer subagent examines the PR diff and source code. It receives the
 
 | Server | Tools Used |
 |--------|-----------|
-| acm-ui | `get_component_source`, `search_code`, `find_test_ids` |
+| acm-source | `get_component_source`, `search_code`, `find_test_ids` |
 | neo4j-rhacm | `read_neo4j_cypher` |
 | bash | `gh` CLI for PR diff analysis |
 
@@ -190,7 +190,7 @@ The ui-discoverer subagent searches ACM Console source code for UI elements rele
 
 | Server | Tools Used |
 |--------|-----------|
-| acm-ui | `set_acm_version`, `search_translations`, `get_routes`, `get_acm_selectors`, `search_component`, `get_wizard_steps` |
+| acm-source | `set_acm_version`, `search_translations`, `get_routes`, `get_acm_selectors`, `search_code(scope="components")`, `get_wizard_steps` |
 | neo4j-rhacm | `read_neo4j_cypher` |
 | bash | `oc` CLI (only if cluster URL available for live spot-check) |
 
@@ -393,14 +393,12 @@ See [05-QUALITY-GATES.md](05-QUALITY-GATES.md) for the full checklist.
 | Section order | Blocking | Title → Metadata → Fields → Description → Setup → Steps → Teardown |
 | Step format | Blocking | H3 heading, numbered actions, bullet expected results |
 | CLI-in-steps rule | Blocking | CLI only for backend validation, not as UI substitute |
-| Entry point route | Blocking | Verified via acm-ui MCP `get_routes()` |
+| Entry point route | Blocking | Verified via acm-source MCP `get_routes()` |
 | UI labels | Warning | Spot-checked via `search_translations()` |
 | AC vs implementation | Blocking | Expected results consistent with JIRA ACs |
 | Scope alignment | Blocking | Steps match target story, not broader PR |
 | Design efficiency | Warning | Resource optimization, entry point selection, step design anti-patterns |
 | Coverage gaps | Warning | Code behaviors triaged as ADD/NOTE are covered |
-| Polarion duplicates | Info | Search for existing coverage |
-| Peer consistency | Info | Format matches existing test cases |
 
 ---
 

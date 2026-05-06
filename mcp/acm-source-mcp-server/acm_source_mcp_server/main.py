@@ -11,7 +11,7 @@ logging.basicConfig(
 )
 
 def main():
-    """Entry point for the ACM UI MCP Server."""
+    """Entry point for the ACM Source MCP Server."""
     load_dotenv()
     mcp.run()
 

@@ -102,4 +102,4 @@ Build a dependency map from the 8 sources:
 
 The cluster-derived map is always available (just `oc` commands). The
 knowledge graph supplements it with broader ACM-specific relationships.
-The acm-ui MCP provides implementation details for each dependency.
+The acm-source MCP provides implementation details for each dependency.

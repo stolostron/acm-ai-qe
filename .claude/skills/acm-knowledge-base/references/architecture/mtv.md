@@ -63,7 +63,7 @@ Migration Running → VM Conversion → VM Import → Complete/Failed
 
 ## Translation Keys
 
-MTV UI strings are primarily in the kubevirt-plugin, not stolostron/console. Use `repo="kubevirt"` in acm-ui MCP.
+MTV UI strings are primarily in the kubevirt-plugin, not stolostron/console. Use `repo="kubevirt"` in acm-source MCP.
 
 | Context | Search Strategy |
 |---------|----------------|
@@ -76,14 +76,14 @@ MTV UI strings are primarily in the kubevirt-plugin, not stolostron/console. Use
 - **Hub**: `cnv-mtv-integrations` MCH component enabled
 - **Spokes**: MTV (Forklift) operator installed
 - **Spokes**: CNV/KubeVirt installed (target for migrated VMs)
-- **MCP**: Call `set_acm_version()` AND `set_cnv_version()` before acm-ui searches
+- **MCP**: Call `set_acm_version()` AND `set_cnv_version()` before acm-source searches
 - **MCP repo**: Use `repo="kubevirt"` for MTV component searches
 - At least one spoke with an active MTV migration plan for status testing
 
 ## Testing Considerations
 
 - MTV is primarily a kubevirt-plugin feature — search in `repo="kubevirt"`, not `repo="acm"`
-- Set BOTH `set_acm_version()` AND `set_cnv_version()` in acm-ui MCP
+- Set BOTH `set_acm_version()` AND `set_cnv_version()` in acm-source MCP
 - ACM provides fleet-level MTV visibility, not plan management — test cases should focus on viewing/monitoring, not creating migration plans
 - MTV plan creation and management is done on the spoke OCP console — if testing plan creation, that's a spoke-level test, not an ACM hub test
 - Migration plan status values: Created, Ready, Running, Succeeded, Failed, Canceled

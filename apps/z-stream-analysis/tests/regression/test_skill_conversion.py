@@ -32,7 +32,6 @@ ZSTREAM_SKILLS = [
     "acm-hub-health-check",
     "acm-cluster-health",
     "acm-jenkins-client",
-    "acm-neo4j-explorer",
     "acm-knowledge-base",
     "acm-knowledge-learner",
     "acm-cluster-remediation",
@@ -316,8 +315,7 @@ class TestCrossSkillDependencyChain:
         required_deps = [
             "acm-jenkins-client", "acm-cluster-health", "acm-data-enricher",
             "acm-failure-classifier", "acm-cluster-investigator",
-            "acm-ui-source", "acm-neo4j-explorer", "acm-jira-client",
-            "acm-polarion-client", "acm-knowledge-base",
+            "acm-knowledge-base",
         ]
         for dep in required_deps:
             assert dep in text, f"acm-z-stream-analyzer missing dependency: {dep}"

@@ -30,7 +30,7 @@ Traps are common diagnostic pitfalls where the obvious conclusion is wrong.
 
 ## Counter-Traps (prevent false classifications)
 
-**Trap 12 (Selector Doesn't Exist):** A test references a CSS selector that was NEVER in the official product source. Regardless of infrastructure state, this is an automation bug (stale test). Verify via acm-ui MCP `search_code`.
+**Trap 12 (Selector Doesn't Exist):** A test references a CSS selector that was NEVER in the official product source. Regardless of infrastructure state, this is an automation bug (stale test). Verify via acm-source MCP `search_code`.
 
 **Trap 13 (Backend Wrong Data):** Backend API returns incorrect data (wrong values, missing fields). If the component is healthy and responding, this is a product code bug, not infrastructure.
 

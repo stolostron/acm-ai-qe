@@ -1,10 +1,10 @@
 # Z-Stream Analysis: Skill Architecture
 
-How the portable skill pack enables the Z-Stream failure analysis pipeline. 14 skills decompose a 4-stage pipeline into reusable, independently testable components — from Jenkins data collection through 12-layer diagnostic investigation to final classification reports.
+How the portable skill pack enables the Z-Stream failure analysis pipeline. 10 skills decompose a 4-stage pipeline into reusable, independently testable components — from Jenkins data collection through 12-layer diagnostic investigation to final classification reports. MCP tools (jira, acm-source, polarion, neo4j-rhacm) are called directly by subagents — no wrapper skill needed.
 
 ## Skill Inventory
 
-14 skills organized in 4 tiers:
+10 skills organized in 4 tiers:
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -25,20 +25,12 @@ How the portable skill pack enables the Z-Stream failure analysis pipeline. 14 s
      └───────────┘  └────────┘ └──────┘ └────────────┘
              │                     │
      ┌───────▼───────────┐  ┌─────▼──────────────────┐
-     │   METHODOLOGY     │  │   MCP INTERFACES       │
+     │   METHODOLOGY     │  │   MCP + POST-ANALYSIS  │
      │                   │  │                        │
      │  cluster-health   │  │  jenkins-client        │
-     │  knowledge-base   │  │  jira-client           │
-     │  knowledge-learner│  │  polarion-client       │
-     │                   │  │  ui-source             │
-     └───────────────────┘  │  neo4j-explorer        │
-                            └────────────────────────┘
-                                       │
-                            ┌──────────▼─────────────┐
-                            │   POST-ANALYSIS        │
-                            │                        │
-                            │  cluster-remediation   │
-                            └────────────────────────┘
+     │  knowledge-base   │  │  cluster-remediation   │
+     │  knowledge-learner│  │                        │
+     └───────────────────┘  └────────────────────────┘
 ```
 
 | Tier | Skills | Role |
@@ -46,8 +38,9 @@ How the portable skill pack enables the Z-Stream failure analysis pipeline. 14 s
 | Orchestration | acm-z-stream-analyzer | Sequences stages 1→1.5→enrichment→2→3 |
 | Core Pipeline | hub-health-check, data-enricher, failure-classifier, cluster-investigator | Execute each pipeline stage |
 | Methodology + Knowledge | cluster-health, knowledge-base, knowledge-learner | Provide frameworks, domain data, self-healing |
-| MCP Interfaces | jenkins-client, jira-client, polarion-client, ui-source, neo4j-explorer | Wrap external tool access |
-| Post-Analysis | cluster-remediation | Fix execution with approval gates |
+| MCP + Post-Analysis | jenkins-client, cluster-remediation | Jenkins MCP interface, fix execution with approval gates |
+
+MCP tools (jira, acm-source, polarion, neo4j-rhacm) are called directly by subagents at every tier — no wrapper skill needed.
 
 ---
 
@@ -122,10 +115,10 @@ Stage 3: Generating report...
 | acm-data-enricher | Post-1.5 | Test data enrichment |
 | acm-failure-classifier | 2 | 5-phase classification |
 | acm-cluster-investigator | 2 (sub) | Per-group investigation |
-| acm-ui-source | 1.5–2 | Selector verification |
-| acm-neo4j-explorer | 1.5–2 | Dependency analysis |
-| acm-jira-client | 2 | Bug correlation |
-| acm-polarion-client | 2 | Test case context |
+| acm-source MCP | 1.5–2 | Selector verification |
+| neo4j-rhacm MCP | 1.5–2 | Dependency analysis |
+| jira MCP | 2 | Bug correlation |
+| polarion MCP | 2 | Test case context |
 | acm-knowledge-base | All | Domain reference data |
 
 ---
@@ -134,7 +127,7 @@ Stage 3: Generating report...
 
 **Pipeline stage:** 1.5
 **Files:** SKILL.md + 62 reference files (architecture knowledge, diagnostics)
-**Depends on:** acm-cluster-health (methodology), acm-neo4j-explorer, acm-knowledge-learner
+**Depends on:** acm-cluster-health (methodology), neo4j-rhacm MCP, acm-knowledge-learner
 
 Produces `cluster-diagnosis.json` — the structured cluster health contract between Stages 1.5 and 2. Runs a 6-phase investigation using the 12-layer diagnostic model.
 
@@ -260,7 +253,7 @@ Root cause layer determines owner:
 
 **Pipeline stage:** Runs after Stage 1.5, before Stage 2
 **Files:** SKILL.md + 1 reference file (enrichment-tasks.md)
-**Depends on:** acm-ui-source (for selector verification)
+**Depends on:** acm-source MCP (for selector verification)
 
 Enriches `core-data.json` with AI-analyzed context that gather.py cannot produce deterministically. Runs 4 sequential tasks:
 
@@ -278,7 +271,7 @@ flowchart LR
 | Task | What | Tools | Output field |
 |:----:|------|-------|-------------|
 | 1 | Trace import chains to find selector definitions | Bash (grep, find) | `page_objects` |
-| 2 | Verify selectors exist in official product source | acm-ui-source MCP | `console_search` |
+| 2 | Verify selectors exist in official product source | acm-source MCP | `console_search` |
 | 3 | Git history analysis of selector changes + intent | Bash (git log -S) | `recent_selector_changes`, `temporal_summary` |
 | 4 | Fill gaps in failure pattern matching (conditional) | Knowledge files | `feature_knowledge.ai_enrichment` |
 
@@ -306,7 +299,7 @@ flowchart LR
 
 **Pipeline stage:** 2
 **Files:** SKILL.md + 6 reference files (one per phase + output schema + decision routing)
-**Depends on:** acm-cluster-investigator, acm-jira-client, acm-polarion-client, acm-ui-source, acm-knowledge-base
+**Depends on:** acm-cluster-investigator, jira MCP, polarion MCP, acm-source MCP, acm-knowledge-base
 
 The core AI analysis engine. Implements a 5-phase investigation framework that produces per-test classifications with evidence chains.
 
@@ -409,7 +402,7 @@ Required per-test fields: test_name, classification, confidence (0.0–1.0), roo
 
 **Pipeline stage:** 2 (dispatched by failure-classifier per group)
 **Files:** SKILL.md + 2 reference files (symptom-layer-map, group-verification)
-**Depends on:** acm-cluster-health (methodology), acm-ui-source, acm-neo4j-explorer
+**Depends on:** acm-cluster-health (methodology), acm-source MCP, neo4j-rhacm MCP
 
 Performs deep 12-layer root cause investigation for individual tests or test groups.
 
@@ -461,51 +454,43 @@ Wraps the Jenkins MCP server. Used for build verification before the pipeline st
 
 ---
 
-### 8. acm-jira-client — JIRA MCP Interface
+### 8. MCP Tools Reference (Direct Access)
 
-**Pipeline stage:** 2 (Phase E)
-**Files:** SKILL.md + 2 reference files
+Subagents call these MCP servers directly — no wrapper skill needed.
 
-Wraps the JIRA MCP server. Used during Phase E for bug correlation — searching for existing bugs matching failure patterns, reading feature stories for context, and optionally creating/linking new bug tickets.
+#### jira MCP
 
-**Key tools:** `search_issues` (JQL search), `get_issue` (read story/acceptance criteria/PRs), `create_issue` (with user approval), `link_issue` (relate failures).
+**Stage:** 2 (Phase E) — Bug correlation: searching for existing bugs, reading feature stories, optionally creating/linking bug tickets.
 
----
+**Key tools:** `search_issues` (JQL search), `get_issue` (read story/ACs/PRs), `create_issue` (with user approval), `link_issue` (relate failures).
 
-### 9. acm-polarion-client — Polarion MCP Interface
+**Gotcha:** `get_issue` does not return links — use `search_issues` for linked ticket queries.
 
-**Pipeline stage:** 2 (Phase D, PR-6b)
-**Files:** SKILL.md + 1 reference file
+#### polarion MCP
 
-Wraps the Polarion MCP server. Used during Phase D for PR-6b (Polarion expected behavior check) — verifying what behavior a test EXPECTS to fast-path PRODUCT_BUG classification without needing a JIRA ticket.
+**Stage:** 2 (Phase D, PR-6b) — Polarion expected behavior check: verifying what a test EXPECTS to fast-path PRODUCT_BUG classification without needing a JIRA ticket.
 
 **Key tools:** `get_polarion_test_case_summary`, `get_polarion_test_steps`, `get_polarion_setup_html`, `get_polarion_work_item`.
 
----
+**Gotcha:** Project ID is always `RHACM4K`. Query syntax is Lucene (not JQL).
 
-### 10. acm-ui-source — ACM Console MCP Interface
+#### acm-source MCP
 
-**Pipeline stage:** 1.5–2
-**Files:** SKILL.md + 1 reference file
-
-Wraps the ACM-UI MCP server. Used for selector verification (Task 2 of data-enricher), translation lookup, component source reading, and wizard step analysis.
+**Stage:** 1.5–2 — Selector verification (data-enricher Task 2), translation lookup, component source reading, wizard step analysis.
 
 **Key tools:** `search_code` (cross-repo search), `find_test_ids` (exact file lookup), `search_translations` (UI text verification), `get_acm_selectors` (QE catalog), `get_component_source` (read source), `set_acm_version` / `detect_cnv_version` (version context).
 
----
+**Gotcha:** Always call `set_acm_version` before any search. Without it, lookups target the wrong branch.
 
-### 11. acm-neo4j-explorer — Knowledge Graph MCP Interface
+#### neo4j-rhacm MCP
 
-**Pipeline stage:** 1.5–2
-**Files:** SKILL.md + 1 reference file (cypher-patterns.md)
-
-Wraps the Neo4j RHACM MCP server. Queries the component dependency graph (~370 nodes, 541 relationships across 7 subsystems).
+**Stage:** 1.5–2 (optional) — Component dependency graph (~370 nodes, 541 relationships across 7 subsystems).
 
 **Query patterns:** Component lookup, downstream dependencies, upstream impact, subsystem listing, cross-component relationships.
 
 ---
 
-### 12. acm-knowledge-base — Domain Knowledge Repository
+### 9. acm-knowledge-base — Domain Knowledge Repository
 
 **Pipeline stage:** All stages
 **Files:** SKILL.md + 14 reference files
@@ -516,7 +501,7 @@ Curated ACM domain knowledge — per-area architecture, test conventions, naming
 
 ---
 
-### 13. acm-knowledge-learner — Self-Healing Knowledge
+### 10. acm-knowledge-learner — Self-Healing Knowledge
 
 **Pipeline stage:** Post-analysis
 **Files:** SKILL.md + 2 reference files
@@ -529,7 +514,7 @@ Builds and updates the knowledge base by comparing live cluster state to known b
 
 ---
 
-### 14. acm-cluster-remediation — Fix Execution
+### 11. acm-cluster-remediation — Fix Execution
 
 **Pipeline stage:** Post-diagnosis (not during analysis)
 **Files:** SKILL.md only (no references)
@@ -555,14 +540,14 @@ flowchart TD
     subgraph "Stage 1.5 (acm-hub-health-check)"
         HH[hub-health-check] --> CDX[cluster-diagnosis.json]
         CH[cluster-health] -.methodology.-> HH
-        NEO[neo4j-explorer] -.dependencies.-> HH
+        NEO[neo4j-rhacm MCP] -.dependencies.-> HH
         KB[knowledge-base] -.baselines.-> HH
         KUB --> HH
     end
 
     subgraph "Enrichment (acm-data-enricher)"
         DE[data-enricher] --> CDe[enriched core-data.json]
-        UIS[ui-source] -.selector search.-> DE
+        UIS[acm-source MCP] -.selector search.-> DE
         CD --> DE
         REPOS --> DE
     end
@@ -570,8 +555,8 @@ flowchart TD
     subgraph "Stage 2 (acm-failure-classifier)"
         FC[failure-classifier]
         CI[cluster-investigator] -.per group.-> FC
-        JC[jira-client] -.Phase E.-> FC
-        PC[polarion-client] -.Phase D.-> FC
+        JC[jira MCP] -.Phase E.-> FC
+        PC[polarion MCP] -.Phase D.-> FC
         CDe --> FC
         CDX --> FC
         FC --> AR[analysis-results.json]
@@ -601,7 +586,7 @@ Cross-reference with `architecture-diagrams.html`:
 | Diagram 1: Pipeline Overview | **acm-z-stream-analyzer** (orchestration flow) |
 | Diagram 2: Stage 1 Data Gathering (Steps 1–9) | **gather.py** script + **acm-jenkins-client** (Step 1) |
 | Diagram 2a: Step 4 Cluster Login + Landscape | **gather.py** script (deterministic) |
-| Diagram 2b: Step 5 Feature Context Oracle | **gather.py** script + **acm-neo4j-explorer** (KG queries) + **acm-polarion-client** (test case context) |
+| Diagram 2b: Step 5 Feature Context Oracle | **gather.py** script + **neo4j-rhacm MCP** (KG queries) + **polarion MCP** (test case context) |
 | Diagram 2d: Step 7 Test Context Extraction | **acm-data-enricher** (Tasks 1–3: page objects, selector verification, timeline analysis) |
 | Diagram 2e: Step 9 Feature Knowledge | **gather.py** script + **acm-knowledge-base** (playbooks, architecture) |
 | Diagram 2c: Stage 1.5 Cluster Diagnostic | **acm-hub-health-check** (6-phase execution) + **acm-cluster-health** (methodology) |

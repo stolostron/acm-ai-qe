@@ -1,7 +1,7 @@
 ---
 name: acm-failure-classifier
 description: Classify Jenkins pipeline test failures as PRODUCT_BUG, AUTOMATION_BUG, INFRASTRUCTURE, or NO_BUG using a 5-phase AI investigation framework with 12-layer diagnostics, provably linked grouping, counterfactual validation, and multi-evidence requirements. Use when test failures need root-cause classification.
-compatibility: "Uses acm-cluster-health (methodology), acm-ui-source (selector verification), acm-neo4j-explorer (dependencies), acm-jira-client (bug correlation), acm-polarion-client (test case context). Requires oc CLI for cluster access. Uses acm-cluster-investigator for per-group deep investigation."
+compatibility: "Uses acm-cluster-health (methodology). Requires MCP servers: acm-source (selector verification), neo4j-rhacm (dependencies), jira (bug correlation), polarion (test case context). Requires oc CLI for cluster access. Uses acm-cluster-investigator for per-group deep investigation."
 metadata:
   author: acm-qe
   version: "1.0.0"
@@ -75,7 +75,7 @@ For each group (or individual test), use the acm-cluster-investigator skill to p
 
 **Tiered Playbook (B8):**
 - Tier 0: Extracted context only (sufficient for clear selector mismatches)
-- Tier 1: + MCP selector verification (acm-ui-source)
+- Tier 1: + MCP selector verification (acm-source MCP)
 - Tier 2: + Repo code reading (test file, page objects)
 - Tier 3: + Backend verification (oc commands, cluster state)
 - Tier 4: + Cross-system (JIRA bugs, Polarion test cases, knowledge graph)

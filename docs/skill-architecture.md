@@ -1,48 +1,47 @@
 # Skill Architecture
 
-How all 18 portable ACM skills fit together.
+How all 14 portable ACM skills fit together.
 
 ## Skill Inventory
 
-### Shared Capability Skills (6)
+### Shared Capability Skills (3)
 
 These are vanilla tools with no app-specific logic. Any skill or workflow can use them.
 
 | Skill | Purpose | MCP Required |
 |-------|---------|-------------|
 | `acm-knowledge-base` | ACM domain knowledge (9 area architectures, conventions, examples) | None |
-| `acm-neo4j-explorer` | RHACM component dependency graph queries | neo4j-rhacm |
-| `acm-ui-source` | ACM Console source code queries (routes, translations, selectors, components) | acm-ui |
-| `acm-jira-client` | JIRA ticket reading and JQL search | jira |
-| `acm-polarion-client` | Polarion test case queries and work item access | polarion |
 | `acm-cluster-health` | 12-layer diagnostic methodology, 14 traps, evidence tiers | None (methodology only) |
+| `acm-jenkins-client` | Jenkins CI MCP interface | jenkins |
+
+MCP tools (acm-source, jira, polarion, neo4j-rhacm) are called directly by subagents -- no wrapper skill needed.
 
 ### Test Case Generator Skills (4)
 
-| Skill | Purpose | Uses Shared Skills |
-|-------|---------|-------------------|
-| `acm-test-case-generator` | Orchestrator: 10-phase pipeline from JIRA to Polarion-ready test case | All 6 shared + 3 below |
-| `acm-code-analyzer` | PR diff analysis for ACM Console | acm-ui-source, acm-knowledge-base, acm-neo4j-explorer |
-| `acm-test-case-writer` | Test case markdown authoring with conventions and self-review | acm-ui-source, acm-knowledge-base |
-| `acm-test-case-reviewer` | Quality gate with mandatory MCP verification | acm-ui-source, acm-polarion-client, acm-knowledge-base |
+| Skill | Purpose | Uses Shared Skills / MCPs |
+|-------|---------|--------------------------|
+| `acm-test-case-generator` | Orchestrator: 10-phase pipeline from JIRA to Polarion-ready test case | All 3 shared + MCP tools + 3 below |
+| `acm-qe-code-analyzer` | PR diff analysis for ACM Console | acm-knowledge-base (+ acm-source, neo4j-rhacm MCPs) |
+| `acm-test-case-writer` | Test case markdown authoring with conventions and self-review | acm-knowledge-base (+ acm-source MCP) |
+| `acm-test-case-reviewer` | Quality gate with mandatory MCP verification | acm-knowledge-base (+ acm-source MCP) |
 
 ### Hub Health Skills (3)
 
-| Skill | Purpose | Uses Shared Skills |
-|-------|---------|-------------------|
-| `acm-hub-health-check` | Orchestrator: 6-phase cluster diagnosis with 4 depth modes | acm-cluster-health, acm-neo4j-explorer, acm-ui-source |
+| Skill | Purpose | Uses Shared Skills / MCPs |
+|-------|---------|--------------------------|
+| `acm-hub-health-check` | Orchestrator: 6-phase cluster diagnosis with 4 depth modes | acm-cluster-health (+ neo4j-rhacm, acm-source MCPs) |
 | `acm-cluster-remediation` | Cluster mutation execution with structured approval gates | acm-cluster-health, acm-hub-health-check |
-| `acm-knowledge-learner` | Discover unknown components and build knowledge from live cluster | acm-neo4j-explorer, acm-ui-source |
+| `acm-knowledge-learner` | Discover unknown components and build knowledge from live cluster | (neo4j-rhacm, acm-source MCPs) |
 
 ### Z-Stream Analysis Skills (5)
 
-| Skill | Purpose | Uses Shared Skills |
-|-------|---------|-------------------|
-| `acm-z-stream-analyzer` | Orchestrator: 4-stage pipeline (gather, diagnose, classify, report) | All shared + 4 below |
-| `acm-failure-classifier` | 5-phase classification engine (A through E) with 7 classification types | acm-cluster-health, acm-ui-source, acm-neo4j-explorer, acm-jira-client, acm-polarion-client |
-| `acm-cluster-investigator` | Per-group 12-layer root cause investigation | acm-cluster-health, acm-ui-source, acm-neo4j-explorer, acm-jira-client, acm-polarion-client |
-| `acm-data-enricher` | Data enrichment (selector verification, timeline analysis, knowledge gaps) | acm-ui-source, acm-jira-client |
-| `acm-jenkins-client` | Jenkins CI MCP interface | None (vanilla shared) |
+| Skill | Purpose | Uses Shared Skills / MCPs |
+|-------|---------|--------------------------|
+| `acm-z-stream-analyzer` | Orchestrator: 4-stage pipeline (gather, diagnose, classify, report) | All 3 shared + MCP tools + 4 below |
+| `acm-failure-classifier` | 5-phase classification engine (A through E) with 7 classification types | acm-cluster-health (+ acm-source, neo4j-rhacm, jira, polarion MCPs) |
+| `acm-cluster-investigator` | Per-group 12-layer root cause investigation | acm-cluster-health (+ acm-source, neo4j-rhacm, jira, polarion MCPs) |
+| `acm-data-enricher` | Data enrichment (selector verification, timeline analysis, knowledge gaps) | (acm-source, jira MCPs) |
+| `acm-jenkins-client` | Jenkins CI MCP interface | None |
 
 ## Design Principles
 

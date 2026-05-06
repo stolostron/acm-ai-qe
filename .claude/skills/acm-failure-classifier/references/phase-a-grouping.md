@@ -31,7 +31,7 @@ If `cluster-diagnosis.json` exists, read ALL of these sections:
 
 10. **`console_plugins`**: Registered ConsolePlugin CRs. Missing plugins = missing UI tabs.
 
-11. **`image_integrity`**: Whether console image matches expected registries. Non-standard image = tampered environment. Tests with CSS/rendering issues should be investigated as potential PRODUCT_BUG (image defective), not AUTOMATION_BUG. Use acm-ui-source to verify selectors against OFFICIAL source.
+11. **`image_integrity`**: Whether console image matches expected registries. Non-standard image = tampered environment. Tests with CSS/rendering issues should be investigated as potential PRODUCT_BUG (image defective), not AUTOMATION_BUG. Use acm-source MCP `search_code` to verify selectors against OFFICIAL source.
 
 12. **`component_log_excerpts`**: Pre-extracted error lines from unhealthy pods. Use instead of running `oc logs` — saves context.
 
@@ -47,7 +47,7 @@ If `cluster-diagnosis.json` exists, read ALL of these sections:
 
 **ANTI-ANCHORING RULE:** The cluster diagnostic provides CONTEXT, not pre-determined classification. Start from each test's actual error, then check whether cluster-wide findings explain THAT SPECIFIC error. Do NOT start from "the cluster is broken" and work backward.
 
-**Tampered Console Warning:** When console runs a non-official image, check `console_search.verification.verified_by`. If `"data-collector"`, the selector was already verified against the OFFICIAL source — trust the result. If `verification` is absent, use acm-ui-source `search_code` to verify manually. A selector missing from BOTH tampered AND official source is AUTOMATION_BUG (dead selector), not INFRASTRUCTURE.
+**Tampered Console Warning:** When console runs a non-official image, check `console_search.verification.verified_by`. If `"data-collector"`, the selector was already verified against the OFFICIAL source — trust the result. If `verification` is absent, use acm-source MCP `search_code` to verify manually. A selector missing from BOTH tampered AND official source is AUTOMATION_BUG (dead selector), not INFRASTRUCTURE.
 
 ## A1b: Cluster Landscape
 
@@ -66,7 +66,7 @@ Scan all failed tests for patterns:
 
 ## A3b: Knowledge Graph Context (optional)
 
-If acm-neo4j-explorer available, query subsystem dependencies for affected areas.
+If neo4j-rhacm MCP available, query subsystem dependencies for affected areas.
 
 ## A4: Instant Classification + Provably Linked Grouping
 

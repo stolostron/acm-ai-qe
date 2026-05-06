@@ -46,9 +46,9 @@ portable root-level skills for methodology.
 | Local Skill | Entry Points | Root Skills Used |
 |-------------|--------------|------------------|
 | `diagnose` | `/sanity`, `/health-check`, `/deep` | `acm-hub-health-check`, `acm-cluster-health` |
-| `investigate` | `/investigate <target>` | `acm-hub-health-check`, `acm-cluster-health`, `acm-neo4j-explorer` |
+| `investigate` | `/investigate <target>` | `acm-hub-health-check`, `acm-cluster-health`, `neo4j-rhacm MCP` |
 | `remediate` | (after diagnosis) | `acm-cluster-remediation` |
-| `learn` | `/learn [area]` | `acm-knowledge-learner`, `acm-neo4j-explorer` |
+| `learn` | `/learn [area]` | `acm-knowledge-learner`, `neo4j-rhacm MCP` |
 
 ---
 
@@ -105,7 +105,7 @@ knowledge refresh.
 
 | MCP | Purpose | When to Use |
 |-----|---------|-------------|
-| `acm-ui` | ACM Console source search | Self-healing, component understanding |
+| `acm-source` | ACM Console source search | Self-healing, component understanding |
 | `neo4j-rhacm` | Component dependency graph (370 components, 541 relationships) | Unknown dependencies, multiple failures with no obvious shared cause |
 | `acm-search` | Fleet-wide spoke-side queries | Spoke verification when search-postgres healthy |
 

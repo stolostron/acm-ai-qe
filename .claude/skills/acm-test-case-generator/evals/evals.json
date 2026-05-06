@@ -8,7 +8,7 @@
       "expected_output": "Pipeline completes all phases in order, MCP tools called before writing labels, quality review runs, report.py produces output files.",
       "assertions": [
         "Phases execute in order: JIRA investigation → code analysis → UI discovery → synthesis → writing → quality review",
-        "acm-ui-source MCP is called at least once before any UI label appears in the test case",
+        "acm-source MCP is called at least once before any UI label appears in the test case",
         "Quality review gate runs and produces review-results.json",
         "report.py produces both test-case.md and SUMMARY.txt",
         "No UI label, route, or selector is assumed without MCP or investigation evidence"
@@ -58,9 +58,9 @@
       "prompt": "Generate a test case when one or more MCP servers are unavailable.",
       "expected_output": "Skill notes unavailable MCPs explicitly and proceeds with available data. Never silently assumes labels, routes, or selectors.",
       "assertions": [
-        "If acm-ui MCP unavailable: marks all UI elements as [NEEDS VERIFICATION] instead of assuming",
+        "If acm-source MCP unavailable: marks all UI elements as [NEEDS VERIFICATION] instead of assuming",
         "If jira MCP unavailable: asks user for ticket details or falls back to manual input",
-        "If polarion MCP unavailable: skips Polarion duplicate check and notes it",
+        "If polarion MCP unavailable: skips Polarion coverage check in Phase 1 and notes it",
         "Unavailable MCPs are reported in the output, not silently skipped"
       ],
       "category": "degradation"

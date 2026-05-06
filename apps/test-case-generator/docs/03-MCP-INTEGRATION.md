@@ -6,9 +6,9 @@ Seven MCP servers provide external data access for the pipeline. Four are used d
 
 | Server | Tools | Source | Phase | Setup |
 |--------|-------|--------|-------|-------|
-| acm-ui | 20 | This repo (`mcp/acm-ui-mcp-server/`) | 1, 4, 4.5 | Local venv |
+| acm-source | 18 | This repo (`mcp/acm-source-mcp-server/`) | 1, 4, 4.5 | Local venv |
 | jira | 3 | [stolostron/jira-mcp-server](https://github.com/stolostron/jira-mcp-server) | 1 | Clone + venv + .env |
-| polarion | 7 | This repo (`mcp/polarion/`) | 1, 4.5 | uvx + .env |
+| polarion | 7 | This repo (`mcp/polarion/`) | 1 | uvx + .env |
 | neo4j-rhacm | 2 | [mcp-neo4j-cypher](https://pypi.org/project/mcp-neo4j-cypher/) (PyPI) | 1 | Podman container |
 | acm-search | 5 | [stolostron/acm-mcp-server](https://github.com/stolostron/acm-mcp-server) | 3 | On-cluster SSE + mcp-remote |
 | acm-kubectl | 3 | [stolostron/acm-mcp-server](https://github.com/stolostron/acm-mcp-server) | 3 | npx |
@@ -32,10 +32,10 @@ The setup script:
 
 ---
 
-## ACM UI MCP Server
+## ACM Source MCP Server
 
 **Tools:** 20
-**Source:** `mcp/acm-ui-mcp-server/` (our code)
+**Source:** `mcp/acm-source-mcp-server/` (our code)
 **Used by:** Code Change Analyzer, UI Discovery, Test Case Generator, Quality Reviewer
 
 Searches ACM Console and kubevirt-plugin source code on GitHub. Provides selectors, translations, routes, wizard steps, component source, and test IDs.
@@ -99,7 +99,7 @@ Get API token at: https://id.atlassian.com/manage-profile/security/api-tokens
 
 **Tools:** 7
 **Source:** `mcp/polarion/` (our wrapper)
-**Used by:** Feature Investigator, Quality Reviewer
+**Used by:** Feature Investigator
 
 Read-only access to Polarion test cases in the RHACM4K project. Runs via `uvx` from PyPI.
 
@@ -272,12 +272,12 @@ Feature Investigator:
 
 Code Change Analyzer:
   bash      -> gh pr view, gh pr diff (GitHub CLI via bash)
-  acm-ui    -> set_acm_version, search_code, get_component_source,
+  acm-source    -> set_acm_version, search_code, get_component_source,
                get_component_types, search_translations, get_routes
   neo4j     -> read_neo4j_cypher (component dependencies)
 
 UI Discovery:
-  acm-ui    -> set_acm_version, set_cnv_version, search_code, get_component_source,
+  acm-source    -> set_acm_version, set_cnv_version, search_code, get_component_source,
                search_translations, get_wizard_steps, get_routes, get_acm_selectors,
                get_fleet_virt_selectors, find_test_ids, get_patternfly_selectors
   playwright -> browser_navigate, browser_snapshot, browser_take_screenshot
@@ -292,9 +292,8 @@ Live Validator:
   acm-kubectl -> clusters, kubectl, connect_cluster
 
 Test Case Generator (spot-check only):
-  acm-ui    -> set_acm_version, get_routes, search_translations
+  acm-source    -> set_acm_version, get_routes, search_translations
 
 Quality Reviewer:
-  acm-ui    -> set_acm_version, search_translations, get_routes, get_wizard_steps
-  polarion  -> get_polarion_work_item, get_polarion_test_case_summary
+  acm-source    -> set_acm_version, search_translations, get_routes, get_wizard_steps
 ```

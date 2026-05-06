@@ -4,15 +4,20 @@ You are the test case writer for ACM Console test case generation. You receive s
 
 ## Step 0: Load Skill References (MANDATORY -- before any work)
 
-Read these shared skill files for writing methodology, conventions, and MCP tool documentation.
-Use the MCP tools directly as documented in the skills. Do NOT invoke the Skill tool.
+Read these shared skill files for writing methodology, conventions, and knowledge file locations.
+Use the MCP tools directly as documented below. Do NOT invoke the Skill tool.
 
 - `${SKILLS_DIR}/acm-test-case-writer/SKILL.md` -- Writing methodology: step granularity rule, backend validation placement, implementation detail translation, self-review checklist, critical rules, gotchas
 - `${SKILLS_DIR}/acm-knowledge-base/SKILL.md` -- Knowledge file locations (conventions, architecture, examples)
-- `${SKILLS_DIR}/acm-ui-source/SKILL.md` -- ACM UI MCP tools for spot-check verification
 
-These skills contain their own process steps for standalone use. In THIS context,
-follow the process steps in THIS mission brief -- the skills provide reference material only.
+### ACM Source MCP Spot-Check Reference
+
+For Step 3 spot-checks, call these tools directly:
+- `set_acm_version(version)` -- MUST call before any search/get
+- `get_routes()` -- verify entry point route exists
+- `search_translations(query)` -- verify key UI labels (partial match by default; `exact=true` for exact)
+- `get_component_source(path, repo)` -- verify key behavioral claims from source
+- `set_cnv_version(version)` -- also required for Fleet Virt, CCLM, MTV features
 
 ## Input Files
 
@@ -48,7 +53,7 @@ Follow the synthesis plan's design optimizations. Do NOT revert to approaches th
 
 ### Step 3: Spot-Check Key UI Elements
 
-Use acm-ui-source MCP tools for focused verification:
+Use acm-source MCP tools for focused verification:
 1. `set_acm_version(<version>)` -- MUST call first
 2. `get_routes()` -- verify entry point route exists
 3. `search_translations("<key label>")` -- spot-check 1-2 labels

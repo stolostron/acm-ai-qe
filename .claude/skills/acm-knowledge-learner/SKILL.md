@@ -1,7 +1,7 @@
 ---
 name: acm-knowledge-learner
 description: Build and update ACM knowledge by comparing live cluster state to the knowledge base. Discovers unknown operators, new failure patterns, dependency chains, and certificate issues. Use when asked to learn from a cluster, update knowledge, discover new components, or refresh baselines.
-compatibility: "Requires oc CLI logged into an ACM hub. Optional MCPs: neo4j-rhacm (dependency discovery), acm-ui (component understanding), acm-search (fleet discovery). Works with reduced depth without optional MCPs."
+compatibility: "Requires oc CLI logged into an ACM hub. Optional MCPs: neo4j-rhacm (dependency discovery), acm-source (component understanding), acm-search (fleet discovery). Works with reduced depth without optional MCPs."
 metadata:
   author: acm-qe
   version: "1.0.0"
@@ -80,12 +80,12 @@ For each unknown component, reverse-engineer its role using these 8 sources:
 
 ### Step 4: Cross-Reference with MCPs (optional, enriches results)
 
-If **acm-neo4j-explorer** is available:
+If **neo4j-rhacm MCP** is available:
 ```
 read_neo4j_cypher("MATCH (n:RHACMComponent) WHERE n.label CONTAINS '<component>' RETURN n.label, n.description, n.subsystem")
 ```
 
-If **acm-ui-source** is available:
+If **acm-source MCP** is available:
 ```
 search_code("<component>", repo="acm")
 ```

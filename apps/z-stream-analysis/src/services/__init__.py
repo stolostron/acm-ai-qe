@@ -25,14 +25,14 @@ from .jenkins_api_client import (
 )
 
 
-from .acm_ui_mcp_client import (
-    ACMUIMCPClient,
+from .acm_source_mcp_client import (
+    ACMSourceMCPClient,
     ElementInfo,
     SearchResult,
     CNVVersionInfo,
     FleetVirtSelectors,
-    get_acm_ui_mcp_client,
-    is_acm_ui_mcp_available
+    get_acm_source_mcp_client,
+    is_acm_source_mcp_available
 )
 from .jenkins_intelligence_service import (
     JenkinsIntelligenceService,
@@ -172,14 +172,14 @@ __all__ = [
     'JenkinsAPIClient',
     'get_jenkins_api_client',
     'is_jenkins_available',
-    # ACM UI MCP Client
-    'ACMUIMCPClient',
+    # ACM Source MCP Client
+    'ACMSourceMCPClient',
     'ElementInfo',
     'SearchResult',
     'CNVVersionInfo',
     'FleetVirtSelectors',
-    'get_acm_ui_mcp_client',
-    'is_acm_ui_mcp_available',
+    'get_acm_source_mcp_client',
+    'is_acm_source_mcp_available',
     # Jenkins Service
     'JenkinsIntelligenceService',
     'JenkinsIntelligence',

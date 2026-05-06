@@ -1,7 +1,7 @@
 ---
 name: acm-test-case-reviewer
 description: Quality gate for ACM Console UI test cases. Validates conventions, verifies UI elements are discovered not assumed, checks AC vs implementation consistency, cross-references area knowledge, and enforces minimum MCP verification. Use after a test case is written to validate it before delivery.
-compatibility: "Requires acm-ui MCP (for MCP verification spot-checks). Uses acm-polarion-client skill (requires polarion MCP). Uses acm-knowledge-base skill (no MCP needed)."
+compatibility: "Requires acm-source MCP (for MCP verification spot-checks). Uses acm-knowledge-base skill (no MCP needed)."
 metadata:
   author: acm-qe
   version: "1.0.0"
@@ -9,13 +9,12 @@ metadata:
 
 # ACM Test Case Quality Reviewer
 
-Validates generated test cases against conventions, verifies UI elements were discovered (not assumed), checks peer consistency, and enforces Polarion metadata completeness. This is the mandatory quality gate before a test case is delivered.
+Validates generated test cases against conventions, verifies UI elements were discovered (not assumed), and enforces Polarion metadata completeness. This is the mandatory quality gate before a test case is delivered.
 
 ## Prerequisites
 
 - A test case `.md` file to review
-- acm-ui-source skill available for MCP spot-checks
-- acm-polarion-client skill available for coverage checks
+- acm-source MCP server available for MCP spot-checks
 - acm-knowledge-base skill available for conventions and area knowledge
 
 ## Review Process
@@ -54,7 +53,7 @@ Flag as WARNING if:
 
 ### Step 4: MCP Verification (MANDATORY -- minimum 3 checks)
 
-Use acm-ui-source skill for spot-checks. You MUST perform at least 3 MCP verifications:
+Use acm-source MCP tools directly for spot-checks. You MUST perform at least 3 MCP verifications:
 
 1. `set_acm_version` -- set the version from the test case
 2. `search_translations` for 1-2 key UI labels -- verify they match the test case
@@ -107,21 +106,6 @@ If the synthesized context (from the orchestrator) includes a "Coverage Gap Tria
 
 If no Coverage Gap Triage section exists, skip this step.
 
-### Step 7: Polarion Coverage Check
-
-Use acm-polarion-client skill:
-- Search for existing test cases with similar titles
-- Check for potential duplication
-- Verify metadata accuracy if a Polarion ID is referenced
-
-### Step 8: Peer Consistency
-
-Read 2-3 existing test cases from the same area for comparison:
-- Similar section structure?
-- Similar level of detail in expected results?
-- Similar setup format?
-- Similar teardown approach?
-
 ## Output Format
 
 ```
@@ -153,7 +137,6 @@ After the review, the calling skill runs `report.py` (which includes inlined con
 
 - ALWAYS perform at least 3 MCP verifications -- no exceptions
 - ALWAYS read the primary component source to verify at least ONE factual claim
-- ALWAYS check Polarion for duplicate/existing test cases
 - ALWAYS cross-reference area knowledge file
 - Flag as BLOCKING if any test step states a numeric threshold without evidence
 - Flag as BLOCKING if filter prefixes/conditions don't match source code

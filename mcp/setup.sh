@@ -8,9 +8,9 @@
 # Run from the repository root:  bash mcp/setup.sh
 #
 # Apps and their MCP requirements:
-#   acm-hub-health    -> acm-ui, neo4j-rhacm, acm-search
-#   z-stream-analysis -> acm-ui, jira, jenkins, polarion, neo4j-rhacm
-#   test-case-generator -> acm-ui, jira, polarion, neo4j-rhacm, acm-search, acm-kubectl, playwright
+#   acm-hub-health    -> acm-source, neo4j-rhacm, acm-search
+#   z-stream-analysis -> acm-source, jira, jenkins, polarion, neo4j-rhacm
+#   test-case-generator -> acm-source, jira, polarion, neo4j-rhacm, acm-search, acm-kubectl, playwright
 #
 # All paths are resolved dynamically -- no machine-specific references.
 
@@ -50,9 +50,9 @@ check_version_floor() {
 # -----------------------------------------------
 
 # Which MCPs each app requires (space-separated)
-APP_HUB_HEALTH_MCPS="acm-ui neo4j-rhacm acm-search"
-APP_ZSTREAM_MCPS="acm-ui jira jenkins polarion neo4j-rhacm"
-APP_TESTCASE_GEN_MCPS="acm-ui jira polarion neo4j-rhacm acm-search acm-kubectl playwright"
+APP_HUB_HEALTH_MCPS="acm-source neo4j-rhacm acm-search"
+APP_ZSTREAM_MCPS="acm-source jira jenkins polarion neo4j-rhacm"
+APP_TESTCASE_GEN_MCPS="acm-source jira polarion neo4j-rhacm acm-search acm-kubectl playwright"
 
 # App directory names (relative to $REPO_ROOT/apps/)
 APP_HUB_HEALTH_DIR="acm-hub-health"
@@ -93,7 +93,7 @@ apply_selection() {
             ;;
         4)
             SELECTED_APPS="$APP_HUB_HEALTH_DIR $APP_ZSTREAM_DIR $APP_TESTCASE_GEN_DIR"
-            SELECTED_MCPS="acm-ui jira jenkins polarion neo4j-rhacm acm-search acm-kubectl playwright"
+            SELECTED_MCPS="acm-source jira jenkins polarion neo4j-rhacm acm-search acm-kubectl playwright"
             ok "Selected: All apps"
             ;;
         *)
@@ -139,13 +139,13 @@ else
     echo "  Which app(s) would you like to configure?"
     echo ""
     echo -e "    ${CYAN}1)${NC} ACM Hub Health Agent"
-    echo -e "       Needs: acm-ui, neo4j-rhacm, acm-search"
+    echo -e "       Needs: acm-source, neo4j-rhacm, acm-search"
     echo ""
     echo -e "    ${CYAN}2)${NC} Z-Stream Pipeline Analysis"
-    echo -e "       Needs: acm-ui, jira, jenkins, polarion, neo4j-rhacm"
+    echo -e "       Needs: acm-source, jira, jenkins, polarion, neo4j-rhacm"
     echo ""
     echo -e "    ${CYAN}3)${NC} Test Case Generator"
-    echo -e "       Needs: acm-ui, jira, polarion, neo4j-rhacm, acm-search, acm-kubectl, playwright"
+    echo -e "       Needs: acm-source, jira, polarion, neo4j-rhacm, acm-search, acm-kubectl, playwright"
     echo ""
     echo -e "    ${CYAN}4)${NC} All apps"
     echo -e "       Sets up all MCP servers for all apps"
@@ -192,8 +192,8 @@ else
     exit 1
 fi
 
-# gh CLI (needed for acm-ui)
-if needs_mcp "acm-ui"; then
+# gh CLI (needed for acm-source)
+if needs_mcp "acm-source"; then
     if command -v gh &>/dev/null; then
         ok "GitHub CLI (gh) installed"
         if gh auth status &>/dev/null 2>&1; then
@@ -201,7 +201,7 @@ if needs_mcp "acm-ui"; then
         else
             warn "GitHub CLI not authenticated"
             echo ""
-            echo "  You need to authenticate with GitHub for the ACM UI MCP server."
+            echo "  You need to authenticate with GitHub for the ACM Source MCP server."
             echo "  This gives the server read access to stolostron/console and other repos."
             echo ""
             read -p "  Run 'gh auth login' now? [Y/n] " -n 1 -r
@@ -209,11 +209,11 @@ if needs_mcp "acm-ui"; then
             if [[ ! $REPLY =~ ^[Nn]$ ]]; then
                 gh auth login
             else
-                warn "Skipping gh auth. ACM UI MCP will not work until you run: gh auth login"
+                warn "Skipping gh auth. ACM Source MCP will not work until you run: gh auth login"
             fi
         fi
     else
-        warn "GitHub CLI (gh) not found. ACM UI MCP server will not work."
+        warn "GitHub CLI (gh) not found. ACM Source MCP server will not work."
         echo "  Install: brew install gh  (macOS) or sudo dnf install gh (Fedora/RHEL)"
         echo "  Then run: gh auth login"
     fi
@@ -323,31 +323,31 @@ clone_external() {
 # MCP Server Installation Functions
 # -----------------------------------------------
 
-setup_acm_ui() {
+setup_acm_source() {
     CURRENT_MCP=$((CURRENT_MCP + 1))
     echo "--------------------------------------------"
-    echo "  [$CURRENT_MCP/$TOTAL_MCPS] ACM UI MCP Server"
+    echo "  [$CURRENT_MCP/$TOTAL_MCPS] ACM Source MCP Server"
     echo "--------------------------------------------"
     echo ""
     echo "  What: Searches ACM Console and Fleet Virtualization source code on GitHub."
     echo "  Used for: Finding UI selectors, component source, translations."
     echo ""
 
-    ACM_UI_DIR="$MCP_DIR/acm-ui-mcp-server"
-    ACM_UI_VENV="$ACM_UI_DIR/.venv"
+    ACM_SOURCE_DIR="$MCP_DIR/acm-source-mcp-server"
+    ACM_SOURCE_VENV="$ACM_SOURCE_DIR/.venv"
 
-    if [ ! -d "$ACM_UI_VENV" ]; then
+    if [ ! -d "$ACM_SOURCE_VENV" ]; then
         info "Creating virtual environment..."
-        python3 -m venv "$ACM_UI_VENV"
+        python3 -m venv "$ACM_SOURCE_VENV"
         ok "Virtual environment created"
     fi
 
-    if "$ACM_UI_VENV/bin/python" -c "import acm_ui_mcp_server" 2>/dev/null; then
+    if "$ACM_SOURCE_VENV/bin/python" -c "import acm_source_mcp_server" 2>/dev/null; then
         ok "Already installed"
     else
-        info "Installing ACM UI MCP server..."
-        "$ACM_UI_VENV/bin/pip" install -e "$ACM_UI_DIR" --quiet 2>/dev/null || \
-        "$ACM_UI_VENV/bin/pip" install mcp pydantic pydantic-settings python-dotenv --quiet
+        info "Installing ACM Source MCP server..."
+        "$ACM_SOURCE_VENV/bin/pip" install -e "$ACM_SOURCE_DIR" --quiet 2>/dev/null || \
+        "$ACM_SOURCE_VENV/bin/pip" install mcp pydantic pydantic-settings python-dotenv --quiet
         ok "Dependencies installed (in venv)"
     fi
 
@@ -855,7 +855,7 @@ setup_playwright() {
 # Install Selected MCP Servers
 # -----------------------------------------------
 
-needs_mcp "acm-ui"      && setup_acm_ui
+needs_mcp "acm-source"      && setup_acm_source
 needs_mcp "jira"         && setup_jira
 needs_mcp "jenkins"      && setup_jenkins
 needs_mcp "polarion"     && setup_polarion
@@ -967,13 +967,13 @@ def _build_acm_search_config():
     }
 
 # MCP server definitions
-# - acm-ui, polarion: local (our code, in this repo)
+# - acm-source, polarion: local (our code, in this repo)
 # - jira, jenkins: cloned at setup time into .external/
 # - neo4j-rhacm: runs from PyPI via uvx (no local code)
 all_servers = {
-    'acm-ui': {
-        'command': f'{mcp_dir}/acm-ui-mcp-server/.venv/bin/python',
-        'args': ['-m', 'acm_ui_mcp_server.main'],
+    'acm-source': {
+        'command': f'{mcp_dir}/acm-source-mcp-server/.venv/bin/python',
+        'args': ['-m', 'acm_source_mcp_server.main'],
         'timeout': 30
     },
     'jira': {
@@ -1073,12 +1073,12 @@ echo ""
 # Server status
 echo "  Server status:"
 
-if needs_mcp "acm-ui"; then
-    ACM_UI_VENV="$MCP_DIR/acm-ui-mcp-server/.venv"
-    if [ -f "$ACM_UI_VENV/bin/python" ] && "$ACM_UI_VENV/bin/python" -c "import acm_ui_mcp_server" 2>/dev/null; then
-        echo -e "    ${GREEN}OK${NC}   acm-ui       -- ACM Console & Fleet Virt source code (20 tools)"
+if needs_mcp "acm-source"; then
+    ACM_SOURCE_VENV="$MCP_DIR/acm-source-mcp-server/.venv"
+    if [ -f "$ACM_SOURCE_VENV/bin/python" ] && "$ACM_SOURCE_VENV/bin/python" -c "import acm_source_mcp_server" 2>/dev/null; then
+        echo -e "    ${GREEN}OK${NC}   acm-source   -- ACM Console & Fleet Virt source code (18 tools)"
     else
-        echo -e "    ${YELLOW}DEPS${NC} acm-ui       -- Re-run setup to create venv"
+        echo -e "    ${YELLOW}DEPS${NC} acm-source   -- Re-run setup to create venv"
     fi
 fi
 

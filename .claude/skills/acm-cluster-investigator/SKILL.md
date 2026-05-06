@@ -1,7 +1,7 @@
 ---
 name: acm-cluster-investigator
 description: Deep-dive investigation of individual test failures using the 12-layer diagnostic model. Traces from symptom through infrastructure layers to find root cause with evidence. Use when test failures need root-cause analysis with classification.
-compatibility: "Requires oc CLI logged into the test cluster. Uses acm-ui-source (acm-ui MCP) for selector verification. Optional: acm-neo4j-explorer, acm-jira-client, acm-polarion-client. Uses acm-cluster-health for methodology."
+compatibility: "Requires oc CLI logged into the test cluster. Requires acm-source MCP for selector verification. Optional MCP servers: neo4j-rhacm, jira, polarion. Uses acm-cluster-health skill for methodology."
 metadata:
   author: acm-qe
   version: "1.0.0"
@@ -67,7 +67,7 @@ When a cluster-wide issue is found, verify for EACH test: "Would this test PASS 
 
 Read `references/symptom-layer-map.md` for the full verification template table (selector not found, button disabled, timeout, data assertion, blank page, CSS visibility, NetworkPolicy, operator down, ResourceQuota).
 
-**Critical:** When console runs a non-official image, `console_search.found` was checked against the TAMPERED console. Use acm-ui-source `search_code` to check the OFFICIAL source.
+**Critical:** When console runs a non-official image, `console_search.found` was checked against the TAMPERED console. Use acm-source MCP `search_code` to check the OFFICIAL source.
 
 ### Step 3c: Per-Test Verification Within Groups (MANDATORY)
 
@@ -97,7 +97,7 @@ oc logs <related-pod> --tail=100
 oc get events -n <ns> --sort-by=.lastTimestamp
 ```
 
-Use acm-ui-source `search_code` for intended behavior. Use acm-jira-client `search_issues` for known bugs.
+Use acm-source MCP `search_code` for intended behavior. Use jira MCP `search_issues` for known bugs.
 
 ### Step 6: Classify
 
@@ -128,7 +128,7 @@ Return JSON with: test_name, root_cause_layer, root_cause_layer_name, root_cause
 - Do NOT classify based on error message alone -- trace to root cause
 - Do NOT assume INFRASTRUCTURE because cluster has issues -- verify each test's error is CAUSED by the issue
 - Do NOT blanket-attribute tests to a cluster-wide issue (ANCHORING BIAS)
-- Do NOT assume "selectors may be valid in official console" without verifying via acm-ui-source
+- Do NOT assume "selectors may be valid in official console" without verifying via acm-source MCP
 - Do NOT assume AUTOMATION_BUG for selector timeouts -- timeout could be backend slowness (PRODUCT_BUG)
 - Do NOT re-run oc commands that cluster-diagnosis.json already covers -- use pre-computed data
 - Do NOT spend context on Layer 1-2 checks if cluster-diagnosis.json shows compute healthy

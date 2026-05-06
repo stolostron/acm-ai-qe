@@ -107,10 +107,10 @@ ai_systems_v2/
 │   ├── setup.sh               # Automated MCP setup (also used by /onboard)
 │   ├── deploy-acm-search.sh   # ACM Search MCP deploy (oc login → deploy → .mcp.json)
 │   ├── verify.py              # Standalone health checker (run anytime)
-│   ├── acm-ui-mcp-server/     # ACM Console source search
+│   ├── acm-source-mcp-server/     # ACM Console source search
 │   └── polarion/              # Polarion test case access
 ├── .claude/                   # Claude Code configuration
-│   ├── skills/                # 19 skills: 18 ACM + onboard (usable from repo root)
+│   ├── skills/                # 16 skills: 14 ACM + onboard + grill-me (usable from repo root)
 │   ├── commands/pre-push.md   # /pre-push quality gate
 │   └── statusline.sh          # Status line (model, branch, context %)
 ├── AGENTS.md                  # Agent reference for external AI tools

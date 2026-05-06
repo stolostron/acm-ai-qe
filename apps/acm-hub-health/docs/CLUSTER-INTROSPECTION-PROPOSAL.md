@@ -522,7 +522,7 @@ between "collect cluster evidence" and "query knowledge graph":
   Step 3: Knowledge graph (if available, for ACM components)
            |
            v
-  Step 4: acm-ui MCP + rhacm-docs (understand discovered deps)
+  Step 4: acm-source MCP + rhacm-docs (understand discovered deps)
            |
            v
   Step 5: Web search (for third-party operator docs, if needed)

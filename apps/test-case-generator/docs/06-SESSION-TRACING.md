@@ -74,9 +74,9 @@ For MCP tools:
 ```json
 {
   "event": "tool_call",
-  "tool": "mcp__acm-ui__search_translations",
+  "tool": "mcp__acm-source__search_translations",
   "input": {"query": "Labels"},
-  "mcp_server": "acm-ui",
+  "mcp_server": "acm-source",
   "mcp_tool": "search_translations"
 }
 ```
@@ -208,8 +208,8 @@ Mutation verbs (`patch`, `scale`, `rollout restart`, `delete pod`, `annotate`, `
 MCP tool names in `mcp__<server>__<tool>` format are parsed:
 
 ```
-mcp__acm-ui__search_translations
-  -> mcp_server: "acm-ui", mcp_tool: "search_translations"
+mcp__acm-source__search_translations
+  -> mcp_server: "acm-source", mcp_tool: "search_translations"
 ```
 
 ---

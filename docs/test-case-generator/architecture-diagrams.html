@@ -168,8 +168,8 @@ graph TD
   <div class="mermaid">
 graph TD
     INPUT["gather-output.json"]:::clickable --> A["Phase 2: JIRA Investigator\nJIRA deep dive\nMCP: jira, polarion, neo4j, bash\nOutput: phase2-jira.json"]:::clickable
-    A --> B["Phase 3: Code Analyzer\nPR diff analysis\nMCP: acm-ui, neo4j, bash\nOutput: phase3-code.json"]:::clickable
-    B --> C["Phase 4: UI Discoverer\nACM Console source\nMCP: acm-ui, neo4j, bash\nOutput: phase4-ui.json"]:::clickable
+    A --> B["Phase 3: Code Analyzer\nPR diff analysis\nMCP: acm-source, neo4j, bash\nOutput: phase3-code.json"]:::clickable
+    B --> C["Phase 4: UI Discoverer\nACM Console source\nMCP: acm-source, neo4j, bash\nOutput: phase4-ui.json"]:::clickable
     C --> MERGE["Phase 5: Synthesize\nMerge + Scope Gate + AC Check"]:::clickable
 
     style INPUT fill:#141a2e,stroke:#38bdf8,stroke-width:3px,color:#38bdf8
@@ -221,7 +221,7 @@ graph LR
   <p class="desc">Two independent validation layers. Phase 8 (AI reviewer) checks semantic correctness. Phase 9 (Python validator) checks structural correctness. Both must pass.</p>
   <div class="mermaid">
 graph TD
-    TC["test-case.md"]:::clickable --> QR["Phase 8: Quality Reviewer\n8 checks: structure, UI verify,\nAC check, knowledge xref,\nPolarion, peers, HTML\nVerdict: PASS / NEEDS_FIXES"]:::clickable
+    TC["test-case.md"]:::clickable --> QR["Phase 8: Quality Reviewer\n6 checks: structure, UI verify,\nAC check, knowledge xref,\ndesign efficiency, coverage gaps\nVerdict: PASS / NEEDS_FIXES"]:::clickable
     QR -->|NEEDS_FIXES| FIX["Fix Issues\n(orchestrator)"]:::clickable
     FIX --> QR
     QR -->|PASS| CV["Phase 9: report.py\n11 checks: title, metadata,\nfields, sections, steps, teardown\nVerdict: PASS / FAIL"]:::clickable
@@ -253,7 +253,7 @@ graph TD
   <div class="mermaid">
 graph LR
     subgraph Investigation
-      ACMUI["acm-ui\n20 tools\nSource code search"]:::clickable
+      ACMUI["acm-source\n18 tools\nSource code search"]:::clickable
       JIRA["jira\n3 tools\nTicket investigation"]:::clickable
       POL["polarion\n7 tools\nTest coverage"]:::clickable
       NEO["neo4j-rhacm\n2 tools\nDependency graph"]:::clickable
@@ -445,7 +445,7 @@ const DATA = {
         <div class="label">Agent:</div>
         <div class="value"><code>references/agents/code-analyzer.md</code></div>
         <div class="label">MCP tools:</div>
-        <div class="value"><span class="tag tag-mcp">acm-ui</span> set_acm_version, search_code, get_component_source, search_translations, get_routes<br><span class="tag tag-mcp">neo4j</span> read_neo4j_cypher<br><span class="tag tag-mcp">bash</span> gh pr view, gh pr diff</div>
+        <div class="value"><span class="tag tag-mcp">acm-source</span> set_acm_version, search_code, get_component_source, search_translations, get_routes<br><span class="tag tag-mcp">neo4j</span> read_neo4j_cypher<br><span class="tag tag-mcp">bash</span> gh pr view, gh pr diff</div>
         <div class="label">Output:</div>
         <div class="value"><code>phase3-code.json</code> containing:<br>&bull; Changed components, new UI elements<br>&bull; UI interaction models (PatternFly types)<br>&bull; Routes, translations, test scenarios<br>&bull; Anomalies array</div>
       </div>
@@ -459,9 +459,9 @@ const DATA = {
         <div class="label">Agent:</div>
         <div class="value"><code>references/agents/ui-discoverer.md</code></div>
         <div class="label">MCP tools:</div>
-        <div class="value"><span class="tag tag-mcp">acm-ui</span> set_acm_version, set_cnv_version, search_code, get_component_source, search_translations, get_routes, get_wizard_steps, get_acm_selectors, get_fleet_virt_selectors, find_test_ids, get_patternfly_selectors, get_component_types<br><span class="tag tag-mcp">neo4j</span> read_neo4j_cypher</div>
+        <div class="value"><span class="tag tag-mcp">acm-source</span> set_acm_version, set_cnv_version, search_code, get_component_source, search_translations, get_routes, get_wizard_steps, get_acm_selectors, get_fleet_virt_selectors, find_test_ids, get_patternfly_selectors, get_component_types<br><span class="tag tag-mcp">neo4j</span> read_neo4j_cypher</div>
         <div class="label">Must call first:</div>
-        <div class="value"><code>set_acm_version("2.17")</code> before any other acm-ui call. For Fleet Virt, also <code>set_cnv_version</code>.</div>
+        <div class="value"><code>set_acm_version("2.17")</code> before any other acm-source call. For Fleet Virt, also <code>set_cnv_version</code>.</div>
         <div class="label">Output:</div>
         <div class="value"><code>phase4-ui.json</code> containing:<br>&bull; Translations, routes, selectors<br>&bull; Test IDs, component structure<br>&bull; Anomalies array</div>
       </div>
@@ -578,7 +578,7 @@ const DATA = {
         <div class="label">Agent:</div>
         <div class="value"><span class="tag tag-agent">quality-reviewer</span></div>
         <div class="label">Checks:</div>
-        <div class="value">&bull; Structural validation (title, metadata, sections, steps)<br>&bull; Discovered vs assumed (MCP spot-check, min 3 verifications)<br>&bull; AC vs implementation (JIRA ACs match expected results)<br>&bull; Knowledge file cross-reference (area knowledge verification)<br>&bull; Scope alignment (steps match target story)<br>&bull; Polarion duplicate check<br>&bull; Peer consistency<br>&bull; HTML check (post-hoc /review only)</div>
+        <div class="value">&bull; Structural validation (title, metadata, sections, steps)<br>&bull; Discovered vs assumed (MCP spot-check, min 3 verifications)<br>&bull; AC vs implementation (JIRA ACs match expected results)<br>&bull; Knowledge file cross-reference (area knowledge verification)<br>&bull; Scope alignment (steps match target story)<br>&bull; HTML check (post-hoc /review only)</div>
         <div class="label">Loop behavior:</div>
         <div class="value">If NEEDS_FIXES: 3-tier escalation. Tier 1: targeted MCP re-investigation for factual errors. Tier 2: focused retry with evidence. Tier 3: marks unresolvable steps with [MANUAL VERIFICATION REQUIRED] and proceeds to Phase 9.</div>
       </div>
@@ -588,11 +588,11 @@ const DATA = {
     title: 'Phase 8: Quality Reviewer',
     html: `
       <div class="detail-section">
-        <h4>8-Step Review Process</h4>
+        <h4>6-Step Review Process</h4>
         <div class="label">Steps:</div>
-        <div class="value">1. Read test case<br>2. Read conventions (3 files)<br>3. Structural validation <span class="tag tag-fail">BLOCKING</span><br>4. Discovered vs assumed (MCP, min 3 verifications) <span class="tag tag-fail">BLOCKING</span><br>4.5. AC vs implementation check <span class="tag tag-fail">BLOCKING</span><br>4.6. Knowledge file cross-reference <span class="tag tag-fail">BLOCKING</span><br>5. Polarion coverage check<br>6. Peer consistency check<br>7. HTML check (post-hoc only)</div>
+        <div class="value">1. Read test case<br>2. Read conventions (3 files)<br>3. Structural validation <span class="tag tag-fail">BLOCKING</span><br>4. Discovered vs assumed (MCP, min 3 verifications) <span class="tag tag-fail">BLOCKING</span><br>4.5. AC vs implementation check <span class="tag tag-fail">BLOCKING</span><br>4.6. Knowledge file cross-reference <span class="tag tag-fail">BLOCKING</span><br>5. HTML check (post-hoc only)</div>
         <div class="label">MCP tools used:</div>
-        <div class="value"><span class="tag tag-mcp">acm-ui</span> set_acm_version, search_translations, get_routes, get_wizard_steps, get_component_source<br><span class="tag tag-mcp">polarion</span> get_polarion_work_items, get_polarion_work_item, get_polarion_test_case_summary</div>
+        <div class="value"><span class="tag tag-mcp">acm-source</span> set_acm_version, search_translations, get_routes, get_wizard_steps, get_component_source</div>
       </div>
     `
   },
@@ -682,9 +682,9 @@ const DATA = {
   'G5': { title: 'Step 5: Peer Test Cases', html: `<div class="detail-section"><h4>Peer Discovery</h4><div class="label">Search order:</div><div class="value">1. External automation workspace (area-aware)<br>2. Previous pipeline runs (<code>runs/</code>)<br>3. Sample (<code>knowledge/examples/sample-test-case.md</code>)</div><div class="label">Returns:</div><div class="value">Up to 3 test cases matching area and version</div></div>` },
   'G6': { title: 'Step 6: Load Knowledge', html: `<div class="detail-section"><h4>Conventions + Architecture</h4><div class="label">Files loaded:</div><div class="value">&bull; <code>knowledge/conventions/test-case-format.md</code> (3237 chars)<br>&bull; <code>knowledge/conventions/polarion-html-templates.md</code><br>&bull; <code>knowledge/architecture/&lt;area&gt;.md</code> (e.g., governance.md, 2995 chars)</div></div>` },
   'GOUT': { title: 'gather-output.json', html: `<div class="detail-section"><h4>Phase 1 Complete Output</h4><div class="value">Serialized GatherOutput Pydantic model with all collected data. See the gather-output.json detail above for full schema.</div></div>` },
-  'ACMUI': { title: 'acm-ui MCP Server', html: `<div class="detail-section"><h4>ACM Console Source Search</h4><div class="label">Tools:</div><div class="value"><span class="num">20</span> tools</div><div class="label">Source:</div><div class="value">This repo (<code>mcp/acm-ui-mcp-server/</code>)</div><div class="label">Key tools:</div><div class="value">set_acm_version, search_code, get_component_source, search_translations, get_routes, get_wizard_steps, find_test_ids, get_acm_selectors</div><div class="label">Used by:</div><div class="value">Code Analyzer (Phase 3), UI Discoverer (Phase 4), Test Case Writer (Phase 7), Quality Reviewer (Phase 8)</div></div>` },
+  'ACMUI': { title: 'acm-source MCP Server', html: `<div class="detail-section"><h4>ACM Console Source Search</h4><div class="label">Tools:</div><div class="value"><span class="num">20</span> tools</div><div class="label">Source:</div><div class="value">This repo (<code>mcp/acm-source-mcp-server/</code>)</div><div class="label">Key tools:</div><div class="value">set_acm_version, search_code, get_component_source, search_translations, get_routes, get_wizard_steps, find_test_ids, get_acm_selectors</div><div class="label">Used by:</div><div class="value">Code Analyzer (Phase 3), UI Discoverer (Phase 4), Test Case Writer (Phase 7), Quality Reviewer (Phase 8)</div></div>` },
   'JIRA': { title: 'jira MCP Server', html: `<div class="detail-section"><h4>JIRA Ticket Investigation</h4><div class="label">Tools:</div><div class="value"><span class="num">3</span> tools: get_issue, search_issues, get_project_components</div><div class="label">Source:</div><div class="value">Cloned from stolostron/jira-mcp-server</div><div class="label">Credentials:</div><div class="value"><code>mcp/.external/jira-mcp-server/.env</code> (JIRA email + API token)</div><div class="label">Used by:</div><div class="value">JIRA Investigator (Phase 2)</div></div>` },
-  'POL': { title: 'polarion MCP Server', html: `<div class="detail-section"><h4>Polarion Test Coverage</h4><div class="label">Tools:</div><div class="value"><span class="num">7</span> tools</div><div class="label">Source:</div><div class="value">This repo (<code>mcp/polarion/</code>)</div><div class="label">Project ID:</div><div class="value">Always <code>RHACM4K</code></div><div class="label">Credentials:</div><div class="value"><code>mcp/polarion/.env</code> (Polarion JWT token, requires VPN)</div><div class="label">Used by:</div><div class="value">JIRA Investigator (Phase 2), Quality Reviewer (Phase 8)</div></div>` },
+  'POL': { title: 'polarion MCP Server', html: `<div class="detail-section"><h4>Polarion Test Coverage</h4><div class="label">Tools:</div><div class="value"><span class="num">7</span> tools</div><div class="label">Source:</div><div class="value">This repo (<code>mcp/polarion/</code>)</div><div class="label">Project ID:</div><div class="value">Always <code>RHACM4K</code></div><div class="label">Credentials:</div><div class="value"><code>mcp/polarion/.env</code> (Polarion JWT token, requires VPN)</div><div class="label">Used by:</div><div class="value">JIRA Investigator (Phase 2)</div></div>` },
   'NEO': { title: 'neo4j-rhacm MCP Server', html: `<div class="detail-section"><h4>Component Dependency Graph</h4><div class="label">Tools:</div><div class="value"><span class="num">2</span> tools: get_neo4j_schema, read_neo4j_cypher</div><div class="label">Data:</div><div class="value">339+ components, 479+ relationships</div><div class="label">Requires:</div><div class="value">Podman with <code>neo4j-rhacm</code> container running</div><div class="label">Used by:</div><div class="value">JIRA Investigator (Phase 2), Code Analyzer (Phase 3), UI Discoverer (Phase 4)</div></div>` },
   'PW': { title: 'playwright MCP Server', html: `<div class="detail-section"><h4>Browser Automation</h4><div class="label">Tools:</div><div class="value"><span class="num">24</span> tools</div><div class="label">Source:</div><div class="value"><code>@playwright/mcp</code> (npm), runs via <code>npx @playwright/mcp@latest</code></div><div class="label">Key tools:</div><div class="value">browser_navigate, browser_snapshot, browser_click, browser_fill_form, browser_take_screenshot, browser_console_messages, browser_network_requests</div><div class="label">Used by:</div><div class="value">Live Validator (Phase 6)</div></div>` },
   'SEARCH': { title: 'acm-search MCP Server', html: `<div class="detail-section"><h4>Fleet-Wide Resource Queries</h4><div class="label">Tools:</div><div class="value"><span class="num">5</span> tools: find_resources, query_database, list_tables, get_database_stats, search_tables</div><div class="label">Deployment:</div><div class="value">On-cluster pod, accessed via SSE + mcp-remote bridge</div><div class="label">Used by:</div><div class="value">Live Validator (Phase 6 only)</div></div>` },

@@ -41,7 +41,7 @@ allowed-tools:
   - Bash(find:*)
   - Bash(python3:*)
   - Bash(python:*)
-  - mcp__acm-ui__*
+  - mcp__acm-source__*
   - mcp__neo4j-rhacm__*
   - mcp__acm-search__*
 ---
@@ -163,7 +163,7 @@ Trace dependency chains when multiple issues found:
 
 1. Read `knowledge/diagnostics/dependency-chains.md` (12 chains)
 2. Check each chain link against Phase 3 findings
-3. Use `acm-neo4j-explorer` skill for dependencies not in curated chains (if available)
+3. Use `neo4j-rhacm MCP` for dependencies not in curated chains (if available)
 4. If `acm-search` MCP available: spoke-side chain verification
 5. Weight evidence per `knowledge/diagnostics/evidence-tiers.md`
 6. Verify conclusions against trap list

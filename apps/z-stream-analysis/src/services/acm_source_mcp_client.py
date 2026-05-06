@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 """
-ACM UI MCP Client
+ACM Source MCP Client
 
 Provides ACM UI data for Phase 1 data gathering.
 
 IMPORTANT: For Phase 2 (AI Analysis), use Claude Code's native MCP integration
 instead of this client. Claude Code CLI has native MCP support and can directly
-call ACM UI MCP tools during analysis.
+call ACM Source MCP tools during analysis.
 
 Native MCP tools available in Claude Code (Phase 2):
-- mcp__acm-ui__detect_cnv_version
-- mcp__acm-ui__find_test_ids
-- mcp__acm-ui__search_code
-- mcp__acm-ui__get_fleet_virt_selectors
-- mcp__acm-ui__get_component_source
+- mcp__acm-source__detect_cnv_version
+- mcp__acm-source__find_test_ids
+- mcp__acm-source__search_code
+- mcp__acm-source__get_fleet_virt_selectors
+- mcp__acm-source__get_component_source
 
 This Python client is used ONLY during Phase 1 for:
 - Fallback CNV version detection from cluster (when MCP unavailable)
@@ -73,9 +73,9 @@ class FleetVirtSelectors:
     total_count: int = 0
 
 
-class ACMUIMCPClient:
+class ACMSourceMCPClient:
     """
-    ACM UI MCP Client
+    ACM Source MCP Client
 
     Provides fallback functionality for Phase 1 data gathering.
     For Phase 2 AI analysis, use Claude Code's native MCP integration.
@@ -83,7 +83,7 @@ class ACMUIMCPClient:
 
     def __init__(self, mcp_config_path=None):
         """
-        Initialize ACM UI MCP Client.
+        Initialize ACM Source MCP Client.
 
         Note: The mcp_config_path parameter is kept for backward compatibility
         but is no longer used. Claude Code's native MCP handles MCP connections.
@@ -91,14 +91,14 @@ class ACMUIMCPClient:
         self.logger = logging.getLogger(__name__)
         self._available = False  # No longer checks MCP config
         self.logger.debug(
-            "ACM UI MCP Client initialized. "
+            "ACM Source MCP Client initialized. "
             "For Phase 2 analysis, use Claude Code's native MCP tools."
         )
 
     @property
     def is_available(self) -> bool:
         """
-        Check if ACM UI MCP is available.
+        Check if ACM Source MCP is available.
 
         Note: This now returns False as the Python client no longer
         implements MCP protocol. Use Claude Code's native MCP instead.
@@ -204,11 +204,11 @@ class ACMUIMCPClient:
         Note: This method requires the MCP server which is now accessed
         via Claude Code's native MCP. Returns None in Python client.
 
-        For Phase 2, use: mcp__acm-ui__get_fleet_virt_selectors
+        For Phase 2, use: mcp__acm-source__get_fleet_virt_selectors
         """
         self.logger.debug(
             "get_fleet_virt_selectors requires MCP. "
-            "Use Claude Code's native mcp__acm-ui__get_fleet_virt_selectors tool."
+            "Use Claude Code's native mcp__acm-source__get_fleet_virt_selectors tool."
         )
         return None
 
@@ -219,11 +219,11 @@ class ACMUIMCPClient:
         Note: This method requires the MCP server which is now accessed
         via Claude Code's native MCP. Returns empty list in Python client.
 
-        For Phase 2, use: mcp__acm-ui__find_test_ids
+        For Phase 2, use: mcp__acm-source__find_test_ids
         """
         self.logger.debug(
             "find_test_ids requires MCP. "
-            "Use Claude Code's native mcp__acm-ui__find_test_ids tool."
+            "Use Claude Code's native mcp__acm-source__find_test_ids tool."
         )
         return []
 
@@ -234,11 +234,11 @@ class ACMUIMCPClient:
         Note: This method requires the MCP server which is now accessed
         via Claude Code's native MCP. Returns empty list in Python client.
 
-        For Phase 2, use: mcp__acm-ui__search_code
+        For Phase 2, use: mcp__acm-source__search_code
         """
         self.logger.debug(
             "search_code requires MCP. "
-            "Use Claude Code's native mcp__acm-ui__search_code tool."
+            "Use Claude Code's native mcp__acm-source__search_code tool."
         )
         return []
 
@@ -274,22 +274,22 @@ class ACMUIMCPClient:
 
 
 # Singleton instance
-_acm_ui_mcp_client: Optional[ACMUIMCPClient] = None
+_acm_source_mcp_client: Optional[ACMSourceMCPClient] = None
 
 
-def get_acm_ui_mcp_client() -> ACMUIMCPClient:
-    """Get the singleton ACM UI MCP client instance."""
-    global _acm_ui_mcp_client
-    if _acm_ui_mcp_client is None:
-        _acm_ui_mcp_client = ACMUIMCPClient()
-    return _acm_ui_mcp_client
+def get_acm_source_mcp_client() -> ACMSourceMCPClient:
+    """Get the singleton ACM Source MCP client instance."""
+    global _acm_source_mcp_client
+    if _acm_source_mcp_client is None:
+        _acm_source_mcp_client = ACMSourceMCPClient()
+    return _acm_source_mcp_client
 
 
-def is_acm_ui_mcp_available() -> bool:
+def is_acm_source_mcp_available() -> bool:
     """
-    Check if ACM UI MCP is available.
+    Check if ACM Source MCP is available.
 
     Note: Python client MCP calls are deprecated.
     Use Claude Code's native MCP for Phase 2 analysis.
     """
-    return get_acm_ui_mcp_client().is_available
+    return get_acm_source_mcp_client().is_available

@@ -2,7 +2,7 @@
 
 ## E0: Knowledge Graph Subsystem Context
 
-If acm-neo4j-explorer is available, query subsystem context for affected components to understand the broader impact.
+If neo4j-rhacm MCP is available, query subsystem context for affected components to understand the broader impact.
 
 ## E1: Carry Investigation Results
 
@@ -10,7 +10,7 @@ Bring forward the investigation results from Phase B, including root_cause_layer
 
 ## E2-E3: Search JIRA for Related Stories
 
-Using acm-jira-client:
+Using the jira MCP tools directly:
 1. Search for stories related to the failing component:
    ```
    search_issues(jql='project = ACM AND component = "<component>" AND fixVersion = "ACM <version>" AND type = Story')
@@ -20,7 +20,7 @@ Using acm-jira-client:
 
 ## E4: Search for Existing Bugs
 
-Using acm-jira-client:
+Using the jira MCP tools directly:
 1. Search for bugs matching the error pattern:
    ```
    search_issues(jql='project = ACM AND type = Bug AND status != Closed AND summary ~ "<error keyword>"')

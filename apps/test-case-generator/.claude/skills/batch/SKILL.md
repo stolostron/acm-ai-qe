@@ -35,10 +35,10 @@ allowed-tools:
   - Bash(basename:*)
   - Bash(dirname:*)
   - Bash(realpath:*)
-  - mcp__acm-ui__set_acm_version
-  - mcp__acm-ui__set_cnv_version
-  - mcp__acm-ui__get_routes
-  - mcp__acm-ui__search_translations
+  - mcp__acm-source__set_acm_version
+  - mcp__acm-source__set_cnv_version
+  - mcp__acm-source__get_routes
+  - mcp__acm-source__search_translations
   - mcp__jira__get_issue
   - mcp__jira__search_issues
   - mcp__polarion__get_polarion_work_items

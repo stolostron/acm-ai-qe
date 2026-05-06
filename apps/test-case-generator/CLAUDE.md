@@ -94,7 +94,7 @@ Six agents, each with a dedicated role in the pipeline:
 | **UI Discovery** | `.claude/agents/ui-discovery.md` | Phase 1 (parallel) | Source code discovery: selectors, translations, routes, wizard steps, test IDs + optional live browser verification |
 | **Live Validator** | `.claude/agents/live-validator.md` | Phase 3 | Live cluster verification: browser UI, oc CLI, acm-search, acm-kubectl |
 | **Test Case Generator** | `.claude/agents/test-case-generator.md` | Phase 4 | Write test case markdown from synthesized investigation context |
-| **Quality Reviewer** | `.claude/agents/quality-reviewer.md` | Phase 4.5 | Validate conventions, verify discovered vs assumed, AC vs implementation, scope alignment, numeric thresholds, peer consistency, PASS/NEEDS_FIXES |
+| **Quality Reviewer** | `.claude/agents/quality-reviewer.md` | Phase 4.5 | Validate conventions, verify discovered vs assumed, AC vs implementation, scope alignment, numeric thresholds, PASS/NEEDS_FIXES |
 
 Agent launch procedures (Phase 1 parallel launch, Phase 4.5 quality review loop) are in `.claude/skills/generate/SKILL.md`.
 
@@ -104,9 +104,9 @@ Agent launch procedures (Phase 1 parallel launch, Phase 4.5 quality review loop)
 
 | Server | Tools | Purpose | Used By |
 |--------|-------|---------|---------|
-| acm-ui | ~20 | ACM Console source: selectors, routes, translations, wizard steps, test IDs | UI Discovery, Code Analyzer, Generator, Reviewer |
+| acm-source | ~20 | ACM Console source: selectors, routes, translations, wizard steps, test IDs | UI Discovery, Code Analyzer, Generator, Reviewer |
 | jira | ~3 | JIRA investigation: full details, comments, linked tickets | Feature Investigator |
-| polarion | ~7 | Existing test case coverage: search, read, compare | Feature Investigator, Reviewer |
+| polarion | ~7 | Existing test case coverage: search, read, compare | Feature Investigator |
 | neo4j-rhacm | 2 | Architecture dependencies: component relationships, subsystem impact | Feature Investigator, Code Analyzer, UI Discovery |
 | acm-search | ~5 | Live cluster resources: search K8s resources across clusters | Live Validator |
 | acm-kubectl | 3 | Multicluster kubectl: list clusters, run commands on hub/spokes | Live Validator |
@@ -116,7 +116,7 @@ First-time setup: from the repo root, run `claude` then `/onboard`.
 
 ### MCP Usage Rules
 
-- **acm-ui**: ALWAYS call `set_acm_version` before any search/get operation. For Fleet Virt, also call `set_cnv_version`.
+- **acm-source**: ALWAYS call `set_acm_version` before any search/get operation. For Fleet Virt, also call `set_cnv_version`.
 - **jira**: `get_issue` does NOT return issue links; use `search_issues` with JQL for linked tickets
 - **polarion**: Project ID is ALWAYS `RHACM4K`; query syntax is Lucene, not JQL
 - **neo4j-rhacm**: Requires Podman with `neo4j-rhacm` container running; optional but recommended
@@ -135,13 +135,13 @@ Feature Investigator:
 
 Code Change Analyzer:
   bash      -> gh pr view, gh pr diff (GitHub CLI via bash)
-  acm-ui    -> set_acm_version, search_code, get_component_source,
+  acm-source    -> set_acm_version, search_code, get_component_source,
                get_component_types, search_translations, get_routes
   jira      -> get_issue (Acceptance Criteria for coverage gap analysis)
   neo4j     -> read_neo4j_cypher (component dependencies)
 
 UI Discovery:
-  acm-ui    -> set_acm_version, set_cnv_version, search_code, get_component_source,
+  acm-source    -> set_acm_version, set_cnv_version, search_code, get_component_source,
                search_translations, get_wizard_steps, get_routes, get_acm_selectors,
                get_fleet_virt_selectors, find_test_ids, get_patternfly_selectors
   playwright -> browser_navigate, browser_snapshot, browser_take_screenshot (conditional: only when cluster URL provided)
@@ -155,12 +155,10 @@ Live Validator:
   acm-kubectl -> clusters, kubectl, connect_cluster
 
 Test Case Generator (spot-check only -- does NOT do primary investigation):
-  acm-ui    -> set_acm_version, get_routes, search_translations
+  acm-source    -> set_acm_version, get_routes, search_translations
 
 Quality Reviewer:
-  acm-ui    -> set_acm_version, search_translations, get_routes, get_wizard_steps
-  polarion  -> get_polarion_work_item, get_polarion_test_case_summary
-  files     -> read existing test cases for consistency comparison
+  acm-source    -> set_acm_version, search_translations, get_routes, get_wizard_steps
 ```
 
 ---
@@ -226,8 +224,8 @@ runs/test-case-generator/ACM-30459/ACM-30459-2026-04-08T12-00-00/
 ## Safety Rules
 
 1. **Read-only investigation**: Never modify JIRA tickets, Polarion work items, or cluster resources
-2. **No assumed UI elements**: All UI labels, routes, and selectors must come from MCP discovery (acm-ui translations, routes) or PR diff -- never from memory
-3. **Evidence-based**: Every expected result in a test step must trace to a discovered source (JIRA AC, PR code, acm-ui translation, live validation)
+2. **No assumed UI elements**: All UI labels, routes, and selectors must come from MCP discovery (acm-source translations, routes) or PR diff -- never from memory
+3. **Evidence-based**: Every expected result in a test step must trace to a discovered source (JIRA AC, PR code, acm-source translation, live validation)
 4. **Convention compliance**: Output must pass structural validation in Stage 3 and quality review in Phase 4.5
 5. **File isolation**: Only write to `runs/` directory and `knowledge/patterns/`
 6. **Quality gate**: NEVER deliver a test case that has not passed Phase 4.5 quality review
@@ -292,7 +290,7 @@ The pipeline has two independent validation systems. Both must pass:
 
 | Layer | When | What it checks | Authoritative for |
 |-------|------|---------------|-------------------|
-| **Phase 4.5** (quality-reviewer agent) | Before Stage 3 | MCP verification of UI elements, AC vs implementation, scope alignment, numeric thresholds, Polarion coverage, peer consistency, discovered vs assumed | Semantic correctness (are the right things tested?) |
+| **Phase 4.5** (quality-reviewer agent) | Before Stage 3 | MCP verification of UI elements, AC vs implementation, scope alignment, numeric thresholds, discovered vs assumed | Semantic correctness (are the right things tested?) |
 | **Stage 3** (report.py / convention_validator.py) | After Phase 4.5 | Title pattern, metadata fields, section order, step format, entry point, teardown, artifact completeness | Structural correctness (is the format right?) |
 
 Stage 3 also checks pipeline artifact completeness (9 expected files) and includes the result in `review-results.json` and `SUMMARY.txt`. This is reporting-only — it does not block the pipeline.
@@ -309,7 +307,7 @@ Test cases are validated against these criteria (Phase 4.5 + Stage 3):
 
 1. **Metadata completeness**: All Polarion fields present, correct release version
 2. **Section order**: Title -> Metadata -> Fields -> Description -> Setup -> Steps -> Teardown
-3. **Entry point discovered**: Navigation path verified via acm-ui `get_routes()`
+3. **Entry point discovered**: Navigation path verified via acm-source `get_routes()`
 4. **UI elements discovered**: Labels/strings verified via `search_translations()`
 5. **CLI-in-steps rule**: CLI only for backend validation, in dedicated steps placed after UI steps (not embedded within UI steps)
 6. **Step granularity**: Each step verifies one behavior — no mixing observation (read/check) with interaction (click/navigate)
@@ -317,8 +315,7 @@ Test cases are validated against these criteria (Phase 4.5 + Stage 3):
 8. **Setup completeness**: Numbered bash commands with `# Expected:` comments
 9. **Step format**: H3 title, numbered actions, bullet expected results, `---` separators
 10. **Teardown**: Cleanup commands that reverse setup, `--ignore-not-found` on deletes
-11. **Peer consistency**: Format matches existing test cases in the same area/version
-12. **Discovered vs assumed**: Reviewer verifies UI elements against MCP sources
+11. **Discovered vs assumed**: Reviewer verifies UI elements against MCP sources
 
 ---
 
@@ -362,7 +359,7 @@ Test cases are validated against these criteria (Phase 4.5 + Stage 3):
 - `.claude/skills/batch/SKILL.md` -- Batch generation skill
 - `.claude/agents/feature-investigator.md` -- Phase 1: JIRA deep dive
 - `.claude/agents/code-change-analyzer.md` -- Phase 1: PR diff analysis
-- `.claude/agents/ui-discovery.md` -- Phase 1: ACM UI source discovery
+- `.claude/agents/ui-discovery.md` -- Phase 1: ACM Source source discovery
 - `.claude/agents/live-validator.md` -- Phase 3: Live cluster verification
 - `.claude/agents/test-case-generator.md` -- Phase 4: Test case writer
 - `.claude/agents/quality-reviewer.md` -- Phase 4.5: Quality gate

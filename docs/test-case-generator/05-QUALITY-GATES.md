@@ -8,7 +8,7 @@ The pipeline has three independent validation systems. Artifact validation (Phas
 |-------|------|------|---------------|-------------------|
 | Artifact Validation | After each phase (1-4, 6) | Deterministic (`scripts/validate_artifact.py`) | Required fields, types, non-empty constraints, nested keys, patterns | Data completeness at each handoff |
 | Pre-Synthesis Gate | Between Phase 3 and Phase 4 | Deterministic (`scripts/validate_artifact.py --pre-synthesis`) | 8 minimum data points across 3 investigation artifacts | Minimum viable synthesis inputs |
-| Phase 7 | Before Phase 8 | AI (quality-reviewer subagent) | MCP verification of UI elements, Polarion coverage, peer consistency, discovered vs assumed, AC vs implementation | Semantic correctness |
+| Phase 7 | Before Phase 8 | AI (quality-reviewer subagent) | MCP verification of UI elements, discovered vs assumed, AC vs implementation | Semantic correctness |
 | Phase 8 | After Phase 7 | Deterministic (`scripts/report.py`) | Title pattern, metadata fields, section order, step format, entry point, teardown | Structural correctness |
 
 ---
@@ -84,7 +84,7 @@ When artifact validation fails for an AI-produced phase (1, 2, 3, 4, or 6), the 
 ## Phase 7: Quality Reviewer Agent
 
 **Agent:** `references/agents/quality-reviewer.md`
-**Tools:** acm-ui, polarion
+**Tools:** acm-source
 **Verdict:** `PASS` or `NEEDS_FIXES`
 **Recovery:** 3-tier escalation -- targeted MCP re-investigation, focused retry with evidence, placeholder and proceed (pipeline does not abort)
 
@@ -119,7 +119,7 @@ When artifact validation fails for an AI-produced phase (1, 2, 3, 4, or 6), the 
 
 The reviewer performs **minimum 3 MCP verifications**. Fewer than 3 = automatic `NEEDS_FIXES`.
 
-1. `set_acm_version(<version>)` on acm-ui
+1. `set_acm_version(<version>)` on acm-source
 2. Check UI labels via `search_translations` — verify they match test case
 3. Check entry point via `get_routes` — verify navigation path exists
 4. If wizard steps mentioned: verify via `get_wizard_steps`
@@ -166,24 +166,6 @@ If the synthesized context includes a Coverage Gap Triage section:
 2. For each gap triaged as `NOTE ONLY`: verify it's mentioned in the Notes section
 3. Flag missing coverage as WARNING
 
-#### Step 5: Polarion Coverage Check
-
-Search for duplicate test cases via Polarion MCP:
-
-```
-get_polarion_work_items(project_id="RHACM4K", query='type:testcase AND title:"<feature>"')
-```
-
-Reports existing similar test cases and potential duplication.
-
-#### Step 6: Peer Consistency Check
-
-Reads 2-3 existing test cases from the same area and compares:
-- Section structure and formatting
-- Level of detail in expected results
-- Setup section format
-- Teardown approach
-
 ---
 
 ### Error Handling and Graceful Degradation
@@ -223,7 +205,7 @@ Every agent in the pipeline can encounter MCP failures, missing data, or unavail
 ```json
 {
   "anomalies": [
-    "acm-ui search_translations returned empty for 'PolicyReport' -- using PR diff label instead",
+    "acm-source search_translations returned empty for 'PolicyReport' -- using PR diff label instead",
     "Polarion MCP unavailable -- skipping coverage check"
   ]
 }
@@ -244,7 +226,7 @@ When quality review escalates to Tier 3, unresolvable steps are marked and the p
 2. Observe the Clusters tab filters to show non-compliant clusters only
 
 **Expected Result:**
-- [MANUAL VERIFICATION REQUIRED: filter condition could not be verified via MCP -- acm-ui search_translations returned no match for "Non-compliant" label. Verify the exact label text on a cluster running this build.]
+- [MANUAL VERIFICATION REQUIRED: filter condition could not be verified via MCP -- acm-source search_translations returned no match for "Non-compliant" label. Verify the exact label text on a cluster running this build.]
 - Only clusters with violations are displayed
 ```
 
@@ -406,5 +388,3 @@ A test case must pass all of these before delivery:
 | Step format | Checks H3 heading, actions, results | Validates `### Step N:` + `**Expected Result:**` |
 | Teardown | Checks cleanup coverage | Checks `--ignore-not-found` |
 | AC vs implementation | Compares JIRA ACs against test expectations | Not checked |
-| Peer consistency | Compares with existing test cases | Not checked |
-| Polarion duplicates | Searches Polarion for existing coverage | Not checked |

@@ -119,6 +119,19 @@ Confirmed Behavior:
 
 Anomalies:
 - [unexpected findings]
+
+## Corrections
+
+If live validation reveals that Phase 3 data was inaccurate, list corrections here.
+If no corrections are needed, write: "None -- all Phase 3 data confirmed by live UI."
+
+| Field | Phase 3 Value | Correct Value (from live UI) | Evidence |
+|-------|---------------|------------------------------|----------|
+| entry_point | (value from phase3-ui.json) | (what browser actually shows) | Tab label observed in snapshot |
+
+The orchestrator reads this section to apply corrections before writing the final test case.
+Entry point labels, button text, and navigation paths observed in the live UI always override
+source-code-inferred values.
 ```
 
 ## Rules

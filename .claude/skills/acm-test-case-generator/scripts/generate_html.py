@@ -25,6 +25,18 @@ def _escape_html(text: str) -> str:
     return text
 
 
+def _convert_inline_bold(text: str) -> str:
+    """Convert markdown **bold** to Polarion inline bold spans, escaping HTML in all segments."""
+    parts = re.split(r'\*\*(.+?)\*\*', text)
+    result = []
+    for i, part in enumerate(parts):
+        if i % 2 == 0:
+            result.append(_escape_html(part))
+        else:
+            result.append(f'<span style="font-weight:bold;">{_escape_html(part)}</span>')
+    return ''.join(result)
+
+
 def _extract_section(content: str, section_name: str, next_sections: list[str]) -> Optional[str]:
     """Extract a markdown section between headers."""
     pattern = f"## {section_name}"
@@ -76,9 +88,9 @@ def generate_setup_html(content: str) -> str:
             html_parts.append(f'<span style="{BOLD_STYLE}">{_escape_html(label)}:</span><br>')
         elif stripped.startswith("- "):
             bullet_text = stripped[2:]
-            html_parts.append(f"&bull; {_escape_html(bullet_text)}<br>")
+            html_parts.append(f"&bull; {_convert_inline_bold(bullet_text)}<br>")
         elif stripped:
-            html_parts.append(f"{_escape_html(stripped)}<br>")
+            html_parts.append(f"{_convert_inline_bold(stripped)}<br>")
 
     if in_code_block:
         html_parts.append("</pre>")
@@ -154,7 +166,7 @@ def generate_steps_html(content: str) -> str:
                 action_lines.append(f'<span style="{MONO_STYLE}">{_escape_html(stripped)}</span><br>')
                 continue
             if stripped and not stripped.startswith("**Actions"):
-                action_lines.append(f"{_escape_html(stripped)}<br>")
+                action_lines.append(f"{_convert_inline_bold(stripped)}<br>")
         actions_html = "\n".join(action_lines)
 
         # Format expected results
@@ -166,9 +178,9 @@ def generate_steps_html(content: str) -> str:
             if stripped.startswith("```"):
                 continue
             if stripped.startswith("- "):
-                expected_lines.append(f"&bull; {_escape_html(stripped[2:])}<br>")
+                expected_lines.append(f"&bull; {_convert_inline_bold(stripped[2:])}<br>")
             elif stripped:
-                expected_lines.append(f"{_escape_html(stripped)}<br>")
+                expected_lines.append(f"{_convert_inline_bold(stripped)}<br>")
         expected_html = "\n".join(expected_lines)
 
         rows.append(

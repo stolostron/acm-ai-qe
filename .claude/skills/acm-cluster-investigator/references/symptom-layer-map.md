@@ -22,7 +22,7 @@ For each cluster-wide issue, verify per-test:
 
 | Error Type | Verification Method | If Fails |
 |---|---|---|
-| Selector not found | ACM-UI MCP `search_code`. NOT FOUND in official source -> dead selector | Reclassify AUTOMATION_BUG |
+| Selector not found | ACM Source MCP `search_code`. NOT FOUND in official source -> dead selector | Reclassify AUTOMATION_BUG |
 | Button disabled | `oc auth can-i`. Backend GRANTS but UI disables -> UI logic bug | Reclassify PRODUCT_BUG |
 | Timeout | Check component health. Component healthy AND selector exists -> timing | Reclassify AUTOMATION_BUG |
 | Data assertion (X != Y) | Check backend data via API. API correct but UI wrong -> transform bug | Reclassify PRODUCT_BUG |

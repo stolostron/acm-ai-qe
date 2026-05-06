@@ -20,7 +20,7 @@ These must be EXACT -- the report generator rejects the file if wrong:
   },
   "investigation_phases_completed": ["A", "B", "C", "D", "E"],
   "mcp_queries_executed": [
-    {"tool": "mcp__acm-ui__search_code", "query": "search_code('selector', 'acm')", "success": true, "result_summary": "Found in 2 files"},
+    {"tool": "mcp__acm-source__search_code", "query": "search_code('selector', 'acm')", "success": true, "result_summary": "Found in 2 files"},
     {"tool": "mcp__jira__search_issues", "query": "project=ACM AND type=Bug", "success": true, "result_summary": "3 results"}
   ],
   "cross_test_correlations": {

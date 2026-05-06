@@ -27,7 +27,7 @@ Usage: `oc login <hub> && claude` (from repo root or `apps/acm-hub-health/`)
 
 ### Test Case Generator (`apps/test-case-generator/`) — Active
 
-Generates Polarion-ready test cases for ACM Console features from JIRA tickets. 6-phase subagent pipeline: deterministic data gathering (gh CLI), parallel AI investigation (3 subagents: feature-investigator, code-change-analyzer, ui-discovery), synthesis with scope gating, AC cross-referencing, coverage gap triage, and test design optimization, optional live validation (browser + oc + acm-search + acm-kubectl), AI-powered test case writing, mandatory quality review gate (AC vs implementation check, scope alignment, numeric threshold validation, design efficiency check, coverage gap verification), deterministic report/validation with Polarion HTML output and artifact completeness reporting. 6 specialized agents (each with structured anomaly reporting), 7 MCP integrations (JIRA, Polarion, ACM UI, Neo4j, ACM Search, ACM Kubectl, Playwright). Supports 9 console areas (Governance, RBAC, Fleet Virt, CCLM, MTV, Clusters, Search, Applications, Credentials). 3 skills in `.claude/skills/`: `/generate` (full pipeline with phase gates and synthesis template), `/review` (standalone quality review), `/batch` (multi-ticket generation). Portable skill pack (`.claude/skills/acm-test-case-generator/`) includes standalone scripts (gather.py, report.py, review_enforcement.py, generate_html.py, validate_artifact.py) with zero external dependencies for repo-root execution. Session tracing via Claude Code hooks captures all tool calls, MCP interactions, prompts, subagent launches, and errors to structured JSONL files (`.claude/traces/`) with pipeline-specific enrichment (phase detection, command type inference, oc command parsing, MCP server extraction, session-level aggregate stats).
+Generates Polarion-ready test cases for ACM Console features from JIRA tickets. 6-phase subagent pipeline: deterministic data gathering (gh CLI), parallel AI investigation (3 subagents: feature-investigator, code-change-analyzer, ui-discovery), synthesis with scope gating, AC cross-referencing, coverage gap triage, and test design optimization, optional live validation (browser + oc + acm-search + acm-kubectl), AI-powered test case writing, mandatory quality review gate (AC vs implementation check, scope alignment, numeric threshold validation, design efficiency check, coverage gap verification), deterministic report/validation with Polarion HTML output and artifact completeness reporting. 6 specialized agents (each with structured anomaly reporting), 7 MCP integrations (JIRA, Polarion, ACM Source, Neo4j, ACM Search, ACM Kubectl, Playwright). Supports 9 console areas (Governance, RBAC, Fleet Virt, CCLM, MTV, Clusters, Search, Applications, Credentials). 3 skills in `.claude/skills/`: `/generate` (full pipeline with phase gates and synthesis template), `/review` (standalone quality review), `/batch` (multi-ticket generation). Portable skill pack (`.claude/skills/acm-test-case-generator/`) includes standalone scripts (gather.py, report.py, review_enforcement.py, generate_html.py, validate_artifact.py) with zero external dependencies for repo-root execution. Session tracing via Claude Code hooks captures all tool calls, MCP interactions, prompts, subagent launches, and errors to structured JSONL files (`.claude/traces/`) with pipeline-specific enrichment (phase detection, command type inference, oc command parsing, MCP server extraction, session-level aggregate stats).
 
 ## Getting Started
 
@@ -101,7 +101,7 @@ From the repo root, launch `claude` and run `/onboard`. It detects your environm
 
 | Server | Tools | Source | Purpose |
 |--------|-------|--------|---------|
-| ACM UI (`mcp/acm-ui-mcp-server/`) | 20 | This repo | ACM Console + kubevirt-plugin source code search via GitHub |
+| ACM Source (`mcp/acm-source-mcp-server/`) | 18 | This repo | ACM Console + kubevirt-plugin source code search via GitHub |
 | Jenkins | 7+4 | [upstream](https://github.com/redhat-community-ai-tools/jenkins-mcp) + `mcp/jenkins-acm-tools.py` | Jenkins pipeline API + ACM analysis tools |
 | JIRA | 25 | [stolostron/jira-mcp-server](https://github.com/stolostron/jira-mcp-server) | Issue search, creation, management for bug correlation (Jira Cloud) |
 | Neo4j RHACM | 2 | [mcp-neo4j-cypher](https://pypi.org/project/mcp-neo4j-cypher/) (PyPI) | Component dependency analysis via Cypher queries (optional) |
@@ -111,7 +111,7 @@ From the repo root, launch `claude` and run `/onboard`. It detects your environm
 | Playwright | 24 | [@playwright/mcp](https://www.npmjs.com/package/@anthropic-ai/playwright-mcp) (npm) | Browser automation for live UI validation |
 
 External MCPs (JIRA, Jenkins, Knowledge Graph, ACM Search, ACM Kubectl) are cloned at setup time into `mcp/.external/` (gitignored).
-This repo only contains our original MCP code: ACM UI, Polarion wrapper, Jenkins ACM tools.
+This repo only contains our original MCP code: ACM Source, Polarion wrapper, Jenkins ACM tools.
 
 **Jenkins Setup:** Run `/onboard` and provide your Jenkins username and API token when prompted. Credentials are stored in `mcp/.external/jenkins-mcp/.env` and injected into `.mcp.json` automatically. Requires Red Hat VPN for internal Jenkins access.
 
@@ -132,12 +132,12 @@ ai_systems_v2/
 │   ├── setup.sh               # Interactive setup (clones external MCPs, creates venvs)
 │   ├── deploy-acm-search.sh   # Non-interactive ACM Search MCP deploy (cluster → .mcp.json)
 │   ├── verify.py              # Standalone health checker (run anytime)
-│   ├── acm-ui-mcp-server/     # Our code: ACM Console source search
+│   ├── acm-source-mcp-server/     # Our code: ACM Console source search
 │   ├── polarion/              # Our code: Polarion wrapper
 │   ├── jenkins-acm-tools.py   # Our code: ACM-specific Jenkins analysis tools
 │   └── .external/             # Cloned at setup time (gitignored)
 ├── .claude/
-│   ├── skills/                # 19 skills: 18 ACM + onboard (usable from repo root via root .mcp.json)
+│   ├── skills/                # 16 skills: 14 ACM + onboard + grill-me (usable from repo root via root .mcp.json)
 │   ├── knowledge/             # Shared knowledge database for skills (3 domains: tc-gen, z-stream, hub-health)
 │   ├── commands/pre-push.md   # /pre-push quality gate slash command
 │   ├── statusline.sh          # Status line script (model, branch, context %)

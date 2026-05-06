@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .acm_ui_mcp_client import ACMUIMCPClient
+    from .acm_source_mcp_client import ACMSourceMCPClient
 
 
 class ACMConsoleKnowledge:
@@ -94,7 +94,7 @@ class ACMConsoleKnowledge:
         r'id=["\']([^"\']+)["\']',
     ]
 
-    def __init__(self, mcp_client: Optional['ACMUIMCPClient'] = None):
+    def __init__(self, mcp_client: Optional['ACMSourceMCPClient'] = None):
         """
         Initialize ACM Console Knowledge service.
 
@@ -484,7 +484,7 @@ class ACMConsoleKnowledge:
         """Check if MCP client is available and configured."""
         return self._mcp_client is not None and self._mcp_client.is_available
 
-    def set_mcp_client(self, mcp_client: Optional['ACMUIMCPClient']) -> None:
+    def set_mcp_client(self, mcp_client: Optional['ACMSourceMCPClient']) -> None:
         """
         Set or update the MCP client.
 

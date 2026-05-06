@@ -78,7 +78,7 @@ graph LR
     ROUTER --> CLAUDE["CLAUDE CODE CLI\nCLAUDE.md methodology\n+ slash commands\n+ settings.json safety"]:::clickable
     CLAUDE --> OC["oc CLI\nDiagnosis: get, describe,\nlogs, exec, adm top\nRemediation: patch, scale,\nrollout restart (w/approval)"]:::clickable
     CLAUDE --> KB["KNOWLEDGE SYSTEM\n59 files\narchitecture, diagnostics,\nYAML baselines, learned"]:::clickable
-    CLAUDE --> EXT["EXTERNAL SOURCES\nacm-ui MCP (20 tools)\nneo4j-rhacm MCP (KG)\nacm-search MCP (fleet)\nrhacm-docs (AsciiDoc)"]:::clickable
+    CLAUDE --> EXT["EXTERNAL SOURCES\nacm-source MCP (18 tools)\nneo4j-rhacm MCP (KG)\nacm-search MCP (fleet)\nrhacm-docs (AsciiDoc)"]:::clickable
     CLAUDE --> REPORT["HEALTH REPORT\nVerdict: HEALTHY |\nDEGRADED | CRITICAL\nEvidence-based findings"]:::clickable
     classDef clickable cursor:pointer
     click USER showDetail
@@ -183,7 +183,7 @@ graph TD
     MISMATCH["MISMATCH DETECTED\nComponent not in knowledge,\nnamespace differs, new CRD,\nunfamiliar health signal"]:::clickable --> S1["Step 1: CLUSTER EVIDENCE\noc describe, labels,\nannotations, owner refs,\nevents, namespace check"]:::clickable
     S1 --> S1B["Step 2: CLUSTER\nINTROSPECTION\nReverse-engineer deps from\nowner refs, OLM labels, CSVs,\nenv vars, webhooks,\nConsolePlugins, APIServices\n(always available)"]:::clickable
     S1B --> S2["Step 3: KNOWLEDGE GRAPH\nneo4j-rhacm MCP\nCross-reference and supplement\ncluster-derived dependency map\n(skipped if unavailable)"]:::clickable
-    S2 --> S3["Step 4: UNDERSTAND DEPS\nFor each dep from Steps 2-3:\nacm-ui MCP: source code,\ndata flow, integration\nrhacm-docs: intended behavior"]:::clickable
+    S2 --> S3["Step 4: UNDERSTAND DEPS\nFor each dep from Steps 2-3:\nacm-source MCP: source code,\ndata flow, integration\nrhacm-docs: intended behavior"]:::clickable
     S3 --> S4["Step 5: SYNTHESIZE\nCombine introspection + graph +\nsource + docs evidence\nClassify: gap, drift,\nversion change, or issue"]:::clickable
     S4 --> S5["Step 6: WRITE LEARNED\nknowledge/learned/topic.md\nStandard format with\nversion, trigger, evidence,\nhealth signals"]:::clickable
     S5 --> S6["Step 7: CONTINUE\nUse new knowledge for\nremaining health check\nphases"]:::clickable
@@ -377,7 +377,7 @@ Targeted  <span class="green">YES</span>  <span class="green">YES</span>  <span 
 <span class="key">investigate.md</span>  &rarr; All 6 phases, scoped to $ARGUMENTS
 <span class="key">learn.md</span>        &rarr; Knowledge discovery session</pre>
         <div class="label">settings.json:</div>
-        <div class="value">Auto-approves read-only <code>oc</code> commands for diagnosis (<code>oc get</code>, <code>oc describe</code>, <code>oc logs</code>, etc.), text processing tools, file reads, <code>knowledge/learned/*</code> writes, all acm-ui MCP tools, all neo4j-rhacm MCP tools (read-only Cypher queries), and all acm-search MCP tools (read-only search database queries). Remediation commands (<code>oc patch</code>, <code>oc scale</code>, <code>oc rollout restart</code>, etc.) are NOT auto-approved &mdash; Claude Code prompts the user for permission on each one, providing a second safety layer on top of the CLAUDE.md Remediation Protocol.</div>
+        <div class="value">Auto-approves read-only <code>oc</code> commands for diagnosis (<code>oc get</code>, <code>oc describe</code>, <code>oc logs</code>, etc.), text processing tools, file reads, <code>knowledge/learned/*</code> writes, all acm-source MCP tools, all neo4j-rhacm MCP tools (read-only Cypher queries), and all acm-search MCP tools (read-only search database queries). Remediation commands (<code>oc patch</code>, <code>oc scale</code>, <code>oc rollout restart</code>, etc.) are NOT auto-approved &mdash; Claude Code prompts the user for permission on each one, providing a second safety layer on top of the CLAUDE.md Remediation Protocol.</div>
         <div class="label">CLI Wrapper (<code>acm-hub</code>):</div>
         <div class="value">Optional shell script that invokes Claude Code with the correct project directory. Enables running diagnostics from any terminal without <code>cd</code>-ing into the app directory. Supports print mode (default) and interactive mode (<code>-i</code>).</div>
         <div class="label">No Custom Runtime:</div>
@@ -451,11 +451,11 @@ Targeted  <span class="green">YES</span>  <span class="green">YES</span>  <span 
     title: 'External Sources',
     html: `
       <div class="detail-section">
-        <h4>ACM-UI MCP Server (20 Tools)</h4>
+        <h4>ACM Source MCP Server (18 Tools)</h4>
         <div class="value">Access to stolostron/console and kubevirt-plugin source code via GitHub. Used during self-healing to understand component integration.</div>
         <div class="label">Key Tools:</div>
 <pre class="data-block"><span class="cmd">search_code</span>          Search across console codebase
-<span class="cmd">search_component</span>     Find React component by name
+<span class="cmd">search_code(scope)</span>   Find React component by name
 <span class="cmd">get_component_source</span> Full source of a component
 <span class="cmd">get_routes</span>           Route definitions and navigation
 <span class="cmd">set_acm_version</span>      Set version context for searches
@@ -1047,7 +1047,7 @@ Description of observed cluster state
 <span class="key">## Evidence</span>
 - Cluster: oc commands and output
 - Docs: rhacm-docs references
-- Source: acm-ui MCP findings
+- Source: acm-source MCP findings
 
 <span class="key">## Health Signals</span>
 - Healthy: what healthy looks like
@@ -1217,17 +1217,17 @@ Description of observed cluster state
     `
   },
   'sh-step3': {
-    title: 'Step 4: Understand Dependencies (acm-ui + docs)',
+    title: 'Step 4: Understand Dependencies (acm-source + docs)',
     html: `
       <div class="detail-section">
         <h4>Chained from Steps 2-3 &mdash; The Ground Truth</h4>
         <div class="value">For each dependency discovered by cluster introspection (Step 2) and the knowledge graph (Step 3), search source code and documentation to understand <strong>how</strong> those dependencies actually work.</div>
         <div class="separator"></div>
-        <div class="label">ACM-UI MCP (source code):</div>
+        <div class="label">ACM Source MCP (source code):</div>
 <pre class="data-block"><span class="cmd">search_code("dependency-name")</span>
   Find references across the codebase
 
-<span class="cmd">search_component("ComponentName")</span>
+<span class="cmd">search_code("ComponentName", scope="components")</span>
   Find the React component by name
 
 <span class="cmd">get_component_source("path/Component")</span>
@@ -1651,7 +1651,7 @@ Available. ACM 2.17.0 on OCP 4.21.5.</pre>
 <span class="cmd">jq</span>, <span class="cmd">grep</span>, <span class="cmd">wc</span>, <span class="cmd">sort</span>, <span class="cmd">head</span>, <span class="cmd">tail</span>
 <span class="cmd">awk</span>, <span class="cmd">cut</span>, <span class="cmd">cat</span>, <span class="cmd">ls</span>, <span class="cmd">find</span>
 <span class="cmd">git clone</span> (documentation repos only)
-<span class="cmd">acm-ui MCP</span>     All 20 tools (source code search)
+<span class="cmd">acm-source MCP</span>     All 18 tools (source code search)
 <span class="cmd">neo4j-rhacm MCP</span> Read-only Cypher queries (KG)
 <span class="cmd">acm-search MCP</span>  All 5 tools (fleet resource queries)</pre>
         <div class="label">Key Rule:</div>

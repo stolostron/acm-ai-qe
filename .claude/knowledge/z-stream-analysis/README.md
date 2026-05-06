@@ -71,7 +71,7 @@ Agent-contributed corrections and discoveries across runs:
 ### Refresh Script
 
 `refresh.py` updates knowledge from live sources:
-- ACM-UI MCP (selectors, components)
+- ACM Source MCP (selectors, components)
 - Neo4j Knowledge Graph (dependencies)
 - GitHub (PR diffs, selector renames)
 - JIRA (known bugs per component)

@@ -59,10 +59,10 @@ from src.services.timeline_comparison_service import TimelineComparisonService
 from src.services.stack_trace_parser import StackTraceParser
 from src.services.shared_utils import mask_sensitive_dict, SENSITIVE_PATTERNS
 from src.services.acm_console_knowledge import ACMConsoleKnowledge
-from src.services.acm_ui_mcp_client import (
-    ACMUIMCPClient,
-    get_acm_ui_mcp_client,
-    is_acm_ui_mcp_available
+from src.services.acm_source_mcp_client import (
+    ACMSourceMCPClient,
+    get_acm_source_mcp_client,
+    is_acm_source_mcp_available
 )
 from src.services.component_extractor import ComponentExtractor
 from src.services.knowledge_graph_client import (
@@ -101,11 +101,11 @@ class DataGatherer:
         self.verbose = verbose
         self.logger = self._setup_logging()
 
-        # Initialize ACM UI MCP client (optional, for element discovery)
-        self.acm_ui_mcp_client: Optional[ACMUIMCPClient] = None
-        if is_acm_ui_mcp_available():
-            self.acm_ui_mcp_client = get_acm_ui_mcp_client()
-            self.logger.info("ACM UI MCP server available - element discovery enabled")
+        # Initialize ACM Source MCP client (optional, for element discovery)
+        self.acm_source_mcp_client: Optional[ACMSourceMCPClient] = None
+        if is_acm_source_mcp_available():
+            self.acm_source_mcp_client = get_acm_source_mcp_client()
+            self.logger.info("ACM Source MCP server available - element discovery enabled")
 
         # Initialize services
         self.jenkins_service = JenkinsIntelligenceService(use_api_client=True)
@@ -115,7 +115,7 @@ class DataGatherer:
         self.stack_parser = StackTraceParser()
 
         # ACM Console Knowledge with optional MCP integration
-        self.acm_knowledge = ACMConsoleKnowledge(mcp_client=self.acm_ui_mcp_client)
+        self.acm_knowledge = ACMConsoleKnowledge(mcp_client=self.acm_source_mcp_client)
 
         # Component extractor for Knowledge Graph integration
         self.component_extractor = ComponentExtractor()
@@ -462,7 +462,7 @@ class DataGatherer:
                 'gathered_at': datetime.now().isoformat(),
                 'gatherer_version': '4.0.0',
                 'jenkins_api_available': is_jenkins_available(),
-                'acm_ui_mcp_available': True,  # Always available to Claude Code agent via native MCP
+                'acm_source_mcp_available': True,  # Always available to Claude Code agent via native MCP
                 'knowledge_graph_available': None,  # Updated after _check_feature_knowledge()
                 'run_directory': str(run_dir)
             },
@@ -1481,9 +1481,9 @@ class DataGatherer:
         detected_branch = None
         cnv_version_info = None
 
-        if self.acm_ui_mcp_client:
+        if self.acm_source_mcp_client:
             try:
-                cnv_info = self.acm_ui_mcp_client.detect_cnv_version()
+                cnv_info = self.acm_source_mcp_client.detect_cnv_version()
                 if cnv_info:
                     cnv_version_info = {
                         'version': cnv_info.version,
@@ -1894,7 +1894,7 @@ class DataGatherer:
             'version': '4.0.0',
             'file_structure': 'multi-file-with-repos',
             'created_at': datetime.now().isoformat(),
-            'acm_ui_mcp_available': True,  # Always available via Claude Code native MCP
+            'acm_source_mcp_available': True,  # Always available via Claude Code native MCP
             'files': {
                 'core-data.json': {
                     'description': 'Primary analysis data (metadata, jenkins, test_report, console_log, environment, feature_knowledge)',

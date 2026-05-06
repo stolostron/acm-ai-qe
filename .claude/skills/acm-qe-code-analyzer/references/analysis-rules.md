@@ -2,7 +2,7 @@
 
 ## Mandatory Rules
 
-1. **Read full source of primary target file** via acm-ui-source `get_component_source()`. The primary file is the one named in the JIRA story or the file with the most significant behavioral changes. Do NOT rely solely on the diff for behavioral conclusions.
+1. **Read full source of primary target file** via acm-source MCP `get_component_source()`. The primary file is the one named in the JIRA story or the file with the most significant behavioral changes. Do NOT rely solely on the diff for behavioral conclusions.
 
 2. **Distinguish test files from production code.** Files ending in `.test.tsx` or `.test.ts` contain mock data (jest.mock, fixture objects, test renderers). Mock data does NOT represent what the UI renders. Label claims derived from test files as "FROM TEST MOCK DATA -- verify against production code."
 

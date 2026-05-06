@@ -34,7 +34,7 @@ class TestStackTracePreParsing:
             gatherer.output_dir = Path('/tmp/test')
             gatherer.verbose = False
             gatherer.logger = Mock()
-            gatherer.acm_ui_mcp_client = None
+            gatherer.acm_source_mcp_client = None
             gatherer.gathered_data = {}
 
             # Mock stack parser
@@ -146,7 +146,7 @@ class TestCNVVersionDetection:
             # Mock services
             gatherer.timeline_service = Mock()
             gatherer.acm_knowledge = Mock()
-            gatherer.acm_ui_mcp_client = None
+            gatherer.acm_source_mcp_client = None
             return gatherer
 
     def test_clone_kubevirt_uses_detected_branch(self, gatherer):
@@ -157,8 +157,8 @@ class TestCNVVersionDetection:
         mock_cnv_info.branch = 'release-4.20'
         mock_cnv_info.detected_from = 'cluster'
 
-        gatherer.acm_ui_mcp_client = Mock()
-        gatherer.acm_ui_mcp_client.detect_cnv_version.return_value = mock_cnv_info
+        gatherer.acm_source_mcp_client = Mock()
+        gatherer.acm_source_mcp_client.detect_cnv_version.return_value = mock_cnv_info
 
         gatherer.timeline_service.clone_kubevirt_to.return_value = (True, None)
         gatherer.acm_knowledge.validate_kubevirt_structure.return_value = {'src': True}
@@ -177,8 +177,8 @@ class TestCNVVersionDetection:
 
     def test_clone_kubevirt_fallback_to_provided_branch(self, gatherer):
         """Should fall back to provided branch when CNV detection fails."""
-        gatherer.acm_ui_mcp_client = Mock()
-        gatherer.acm_ui_mcp_client.detect_cnv_version.return_value = None
+        gatherer.acm_source_mcp_client = Mock()
+        gatherer.acm_source_mcp_client.detect_cnv_version.return_value = None
 
         gatherer.timeline_service.clone_kubevirt_to.return_value = (True, None)
         gatherer.acm_knowledge.validate_kubevirt_structure.return_value = {'src': True}
@@ -192,7 +192,7 @@ class TestCNVVersionDetection:
 
     def test_clone_kubevirt_without_mcp_client(self, gatherer):
         """Should work without MCP client configured."""
-        gatherer.acm_ui_mcp_client = None
+        gatherer.acm_source_mcp_client = None
 
         gatherer.timeline_service.clone_kubevirt_to.return_value = (True, None)
         gatherer.acm_knowledge.validate_kubevirt_structure.return_value = {'src': True}
@@ -206,8 +206,8 @@ class TestCNVVersionDetection:
 
     def test_clone_kubevirt_handles_detection_exception(self, gatherer):
         """Should handle CNV detection exceptions gracefully."""
-        gatherer.acm_ui_mcp_client = Mock()
-        gatherer.acm_ui_mcp_client.detect_cnv_version.side_effect = Exception('Cluster error')
+        gatherer.acm_source_mcp_client = Mock()
+        gatherer.acm_source_mcp_client.detect_cnv_version.side_effect = Exception('Cluster error')
 
         gatherer.timeline_service.clone_kubevirt_to.return_value = (True, None)
         gatherer.acm_knowledge.validate_kubevirt_structure.return_value = {'src': True}
@@ -221,7 +221,7 @@ class TestCNVVersionDetection:
 
     def test_clone_kubevirt_records_branch_in_metadata(self, gatherer):
         """Should record cloned branch in repository metadata."""
-        gatherer.acm_ui_mcp_client = None
+        gatherer.acm_source_mcp_client = None
         gatherer.timeline_service.clone_kubevirt_to.return_value = (True, None)
         gatherer.acm_knowledge.validate_kubevirt_structure.return_value = {'src': True}
 

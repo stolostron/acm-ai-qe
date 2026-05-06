@@ -7,7 +7,7 @@ description: >-
   quality review. Use when asked to generate a test case, write test coverage, or
   process an ACM JIRA ticket for testing.
 compatibility: >-
-  Required MCPs: acm-ui, jira, polarion. Recommended: neo4j-rhacm. Optional:
+  Required MCPs: acm-source, jira, polarion. Recommended: neo4j-rhacm. Optional:
   acm-search, acm-kubectl, playwright. Also needs gh CLI. Run /onboard to configure.
 metadata:
   author: acm-qe
@@ -42,12 +42,12 @@ allowed-tools:
   - Bash(dirname:*)
   - Bash(realpath:*)
   - Bash(oc:*)
-  - mcp__acm-ui__set_acm_version
-  - mcp__acm-ui__set_cnv_version
-  - mcp__acm-ui__get_routes
-  - mcp__acm-ui__search_translations
-  - mcp__acm-ui__get_component_source
-  - mcp__acm-ui__search_code
+  - mcp__acm-source__set_acm_version
+  - mcp__acm-source__set_cnv_version
+  - mcp__acm-source__get_routes
+  - mcp__acm-source__search_translations
+  - mcp__acm-source__get_component_source
+  - mcp__acm-source__search_code
   - mcp__jira__get_issue
   - mcp__jira__search_issues
   - mcp__polarion__get_polarion_work_items
@@ -74,7 +74,7 @@ Resolve before starting the pipeline:
 3. **PR Number**: Auto-detect from JIRA description/comments, or ask if not found
 4. **Area**: Auto-detect from PR file paths (governance, rbac, fleet-virt, clusters, search, applications, credentials, cclm, mtv)
 5. **Cluster URL** (optional): Run `oc whoami --show-server 2>/dev/null`. If logged in, derive console URL via `oc get route console -n openshift-console -o jsonpath='{.spec.host}' 2>/dev/null`. If unavailable, ask or skip live validation. In headless mode (`-p`), auto-detect only.
-6. **CNV Version** (Fleet Virt only): Ask or auto-detect via `mcp__acm-ui__detect_cnv_version`
+6. **CNV Version** (Fleet Virt only): Ask or auto-detect via `mcp__acm-source__detect_cnv_version`
 
 If all inputs can be inferred from the JIRA ticket, proceed without asking.
 
@@ -210,6 +210,19 @@ SKILLS_DIR: ${CLAUDE_SKILL_DIR}/..
 </input>
 
 Verify `phase5-live-validation.md` exists. Show: "Phase 5 complete. Live validation written."
+
+#### Apply Live Validation Corrections
+
+After the live validator subagent returns, check its output for a `## Corrections` section.
+If corrections exist:
+1. Parse each correction row (Field, Phase 3 Value, Correct Value, Evidence)
+2. Update the synthesized context with the corrected values
+3. Specifically: if `entry_point` was corrected, use the live-validated value for the test case
+4. Log: "Correction applied: {field} changed from '{old}' to '{new}' (source: live validation)"
+
+Arbitration rule: For user-visible labels (tab names, button text, breadcrumbs, column headers),
+live UI observation ALWAYS overrides source-code-inferred values. Source code tells you the route
+exists; the live UI tells you what label the user sees.
 
 ### Phase 6: Write Test Case
 

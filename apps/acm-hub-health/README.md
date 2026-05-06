@@ -330,7 +330,7 @@ python -m knowledge.refresh    # requires Python 3 + PyYAML
 
 | Server | Tools | Purpose |
 |--------|:-----:|---------|
-| ACM-UI | 20 | ACM Console + kubevirt-plugin source search via GitHub |
+| ACM Source | 18 | ACM Console + kubevirt-plugin source search via GitHub |
 | Neo4j RHACM | 2 | Component dependency analysis via Cypher (370 nodes, 541 relationships) |
 | ACM Search | 5 | Fleet-wide spoke-side resource queries via search-postgres |
 

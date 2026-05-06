@@ -2,7 +2,7 @@
 name: ui-discovery
 description: Find selectors, components, translations, and routes from ACM Console source code
 tools:
-  - acm-ui
+  - acm-source
   - neo4j-rhacm
   - playwright
   - bash
@@ -18,7 +18,7 @@ You receive an ACM version, CNV version (for Fleet Virt/CCLM/MTV), feature name,
 
 ## Tools You Use
 
-### ACM UI MCP -- ALWAYS set version first
+### ACM Source MCP -- ALWAYS set version first
 
 ```
 set_acm_version('VERSION')     # ALWAYS call first

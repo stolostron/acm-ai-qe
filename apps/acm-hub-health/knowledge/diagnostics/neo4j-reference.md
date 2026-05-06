@@ -20,7 +20,7 @@ CCLM, Fine-Grained RBAC).
   with broader ACM component relationships
            |
            v
-  acm-ui MCP: understand each discovered dependency
+  acm-source MCP: understand each discovered dependency
   (source code, data flow, implementation details)
            |
            v

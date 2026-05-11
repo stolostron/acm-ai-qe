@@ -70,6 +70,7 @@ environment-*.config
 
 # Personal/development skills (not part of the ACM suite)
 .claude/skills/grill-me/
+.claude/skills/youtube-digest/
 
 # Agent trace logs (session-specific, contain tool call details)
 **/.claude/traces/

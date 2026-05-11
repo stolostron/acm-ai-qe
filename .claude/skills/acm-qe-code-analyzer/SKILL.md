@@ -1,6 +1,12 @@
 ---
 name: acm-qe-code-analyzer
-description: Analyze GitHub PR diffs for ACM Console to identify changed components, new UI elements, modified behavior, filtering logic, field orders, and test scenarios. Use when writing test cases that need to understand what code changed in a PR.
+description: >-
+  Use when the user wants GitHub PR diff analysis for stolostron/console or kubevirt-plugin
+  to understand what changed (components, UI, filters, field order) and what to test—
+  WITHOUT running the full JIRA-to-Polarion test case generator pipeline. TRIGGER: analyze
+  PR #N, what changed in this merge, test impact of this diff. DO NOT TRIGGER: user wants
+  Polarion test case from ACM-#### end-to-end (use acm-test-case-generator); user wants
+  only domain facts (use acm-knowledge-base reads inside whichever skill is appropriate).
 compatibility: "Requires gh CLI (gh auth login). Uses acm-source MCP for source verification. Optional: neo4j-rhacm MCP for dependency analysis. Optional: jira MCP for coverage gap analysis."
 metadata:
   author: acm-qe

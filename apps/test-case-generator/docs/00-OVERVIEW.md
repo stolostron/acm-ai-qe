@@ -53,7 +53,7 @@ Generates Polarion-ready test cases for ACM Console UI features from JIRA ticket
 
 ## Pipeline Stages
 
-The pipeline has 8 steps: 2 deterministic stages + 6 AI phases. "6-phase" in the tagline counts the AI phases only. The portable skill pack uses a 10-phase model that breaks investigation into 3 sequential phases; the app consolidates them into 1 parallel phase. See the README "Concepts" section for the full mapping.
+The pipeline has 8 steps: 2 deterministic stages + 6 AI phases. "6-phase" in the tagline counts the AI phases only. The portable skill pack uses a 9-phase model (Phases 0-8) that merges data gathering with JIRA investigation and runs remaining investigation sequentially; the app consolidates investigation into 1 parallel phase. See the README "Concepts" section for the full mapping.
 
 | Phase/Stage | Type | Agent/Script | Duration | Input | Output |
 |------------|------|-------------|----------|-------|--------|

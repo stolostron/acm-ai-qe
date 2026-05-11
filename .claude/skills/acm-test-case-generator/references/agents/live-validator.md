@@ -74,17 +74,19 @@ MCH version format: `X.Y.Z-NNN` (NNN = build number).
 
 Read the auth reference: `${SKILLS_DIR}/acm-test-case-generator/references/console-auth.md`
 
-Execute the 3-step auth flow before any UI validation:
+The orchestrator provides credentials via the input block:
+- `CONSOLE_USERNAME` -- the username (default: `kubeadmin`)
+- `CONSOLE_PASSWORD` -- the password, or `"NONE"` if unavailable
 
-1. **Resolve credentials:**
-   ```bash
-   echo "${CONSOLE_PASSWORD:-${KUBEADMIN_PASSWORD:-}}"
-   ```
-   If empty: set AUTH_STATUS=no-credentials, skip to backend-only validation.
+Use these values directly. Do NOT re-check environment variables -- the orchestrator already resolved credentials from all available sources (env vars, user input, oc login commands).
 
-2. **Navigate and detect IDP:** Follow Step 2 from console-auth.md.
+**If `CONSOLE_PASSWORD` is `"NONE"`:** Set `AUTH_STATUS=no-credentials`, skip all browser-based UI validation. Backend validation (oc CLI, acm-search, acm-kubectl) still runs normally.
 
-3. **Form login:** Follow Step 3 from console-auth.md.
+**If `CONSOLE_PASSWORD` has a value:** Execute the auth flow:
+
+1. **Navigate and detect IDP:** Follow Step 2 from console-auth.md.
+
+2. **Form login:** Use `CONSOLE_USERNAME` and `CONSOLE_PASSWORD` to fill the login form. Follow Step 3 from console-auth.md.
 
 Record AUTH_STATUS for output. If not "authenticated", all UI validation steps
 produce "SKIPPED -- browser not authenticated" but backend validation (oc,

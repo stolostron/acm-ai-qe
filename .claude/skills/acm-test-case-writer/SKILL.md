@@ -1,6 +1,14 @@
 ---
 name: acm-test-case-writer
-description: Write Polarion-ready ACM Console UI test case markdown from synthesized investigation context. Use when you need to produce a test case document for an ACM Console feature after investigation is complete.
+description: >-
+  Use ONLY when a Polarion-style ACM Console test case markdown must be authored from
+  ALREADY-SYNTHESIZED investigation context (JIRA + code + UI summary present in the
+  thread or artifacts)—not for starting from a bare JIRA ID. For starting from JIRA,
+  use acm-test-case-generator instead. TRIGGER: user explicitly asks to convert existing
+  synthesis into test-case.md; Phase-6-style write with context already in hand. DO NOT
+  TRIGGER: user gives only ACM-#### and expects full pipeline; user wants PR diff analysis
+  only (acm-qe-code-analyzer); user wants quality review only (acm-test-case-reviewer).
+disable-model-invocation: true
 compatibility: "Requires acm-source MCP for spot-check verification. Uses acm-knowledge-base skill (no MCP needed)."
 metadata:
   author: acm-qe

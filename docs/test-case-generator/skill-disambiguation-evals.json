@@ -1,0 +1,258 @@
+{
+  "version": "1.0.0",
+  "description": "Eval queries for skill disambiguation. Each query should trigger exactly one skill. Run each query 3x and measure false positive/negative rates.",
+  "skills": [
+    "acm-test-case-generator",
+    "acm-test-case-writer",
+    "acm-test-case-reviewer",
+    "acm-qe-code-analyzer",
+    "acm-knowledge-base"
+  ],
+  "queries": [
+    {
+      "id": 1,
+      "query": "Generate a Polarion test case for ACM-32282",
+      "expected_skill": "acm-test-case-generator",
+      "category": "should-trigger",
+      "notes": "Canonical trigger: bare JIRA ID + test case intent"
+    },
+    {
+      "id": 2,
+      "query": "Write a test case for ACM-30459 targeting version 2.17",
+      "expected_skill": "acm-test-case-generator",
+      "category": "should-trigger",
+      "notes": "Near-miss: 'write a test case' could pull writer, but JIRA ID means generator"
+    },
+    {
+      "id": 3,
+      "query": "I need test coverage for the governance policy status column story ACM-31500",
+      "expected_skill": "acm-test-case-generator",
+      "category": "should-trigger",
+      "notes": "Indirect phrasing with JIRA ID"
+    },
+    {
+      "id": 4,
+      "query": "Create a Polarion test case from this JIRA ticket: ACM-30100",
+      "expected_skill": "acm-test-case-generator",
+      "category": "should-trigger",
+      "notes": "Explicit Polarion + JIRA intent"
+    },
+    {
+      "id": 5,
+      "query": "Process ACM-32000 for testing",
+      "expected_skill": "acm-test-case-generator",
+      "category": "should-trigger",
+      "notes": "Vague phrasing but JIRA ID present"
+    },
+    {
+      "id": 6,
+      "query": "Generate test cases for ACM-30459 and ACM-30460",
+      "expected_skill": "acm-test-case-generator",
+      "category": "should-trigger",
+      "notes": "Multi-ticket batch intent"
+    },
+    {
+      "id": 7,
+      "query": "What should we test in console PR 5432?",
+      "expected_skill": "acm-qe-code-analyzer",
+      "category": "should-trigger",
+      "notes": "PR analysis without Polarion/JIRA pipeline intent"
+    },
+    {
+      "id": 8,
+      "query": "Analyze PR #5790 in stolostron/console",
+      "expected_skill": "acm-qe-code-analyzer",
+      "category": "should-trigger",
+      "notes": "Canonical PR analysis trigger"
+    },
+    {
+      "id": 9,
+      "query": "What changed in this merge? PR 6100 in kubevirt-plugin",
+      "expected_skill": "acm-qe-code-analyzer",
+      "category": "should-trigger",
+      "notes": "Diff analysis intent without test case generation"
+    },
+    {
+      "id": 10,
+      "query": "Show me the test impact of PR #5500",
+      "expected_skill": "acm-qe-code-analyzer",
+      "category": "should-trigger",
+      "notes": "Test impact analysis, not full pipeline"
+    },
+    {
+      "id": 11,
+      "query": "What UI elements changed in PR 5790?",
+      "expected_skill": "acm-qe-code-analyzer",
+      "category": "should-trigger",
+      "notes": "PR-specific UI change question"
+    },
+    {
+      "id": 12,
+      "query": "Review RHACM4K-61726.md before I paste into Polarion",
+      "expected_skill": "acm-test-case-reviewer",
+      "category": "should-trigger",
+      "notes": "Standalone review of existing file"
+    },
+    {
+      "id": 13,
+      "query": "Check this test case for quality issues: runs/ACM-30459/test-case.md",
+      "expected_skill": "acm-test-case-reviewer",
+      "category": "should-trigger",
+      "notes": "Quality review with file path"
+    },
+    {
+      "id": 14,
+      "query": "Validate the test steps in my test case draft",
+      "expected_skill": "acm-test-case-reviewer",
+      "category": "should-trigger",
+      "notes": "Review intent on out-of-band draft"
+    },
+    {
+      "id": 15,
+      "query": "Is this test case ready for Polarion? [attached markdown]",
+      "expected_skill": "acm-test-case-reviewer",
+      "category": "should-trigger",
+      "notes": "Pre-Polarion QA check"
+    },
+    {
+      "id": 16,
+      "query": "What is the description list field order for RBAC roles?",
+      "expected_skill": "acm-knowledge-base",
+      "category": "should-trigger",
+      "notes": "Domain fact lookup, no pipeline needed"
+    },
+    {
+      "id": 17,
+      "query": "What are the test case conventions for governance area?",
+      "expected_skill": "acm-knowledge-base",
+      "category": "should-trigger",
+      "notes": "Convention lookup"
+    },
+    {
+      "id": 18,
+      "query": "Show me the title tag pattern for Fleet Virtualization",
+      "expected_skill": "acm-knowledge-base",
+      "category": "should-trigger",
+      "notes": "Specific area naming pattern"
+    },
+    {
+      "id": 19,
+      "query": "What CRDs does the clusters area use?",
+      "expected_skill": "acm-knowledge-base",
+      "category": "should-trigger",
+      "notes": "Architecture knowledge lookup"
+    },
+    {
+      "id": 20,
+      "query": "Turn this synthesis into test-case markdown: [pasted full synthesis context with ACs, code analysis, UI findings]",
+      "expected_skill": "acm-test-case-writer",
+      "category": "should-trigger",
+      "notes": "Explicit write from existing synthesis — rare but valid"
+    },
+    {
+      "id": 21,
+      "query": "Write a test case from this context: JIRA ACM-30459 ACs: [list], PR diff: [summary], UI elements: [list]",
+      "expected_skill": "acm-test-case-writer",
+      "category": "should-trigger",
+      "notes": "Manual context provided, standalone write"
+    },
+    {
+      "id": 22,
+      "query": "Write a test case for ACM-30459",
+      "expected_skill": "acm-test-case-generator",
+      "category": "near-miss",
+      "notes": "CRITICAL near-miss: 'write a test case' + JIRA ID = generator, NOT writer. Writer has disable-model-invocation so should not trigger."
+    },
+    {
+      "id": 23,
+      "query": "Review the test case we just generated",
+      "expected_skill": "acm-test-case-generator",
+      "category": "near-miss",
+      "notes": "Post-generation review is Phase 7 inside generator. Should NOT trigger standalone reviewer."
+    },
+    {
+      "id": 24,
+      "query": "Analyze this PR and write a test case: PR #5790 for ACM-30459",
+      "expected_skill": "acm-test-case-generator",
+      "category": "near-miss",
+      "notes": "Combined PR + JIRA = full pipeline. Should NOT trigger code-analyzer alone."
+    },
+    {
+      "id": 25,
+      "query": "What are the ACM conventions for writing test cases?",
+      "expected_skill": "acm-knowledge-base",
+      "category": "near-miss",
+      "notes": "Convention question, NOT a test case generation request. Should NOT trigger generator."
+    },
+    {
+      "id": 26,
+      "query": "Help me understand what this PR changed so I can write a test",
+      "expected_skill": "acm-qe-code-analyzer",
+      "category": "near-miss",
+      "notes": "'write a test' is intent context, not a generation request. Should be code-analyzer for the PR analysis."
+    },
+    {
+      "id": 27,
+      "query": "Check if my test case covers all the ACs from ACM-30459",
+      "expected_skill": "acm-test-case-reviewer",
+      "category": "near-miss",
+      "notes": "AC coverage check on existing test case = review, not generation"
+    },
+    {
+      "id": 28,
+      "query": "What does the governance architecture look like?",
+      "expected_skill": "acm-knowledge-base",
+      "category": "near-miss",
+      "notes": "Architecture question should NOT trigger generator even though governance is an ACM area"
+    },
+    {
+      "id": 29,
+      "query": "Generate a test case",
+      "expected_skill": "acm-test-case-generator",
+      "category": "should-trigger",
+      "notes": "Bare trigger without JIRA ID — generator should ask for the ticket"
+    },
+    {
+      "id": 30,
+      "query": "Run the quality reviewer on test-case.md",
+      "expected_skill": "acm-test-case-reviewer",
+      "category": "should-trigger",
+      "notes": "Explicit reviewer invocation"
+    },
+    {
+      "id": 31,
+      "query": "What filtering behavior does the search area have?",
+      "expected_skill": "acm-knowledge-base",
+      "category": "should-trigger",
+      "notes": "Area-specific domain knowledge lookup"
+    },
+    {
+      "id": 32,
+      "query": "Analyze the diff for PR 5790 and tell me what UI components were added",
+      "expected_skill": "acm-qe-code-analyzer",
+      "category": "should-trigger",
+      "notes": "PR diff analysis with specific UI focus"
+    },
+    {
+      "id": 33,
+      "query": "I need a Polarion test case for the new cluster import wizard",
+      "expected_skill": "acm-test-case-generator",
+      "category": "near-miss",
+      "notes": "Feature description without JIRA ID — generator should ask for the ticket"
+    },
+    {
+      "id": 34,
+      "query": "Does the test case follow our conventions?",
+      "expected_skill": "acm-test-case-reviewer",
+      "category": "near-miss",
+      "notes": "Convention compliance check = review, not knowledge-base lookup"
+    },
+    {
+      "id": 35,
+      "query": "What's the Polarion component mapping for MTV?",
+      "expected_skill": "acm-knowledge-base",
+      "category": "should-trigger",
+      "notes": "Polarion metadata fact lookup"
+    }
+  ]
+}

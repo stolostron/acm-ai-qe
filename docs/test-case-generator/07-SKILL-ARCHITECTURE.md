@@ -2,6 +2,8 @@
 
 How the portable skill pack enables the test case generation pipeline. 6 skills support a 9-phase pipeline with reusable, independently testable components — from data gathering and JIRA investigation through PR code analysis, UI discovery, and synthesis to Polarion-ready test case output with mandatory quality review. MCP tools (jira, acm-source, polarion, neo4j-rhacm) are called directly by subagents — no wrapper skill needed.
 
+> **Skill disambiguation:** Each skill's `description` field uses explicit TRIGGER / DO NOT TRIGGER language to prevent misrouting. See [SKILL-DISAMBIGUATION-REPORT.md](SKILL-DISAMBIGUATION-REPORT.md) for the rationale, disambiguation rules, and eval query set.
+
 ## Skill Inventory
 
 6 skills organized in 3 tiers:
@@ -86,8 +88,8 @@ Deterministic scripts (gather.py, report.py, review_enforcement.py, validate_art
 ### 1. acm-test-case-generator — Pipeline Orchestrator
 
 **Pipeline stage:** All phases
-**Files:** SKILL.md + 3 reference files (phase-gates.md, pipeline-workflow.md, synthesis-template.md) + 5 script files (gather.py, report.py, generate_html.py, review_enforcement.py, validate_artifact.py)
-**Depends on:** All 5 other skills + MCP tools (jira, acm-source, polarion, neo4j-rhacm)
+**Files:** SKILL.md (routing) + pipeline-detail.md (implementation) + 7 agent instruction files + 5 other reference files (phase-gates.md, pipeline-workflow.md, synthesis-template.md, console-auth.md, skill-feedback.md) + 5 scripts (gather.py, report.py, generate_html.py, review_enforcement.py, validate_artifact.py)
+**Depends on:** 5 skills (writer, reviewer, code-analyzer, knowledge-base, cluster-health) + 4 MCP servers (jira, acm-source, polarion, neo4j-rhacm)
 
 The entry point. Receives a JIRA ticket ID and orchestrates the 9-phase pipeline with visible phase-by-phase progress:
 
@@ -149,6 +151,7 @@ The entry point. Receives a JIRA ticket ID and orchestrates the 9-phase pipeline
 **Pipeline stage:** 6
 **Files:** SKILL.md (no separate reference files — conventions come from acm-knowledge-base)
 **Depends on:** acm-knowledge-base (conventions + architecture), acm-source MCP (spot-checks)
+**Invocation:** `disable-model-invocation: true` — not auto-triggered by "write a test case" prompts. Invoked by the generator's subagents via `Read` tool, or explicitly via `/acm-test-case-writer`.
 
 Produces Polarion-ready test case markdown. Operates in two modes:
 
@@ -164,7 +167,7 @@ flowchart LR
     end
 ```
 
-**Standalone mode:** If no synthesized context is available, performs a lightweight investigation first (JIRA read, UI discovery, optional code analysis) before writing. Functional but less thorough than the full pipeline.
+**Standalone mode:** If no synthesized context is available, the writer does NOT perform its own investigation. It informs the user that context is needed and directs them to either run the full pipeline (`acm-test-case-generator`) or provide context manually.
 
 **6-step writing process:**
 
@@ -278,6 +281,7 @@ flowchart TD
 **Pipeline stage:** 7 (mandatory, cannot skip)
 **Files:** SKILL.md (standalone with inlined validation)
 **Depends on:** acm-source MCP (MCP spot-checks), acm-knowledge-base (conventions)
+**Invocation:** `disable-model-invocation: true` — not auto-triggered by "review test case" prompts. Invoked by the generator's subagents via `Read` tool, or explicitly via `/acm-test-case-reviewer`.
 
 The mandatory quality gate. No test case is delivered without passing this review. Operates as a 3-tier escalation loop — targeted MCP re-investigation, focused retry with evidence, then placeholder and proceed. Never retries with the same context.
 

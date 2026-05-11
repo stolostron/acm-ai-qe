@@ -1,6 +1,8 @@
 # Test Case Generator: Skill Architecture
 
-How the portable skill pack enables the test case generation pipeline. 6 skills support a 10-phase pipeline with reusable, independently testable components — from JIRA investigation through PR code analysis, UI discovery, and synthesis to Polarion-ready test case output with mandatory quality review. MCP tools (jira, acm-source, polarion, neo4j-rhacm) are called directly by subagents — no wrapper skill needed.
+How the portable skill pack enables the test case generation pipeline. 6 skills support a 9-phase pipeline (Phases 0-8) with reusable, independently testable components — from JIRA investigation through PR code analysis, UI discovery, and synthesis to Polarion-ready test case output with mandatory quality review. MCP tools (jira, acm-source, polarion, neo4j-rhacm) are called directly by subagents — no wrapper skill needed.
+
+> **Skill disambiguation:** Each skill's `description` field uses explicit TRIGGER / DO NOT TRIGGER language to prevent misrouting. See [SKILL-DISAMBIGUATION-REPORT.md](../../../docs/test-case-generator/SKILL-DISAMBIGUATION-REPORT.md) for the rationale, disambiguation rules, and eval query set.
 
 ## Skill Inventory
 
@@ -20,8 +22,8 @@ How the portable skill pack enables the test case generation pipeline. 6 skills 
      │ test-     │  │ code-  │ │ test-case-        │
      │ case-     │  │ ana-   │ │ reviewer          │
      │ writer    │  │ lyzer  │ │                   │
-     │           │  │        │ │ Phase 8           │
-     │ Phase 7   │  │Phase 3 │ │ (mandatory gate)  │
+     │           │  │        │ │ Phase 7           │
+     │ Phase 6   │  │Phase 2 │ │ (mandatory gate)  │
      └───────────┘  └────────┘ └───────────────────┘
              │          │
      ┌───────▼───────────▼───────────────────────┐
@@ -33,7 +35,7 @@ How the portable skill pack enables the test case generation pipeline. 6 skills 
 
 | Tier | Skills | Role |
 |------|--------|------|
-| Orchestration | acm-test-case-generator | Sequences phases 0→1→2→…→9, manages review loop |
+| Orchestration | acm-test-case-generator | Sequences phases 0→1→2→…→8, manages review loop |
 | Core Pipeline | acm-test-case-writer, acm-qe-code-analyzer, acm-test-case-reviewer | Execute writing, code analysis, and quality review |
 | Methodology + Knowledge | acm-knowledge-base, acm-cluster-health | Provide conventions, architecture data, cluster diagnostic methodology |
 
@@ -51,15 +53,14 @@ flowchart TD
         direction TB
 
         P0["Phase 0: Determine Inputs\n(JIRA ID, version, area, PR, cluster URL)"]
-        P1["Phase 1: gather.py\n(deterministic script)"]
-        P2["Phase 2: Investigate JIRA Story\njira MCP + polarion MCP"]
-        P3["Phase 3: Analyze PR Code\nacm-qe-code-analyzer + acm-source MCP"]
-        P4["Phase 4: Discover UI Elements\nacm-source MCP"]
-        P5["Phase 5: Synthesize\nacm-knowledge-base"]
-        P6["Phase 6: Live Validation\n(conditional: Playwright + oc + acm-search)"]
-        P7["Phase 7: Write Test Case\nacm-test-case-writer"]
-        P8["Phase 8: Quality Review\nacm-test-case-reviewer\n(MANDATORY GATE)"]
-        P9["Phase 9: report.py\n(deterministic script)"]
+        P1["Phase 1: Gather Data + Investigate JIRA Story\ngather.py + jira MCP + polarion MCP"]
+        P2["Phase 2: Analyze PR Code\nacm-qe-code-analyzer + acm-source MCP"]
+        P3["Phase 3: Discover UI Elements\nacm-source MCP"]
+        P4["Phase 4: Synthesize\nacm-knowledge-base"]
+        P5["Phase 5: Live Validation\n(conditional: Playwright + oc + acm-search)"]
+        P6["Phase 6: Write Test Case\nacm-test-case-writer"]
+        P7["Phase 7: Quality Review\nacm-test-case-reviewer\n(MANDATORY GATE)"]
+        P8["Phase 8: report.py\n(deterministic script)"]
 
         P0 --> P1
         P1 --> P2
@@ -69,14 +70,13 @@ flowchart TD
         P5 --> P6
         P6 --> P7
         P7 --> P8
-        P8 --> P9
     end
 
-    P1 -. "gather-output.json\npr-diff.txt" .-> P2
-    P5 -. "SYNTHESIZED CONTEXT" .-> P7
-    P7 -. "test-case.md" .-> P8
-    P8 -. "PASS / NEEDS_FIXES\n(3-tier escalation)" .-> P7
-    P9 --> OUT["test-case.md\ntest-case-setup.html\ntest-case-steps.html\nSUMMARY.txt"]
+    P1 -. "gather-output.json\npr-diff.txt\nphase1-jira.json" .-> P2
+    P4 -. "SYNTHESIZED CONTEXT" .-> P6
+    P6 -. "test-case.md" .-> P7
+    P7 -. "PASS / NEEDS_FIXES\n(3-tier escalation)" .-> P6
+    P8 --> OUT["test-case.md\ntest-case-setup.html\ntest-case-steps.html\nSUMMARY.txt"]
 ```
 
 Deterministic scripts (gather.py, report.py, review_enforcement.py) handle data collection, structural validation, and Polarion HTML generation. AI skills handle investigation, analysis, discovery, synthesis, writing, and quality review.
@@ -88,29 +88,28 @@ Deterministic scripts (gather.py, report.py, review_enforcement.py) handle data 
 ### 1. acm-test-case-generator — Pipeline Orchestrator
 
 **Pipeline stage:** All phases
-**Files:** SKILL.md + 3 reference files (phase-gates.md, pipeline-workflow.md, synthesis-template.md) + 4 script files (gather.py, report.py, generate_html.py, review_enforcement.py)
-**Depends on:** All 8 other skills
+**Files:** SKILL.md (routing) + pipeline-detail.md (implementation) + 7 agent instruction files + 5 other reference files (phase-gates.md, pipeline-workflow.md, synthesis-template.md, console-auth.md, skill-feedback.md) + 5 scripts (gather.py, report.py, generate_html.py, review_enforcement.py, validate_artifact.py)
+**Depends on:** 5 skills (writer, reviewer, code-analyzer, knowledge-base, cluster-health) + 4 MCP servers (jira, acm-source, polarion, neo4j-rhacm)
 
-The entry point. Receives a JIRA ticket ID and orchestrates the 10-phase pipeline with visible phase-by-phase progress:
+The entry point. Receives a JIRA ticket ID and orchestrates the 9-phase pipeline with visible phase-by-phase progress:
 
 ```
 [Phase 0] Determining area and inputs...
-[Phase 1] Gathering pipeline data...
+[Phase 1] Gathering data + investigating JIRA story...
   → Gathered PR #5790, 12 files changed. Area: governance.
-[Phase 2] Investigating JIRA story...
   → 5 ACs, 3 linked tickets, 0 existing Polarion test cases
-[Phase 3] Analyzing PR code changes...
+[Phase 2] Analyzing PR code changes...
   → 4 new UI elements, 2 modified behaviors, 1 filtering function
-[Phase 4] Discovering UI elements...
+[Phase 3] Discovering UI elements...
   → 8 translations verified, entry point route confirmed
-[Phase 5] Synthesizing investigation results...
+[Phase 4] Synthesizing investigation results...
   → Investigation complete. 7 test scenarios identified.
-[Phase 6] Running live validation...  (or: Skipping — no cluster URL)
-[Phase 7] Writing test case...
+[Phase 5] Running live validation...  (or: Skipping — no cluster URL)
+[Phase 6] Writing test case...
   → Test case written: test-case.md (8 steps, medium).
-[Phase 8] Running quality review...
+[Phase 7] Running quality review...
   → Quality review PASSED.
-[Phase 9] Generating reports...
+[Phase 8] Generating reports...
   → test-case-setup.html, test-case-steps.html, SUMMARY.txt
 ```
 
@@ -127,31 +126,32 @@ The entry point. Receives a JIRA ticket ID and orchestrates the 10-phase pipelin
 
 | Skill Used | Phase(s) | Purpose |
 |------------|----------|---------|
-| jira MCP | 2 | JIRA story deep dive, linked tickets, PR discovery |
-| acm-qe-code-analyzer | 3 | PR diff analysis, changed components, filtering logic |
-| acm-source MCP | 3, 4, 7, 8 | Routes, translations, selectors, component source |
-| acm-knowledge-base | 2–8 | Conventions, area architecture, examples |
-| polarion MCP | 2 | Existing coverage check (feature investigator) |
-| neo4j-rhacm MCP | 2–4 | Component dependencies, subsystem impact |
-| acm-cluster-health | 6 | Cluster diagnostic methodology (live validation) |
-| acm-test-case-writer | 7 | Test case markdown generation |
-| acm-test-case-reviewer | 8 | Quality gate with MCP verification |
+| jira MCP | 1 | JIRA story deep dive, linked tickets, PR discovery |
+| acm-qe-code-analyzer | 2 | PR diff analysis, changed components, filtering logic |
+| acm-source MCP | 2, 3, 6, 7 | Routes, translations, selectors, component source |
+| acm-knowledge-base | 1–7 | Conventions, area architecture, examples |
+| polarion MCP | 1 | Existing coverage check (feature investigator) |
+| neo4j-rhacm MCP | 1–3 | Component dependencies, subsystem impact |
+| acm-cluster-health | 5 | Cluster diagnostic methodology (live validation) |
+| acm-test-case-writer | 6 | Test case markdown generation |
+| acm-test-case-reviewer | 7 | Quality gate with MCP verification |
 
 **Three invocation modes:**
 
 | Mode | Command | Behavior |
 |------|---------|----------|
-| Full pipeline | `/generate ACM-30459` | All 10 phases, single ticket |
+| Full pipeline | `/generate ACM-30459` | All 9 phases, single ticket |
 | Batch | `/batch ACM-30459,ACM-30460` | Full pipeline per ticket, summary table |
-| Review only | `/review path/to/test-case.md` | Phase 8 only on existing file |
+| Review only | `/review path/to/test-case.md` | Phase 7 only on existing file |
 
 ---
 
-### 2. acm-test-case-writer — Test Case Author (Phase 7)
+### 2. acm-test-case-writer — Test Case Author (Phase 6)
 
-**Pipeline stage:** 7
+**Pipeline stage:** 6
 **Files:** SKILL.md (no separate reference files — conventions come from acm-knowledge-base)
 **Depends on:** acm-knowledge-base (conventions + architecture), acm-source MCP (spot-checks)
+**Invocation:** `disable-model-invocation: true` — not auto-triggered by "write a test case" prompts. Invoked by the generator's subagents via `Read` tool, or explicitly via `/acm-test-case-writer`.
 
 Produces Polarion-ready test case markdown. Operates in two modes:
 
@@ -167,7 +167,7 @@ flowchart LR
     end
 ```
 
-**Standalone mode:** If no synthesized context is available, performs a lightweight investigation first (JIRA read, UI discovery, optional code analysis) before writing. Functional but less thorough than the full pipeline.
+**Standalone mode:** If no synthesized context is available, the writer does NOT perform its own investigation. It informs the user that context is needed and directs them to either run the full pipeline (`acm-test-case-generator`) or provide context manually.
 
 **6-step writing process:**
 
@@ -225,9 +225,9 @@ Implementation details, AC discrepancies with source citations
 
 ---
 
-### 3. acm-qe-code-analyzer — PR Diff Analysis (Phase 3)
+### 3. acm-qe-code-analyzer — PR Diff Analysis (Phase 2)
 
-**Pipeline stage:** 3
+**Pipeline stage:** 2
 **Files:** SKILL.md (no separate reference files)
 **Depends on:** acm-source MCP (source verification), neo4j-rhacm MCP (dependency graph)
 
@@ -273,11 +273,12 @@ flowchart TD
 
 ---
 
-### 4. acm-test-case-reviewer — Quality Gate (Phase 8)
+### 4. acm-test-case-reviewer — Quality Gate (Phase 7)
 
-**Pipeline stage:** 8 (mandatory, cannot skip)
+**Pipeline stage:** 7 (mandatory, cannot skip)
 **Files:** SKILL.md + 1 reference file (review-checklist.md) + 1 script (validate_conventions.py)
 **Depends on:** acm-source MCP (spot-checks), acm-knowledge-base (conventions)
+**Invocation:** `disable-model-invocation: true` — not auto-triggered by "review test case" prompts. Invoked by the generator's subagents via `Read` tool, or explicitly via `/acm-test-case-reviewer`.
 
 The mandatory quality gate. No test case is delivered without passing this review. Operates as a 3-tier escalation loop — targeted MCP re-investigation, focused retry with evidence, then placeholder and proceed. Never retries with the same context.
 
@@ -334,7 +335,7 @@ Subagents call these MCP servers directly — no wrapper skill needed.
 
 #### jira MCP
 
-**Phases:** 2 | **Used by:** Feature investigator subagent
+**Phases:** 1 | **Used by:** Feature investigator subagent
 
 Deep ticket investigation — extracts summary, ACs, ALL comments (implementation decisions, edge cases, design trade-offs), linked tickets, and sibling stories.
 
@@ -351,32 +352,32 @@ Deep ticket investigation — extracts summary, ACs, ALL comments (implementatio
 
 #### acm-source MCP
 
-**Phases:** 3, 4, 7, 8 | **Used by:** All core pipeline subagents
+**Phases:** 2, 3, 6, 7 | **Used by:** All core pipeline subagents
 
 The most heavily used MCP server. Source code search across `stolostron/console` and `kubevirt-ui/kubevirt-plugin`.
 
 | Phase | Purpose | Key Tools |
 |-------|---------|-----------|
-| 3 (Code Analysis) | Verify source code, translations, routes against PR diff | `set_acm_version`, `search_code`, `get_component_source`, `search_translations`, `get_routes` |
-| 4 (UI Discovery) | Discover all UI elements for the feature | `set_acm_version`, `set_cnv_version`, `search_code`, `get_component_source`, `find_test_ids`, `search_translations`, `get_routes`, `get_wizard_steps`, `get_acm_selectors`, `get_patternfly_selectors` |
-| 7 (Writing) | Spot-check key elements during writing | `set_acm_version`, `get_routes`, `search_translations`, `get_component_source` |
-| 8 (Review) | Verify claims in the test case | `set_acm_version`, `search_translations`, `get_routes`, `get_component_source` |
+| 2 (Code Analysis) | Verify source code, translations, routes against PR diff | `set_acm_version`, `search_code`, `get_component_source`, `search_translations`, `get_routes` |
+| 3 (UI Discovery) | Discover all UI elements for the feature | `set_acm_version`, `set_cnv_version`, `search_code`, `get_component_source`, `find_test_ids`, `search_translations`, `get_routes`, `get_wizard_steps`, `get_acm_selectors`, `get_patternfly_selectors` |
+| 6 (Writing) | Spot-check key elements during writing | `set_acm_version`, `get_routes`, `search_translations`, `get_component_source` |
+| 7 (Review) | Verify claims in the test case | `set_acm_version`, `search_translations`, `get_routes`, `get_component_source` |
 
 **Gotcha:** Always call `set_acm_version` (and `set_cnv_version` for Fleet Virt/CCLM/MTV) before any search. Without it, lookups target the wrong branch.
 
 #### polarion MCP
 
-**Phases:** 2 | **Used by:** Feature investigator subagent
+**Phases:** 1 | **Used by:** Feature investigator subagent
 
 | Phase | Purpose | Tools |
 |-------|---------|-------|
-| 2 (JIRA Investigation) | Check existing test case coverage before writing | `get_polarion_work_items`, `get_polarion_test_case_summary` |
+| 1 (JIRA Investigation) | Check existing test case coverage before writing | `get_polarion_work_items`, `get_polarion_test_case_summary` |
 
 **Gotcha:** Project ID is always `RHACM4K`. Query syntax is Lucene (not JQL).
 
 #### neo4j-rhacm MCP
 
-**Phases:** 2–4 (optional) | **Used by:** Feature investigator, code analyzer, UI discoverer subagents
+**Phases:** 1–3 (optional) | **Used by:** Feature investigator, code analyzer, UI discoverer subagents
 
 Queries the component dependency graph (~370 nodes, 541 relationships across 7 subsystems) to understand impact of code changes. Optional — the pipeline proceeds without it, but dependency context improves test case quality.
 
@@ -386,7 +387,7 @@ Queries the component dependency graph (~370 nodes, 541 relationships across 7 s
 
 ### 6. acm-knowledge-base — Domain Knowledge Repository
 
-**Pipeline stage:** 2–8 (referenced throughout)
+**Pipeline stage:** 1–7 (referenced throughout)
 **Files:** SKILL.md + 14 reference files (9 architecture + 4 conventions + 1 example)
 **Used by:** All core pipeline skills
 
@@ -425,20 +426,17 @@ Each file contains: key components, CRDs, navigation routes, translation keys, d
 
 ```mermaid
 flowchart TD
-    subgraph "Phase 0-1 (Inputs + gather.py)"
+    subgraph "Phase 0-1 (Inputs + Gather + JIRA Investigation)"
         P0[Phase 0\nDetermine Inputs] --> G[gather.py]
         G --> GO[gather-output.json]
         G --> DIFF[pr-diff.txt]
-    end
-
-    subgraph "Phase 2 (JIRA Investigation)"
         JC[jira MCP] --> JINV[JIRA findings:\nACs, comments,\nlinked tickets]
         PC1[polarion MCP] -.existing coverage.-> JINV
         NEO1[neo4j-rhacm MCP] -.subsystem context.-> JINV
         GO --> JC
     end
 
-    subgraph "Phase 3 (Code Analysis)"
+    subgraph "Phase 2 (Code Analysis)"
         CA[code-analyzer] --> CAINV[Code findings:\ncomponents, UI elements,\nfiltering, field orders]
         UIS1[acm-source MCP] -.source verification.-> CA
         NEO2[neo4j-rhacm MCP] -.dependencies.-> CA
@@ -447,11 +445,11 @@ flowchart TD
         GO --> CA
     end
 
-    subgraph "Phase 4 (UI Discovery)"
+    subgraph "Phase 3 (UI Discovery)"
         UIS2[acm-source MCP] --> UIINV[UI findings:\nroutes, translations,\nselectors, test IDs]
     end
 
-    subgraph "Phase 5 (Synthesis)"
+    subgraph "Phase 4 (Synthesis)"
         JINV --> SYN[Synthesize]
         CAINV --> SYN
         UIINV --> SYN
@@ -459,12 +457,12 @@ flowchart TD
         SYN --> SC[SYNTHESIZED\nCONTEXT]
     end
 
-    subgraph "Phase 6 (Live Validation — conditional)"
+    subgraph "Phase 5 (Live Validation — conditional)"
         LV[Playwright + oc\n+ acm-search] --> LVR[Live validation\nresults]
         SC --> LV
     end
 
-    subgraph "Phase 7 (Writing)"
+    subgraph "Phase 6 (Writing)"
         TCW[test-case-writer] --> TC[test-case.md]
         SC --> TCW
         LVR -.if available.-> TCW
@@ -472,7 +470,7 @@ flowchart TD
         KB3[knowledge-base] -.conventions.-> TCW
     end
 
-    subgraph "Phase 8 (Quality Review — MANDATORY)"
+    subgraph "Phase 7 (Quality Review — MANDATORY)"
         TCR[test-case-reviewer] --> VRD{Verdict}
         TC --> TCR
         UIS4[acm-source MCP] -.MCP verification.-> TCR
@@ -481,7 +479,7 @@ flowchart TD
         VRD -->|PASS| REP
     end
 
-    subgraph "Phase 9 (report.py)"
+    subgraph "Phase 8 (report.py)"
         REP[report.py] --> HTML[test-case-setup.html\ntest-case-steps.html]
         REP --> RR[review-results.json]
         REP --> SUM[SUMMARY.txt]
@@ -596,7 +594,7 @@ flowchart TD
     JSON --> PE["Programmatic\nEnforcement\n(review_enforcement.py)"]
     PE --> CHECK{Both\npass?}
 
-    CHECK -->|Yes| PASS["PASS\n→ Phase 9"]
+    CHECK -->|Yes| PASS["PASS\n→ Phase 8"]
     CHECK -->|No| FIXES["NEEDS_FIXES"]
     FIXES --> FIX["Fix issues\nin test case"]
     FIX --> TC
@@ -629,8 +627,8 @@ flowchart TD
 | `generate_html.py` | Deterministic (Python) | Polarion-compatible HTML from markdown | Setup + steps HTML |
 | `report.py` | Deterministic (Python) | Orchestrates validation + HTML + summary | Always produces output files |
 | `log_phase` | Deterministic (Python) | Write telemetry entries between AI phases | Pipeline observability |
-| Phase 2–7 | AI (Skills) | Investigation, analysis, synthesis, writing | Evidence-based, MCP-verified |
-| Phase 8 | AI + Deterministic | Review (AI) + enforcement (Python) | Two-layer quality gate |
+| Phase 1–6 | AI (Skills) | Investigation, analysis, synthesis, writing | Evidence-based, MCP-verified |
+| Phase 7 | AI + Deterministic | Review (AI) + enforcement (Python) | Two-layer quality gate |
 
 ---
 
@@ -640,10 +638,10 @@ The pipeline has two independent validation systems. Both must pass:
 
 | Layer | When | What it checks | Authoritative for |
 |-------|------|---------------|-------------------|
-| **Phase 8** (quality-reviewer + enforcement) | Before Stage 3 | MCP verification of UI elements, AC vs implementation, scope alignment, numeric thresholds, discovered vs assumed | Semantic correctness (are the right things tested?) |
-| **Phase 9** (report.py / convention_validator.py) | After Phase 8 | Title pattern, metadata fields, section order, step format, entry point, teardown | Structural correctness (is the format right?) |
+| **Phase 7** (quality-reviewer + enforcement) | Before Phase 8 | MCP verification of UI elements, AC vs implementation, scope alignment, numeric thresholds, discovered vs assumed | Semantic correctness (are the right things tested?) |
+| **Phase 8** (report.py / convention_validator.py) | After Phase 7 | Title pattern, metadata fields, section order, step format, entry point, teardown | Structural correctness (is the format right?) |
 
-If Phase 9 fails after Phase 8 passed, fix the structural issue and re-run `report.py`. Do not re-run the quality reviewer unless the fix changed test content.
+If Phase 8 fails after Phase 7 passed, fix the structural issue and re-run `report.py`. Do not re-run the quality reviewer unless the fix changed test content.
 
 ---
 
@@ -655,18 +653,18 @@ Each run produces artifacts under `runs/test-case-generator/<JIRA_ID>/<JIRA_ID>-
 runs/test-case-generator/ACM-30459/ACM-30459-2026-04-08T12-00-00/
   gather-output.json                 Phase 1: collected data (deterministic)
   pr-diff.txt                        Phase 1: full PR diff (deterministic)
-  phase1-feature-investigation.md    Phase 2: feature investigator output
-  phase1-code-change-analysis.md     Phase 3: code change analyzer output
-  phase1-ui-discovery.md             Phase 4: UI discovery output
-  phase2-synthesized-context.md      Phase 5: merged context + test plan
-  phase3-live-validation.md          Phase 6: live validation (or skip note)
-  test-case.md                       Phase 7: PRIMARY DELIVERABLE
-  analysis-results.json              Phase 7: investigation metadata (audit)
-  phase4.5-quality-review.md         Phase 8: reviewer output + JSON block
-  test-case-setup.html               Phase 9: Polarion setup section HTML
-  test-case-steps.html               Phase 9: Polarion steps table HTML
-  review-results.json                Phase 9: structural validation results
-  SUMMARY.txt                        Phase 9: human-readable summary
+  phase1-feature-investigation.md    Phase 1: JIRA investigator output
+  phase1-code-change-analysis.md     Phase 2: code change analyzer output
+  phase1-ui-discovery.md             Phase 3: UI discovery output
+  phase2-synthesized-context.md      Phase 4: merged context + test plan
+  phase3-live-validation.md          Phase 5: live validation (or skip note)
+  test-case.md                       Phase 6: PRIMARY DELIVERABLE
+  analysis-results.json              Phase 6: investigation metadata (audit)
+  phase4.5-quality-review.md         Phase 7: reviewer output + JSON block
+  test-case-setup.html               Phase 8: Polarion setup section HTML
+  test-case-steps.html               Phase 8: Polarion steps table HTML
+  review-results.json                Phase 8: structural validation results
+  SUMMARY.txt                        Phase 8: human-readable summary
   pipeline.log.jsonl                 All phases: telemetry log
 ```
 
@@ -678,26 +676,26 @@ Which tools each skill uses, and when:
 
 | MCP Tool | acm-test-case-generator | acm-qe-code-analyzer | acm-test-case-writer | acm-test-case-reviewer |
 |----------|:-:|:-:|:-:|:-:|
-| `set_acm_version` | Phase 2 | Step 3 | Step 4 | Step 4 |
-| `set_cnv_version` | Phase 4 | — | — | — |
-| `get_issue` | Phase 2 | — | — | — |
-| `search_issues` | Phase 2 | — | — | — |
-| `get_polarion_work_items` | Phase 2 | — | — | — |
-| `get_polarion_test_case_summary` | Phase 2 | — | — | — |
-| `search_code` | Phase 4 | Step 4 | — | — |
-| `get_component_source` | Phase 4 | Step 5, 6 | Step 4 | Step 4 |
-| `search_translations` | Phase 4 | Step 8 | Step 4 | Step 4 |
-| `get_routes` | Phase 4 | — | Step 4 | Step 4 |
-| `find_test_ids` | Phase 4 | — | — | — |
-| `get_wizard_steps` | Phase 4 | — | — | — |
-| `get_acm_selectors` | Phase 4 | — | — | — |
-| `get_patternfly_selectors` | Phase 4 | — | — | — |
-| `read_neo4j_cypher` | Phase 2–4 | Step 7 | — | — |
+| `set_acm_version` | Phase 1 | Step 3 | Step 4 | Step 4 |
+| `set_cnv_version` | Phase 3 | — | — | — |
+| `get_issue` | Phase 1 | — | — | — |
+| `search_issues` | Phase 1 | — | — | — |
+| `get_polarion_work_items` | Phase 1 | — | — | — |
+| `get_polarion_test_case_summary` | Phase 1 | — | — | — |
+| `search_code` | Phase 3 | Step 4 | — | — |
+| `get_component_source` | Phase 3 | Step 5, 6 | Step 4 | Step 4 |
+| `search_translations` | Phase 3 | Step 8 | Step 4 | Step 4 |
+| `get_routes` | Phase 3 | — | Step 4 | Step 4 |
+| `find_test_ids` | Phase 3 | — | — | — |
+| `get_wizard_steps` | Phase 3 | — | — | — |
+| `get_acm_selectors` | Phase 3 | — | — | — |
+| `get_patternfly_selectors` | Phase 3 | — | — | — |
+| `read_neo4j_cypher` | Phase 1–3 | Step 7 | — | — |
 | `gh pr view` | Phase 1 | Step 1 | — | — |
 | `gh pr diff` | Phase 1 | Step 2 | — | — |
-| `browser_navigate` | Phase 6 | — | — | — |
-| `browser_snapshot` | Phase 6 | — | — | — |
-| `find_resources` | Phase 6 | — | — | — |
+| `browser_navigate` | Phase 5 | — | — | — |
+| `browser_snapshot` | Phase 5 | — | — | — |
+| `find_resources` | Phase 5 | — | — | — |
 
 ---
 
@@ -722,10 +720,10 @@ Which tools each skill uses, and when:
 1. **Read-only investigation** — never modify JIRA tickets, Polarion work items, or cluster resources
 2. **No assumed UI elements** — all labels, routes, selectors come from MCP discovery or PR analysis
 3. **Evidence-based** — every expected result in a test step traces to a discovered source (JIRA AC, PR code, MCP translation, live validation)
-4. **Convention compliance** — output must pass both quality review (Phase 8) and structural validation (Phase 9)
+4. **Convention compliance** — output must pass both quality review (Phase 7) and structural validation (Phase 8)
 5. **Quality gate** — never deliver a test case that hasn't passed the mandatory review + programmatic enforcement
 6. **Knowledge file authority** — architecture files define verified behavior; contradictions flagged and verified via MCP before overriding
-7. **Mandatory source verification** — writer (Phase 7) and reviewer (Phase 8) each must call `get_component_source` to verify at least one behavioral claim
+7. **Mandatory source verification** — writer (Phase 6) and reviewer (Phase 7) each must call `get_component_source` to verify at least one behavioral claim
 8. **Test vs production code** — data from `.test.tsx`/`.test.ts` files is MOCK DATA, not rendering behavior
 9. **File isolation** — only write to `runs/` directory and `knowledge/patterns/`
 

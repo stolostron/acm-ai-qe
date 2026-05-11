@@ -1,6 +1,12 @@
 ---
 name: acm-knowledge-base
-description: ACM Console domain knowledge including per-area architecture, test case conventions, naming patterns, and shared reference data. Use when any ACM-related skill or workflow needs domain context about governance, RBAC, fleet virtualization, clusters, search, applications, credentials, CCLM, or MTV areas.
+description: >-
+  Use when you need READ-ONLY ACM Console domain reference: per-area architecture,
+  Polarion conventions, naming patterns, examples. Load the specific references/ file for
+  the task. This skill does NOT gather JIRA, PRs, or UI via MCP and does NOT run the
+  test-case pipeline. TRIGGER: conventions, field order, area architecture, template
+  rules while executing another skill. DO NOT TRIGGER: user asks to generate a test case
+  from ACM-#### (acm-test-case-generator); PR-only analysis (acm-qe-code-analyzer).
 compatibility: "No MCP servers required. Self-contained reference files."
 metadata:
   author: acm-qe

@@ -28,9 +28,9 @@ When you modify a skill, here's what could be affected:
 
 | Skill | Consumed By | What Could Break | Risk |
 |---|---|---|---|
-| `acm-qe-code-analyzer` | TC-gen Phase 3 | Code analysis output format changes affect synthesis | Medium |
-| `acm-test-case-writer` | TC-gen Phase 7 | Test case markdown format changes affect quality review and report.py | Medium |
-| `acm-test-case-reviewer` | TC-gen Phase 8 | Verdict logic changes affect whether pipeline proceeds | Medium |
+| `acm-qe-code-analyzer` | TC-gen Phase 2 | Code analysis output format changes affect synthesis | Medium |
+| `acm-test-case-writer` | TC-gen Phase 6 | Test case markdown format changes affect quality review and report.py | Medium |
+| `acm-test-case-reviewer` | TC-gen Phase 7 | Verdict logic changes affect whether pipeline proceeds | Medium |
 | `acm-failure-classifier` | Z-stream Stage 2 | Classification logic changes affect all failure reports | High |
 | `acm-cluster-investigator` | Z-stream Stage 2 | Investigation evidence changes affect classification | High |
 | `acm-data-enricher` | Z-stream Stage 2 | Enrichment data format changes affect analysis | Medium |
@@ -42,7 +42,7 @@ When you modify a skill, here's what could be affected:
 
 | Skill | What Could Break | Risk |
 |---|---|---|
-| `acm-test-case-generator` | Entire TC-gen pipeline (10 phases, 6 agents, 9 skills) | High |
+| `acm-test-case-generator` | Entire TC-gen pipeline (9 phases, 7 agent files, 6 skills) | High |
 | `acm-z-stream-analyzer` | Entire z-stream pipeline (4 stages, 3 agents, 5 skills) | High |
 | `acm-hub-health-check` | Full diagnostic pipeline (6 phases, remediation, learning) | High |
 

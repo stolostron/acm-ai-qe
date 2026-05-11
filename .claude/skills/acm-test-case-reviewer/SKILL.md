@@ -1,6 +1,13 @@
 ---
 name: acm-test-case-reviewer
-description: Quality gate for ACM Console UI test cases. Validates conventions, verifies UI elements are discovered not assumed, checks AC vs implementation consistency, cross-references area knowledge, and enforces minimum MCP verification. Use after a test case is written to validate it before delivery.
+description: >-
+  Use when the user wants a QUALITY REVIEW of an existing ACM Console UI test case
+  markdown file (conventions, discovered-vs-assumed UI, MCP spot-checks, AC consistency)—
+  without re-running JIRA/PR/UI investigation. If the user just finished acm-test-case-generator,
+  review is already Phase 7 inside that skill—do not invoke this unless reviewing a
+  standalone file or an out-of-band draft. TRIGGER: review this test-case.md, pre-Polarion
+  QA, validate test steps. DO NOT TRIGGER: full test case from JIRA (acm-test-case-generator).
+disable-model-invocation: true
 compatibility: "Requires acm-source MCP (for MCP verification spot-checks). Uses acm-knowledge-base skill (no MCP needed)."
 metadata:
   author: acm-qe

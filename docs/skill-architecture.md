@@ -25,6 +25,8 @@ MCP tools (acm-source, jira, polarion, neo4j-rhacm) are called directly by subag
 | `acm-test-case-writer` | Test case markdown authoring with conventions and self-review | acm-knowledge-base (+ acm-source MCP) |
 | `acm-test-case-reviewer` | Quality gate with mandatory MCP verification | acm-knowledge-base (+ acm-source MCP) |
 
+Skill selection / description disambiguation for this workflow: [test-case-generator/SKILL-DISAMBIGUATION-REPORT.md](test-case-generator/SKILL-DISAMBIGUATION-REPORT.md).
+
 ### Hub Health Skills (3)
 
 | Skill | Purpose | Uses Shared Skills / MCPs |

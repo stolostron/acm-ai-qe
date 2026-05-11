@@ -4,14 +4,13 @@ Reference for authenticating to the ACM Console via form-based OAuth login using
 
 ## Step 1: Resolve Credentials
 
-Check environment variables in priority order (stop at first success):
+The orchestrator provides credentials via the subagent input block:
+- `CONSOLE_USERNAME` -- the username (default: `kubeadmin`)
+- `CONSOLE_PASSWORD` -- the password, or `"NONE"` if unavailable
 
-1. `CONSOLE_PASSWORD` (explicit console password)
-2. `KUBEADMIN_PASSWORD` (kubeadmin password)
+Use these values directly. Do NOT re-check environment variables -- the orchestrator already resolved credentials from all available sources (env vars, user input, oc login commands, password patterns).
 
-Username defaults to `kubeadmin`. Override with `CONSOLE_USERNAME` env var if using a different user (e.g., HTPasswd or LDAP user).
-
-If both password vars are unset: set `AUTH_STATUS=no-credentials`, skip all browser auth steps. Backend validation (oc CLI, acm-search, acm-kubectl) still runs.
+If `CONSOLE_PASSWORD` is `"NONE"`: set `AUTH_STATUS=no-credentials`, skip all browser auth steps. Backend validation (oc CLI, acm-search, acm-kubectl) still runs.
 
 ### What NOT to try
 

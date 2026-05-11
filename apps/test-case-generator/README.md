@@ -148,20 +148,19 @@ The pipeline has **8 steps**: 2 deterministic stages + 6 AI phases. The tagline 
 <details>
 <summary><b>Portable Skill Mapping</b></summary>
 
-The portable skill pack (`.claude/skills/acm-test-case-generator/`) uses a 10-phase model that breaks the 3 investigation agents into sequential phases. The app consolidates them into 1 parallel phase for speed:
+The portable skill pack (`.claude/skills/acm-test-case-generator/`) uses a 9-phase model (Phases 0-8) that merges data gathering with JIRA investigation and runs the remaining investigation agents sequentially. The app consolidates investigation into 1 parallel phase for speed:
 
 | Portable Skill | App Pipeline | Difference |
 |---------------|-------------|------------|
 | Phase 0: Determine Inputs | Phase 0: Parse Inputs | Same |
-| Phase 1: Gather Data | Stage 1: gather.py | Same |
-| Phase 2: JIRA Investigation | Phase 1 (agent 1 of 3) | Portable: sequential |
-| Phase 3: Code Analysis | Phase 1 (agent 2 of 3) | App: parallel |
-| Phase 4: UI Discovery | Phase 1 (agent 3 of 3) | App: parallel |
-| Phase 5: Synthesize | Phase 2: Synthesize | Same |
-| Phase 6: Live Validation | Phase 3: Live Validation | Same |
-| Phase 7: Write Test Case | Phase 4: Write Test Case | Same |
-| Phase 8: Quality Review | Phase 4.5: Quality Review | Same |
-| Phase 9: Generate Reports | Stage 3: report.py | Same |
+| Phase 1: Gather Data + JIRA Investigation | Stage 1 + Phase 1 (agent 1 of 3) | Portable: merged gather + JIRA |
+| Phase 2: Code Analysis | Phase 1 (agent 2 of 3) | App: parallel |
+| Phase 3: UI Discovery | Phase 1 (agent 3 of 3) | App: parallel |
+| Phase 4: Synthesize | Phase 2: Synthesize | Same |
+| Phase 5: Live Validation | Phase 3: Live Validation | Same |
+| Phase 6: Write Test Case | Phase 4: Write Test Case | Same |
+| Phase 7: Quality Review | Phase 4.5: Quality Review | Same |
+| Phase 8: Generate Reports | Stage 3: report.py | Same |
 
 </details>
 

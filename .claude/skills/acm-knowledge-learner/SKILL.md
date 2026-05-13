@@ -11,7 +11,7 @@ metadata:
 
 ## Knowledge Directory
 
-KNOWLEDGE_DIR = ${CLAUDE_SKILL_DIR}/../../knowledge/hub-health/
+KNOWLEDGE_DIR = ${CLAUDE_SKILL_DIR}/../../knowledge/
 
 Builds and updates the ACM knowledge base by comparing live cluster state against curated knowledge. Discovers unknown components, new failure patterns, dependency chains, and infrastructure changes.
 
@@ -39,7 +39,7 @@ oc get managedclusteraddons -A --no-headers
 
 ### Step 2: Compare Against Knowledge Base
 
-Read `${KNOWLEDGE_DIR}/component-registry.md`. For each discovered component:
+Read `${KNOWLEDGE_DIR}/baselines/component-registry.md`. For each discovered component:
 - Is it in the component registry? If NO: **unknown component** -- trigger learning
 - Does the knowledge match what's deployed? If NO: **knowledge drift** -- update needed
 

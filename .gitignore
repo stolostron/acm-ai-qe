@@ -129,6 +129,9 @@ backup-*
 !**/templates/**
 !**/examples/**
 
+# Machine-specific Claude Code settings must stay untracked (overrides !**/.claude/**/*.json above)
+**/.claude/settings.local.json
+
 ## 🔒 Security Notes
 
 # This .gitignore implements enterprise-grade credential protection

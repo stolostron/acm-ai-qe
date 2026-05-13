@@ -205,9 +205,9 @@ def _resolve_knowledge_dir():
     """Find the knowledge directory, checking multiple locations."""
     skill_dir = os.environ.get("CLAUDE_SKILL_DIR")
     if skill_dir:
-        # Shared knowledge database (.claude/knowledge/test-case-generator/)
+        # Unified knowledge database (.claude/knowledge/)
         claude_dir = Path(skill_dir).parent.parent
-        shared = claude_dir / "knowledge" / "test-case-generator"
+        shared = claude_dir / "knowledge"
         if shared.exists():
             return shared
         # Legacy: skill-local knowledge

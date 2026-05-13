@@ -36,7 +36,7 @@ Every classification needs ALL 5 criteria:
 
 ## Knowledge Directory
 
-KNOWLEDGE_DIR = ${CLAUDE_SKILL_DIR}/../../knowledge/z-stream-analysis/
+KNOWLEDGE_DIR = ${CLAUDE_SKILL_DIR}/../../knowledge/
 
 ## 5-Phase Framework
 
@@ -44,11 +44,11 @@ KNOWLEDGE_DIR = ${CLAUDE_SKILL_DIR}/../../knowledge/z-stream-analysis/
 
 Read `references/phase-a-grouping.md` for full details.
 
-**A0: Feature Grounding** -- Read `feature_grounding` from core-data.json. For each detected area, read `${KNOWLEDGE_DIR}/architecture/<area>/architecture.md` and `data-flow.md`.
+**A0: Feature Grounding** -- Read `feature_grounding` from core-data.json. For each detected area, read `${KNOWLEDGE_DIR}/architecture/<area>/architecture.md` and `${KNOWLEDGE_DIR}/data-flow/<area>/data-flow.md`.
 
 **A1: Environment Health** -- Read `cluster-diagnosis.json` if available. Extract `environment_health_score`, `subsystem_health`, `classification_guidance`. When score < 0.8 (DEGRADED/CRITICAL), infrastructure is a hypothesis but NOT automatic -- per-test verification still required.
 
-**A2: Failure Pattern Matching** -- Read `${KNOWLEDGE_DIR}/architecture/<area>/failure-signatures.md`. Match error patterns against known signatures.
+**A2: Failure Pattern Matching** -- Read `${KNOWLEDGE_DIR}/failures/<area>/failure-signatures.md`. Match error patterns against known signatures.
 
 **A3: Cross-Test Correlation** -- Find patterns: same selector across multiple tests? Same error message? Same feature area?
 

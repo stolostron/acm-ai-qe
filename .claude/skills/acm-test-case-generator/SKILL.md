@@ -28,6 +28,7 @@ allowed-tools:
   - Bash(python ${CLAUDE_SKILL_DIR}/scripts/validate_artifact.py:*)
   - Bash(python:*)
   - Bash(python3:*)
+  - mcp__acm-source__list_repos
   - Bash(gh:*)
   - Bash(git:*)
   - Bash(ls:*)
@@ -54,6 +55,7 @@ allowed-tools:
   - mcp__jira__get_issue
   - mcp__jira__search_issues
   - mcp__polarion__get_polarion_work_items
+  - mcp__polarion__get_polarion_work_item
   - mcp__polarion__get_polarion_test_case_summary
   - mcp__polarion__check_polarion_status
 ---
@@ -79,7 +81,7 @@ Resolve before starting the pipeline:
 3. **PR Number**: Auto-detect from JIRA description/comments, or ask if not found
 4. **Area**: Auto-detect from PR file paths (governance, rbac, fleet-virt, clusters, search, applications, credentials, cclm, mtv)
 5. **Cluster URL** (optional): Run `oc whoami --show-server 2>/dev/null`. If logged in, derive console URL via `oc get route console -n openshift-console -o jsonpath='{.spec.host}' 2>/dev/null`. If unavailable, ask or skip live validation. In headless mode (`-p`), auto-detect only.
-6. **CNV Version** (Fleet Virt only): Ask or auto-detect via `mcp__acm-source__detect_cnv_version`
+6. **CNV Version** (Fleet Virt only): Ask or auto-detect via `mcp__acm-source__set_cnv_version`
 7. **Console Credentials** (optional): Resolve via the priority cascade in `pipeline-detail.md#phase-0-credential-resolution`.
 8. **MCP Availability Check**: Run the MCP probe described in `pipeline-detail.md#phase-0-mcp-availability-check`. If REQUIRED MCPs are unavailable, warn the user. If IMPORTANT MCPs are unavailable, warn and proceed.
 

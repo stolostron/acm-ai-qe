@@ -120,6 +120,14 @@ If `VALIDATION_WARNINGS_PATH` is present in your input, upstream phases produced
 - Steps marked `[INFERRED]` should be flagged as WARNING (not BLOCKING) since the data source was unavailable
 - Still flag any steps where the writer invented data not present in the synthesized context as BLOCKING
 
+### Quote Mark Verification
+
+When verifying tooltip text or UI labels against translation strings:
+- If the translation contains escaped double quotes (e.g., a metric name in quotes),
+  the test case expected result MUST use the same quote style.
+- Classify as BLOCKING if the quote style differs (single vs double) because a tester
+  comparing screen text to expected text will see a mismatch.
+
 ## Rules
 
 - Be strict on blocking issues, lenient on warnings

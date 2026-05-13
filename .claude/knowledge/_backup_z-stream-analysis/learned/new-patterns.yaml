@@ -1,0 +1,16 @@
+# New Failure Patterns -- Agent-Contributed
+# When the agent discovers a new failure pattern not in failure-patterns.yaml,
+# it writes the pattern here for review and promotion.
+#
+# Format:
+#   - date: "YYYY-MM-DD"
+#     id: "short-identifier"
+#     signature: "regex pattern"
+#     classification: PRODUCT_BUG
+#     confidence: 0.80
+#     explanation: "Why this pattern maps to this classification"
+#     evidence: "What was observed"
+#
+# Promoted by: refresh.py --promote (moves to failure-patterns.yaml)
+
+patterns: []

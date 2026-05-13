@@ -144,7 +144,7 @@ If none trigger, skip Task 4 entirely.
 
 ### Process
 1. For each area in `gap_areas` (match rate < 50%):
-   a. Read `${KNOWLEDGE_DIR}/architecture/<area>/failure-signatures.md`
+   a. Read `${KNOWLEDGE_DIR}/failures/<area>/failure-signatures.md`
    b. Extract unmatched error messages from `gap_detection.match_rates[area].unmatched_samples`
    c. Match against failure-signatures.md patterns
    d. Construct failure path entries (id, description, category, symptoms regex, classification, confidence, explanation)

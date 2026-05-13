@@ -1,0 +1,551 @@
+# ACM Component Dependency Chains (Structured)
+# Use for structured lookups of dependency chains, root cause tracing, and
+# classification hints.
+#
+# 16 chains: 12 core + 4 from z-stream (console, registration, addon_delivery, operator_management)
+# Populated by: refresh.py (Neo4j KG transitive queries + manual curation)
+# Refresh frequency: weekly or after ACM version change
+# Source: merged from hub-health + z-stream-analysis dependency chains
+
+acm_version: "2.16.0"
+last_refreshed: "2026-04-03"
+
+chains:
+
+  - id: console-search-clusters
+    name: "Console -> Search -> Managed Clusters"
+    description: "UI search functionality depends on search stack and spoke connectivity"
+    layers_involved: [10, 9, 4, 3, 11, 12]
+    layer_note: "Collector at L10 (spoke addon), indexer/operator at L9, postgres storage at L4, network at L3, data integrity at L11, UI rendering at L12"
+    classification_hint:
+      postgres_down: INFRASTRUCTURE
+      collector_missing: INFRASTRUCTURE
+      indexer_stale: PRODUCT_BUG
+    components:
+      - name: console-ui
+        role: entry_point
+        depends_on: [console-api]
+      - name: console-api
+        role: proxy
+        depends_on: [search-api]
+      - name: search-api
+        role: query_server
+        depends_on: [search-indexer, search-postgres]
+      - name: search-indexer
+        role: data_processor
+        depends_on: [search-postgres, search-collector]
+      - name: search-postgres
+        role: storage
+        depends_on: []
+      - name: search-collector
+        role: spoke_addon
+        depends_on: [klusterlet]
+      - name: klusterlet
+        role: spoke_agent
+        depends_on: []
+    impact:
+      search-collector_down: "Resources from that spoke silently absent from search"
+      search-postgres_down: "ALL search queries fail"
+      search-api_down: "Console VM pages empty, RBAC views blank, search page broken"
+
+  - id: governance-policy-spoke
+    name: "Governance -> Framework Addon -> Config Policy -> Managed Clusters"
+    description: "Policy propagation and enforcement across managed clusters"
+    layers_involved: [9, 10, 11]
+    layer_note: "Propagator at L9 (operator), framework/controller at L10 (spoke addons), compliance status at L11 (data flow)"
+    classification_hint:
+      propagator_down: INFRASTRUCTURE
+      framework_missing: INFRASTRUCTURE
+      config_controller_down: INFRASTRUCTURE
+      work_manager_backlog: PRODUCT_BUG
+    components:
+      - name: policy
+        role: entry_point
+        depends_on: [grc-policy-propagator]
+      - name: grc-policy-propagator
+        role: distributor
+        depends_on: [governance-policy-framework]
+      - name: governance-policy-framework
+        role: spoke_framework
+        depends_on: [config-policy-controller, work-manager]
+      - name: config-policy-controller
+        role: spoke_enforcer
+        depends_on: []
+      - name: work-manager
+        role: delivery
+        depends_on: [klusterlet]
+    impact:
+      grc-policy-propagator_down: "No new policies distribute"
+      governance-policy-framework_missing: "Policies don't reach that spoke"
+      config-policy-controller_down: "Policies not evaluated, compliance Unknown"
+      work-manager_backlog: "Compliance updates delayed"
+
+  - id: operator-hierarchy
+    name: "MCH Operator -> Backplane Operator -> Component Operators"
+    description: "Operator management hierarchy -- failure here affects everything"
+    layers_involved: [9, 5]
+    layer_note: "MCH/MCE operators at L9 (reconciliation), MCH CR desired state at L5 (configuration)"
+    classification_hint:
+      mch_operator_down: INFRASTRUCTURE
+      mce_operator_down: INFRASTRUCTURE
+    components:
+      - name: olm
+        role: lifecycle
+        depends_on: []
+      - name: mch-operator
+        role: top_level
+        depends_on: [olm]
+      - name: mce-operator
+        role: platform
+        depends_on: [mch-operator]
+      - name: component-operators
+        role: features
+        depends_on: [mce-operator]
+        includes:
+          - search-api
+          - search-indexer
+          - grc-policy-propagator
+          - subscription-controller
+          - console
+          - observability-operator
+          - cluster-permission
+    impact:
+      olm_unhealthy: "MCH operator can't be updated"
+      mch-operator_down: "ACM component lifecycle stops"
+      mce-operator_down: "MCE components can't be deployed or updated"
+
+  - id: hypershift-import
+    name: "HyperShift Addon -> Import Controller -> Klusterlet"
+    description: "Hosted cluster import and registration"
+    components:
+      - name: hostedcluster
+        role: entry_point
+        depends_on: [hypershift-addon]
+      - name: hypershift-addon
+        role: importer
+        depends_on: [managedcluster-import-controller]
+      - name: managedcluster-import-controller
+        role: deployer
+        depends_on: [registration-agent]
+      - name: registration-agent
+        role: registrar
+        depends_on: [registration-operator]
+    impact:
+      hypershift-addon_down: "New hosted clusters aren't imported"
+      managedcluster-import-controller_down: "Klusterlet not deployed"
+      registration_failed: "Cluster stays in Pending state"
+
+  - id: rbac-propagation
+    name: "MCRA Operator -> ClusterPermission -> ManifestWork -> Spoke RBAC"
+    description: "Fine-grained RBAC propagation to spoke clusters"
+    layers_involved: [7, 8, 9, 10]
+    layer_note: "MCRA/ClusterPermission at L7 (RBAC), ClusterPermission/ManifestWork CRDs at L8 (API), mcra-operator at L9, ManifestWork/klusterlet at L10 (spoke delivery)"
+    classification_hint:
+      mcra_operator_down: INFRASTRUCTURE
+      cluster_permission_oom: INFRASTRUCTURE
+    components:
+      - name: mcra
+        role: entry_point
+        depends_on: [mcra-operator]
+      - name: mcra-operator
+        role: processor
+        depends_on: [cluster-permission-controller]
+      - name: cluster-permission-controller
+        role: creator
+        depends_on: [manifestwork]
+      - name: manifestwork
+        role: delivery
+        depends_on: [klusterlet]
+      - name: klusterlet
+        role: spoke_applier
+        depends_on: []
+    impact:
+      mcra-operator_down: "New role assignments not processed"
+      cluster-permission-controller_oom: "RBAC not propagated (OOM at scale -- ACM-24032)"
+      klusterlet_disconnected: "ManifestWork can't be delivered"
+
+  - id: observability-metrics
+    name: "Observability Operator -> Addon -> Prometheus -> Thanos"
+    description: "Metrics collection and visualization stack"
+    layers_involved: [5, 9, 10, 4, 11, 12]
+    layer_note: "MCO CR at L5 (config), operator at L9, collector at L10 (spoke), S3/PVCs at L4 (storage), data pipeline at L11, grafana at L12"
+    classification_hint:
+      s3_misconfigured: INFRASTRUCTURE
+      collector_missing: INFRASTRUCTURE
+      thanos_query_down: INFRASTRUCTURE
+    components:
+      - name: mco-cr
+        role: config
+        depends_on: [observability-operator]
+      - name: observability-operator
+        role: deployer
+        depends_on: [observability-controller]
+      - name: observability-controller
+        role: spoke_addon
+        depends_on: [metrics-collector]
+      - name: metrics-collector
+        role: scraper
+        depends_on: [thanos-receive]
+      - name: thanos-receive
+        role: ingest
+        depends_on: [s3-storage]
+      - name: s3-storage
+        role: persistence
+        depends_on: []
+      - name: thanos-store
+        role: historical_queries
+        depends_on: [s3-storage]
+      - name: thanos-query
+        role: query_engine
+        depends_on: [thanos-store, thanos-receive]
+      - name: grafana
+        role: visualization
+        depends_on: [thanos-query]
+    impact:
+      observability-operator_down: "Observability stack can't be managed"
+      metrics-collector_missing: "No metrics from that spoke"
+      s3_misconfigured: "thanos-store crashes (most common observability failure)"
+      thanos-query_down: "Grafana dashboards show no data"
+
+  - id: addon-deployment
+    name: "Addon Manager -> Addon Framework -> Spoke Addon Pods"
+    description: "Addon lifecycle from hub to spoke -- single point of failure for all addons"
+    layers_involved: [9, 8, 10]
+    layer_note: "Addon manager at L9 (operator), ClusterManagementAddon CRs at L8 (API), ManifestWork/klusterlet at L10 (spoke delivery)"
+    classification_hint:
+      addon_manager_down: INFRASTRUCTURE
+      manifestwork_stuck: INFRASTRUCTURE
+      klusterlet_disconnected: INFRASTRUCTURE
+    components:
+      - name: addon-manager
+        role: lifecycle_controller
+        depends_on: []
+      - name: addon-framework
+        role: crd_layer
+        depends_on: [addon-manager]
+      - name: managedclusteraddon-cr
+        role: per_cluster_config
+        depends_on: [addon-framework]
+      - name: spoke-addon-pods
+        role: spoke_workload
+        depends_on: [managedclusteraddon-cr, klusterlet]
+    impact:
+      addon-manager_down: "ALL addons Unavailable across ALL clusters; new clusters import but get no addons"
+      addon-framework_missing: "ManagedClusterAddon CRs can't be created"
+      managedclusteraddon-cr_stuck: "Specific addon not deployed on specific cluster"
+
+  - id: storage-chain
+    name: "StorageClass -> CSI Driver -> PV -> PVC -> Pod"
+    description: "Persistent storage for stateful ACM components"
+    components:
+      - name: storageclass
+        role: provisioner_config
+        depends_on: []
+      - name: csi-driver
+        role: provisioner
+        depends_on: [storageclass]
+      - name: pv
+        role: volume
+        depends_on: [csi-driver]
+      - name: pvc
+        role: claim
+        depends_on: [pv]
+      - name: stateful-pod
+        role: consumer
+        depends_on: [pvc]
+    affected_components:
+      - "thanos-receive (observability, StatefulSet PVCs)"
+      - "thanos-store (observability, sharded StatefulSet PVCs)"
+      - "alertmanager (observability, StatefulSet PVCs)"
+      - "search-postgres (optional PVC, defaults to emptyDir)"
+    impact:
+      no_default_storageclass: "PVCs stay Pending, stateful pods won't start"
+      csi_driver_unhealthy: "Dynamic provisioning fails"
+      disk_full: "PVCs in use but component can't write, data corruption possible"
+
+  - id: app-lifecycle-subscription
+    name: "Channel -> Subscription -> ManifestWork -> Spoke Application"
+    description: "Application deployment via subscription model from Git/Helm/ObjectStorage sources"
+    layers_involved: [8, 9, 10]
+    layer_note: "Channel/Subscription CRDs at L8 (API), subscription controller at L9 (operator), ManifestWork delivery at L10 (spoke)"
+    classification_hint:
+      subscription_controller_down: INFRASTRUCTURE
+      channel_unreachable: INFRASTRUCTURE
+      placement_no_match: AUTOMATION_BUG
+    components:
+      - name: channel
+        role: content_source
+        depends_on: [multicluster-operators-channel]
+        note: "Git, Helm, or ObjectStorage channel defining where app resources live"
+      - name: multicluster-operators-channel
+        role: channel_controller
+        depends_on: []
+        note: "Validates and manages channel CRs. Registers channel webhook."
+      - name: subscription
+        role: content_selector
+        depends_on: [multicluster-operators-hub-subscription]
+        note: "Selects resources from channel and defines placement"
+      - name: multicluster-operators-hub-subscription
+        role: reconciler
+        depends_on: [channel, placement-controller]
+        note: "Core subscription reconciler -- generates ManifestWorks from subscription content"
+      - name: multicluster-operators-application
+        role: app_controller
+        depends_on: [multicluster-operators-hub-subscription]
+        note: "Reconciles Application CRs. Registers application webhook."
+      - name: placement-controller
+        role: target_selector
+        depends_on: []
+        note: "Determines which clusters the subscription targets"
+      - name: manifestwork
+        role: delivery
+        depends_on: [klusterlet]
+      - name: application-manager
+        role: spoke_addon
+        depends_on: [work-manager]
+        note: "Spoke-side addon that applies application resources"
+    impact:
+      multicluster-operators-channel_down: "New channels not validated. Channel create/update silently accepted without validation."
+      multicluster-operators-hub-subscription_down: "Subscriptions not reconciled. No ManifestWorks generated. App deployment halts."
+      multicluster-operators-application_down: "Application CRs not reconciled. Application status not updated."
+      channel_auth_failure: "Git/Helm credentials invalid. Subscription stuck in Propagated -- no explicit error in status."
+      placement_no_match: "PlacementRule/Placement matches zero clusters. App not deployed anywhere -- no error."
+      application-manager_missing: "App resources not applied on spoke. Application status Unknown on hub."
+
+  - id: virtualization-vm-discovery
+    name: "CNV -> Search Collector -> Search API -> kubevirt-plugin -> Console"
+    description: "Cross-cluster VM discovery, display, and management via hub UI"
+    components:
+      - name: cnv-operator
+        role: vm_runtime
+        depends_on: []
+        note: "HyperConverged Cluster Operator on spoke -- manages KubeVirt, CDI, SSP. Prerequisite for VMs to exist."
+      - name: search-collector
+        role: spoke_indexer
+        depends_on: [klusterlet]
+        note: "Indexes VM resources (VirtualMachine, VirtualMachineInstance, DataVolume) on spoke"
+      - name: search-indexer
+        role: data_processor
+        depends_on: [search-postgres]
+      - name: search-postgres
+        role: storage
+        depends_on: []
+      - name: search-api
+        role: query_server
+        depends_on: [search-indexer, search-postgres]
+      - name: kubevirt-plugin
+        role: ui_extension
+        depends_on: [search-api, console-chart-console-v2]
+        note: "ConsolePlugin that renders Fleet Virt VM list, details, actions in hub console"
+      - name: console-chart-console-v2
+        role: console_host
+        depends_on: []
+        note: "ACM console plugin -- hosts the plugin framework"
+      - name: mtv-integrations-controller
+        role: migration_manager
+        depends_on: [managed-serviceaccount]
+        note: "Only when cnv-mtv-integrations is enabled. Manages MTV/CNV addon lifecycle and migration plans."
+    impact:
+      cnv_not_installed: "No VMs on that spoke. Nothing to index -- not an error, just no data."
+      search-collector_missing: "VMs exist on spoke but don't appear in hub UI. Silent absence -- no error shown."
+      search-api_down: "VM list empty in console. All search-dependent features fail simultaneously."
+      kubevirt-plugin_unregistered: "Fleet Virt VM tab absent from console. No error -- just missing navigation."
+      mtv-integrations-controller_down: "MTV addon lifecycle stops. New migration plans cannot be created."
+      mcra_controller_panic: "VM RBAC broken. Users with fine-grained role assignments cannot manage VMs (ACM-24737)."
+
+  - id: submariner-networking
+    name: "SubmarinerConfig -> Addon -> Gateway -> Tunnel -> Service Discovery"
+    description: "Cross-cluster network connectivity via IPsec tunnels and DNS-based service discovery"
+    components:
+      - name: submariner-addon
+        role: lifecycle_manager
+        depends_on: [addon-manager]
+        note: "Hub-side controller. Manages Submariner addon deployment to managed clusters."
+      - name: submarinerconfig
+        role: configuration
+        depends_on: [submariner-addon]
+        note: "Per-cluster configuration CR. Defines gateway count, cable driver, global CIDR."
+      - name: submariner-operator
+        role: spoke_deployer
+        depends_on: [klusterlet]
+        note: "Spoke-side operator deployed via ManifestWork. Manages all Submariner components on spoke."
+      - name: gateway
+        role: tunnel_endpoint
+        depends_on: [submariner-operator]
+        note: "Establishes IPsec tunnels between clusters. Ports: UDP 4500 (NAT-T), UDP 4800 (VXLAN)."
+      - name: routeagent
+        role: traffic_router
+        depends_on: [gateway]
+        note: "Programs routes on spoke nodes to direct cross-cluster traffic through gateway."
+      - name: lighthouse-agent
+        role: service_exporter
+        depends_on: [gateway]
+        note: "Exports ServiceExport CRs to broker for cross-cluster service discovery."
+      - name: lighthouse-coredns
+        role: dns_resolver
+        depends_on: [lighthouse-agent]
+        note: "Resolves clusterset.local DNS queries for cross-cluster service discovery."
+      - name: globalnet-controller
+        role: ip_manager
+        depends_on: [gateway]
+        note: "Only when overlapping CIDRs. Manages GlobalEgressIP/GlobalIngressIP for NAT."
+      - name: broker
+        role: endpoint_exchange
+        depends_on: []
+        note: "Hub-side CRD namespace where clusters exchange endpoint info. Not a pod -- just API resources."
+    impact:
+      submariner-addon_down: "Submariner not deployed to new clusters. Existing deployments continue working."
+      gateway_unhealthy: "Cross-cluster tunnels down. All cross-cluster connectivity fails for that cluster."
+      routeagent_race: "Intermittent connectivity flaps between clusters (ACM-25262 -- endpoint timestamp race)."
+      lighthouse_down: "Cross-cluster service discovery fails. Services not resolvable via clusterset.local DNS."
+      globalnet_missing: "Overlapping CIDRs not translated. Cross-cluster traffic fails with IP conflicts."
+      ocp_418_incompatible: "Submariner breaks on OCP 4.18+ due to OVN-Kubernetes changes (ACM-22805)."
+
+  - id: cluster-provisioning
+    name: "HiveConfig -> ClusterDeployment -> Install Pod -> ManagedCluster"
+    description: "Cluster provisioning via Hive. Spans from HiveConfig through cloud infrastructure provisioning to managed cluster registration."
+    layers_involved: [5, 8, 9, 1, 10, 6]
+    layer_note: "HiveConfig at L5 (config), hiveadmission webhook at L8 (API validation), hive/import controllers at L9 (operators), install pod scheduling at L1 (compute), klusterlet registration at L10+L6 (spoke+auth)"
+    classification_hint:
+      hiveconfig_unhealthy: INFRASTRUCTURE
+      hiveadmission_down: INFRASTRUCTURE
+      hive_down: INFRASTRUCTURE
+      install_pod_cloud_error: INFRASTRUCTURE
+      import_controller_down: INFRASTRUCTURE
+      klusterlet_disconnected: INFRASTRUCTURE
+      clusterimagesets_missing: INFRASTRUCTURE
+    components:
+      - name: hive-operator
+        role: hive_lifecycle
+        depends_on: [mce-operator]
+        note: "Deploys Hive controllers based on HiveConfig CR. In multicluster-engine namespace."
+      - name: hiveconfig
+        role: configuration
+        depends_on: [hive-operator]
+        note: "Cluster-scoped CR controlling Hive behavior. Missing HiveConfig = no Hive controllers deployed."
+      - name: hive-controllers
+        role: provisioning_orchestrator
+        depends_on: [hiveconfig]
+        note: "Watches ClusterDeployments, creates ClusterProvisions and install pods. In hive namespace."
+      - name: hiveadmission
+        role: webhook_validation
+        depends_on: [hiveconfig]
+        note: "Validates ClusterDeployment operations. failurePolicy: Fail -- if down, ALL CD ops blocked (Trap 10)."
+      - name: install-pod
+        role: cloud_provisioner
+        depends_on: [hive-controllers]
+        note: "Ephemeral pod running openshift-install. In cluster namespace. Label: hive.openshift.io/install=true."
+      - name: managedcluster-import-controller
+        role: cluster_import
+        depends_on: [install-pod]
+        note: "Auto-imports provisioned clusters. Deploys klusterlet via ManifestWork."
+      - name: klusterlet
+        role: spoke_agent
+        depends_on: [managedcluster-import-controller]
+        note: "Registration + work agent on spoke. Required for all spoke-dependent features."
+    impact:
+      hiveconfig_missing: "hive-operator has nothing to watch. No Hive controllers deployed."
+      hive_controllers_down: "ALL new cluster provisioning stops. Existing clusters unaffected."
+      hiveadmission_down: "ALL ClusterDeployment operations blocked (create, update, delete). Trap 10."
+      install_pod_failed: "Single cluster provisioning failed. Check install pod logs for cloud-specific errors."
+      import_controller_down: "Provisioned clusters not auto-imported. Cluster stays in provisioning-complete state."
+      clusterimagesets_missing: "Provisioning fails at image resolution. Common in disconnected environments."
+
+  # --- Chains from z-stream-analysis (simpler format, classification-focused) ---
+
+  - id: console-auth
+    name: "OpenShift OAuth -> Console API -> ConsolePlugin CRs -> Feature UIs"
+    description: "Console authentication and feature rendering chain"
+    layers_involved: [6, 9, 8, 12]
+    layer_note: "OAuth at L6 (auth), console-api at L9 (operator/pod), ConsolePlugin CRs at L8 (API), feature UIs at L12 (rendering)"
+    classification_hint:
+      console_api_down: INFRASTRUCTURE
+      plugin_missing: INFRASTRUCTURE
+      oauth_broken: INFRASTRUCTURE
+    impact:
+      console_api_down: "ALL UI features return 500 errors."
+      plugin_missing: "Entire feature tabs disappear (no error, just missing nav)."
+      oauth_broken: "Login redirect loop or 403 errors."
+
+  - id: registration
+    name: "cluster-manager (MCE) -> Registration Controller -> ManagedCluster -> Klusterlet"
+    description: "Managed cluster registration and approval"
+    layers_involved: [9, 8, 10]
+    layer_note: "Registration controller at L9 (operator), ManagedCluster CRD/webhooks at L8 (API), klusterlet bootstrap at L10 (spoke)"
+    classification_hint:
+      registration_controller_down: INFRASTRUCTURE
+      registration_webhook_down: INFRASTRUCTURE
+    impact:
+      registration_controller_down: "New cluster imports fail. Existing clusters remain connected."
+      registration_webhook_down: "ManagedCluster create/update operations rejected."
+
+cross_subsystem_dependencies:
+  - "Virtualization depends on Search: Fleet Virt uses VM Search Integration"
+  - "RBAC depends on Search: Fine-Grained RBAC filters search results"
+  - "Console is the UI for ALL features: console-api down breaks everything"
+  - "Infrastructure (klusterlet) is required by ALL spoke-dependent features"
+  - "Application distribution uses ManifestWork which requires klusterlet"
+  - "GitOps depends on external OpenShift GitOps Operator (not part of ACM)"
+  - "Operator management (MCH operator) is the root of ALL ACM components -- if at 0 replicas, everything is unmanaged"
+  - "Addon delivery (addon-manager in hub namespace) is required for ALL spoke-side addons -- single point of failure"
+  - "Registration (registration-controller in hub namespace) is required for new cluster imports -- existing clusters unaffected"
+  - "ConsolePlugin CRs (acm, mce) must be registered for UI features to appear -- missing plugin = missing UI tabs"
+  - "Provisioning stuck + import stuck simultaneously -> investigate hive-controllers or HiveConfig first (shared root cause)"
+  - "Multiple unrelated pods with ImagePullBackOff -> check MCH operator CSV for corrupted OPERAND_IMAGE_* refs (Layer 5 root cause)"
+
+cross_chain_patterns:
+  - symptom: "Search + Observability both broken"
+    likely_cause: "Shared storage or node pressure"
+    chains_affected: [console-search-clusters, observability-metrics]
+
+  - symptom: "All features broken on one spoke"
+    likely_cause: "klusterlet disconnected"
+    chains_affected: [console-search-clusters, governance-policy-spoke, rbac-propagation, observability-metrics]
+
+  - symptom: "Multiple addons failing on same spoke"
+    likely_cause: "addon-manager down or spoke connectivity"
+    chains_affected: [console-search-clusters, governance-policy-spoke, observability-metrics]
+
+  - symptom: "Nothing works"
+    likely_cause: "MCH/MCE/backplane issue"
+    chains_affected: [operator-hierarchy]
+
+  - symptom: "UI shows everything broken but oc commands work"
+    likely_cause: "Console issue only"
+    chains_affected: [console-search-clusters]
+
+  - symptom: "ALL addons Unavailable across ALL clusters"
+    likely_cause: "addon-manager down"
+    chains_affected: [addon-deployment]
+
+  - symptom: "Observability + search both have storage errors"
+    likely_cause: "Shared storage infrastructure failure"
+    chains_affected: [storage-chain, observability-metrics, console-search-clusters]
+
+  - symptom: "New clusters import but get no addons"
+    likely_cause: "addon-manager down (import works independently)"
+    chains_affected: [addon-deployment, hypershift-import]
+
+  - symptom: "Application subscriptions stuck in Propagated"
+    likely_cause: "subscription-controller down or channel auth failure"
+    chains_affected: [app-lifecycle-subscription]
+
+  - symptom: "VM list empty in console but VMs exist on spoke"
+    likely_cause: "search-collector missing on spoke or search-api down"
+    chains_affected: [virtualization-vm-discovery, console-search-clusters]
+
+  - symptom: "Cross-cluster services unreachable"
+    likely_cause: "Submariner gateway down or OCP version incompatibility"
+    chains_affected: [submariner-networking]
+
+  - symptom: "App + VM + Policy status all Unknown on one spoke"
+    likely_cause: "klusterlet disconnected (all spoke-dependent features fail)"
+    chains_affected: [app-lifecycle-subscription, virtualization-vm-discovery, governance-policy-spoke, observability-metrics]
+
+  - symptom: "Cluster provisioning stuck + cluster import stuck"
+    likely_cause: "Hive controllers or HiveConfig issue"
+    chains_affected: [cluster-provisioning]
+
+  - symptom: "ALL cluster ops fail (create, import, delete)"
+    likely_cause: "Hive webhook down (hiveadmission)"
+    chains_affected: [cluster-provisioning]

@@ -49,7 +49,6 @@ If the area is not listed, read the `components` field from the source ticket.
 **Gotchas:**
 - Project ID is ALWAYS `RHACM4K` -- never use a different project ID
 - Query syntax is Lucene, NOT JQL: `type:testcase AND title:"feature"` (not `type = testcase`)
-- `get_polarion_work_item_text` sometimes returns empty -- use `fields="@all"` instead
 - `fields="@basic"` for quick checks, `fields="@all"` for full details
 
 **Lucene query patterns:**

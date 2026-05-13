@@ -1,0 +1,15 @@
+# Selector Changes -- Agent-Contributed
+# When the agent discovers a selector was renamed during investigation,
+# it records the change here so future runs can detect it.
+#
+# Format:
+#   - date: "YYYY-MM-DD"
+#     old_selector: "[data-test-id='old']"
+#     new_selector: "[data-test-id='new']"
+#     file: "path in ACM console source"
+#     commit: "commit hash if known"
+#     acm_version: "2.17"
+#
+# Promoted by: refresh.py --promote (updates selectors.yaml)
+
+changes: []

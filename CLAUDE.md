@@ -27,13 +27,25 @@ Usage: `oc login <hub> && claude` (from repo root or `apps/acm-hub-health/`)
 
 ### Test Case Generator (`apps/test-case-generator/`) — Active
 
-Generates Polarion-ready test cases for ACM Console features from JIRA tickets. 6-phase subagent pipeline: deterministic data gathering (gh CLI), parallel AI investigation (3 subagents: feature-investigator, code-change-analyzer, ui-discovery), synthesis with scope gating, AC cross-referencing, coverage gap triage, and test design optimization, optional live validation (environment verification + form-based OAuth browser authentication + oc + acm-search + acm-kubectl), AI-powered test case writing, mandatory quality review gate (AC vs implementation check, scope alignment, numeric threshold validation, design efficiency check, coverage gap verification), deterministic report/validation with Polarion HTML output and artifact completeness reporting. 6 specialized agents (each with structured anomaly reporting), 7 MCP integrations (JIRA, Polarion, ACM Source, Neo4j, ACM Search, ACM Kubectl, Playwright). Supports 9 console areas (Governance, RBAC, Fleet Virt, CCLM, MTV, Clusters, Search, Applications, Credentials). 3 skills in `.claude/skills/`: `/generate` (full pipeline with phase gates and synthesis template), `/review` (standalone quality review), `/batch` (multi-ticket generation). Portable skill pack (`.claude/skills/acm-test-case-generator/`) includes standalone scripts (gather.py, report.py, review_enforcement.py, generate_html.py, validate_artifact.py) with zero external dependencies for repo-root execution. Session tracing via Claude Code hooks captures all tool calls, MCP interactions, prompts, subagent launches, and errors to structured JSONL files (`.claude/traces/`) with pipeline-specific enrichment (phase detection, command type inference, oc command parsing, MCP server extraction, session-level aggregate stats).
+Generates Polarion-ready test cases for ACM Console features from JIRA tickets. 6-phase subagent pipeline: deterministic data gathering (gh CLI), parallel AI investigation (3 subagents: feature-investigator, code-change-analyzer, ui-discovery), synthesis with scope gating, AC cross-referencing, coverage gap triage, and test design optimization, optional live validation (environment verification + form-based OAuth browser authentication + oc + acm-search + acm-kubectl), AI-powered test case writing, mandatory quality review gate (AC vs implementation check, scope alignment, numeric threshold validation, design efficiency check, coverage gap verification), deterministic report/validation with Polarion HTML output and artifact completeness reporting. 6 specialized agents (each with structured anomaly reporting), 7 MCP integrations (JIRA, Polarion, ACM Source, Neo4j, ACM Search, ACM Kubectl, Playwright). Supports 9 console areas (Governance, RBAC, Fleet Virt, CCLM, MTV, Clusters, Search, Applications, Credentials). 3 skills in `.claude/skills/`: `/generate` (full pipeline with phase gates and synthesis template), `/review` (standalone quality review), `/batch` (multi-ticket generation). Portable skill pack (`.claude/skills/acm-test-case-generator/`) includes standalone scripts (gather.py, report.py, review_enforcement.py, validate_artifact.py) with zero external dependencies for repo-root execution. Session tracing via Claude Code hooks captures all tool calls, MCP interactions, prompts, subagent launches, and errors to structured JSONL files (`.claude/traces/`) with pipeline-specific enrichment (phase detection, command type inference, oc command parsing, MCP server extraction, session-level aggregate stats).
 
 ## Getting Started
 
 New to this repo? Run `/onboard` for interactive setup -- it detects your environment, explains the apps, and guides MCP server configuration with credential setup. It creates a root `.mcp.json` (union of all app configs) so portable skills have full MCP access from the repo root. Works for both new team members and fresh AI agent sessions.
 
 For manual setup: launch `claude` from the repo root and run `/onboard`.
+
+### Claude Code permissions (`settings.local.json`)
+
+`settings.local.json` is **not** in git (machine-specific allow/deny lists). It is listed in `.gitignore`.
+
+After cloning, create yours from the template:
+
+```bash
+cp .claude/settings.local.json.example .claude/settings.local.json
+```
+
+Edit `permissions.allow` / `permissions.deny` as needed. The example uses **repo-relative** Bash paths only (no home-directory absolutes). `/pre-push` and onboarding remind you not to commit this file.
 
 ## CodeRabbit Review Policy
 
@@ -137,7 +149,7 @@ ai_systems_v2/
 │   ├── jenkins-acm-tools.py   # Our code: ACM-specific Jenkins analysis tools
 │   └── .external/             # Cloned at setup time (gitignored)
 ├── .claude/
-│   ├── skills/                # 16 skills: 14 ACM + onboard + grill-me (usable from repo root via root .mcp.json)
+│   ├── skills/                # 19 skills: 16 ACM + onboard + youtube-digest + grill-me (usable from repo root via root .mcp.json)
 │   ├── knowledge/             # Shared knowledge database for skills (3 domains: tc-gen, z-stream, hub-health)
 │   ├── commands/pre-push.md   # /pre-push quality gate slash command
 │   ├── statusline.sh          # Status line script (model, branch, context %)

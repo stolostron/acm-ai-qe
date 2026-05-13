@@ -15,7 +15,7 @@ Enriches test failure data (`core-data.json`) with information that requires int
 
 ## Knowledge Directory
 
-KNOWLEDGE_DIR = ${CLAUDE_SKILL_DIR}/../../knowledge/z-stream-analysis/
+KNOWLEDGE_DIR = ${CLAUDE_SKILL_DIR}/../../knowledge/
 
 ## Input
 

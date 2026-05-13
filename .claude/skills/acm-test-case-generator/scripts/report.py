@@ -104,13 +104,14 @@ AREA_TAG_EXAMPLES = {
 EXPECTED_ARTIFACTS = [
     ("gather-output.json",),
     ("pr-diff.txt",),
-    ("phase1-feature-investigation.md", "phase1-jira.json"),
-    ("phase1-code-change-analysis.md", "phase2-code.json"),
-    ("phase1-ui-discovery.md", "phase3-ui.json"),
-    ("phase2-synthesized-context.md", "synthesized-context.md"),
-    ("phase3-live-validation.md", "phase5-live-validation.md"),
+    ("phase1-jira.json", "phase1-feature-investigation.md"),
+    ("phase2-code.json", "phase1-code-change-analysis.md"),
+    ("phase3-ui.json", "phase1-ui-discovery.md"),
+    ("synthesized-context.md", "phase2-synthesized-context.md"),
+    ("phase5-live-validation.md", "phase3-live-validation.md"),
     ("test-case.md",),
-    ("phase4.5-quality-review.md", "phase7-review.md"),
+    ("analysis-results.json",),
+    ("phase7-review.md", "phase4.5-quality-review.md"),
 ]
 
 
@@ -354,6 +355,16 @@ def _escape_html(text: str) -> str:
     return text
 
 
+def _convert_inline_bold(text: str) -> str:
+    """Escape HTML then convert markdown **bold** to Polarion inline bold spans."""
+    escaped = _escape_html(text)
+    return re.sub(
+        r'\*\*(.+?)\*\*',
+        r'<span style="font-weight:bold;">\1</span>',
+        escaped,
+    )
+
+
 def _extract_section(content: str, section_name: str, next_sections: list) -> str:
     pattern = f"## {section_name}"
     start = content.find(pattern)
@@ -396,9 +407,9 @@ def generate_setup_html(content: str) -> str:
             html_parts.append(f'<span style="font-weight:bold;">{_escape_html(label)}:</span><br>')
         elif stripped.startswith("- "):
             bullet_text = stripped[2:].replace('`', '')
-            html_parts.append(f"&bull; {_escape_html(bullet_text)}<br>")
+            html_parts.append(f"&bull; {_convert_inline_bold(bullet_text)}<br>")
         elif stripped:
-            html_parts.append(f"{_escape_html(stripped.replace('`', ''))}<br>")
+            html_parts.append(f"{_convert_inline_bold(stripped.replace('`', ''))}<br>")
     if in_code_block:
         html_parts.append("</pre>")
     html_parts.append("</span>")
@@ -459,7 +470,7 @@ def generate_steps_html(content: str) -> str:
                 action_lines.append(f'<span style="{MONO_STYLE}">{_escape_html(stripped)}</span><br>')
                 continue
             if stripped and not stripped.startswith("**Actions"):
-                action_lines.append(f"{_escape_html(stripped)}<br>")
+                action_lines.append(f"{_convert_inline_bold(stripped)}<br>")
         actions_html = "\n".join(action_lines)
 
         expected_lines = []
@@ -470,9 +481,9 @@ def generate_steps_html(content: str) -> str:
             if stripped.startswith("```"):
                 continue
             if stripped.startswith("- "):
-                expected_lines.append(f"&bull; {_escape_html(stripped[2:])}<br>")
+                expected_lines.append(f"&bull; {_convert_inline_bold(stripped[2:])}<br>")
             elif stripped:
-                expected_lines.append(f"{_escape_html(stripped)}<br>")
+                expected_lines.append(f"{_convert_inline_bold(stripped)}<br>")
         expected_html = "\n".join(expected_lines)
 
         rows.append(

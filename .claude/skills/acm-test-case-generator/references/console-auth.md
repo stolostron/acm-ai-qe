@@ -86,7 +86,7 @@ When not authenticated, all UI validation steps produce "SKIPPED -- browser not 
 
 ## Login Page Signatures (confirmed via POC)
 
-These signatures were verified against a live OCP 4.x cluster (ashafi-test-az-217):
+These signatures were verified against a live OCP 4.x QE hub (generic cluster name omitted):
 
 - **IDP selection page**: `heading "Log in with..."` followed by one link per IDP name
 - **Login form**: `textbox "Username"`, `textbox "Password"`, `button "Log in"` (button disabled until both fields have values)

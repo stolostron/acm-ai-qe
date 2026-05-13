@@ -91,6 +91,10 @@ If two planned steps verify the same behavior in the same context, merge them. K
 
 If the feature has conditional rendering (permission checks, feature gates, addon dependencies), place the negative scenario (feature NOT visible) as the FIRST step, before any state setup. If the negative condition requires specific setup (e.g., logging in as a non-admin user), place it after the positive flow to avoid extra login/logout cycles.
 
+#### Annotation-Based Conditional Rendering
+
+When code analysis shows UI elements that are conditional on Kubernetes annotations, ConfigMap values, or CR fields (e.g., `grafanaLink && (<AcmButton...>)`), these ARE in scope for UI test cases. The CLI command to toggle the annotation IS the test action. Do NOT exclude these as "cluster-level manipulation" -- they are how the user controls the conditional UI behavior. Each independent annotation-based conditional requires its own negative scenario step.
+
 ### Optimization Output
 
 After applying all passes, the TEST PLAN should include:
@@ -109,7 +113,7 @@ Select the test's entry point (where the tester starts navigating) based on UI t
 ### Decision Process
 
 1. **Identify the target component** -- the UI element being tested (e.g., PolicyTemplateDetails, ClusterOverview, VirtualMachineDetails).
-2. **Read the area knowledge file** (`${KNOWLEDGE_DIR}/architecture/<area>.md`) for documented navigation paths to that component.
+2. **Read the area knowledge file** (`${KNOWLEDGE_DIR}/ui/<area>.md`) for documented navigation paths to that component.
 3. **Choose the shortest click path** from the ACM console landing page through the side panel (Home, Search, Infrastructure, Applications, Governance, Credentials, User Management) to the target component.
 4. **Consider prerequisites** -- if one path requires creating resources that don't exist in a fresh environment while another path uses resources that are more commonly available, prefer the path with fewer prerequisites. Every prerequisite the test needs (managed clusters, policies, credentials, RBAC permissions, specific resource states) must be explicitly declared in the Setup section.
 5. **Document the entry point** in the Description with the full navigation path and route.

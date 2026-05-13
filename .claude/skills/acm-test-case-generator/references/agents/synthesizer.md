@@ -74,7 +74,7 @@ If code analysis has Coverage Gaps, triage each:
 Choose the test's entry point based on UI topology, not JIRA hierarchy:
 
 1. Identify the target UI component being tested
-2. Read the area knowledge file (`${KNOWLEDGE_DIR}/architecture/<area>.md`) for navigation paths
+2. Read the area knowledge file (`${KNOWLEDGE_DIR}/ui/<area>.md`) for navigation paths
 3. Choose the shortest click path from the console side panel to the target component
 4. Prefer paths with fewer environmental prerequisites
 5. Declare ALL prerequisites explicitly (managed clusters, policies, credentials, RBAC permissions, CLI access, console access) -- nothing is assumed to exist by default
@@ -89,7 +89,7 @@ Plan the test case:
 3. **Per-step validations** -- one behavior per step
 4. **CLI checkpoints** -- dedicated backend validation steps (after UI steps). Omit when UI steps already verify the data (see cli-in-steps-rules.md "When CLI Backend Validation Is NOT Needed")
 5. **Teardown** -- resources to clean up
-6. **Negative scenarios** -- if conditional rendering exists, plan at least one step verifying absence
+6. **Negative scenarios** -- if conditional rendering exists, plan at least one step verifying absence for EACH independent conditional. Multiple independent conditionals require multiple negative steps. CLI state-modification commands (like `oc annotate`) are acceptable test actions when they trigger a conditional UI behavior that cannot be tested any other way. Do NOT exclude annotation-based conditionals as "cluster-level manipulation" -- the annotation IS the user-controlled toggle.
 
 ### Step 10: Optimize Test Design (MANDATORY)
 
@@ -100,6 +100,23 @@ Apply these passes from the synthesis template:
 4. **Deduplication** -- merge steps verifying same behavior in same context
 5. **Negative Scenario Placement** -- before positive when no extra setup needed
 
+### Step 10b: Minimum Scenario Checklist (MANDATORY)
+
+After optimization, verify the test plan includes AT LEAST one step for each applicable category:
+
+| Category | When Applicable | Example |
+|----------|----------------|---------|
+| Positive visibility | Always | Feature/column/element IS present when condition met |
+| Negative visibility | When code has conditional rendering | Feature/column/element is ABSENT when condition not met |
+| Data correctness | When feature displays dynamic data | Values match expected source data |
+| Sorting/filtering | When code has sort/filter logic | Sort/filter produces correct order |
+| Interactive element | When feature has clickable/hoverable UI | Tooltip, link, button works correctly |
+| Negative interaction | When code has conditional interactive elements | Interactive element absent when its condition not met |
+| Cross-entity | When data is per-entity (see Cross-Entity section) | Different entity shows different data |
+
+If an optimization pass REMOVED a step that covers one of these categories, ADD IT BACK.
+The optimization passes reduce REDUNDANCY within categories, not eliminate categories entirely.
+
 ### Step 11: Self-Verification (MANDATORY)
 
 Before writing the output, answer these questions. If any answer is "yes", go back and fix the plan:
@@ -108,6 +125,7 @@ Before writing the output, answer these questions. If any answer is "yes", go ba
 2. Does the entry point rely on JIRA hierarchy instead of the shortest click path from the console side panel?
 3. Are any environmental prerequisites missing from Setup (managed clusters, RBAC, credentials, CLI access)?
 4. Does any step mix observation (read/check) with interaction (click/navigate)?
+5. Does the code analysis identify conditional rendering (conditional spreads, ternary operators, `&& (<Component>)` patterns) that are NOT covered by at least one negative scenario step?
 
 ### Step 12: Write Cluster Info Header
 

@@ -36,8 +36,6 @@ Before starting Phase 1, probe each MCP server with one lightweight call. Classi
 
 Each probe is ONE call with no retries. If the call errors or times out, classify the MCP as unavailable.
 
-Pass the availability results to downstream subagents via the `MCP_STATUS` field in each `<input>` block (e.g., `MCP_STATUS: jira=ok, acm-source=unavailable, polarion=ok`).
-
 ## Phase Input Schemas
 
 ### Phase 1: Data Gathering + JIRA Investigation
@@ -73,7 +71,7 @@ ACM_VERSION: <value>
 AREA: <value>
 RUN_DIR: <path>
 PR_DIFF_PATH: <path to pr-diff.txt>
-KNOWLEDGE_DIR: ${CLAUDE_SKILL_DIR}/../../knowledge/test-case-generator
+KNOWLEDGE_DIR: ${CLAUDE_SKILL_DIR}/../../knowledge
 SKILLS_DIR: ${CLAUDE_SKILL_DIR}/..
 </input>
 ```
@@ -119,7 +117,7 @@ AREA: <value>
 CLUSTER_URL: <value or "NONE">
 RUN_DIR: <path>
 SYNTHESIS_TEMPLATE_PATH: ${CLAUDE_SKILL_DIR}/references/synthesis-template.md
-KNOWLEDGE_DIR: ${CLAUDE_SKILL_DIR}/../../knowledge/test-case-generator
+KNOWLEDGE_DIR: ${CLAUDE_SKILL_DIR}/../../knowledge
 SKILLS_DIR: ${CLAUDE_SKILL_DIR}/..
 </input>
 ```
@@ -160,7 +158,7 @@ SYNTHESIZED_CONTEXT_PATH: <path to synthesized-context.md>
 LIVE_VALIDATION_PATH: <path to phase5-live-validation.md or "N/A">
 GATHER_OUTPUT_PATH: <path to gather-output.json>
 SKILL_DIR: ${CLAUDE_SKILL_DIR}
-KNOWLEDGE_DIR: ${CLAUDE_SKILL_DIR}/../../knowledge/test-case-generator
+KNOWLEDGE_DIR: ${CLAUDE_SKILL_DIR}/../../knowledge
 SKILLS_DIR: ${CLAUDE_SKILL_DIR}/..
 </input>
 ```
@@ -181,7 +179,7 @@ RUN_DIR: <path>
 TEST_CASE_PATH: <path to test-case.md>
 GATHER_OUTPUT_PATH: <path to gather-output.json>
 SKILL_DIR: ${CLAUDE_SKILL_DIR}
-KNOWLEDGE_DIR: ${CLAUDE_SKILL_DIR}/../../knowledge/test-case-generator
+KNOWLEDGE_DIR: ${CLAUDE_SKILL_DIR}/../../knowledge
 SKILLS_DIR: ${CLAUDE_SKILL_DIR}/..
 </input>
 ```
@@ -248,10 +246,12 @@ synthesized-context.md    -- Phase 4: merged test plan
 phase5-live-validation.md -- Phase 5: live results (optional)
 test-case.md              -- Phase 6: primary deliverable
 analysis-results.json     -- Phase 6: investigation metadata
+phase7-review.md          -- Phase 7: quality review output
 test-case-description.html -- Phase 8: Polarion description HTML
 test-case-setup.html      -- Phase 8: Polarion setup HTML
 test-case-steps.html      -- Phase 8: Polarion steps HTML
 validation-warnings.json  -- Retry Protocol: present only if validation failed after 3 attempts
 review-results.json       -- Phase 8: structural validation
 SUMMARY.txt               -- Phase 8: human-readable summary
+pipeline.log.jsonl        -- All phases: telemetry log
 ```

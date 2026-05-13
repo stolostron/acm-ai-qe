@@ -4,7 +4,7 @@ description: Diagnose ACM hub cluster health using a 6-phase pipeline with 4 dep
 compatibility: "Requires oc CLI logged into an ACM hub. Uses acm-cluster-health skill (methodology). Optional MCPs: neo4j-rhacm (dependency analysis), acm-search (fleet queries). Run /onboard to configure."
 metadata:
   author: acm-qe
-  version: "1.0.0"
+  version: "1.0.1"
 ---
 
 # ACM Hub Health Diagnostic
@@ -15,7 +15,11 @@ Diagnoses ACM hub cluster health using a 6-phase pipeline. Works at 4 depth leve
 
 ## Knowledge Directory
 
-KNOWLEDGE_DIR = ${CLAUDE_SKILL_DIR}/../../knowledge/hub-health/
+KNOWLEDGE_DIR = `${CLAUDE_SKILL_DIR}/../../knowledge/`
+
+**Claude Code:** With the skill under `ai_systems_v2/.claude/skills/acm-hub-health-check/`, `../../knowledge` is `ai_systems_v2/.claude/knowledge/` in the clone.
+
+**Cursor (optional mirror only):** If you copy or symlink this skill under `~/.cursor/skills/` instead of loading it from the clone, also follow **`CURSOR-SYMLINK-INTEGRATION.md`** in this `.claude/skills/` folder so `../../knowledge` resolves. **Claude Code / repo-only use does not need this.**
 
 ## Depth Router
 
@@ -69,14 +73,14 @@ oc get statefulsets -n hive --no-headers
 
 Build understanding of healthy vs actual state. Read these knowledge files in order:
 
-1. `${KNOWLEDGE_DIR}/component-registry.md` -- master component inventory
+1. `${KNOWLEDGE_DIR}/baselines/component-registry.md` -- master component inventory
 2. `${KNOWLEDGE_DIR}/architecture/acm-platform.md` -- MCH/MCE hierarchy
-3. For each affected subsystem: `${KNOWLEDGE_DIR}/architecture/<subsystem>/architecture.md` AND `failure-signatures.md`
-4. `${KNOWLEDGE_DIR}/healthy-baseline.yaml` -- expected pod counts, deployment states
-5. `${KNOWLEDGE_DIR}/diagnostics/common-diagnostic-traps.md` -- 14 traps
-6. `${KNOWLEDGE_DIR}/service-map.yaml` -- service-to-pod endpoint mapping
-7. `${KNOWLEDGE_DIR}/webhook-registry.yaml` -- expected webhooks with criticality
-8. If managed clusters present: `${KNOWLEDGE_DIR}/architecture/cluster-lifecycle/health-patterns.md`
+3. For each affected subsystem: `${KNOWLEDGE_DIR}/architecture/<subsystem>/architecture.md` AND `${KNOWLEDGE_DIR}/failures/<subsystem>/failure-signatures.md`
+4. `${KNOWLEDGE_DIR}/baselines/healthy-baseline.yaml` -- expected pod counts, deployment states
+5. `${KNOWLEDGE_DIR}/diagnostics/diagnostic-traps.md` -- 14 traps
+6. `${KNOWLEDGE_DIR}/baselines/service-map.yaml` -- service-to-pod endpoint mapping
+7. `${KNOWLEDGE_DIR}/baselines/webhook-registry.yaml` -- expected webhooks with criticality
+8. If managed clusters present: `${KNOWLEDGE_DIR}/health/cluster-lifecycle/health-patterns.md`
 9. `${KNOWLEDGE_DIR}/diagnostics/diagnostic-layers.md` -- 12-layer framework
 
 **Unknown operator protocol:** For CSVs not in the component registry: (1) note CSV metadata and owned CRDs, (2) check if it has ConsolePlugins registered, (3) check MCH/MCE namespace for related deployments.
@@ -119,7 +123,7 @@ oc get pods -n multicluster-engine --field-selector=status.phase!=Running,status
 oc get pods -n hive --field-selector=status.phase!=Running,status.phase!=Succeeded --no-headers
 ```
 
-Compare pod counts against `${KNOWLEDGE_DIR}/healthy-baseline.yaml`. Check restart counts (flag pods with >3 restarts). Check StatefulSets in hive and observability namespaces.
+Compare pod counts against `${KNOWLEDGE_DIR}/baselines/healthy-baseline.yaml`. Check restart counts (flag pods with >3 restarts). Check StatefulSets in hive and observability namespaces.
 
 **Sub-operator CR status checks:**
 ```bash
@@ -146,7 +150,7 @@ For unhealthy pods: `oc logs <pod> --tail=50`, `oc logs <pod> --previous`, `oc g
 ```bash
 oc get managedclusteraddons -A --no-headers
 ```
-Compare against `${KNOWLEDGE_DIR}/addon-catalog.yaml`. If ALL addons unavailable: check addon-manager pod first (Trap 7).
+Compare against `${KNOWLEDGE_DIR}/baselines/addon-catalog.yaml`. If ALL addons unavailable: check addon-manager pod first (Trap 7).
 
 **Spoke-side verification (conditional):** If acm-search MCP available AND search-postgres healthy, use `find_resources` for fleet-wide checks. See `${KNOWLEDGE_DIR}/diagnostics/acm-search-reference.md`.
 
@@ -156,16 +160,16 @@ Compare against `${KNOWLEDGE_DIR}/addon-catalog.yaml`. If ALL addons unavailable
 
 ### Trap Detection
 
-Walk through ALL 14 traps from `${KNOWLEDGE_DIR}/diagnostics/common-diagnostic-traps.md`. Record each as TRIGGERED, NOT triggered, or N/A.
+Walk through ALL 14 traps from `${KNOWLEDGE_DIR}/diagnostics/diagnostic-traps.md`. Record each as TRIGGERED, NOT triggered, or N/A.
 
 ## Phase 4: Pattern Match (Standard+)
 
 Cross-reference findings against known issues:
 
-1. Read `${KNOWLEDGE_DIR}/failure-patterns.md`
-2. Read `${KNOWLEDGE_DIR}/architecture/<subsystem>/known-issues.md` for each affected subsystem
-3. Check `${KNOWLEDGE_DIR}/version-constraints.yaml` for version incompatibilities
-4. Check `${KNOWLEDGE_DIR}/architecture/infrastructure/post-upgrade-patterns.md` before reporting post-upgrade issues (may be normal settling)
+1. Read `${KNOWLEDGE_DIR}/health/failure-patterns.md`
+2. Read `${KNOWLEDGE_DIR}/health/<subsystem>/known-issues.md` for each affected subsystem
+3. Check `${KNOWLEDGE_DIR}/baselines/version-constraints.yaml` for version incompatibilities
+4. Check `${KNOWLEDGE_DIR}/health/infrastructure/post-upgrade-patterns.md` before reporting post-upgrade issues (may be normal settling)
 
 Note JIRA references, fix versions, and cluster-fixability for matched patterns.
 
@@ -244,4 +248,4 @@ If remediation is needed, use the acm-cluster-remediation skill AFTER diagnosis 
 4. **ResourceQuota blocking scheduling (Trap 9)** -- ACM does NOT create ResourceQuotas. If one exists in the MCH namespace, it was added externally and may silently block pod scheduling. Pods stuck in Pending with no events is the symptom.
 5. **NetworkPolicy hiding failures (Trap 11)** -- Pods show Running with 0 restarts but cannot communicate. ACM does NOT create NetworkPolicies. External policies can silently break inter-pod traffic while health checks pass.
 
-See `${KNOWLEDGE_DIR}/diagnostics/common-diagnostic-traps.md` for all 14 traps.
+See `${KNOWLEDGE_DIR}/diagnostics/diagnostic-traps.md` for all 14 traps.

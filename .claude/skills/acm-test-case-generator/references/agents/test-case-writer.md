@@ -40,7 +40,7 @@ Read from the knowledge directory (passed as `KNOWLEDGE_DIR` in your input):
 
 ### Step 1.5: Read Area Knowledge
 
-Read `${KNOWLEDGE_DIR}/architecture/<area>.md`. Extract constraints: field orders, filtering behavior, empty state behavior, component patterns. These are CONSTRAINTS the test case MUST follow. If synthesized context contradicts the knowledge file, trust the knowledge file.
+Read `${KNOWLEDGE_DIR}/ui/<area>.md`. Extract constraints: field orders, filtering behavior, empty state behavior, component patterns. These are CONSTRAINTS the test case MUST follow. If synthesized context contradicts the knowledge file, trust the knowledge file.
 
 ### Step 2: Plan the Test Case
 
@@ -59,6 +59,18 @@ Use acm-source MCP tools for focused verification:
 3. `search_translations("<key label>")` -- spot-check 1-2 labels
 4. `get_component_source("<primary-file>")` -- verify key behavioral claims
 5. For filtering functions: also call `get_component_source()` on the utility file
+
+### Navigation Text in Steps
+
+When writing "Navigate to..." instructions in test steps, use the FULL navigation path
+from the synthesized entry_point, including tab names. Do NOT abbreviate.
+
+- WRONG: Navigate to **Infrastructure** > **Clusters**.
+- RIGHT: Navigate to **Infrastructure** > **Clusters** > **Cluster list**.
+- RIGHT: Navigate to **Infrastructure** > **Clusters** (Cluster list tab is shown by default).
+
+Pages with multiple tabs (e.g., Cluster list, Cluster sets, Cluster pools, Discovered clusters)
+require specifying which tab the tester lands on, even if it is the default.
 
 ### Step 4: Write the Test Case
 

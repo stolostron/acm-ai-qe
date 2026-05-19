@@ -4,7 +4,7 @@
 # and by ClusterHealthService (Step 4) for prerequisite validation.
 #
 # Extracted from: src/data/feature_playbooks/base.yaml (34 prerequisites)
-# Validated against: ACM 2.16 GA on Azure (ashafi-acm-216-ga)
+# Validated against: ACM 2.16 GA on Azure (example-qe-hub-cluster)
 # Refresh frequency: after ACM version change
 
 acm_version: "2.16"

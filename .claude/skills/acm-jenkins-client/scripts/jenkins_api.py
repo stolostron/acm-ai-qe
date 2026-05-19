@@ -3,7 +3,7 @@
 Jenkins REST helper (Python 3 stdlib only).
 
 Use for scripted/headless calls or alongside MCP: typical QE setups have the jenkins MCP
-in both Cursor and Claude Code (all MCPs except Engram) — prefer MCP there; use this
+in both Cursor and Claude Code — prefer MCP there; use this
 script when you need urllib/curl parity without loading the MCP.
 
 Reads ~/.jenkins/config.json by default (same keys as acm-environment-finder refresh script).

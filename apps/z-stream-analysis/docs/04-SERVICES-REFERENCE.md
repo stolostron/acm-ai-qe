@@ -131,7 +131,7 @@ Stage 1+2 ─── KnowledgeGraphClient ─────────── Neo4j
 
 | Property | Value |
 |----------|-------|
-| **File** | `src/services/stack_trace_parser.py` (492 lines) |
+| **File** | `src/services/stack_trace_parser.py` (529 lines) |
 | **Purpose** | Parses JS/TS stack traces to extract file:line, error type, and failing selector |
 | **Used by** | Stage 1, Steps 3 and 7 |
 
@@ -142,14 +142,15 @@ Stage 1+2 ─── KnowledgeGraphClient ─────────── Neo4j
 | Method | Description |
 |--------|-------------|
 | `parse(stack_trace)` | Parse full stack trace into structured frames |
-| `extract_failing_selector(error_message)` | Extract CSS selector from error text |
+| `extract_failing_selector(error_message)` | Extract CSS selector from error text. Handles backtick-delimited selectors with embedded quotes, tag-prefixed selectors (`div#id`, `input[aria-label]`, `button.class`), role-based selectors, and Cypress "not visible" patterns. |
 | `extract_assertion_values(error_message)` | Extract expected vs actual values from assertion errors. Returns `{has_data_assertion, assertion_type, expected, actual, raw_assertion}` or None (v3.3) |
 | `get_context_range(frame, context_lines)` | Calculate line range for context |
+| `_is_valid_selector(selector)` | Static method. Validates CSS selector strings — accepts `#id`, `.class`, `[attr]`, tag-prefixed (`div#id`, `input[attr]`), rejects hex color codes |
 | `_classify_assertion_type(match, groups)` | Static method. Classifies assertion type from regex match (v3.3) |
 
 **Class data:** `ASSERTION_PATTERNS` — 8 regex patterns for extracting assertion values from Cypress/Chai, Jest, and generic assertion formats (v3.3)
 
-**Handles:** Webpack paths, Node.js format, async functions, Cypress error formats
+**Handles:** Webpack paths, Node.js format, async functions, Cypress error formats, backtick-delimited selectors, tag-prefixed compound selectors, aria-label attribute selectors
 
 ---
 

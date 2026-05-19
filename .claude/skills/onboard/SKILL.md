@@ -128,6 +128,17 @@ test -f mcp/polarion/.env && ! grep -q "PASTE_YOUR" mcp/polarion/.env 2>/dev/nul
 
 # Neo4j container
 podman ps --format '{{.Names}}' 2>/dev/null | grep -q neo4j-rhacm && echo "neo4j: running" || echo "neo4j: not running"
+
+# acm-search and acm-kubectl (deployed per-cluster, not required during onboarding)
+# Check command != 'echo' to distinguish real config from placeholder
+test -f .mcp.json && python3 -c "import json; d=json.load(open('.mcp.json')); s=d.get('mcpServers',{}).get('acm-search',{}); print('acm-search: deployed' if s and s.get('command','')!='echo' else 'acm-search: not deployed (deploy per-cluster when needed)')" 2>/dev/null || echo "acm-search: not deployed (deploy per-cluster when needed)"
+test -f .mcp.json && python3 -c "import json; d=json.load(open('.mcp.json')); s=d.get('mcpServers',{}).get('acm-kubectl',{}); print('acm-kubectl: configured' if s and s.get('command','')!='echo' else 'acm-kubectl: not configured (needs oc login)')" 2>/dev/null || echo "acm-kubectl: not configured (needs oc login)"
+
+# Playwright (npm package, needs Node.js)
+which npx >/dev/null 2>&1 && echo "playwright: available" || echo "playwright: not available (needs Node.js)"
+
+# oc login status (needed for acm-search and acm-kubectl deployment)
+oc whoami 2>/dev/null && echo "oc login: active" || echo "oc login: not active"
 ```
 
 ### Print Status Table
@@ -143,15 +154,17 @@ Prerequisites:
   oc CLI:    4.16.0           OK
   gh CLI:    2.65.0           OK
   jq:        1.7.1            OK
-  Podman:    5.3.1            OK (optional)
+  Podman:    5.3.1            OK
 
 MCP Servers:
-  acm-source:      venv exists    OK
+  acm-source:  venv exists    OK
   jira:        configured     OK
   jenkins:     configured     OK
   polarion:    configured     OK
-  neo4j-rhacm: running        OK (optional)
-  acm-search:  not deployed   OPTIONAL
+  neo4j-rhacm: running        OK
+  acm-search:  deployed       OK        (or: not deployed — deploy per-cluster when needed)
+  acm-kubectl: configured     OK        (or: needs oc login)
+  playwright:  configured     OK        (or: not available — needs Node.js)
 
 Skills Config:
   root .mcp.json:        exists     OK     (8 MCP servers)
@@ -162,7 +175,8 @@ App Configs:
   test-case-generator:   .mcp.json exists   OK
 ```
 
-Mark items as OK, MISSING, or OPTIONAL. Use OK for present, MISSING for required but absent, OPTIONAL for nice-to-have.
+Mark items as OK or MISSING. Use OK for present, MISSING for required but absent.
+Exception: acm-search and acm-kubectl are cluster-dependent — show their actual state without marking as MISSING. These are deployed per-cluster when needed, not required during onboarding.
 
 ## Step 3: Ask What to Set Up
 
@@ -183,30 +197,35 @@ Creating root .mcp.json from existing app configs...
 
 Then generate the root `.mcp.json` by merging app configs (see Step 4 merge procedure) and proceed to Step 5. Do NOT re-run setup.sh or ask what to configure.
 
-Otherwise (missing app configs or venvs), ask the user what they want to configure. Present the options:
+Otherwise (missing app configs or venvs), ask the user what they want to configure.
 
-**Skills (portable):**
-- Test Case Generator skills (needs: acm-source, jira, polarion; recommended: neo4j-rhacm; optional: acm-search, acm-kubectl, playwright)
-- Hub Health Diagnostic skills (needs: oc CLI; recommended: neo4j-rhacm; optional: acm-search)
-- Z-Stream Analysis skills (needs: acm-source, jira, jenkins, polarion; recommended: neo4j-rhacm; optional: acm-search, acm-kubectl)
+### Level 1: Apps or Skills?
 
-**Apps (Claude Code):**
-- Z-Stream Analysis (needs: acm-source, jira, jenkins, polarion, neo4j-rhacm)
-- ACM Hub Health (needs: acm-source, neo4j-rhacm, acm-search)
-- Test Case Generator app (needs: acm-source, jira, polarion, neo4j-rhacm, acm-search, acm-kubectl, playwright)
-- All apps
+Ask: "How do you want to use this repo?"
 
-Let the user pick one or more.
+1. **Apps** — Work with a specific application (z-stream analysis, hub health, test case generator)
+2. **Skills** — Use portable skills from the repo root
+
+### Level 2a: If the user chose Apps
+
+Show the app selection:
+
+1. **ACM Hub Health** — cluster diagnostics (needs: acm-source, neo4j-rhacm, acm-search)
+2. **Z-Stream Analysis** — pipeline failure classification (needs: acm-source, jira, jenkins, polarion, neo4j-rhacm)
+3. **Test Case Generator** — Polarion test cases from JIRA (needs: acm-source, jira, polarion, neo4j-rhacm, acm-search, acm-kubectl, playwright)
+4. **All apps**
 
 Map the selection to a setup.sh app number:
 - Hub Health = 1
 - Z-Stream = 2
-- Test Case Generator (app or skills) = 3
+- Test Case Generator = 3
 - All = 4
 
-Note: The Test Case Generator skills use the SAME MCPs as the Test Case Generator app. Configuring one configures the other.
+### Level 2b: If the user chose Skills
 
-## Step 4: Set Up Credentials and Run Setup
+Skills can invoke any MCP depending on the workflow, so all servers will be configured. Map directly to `--app 4` (all MCPs). Tell the user: "Skills use different MCP servers depending on the workflow. Setting up all servers so every skill works."
+
+## Step 4: Collect Credentials, Run Setup, Then Write Credential Files
 
 For the selected app(s), check which credentials are needed and missing.
 
@@ -218,7 +237,7 @@ For the selected app(s), check which credentials are needed and missing.
 | Hub Health | - | - | - |
 | Test Case Generator | Required | - | Required |
 
-### For each missing credential, ask the user and write the .env file:
+### Collect credentials from the user (do NOT write files yet):
 
 **JIRA** (if needed and missing):
 Tell the user: "I need your JIRA API credentials. Get a token at https://id.atlassian.com/manage-profile/security/api-tokens"
@@ -227,6 +246,46 @@ Ask for:
 1. JIRA email (their Atlassian account email)
 2. JIRA API token
 
+Hold these values in memory — they will be written after setup.sh runs.
+
+**Jenkins** (if needed and missing):
+Tell the user: "I need your Jenkins credentials. Get a token from Jenkins > your username > Configure > API Token."
+
+Ask for:
+1. Jenkins username
+2. Jenkins API token
+
+Hold these values in memory — they will be written after setup.sh runs.
+
+**Polarion** (if needed and missing):
+Tell the user: "I need your Polarion JWT token. Connect to Red Hat VPN, go to https://polarion.engineering.redhat.com/polarion/ > My Account > Personal Access Tokens."
+
+Ask for:
+1. Polarion JWT token
+
+Hold this value in memory — it will be written after setup.sh runs.
+
+### Run setup.sh (clones repos, creates venvs)
+
+Run setup.sh:
+
+```bash
+bash mcp/setup.sh --app <N> --no-creds
+```
+
+Where N is the mapped number from Step 3. This will:
+- Clone external repos into `mcp/.external/` (jira-mcp-server, jenkins-mcp, knowledge-graph, acm-mcp-server)
+- Create venvs for MCP servers
+- Set up Neo4j container if Podman is available
+- Generate `.mcp.json` for each selected app
+
+Show the setup.sh output to the user.
+
+### Write credential files (AFTER setup.sh completes)
+
+Now that `setup.sh` has cloned the repos and created the directories, write the `.env` files:
+
+**JIRA** (if collected above):
 Write to `mcp/.external/jira-mcp-server/.env`:
 ```
 JIRA_SERVER_URL=https://redhat.atlassian.net
@@ -236,66 +295,60 @@ JIRA_TIMEOUT=30
 JIRA_MAX_RESULTS=100
 ```
 
-Create the directory first if it doesn't exist: `mkdir -p mcp/.external/jira-mcp-server`
-
-**Jenkins** (if needed and missing):
-Tell the user: "I need your Jenkins credentials. Get a token from Jenkins > your username > Configure > API Token."
-
-Ask for:
-1. Jenkins username
-2. Jenkins API token
-
+**Jenkins** (if collected above):
 Write to `mcp/.external/jenkins-mcp/.env`:
 ```
 JENKINS_USER=<their username>
 JENKINS_API_TOKEN=<their token>
 ```
 
-Create the directory first if it doesn't exist: `mkdir -p mcp/.external/jenkins-mcp`
-
-**Polarion** (if needed and missing):
-Tell the user: "I need your Polarion JWT token. Connect to Red Hat VPN, go to https://polarion.engineering.redhat.com/polarion/ > My Account > Personal Access Tokens."
-
-Ask for:
-1. Polarion JWT token
-
+**Polarion** (if collected above):
 Write to `mcp/polarion/.env`:
 ```
 POLARION_BASE_URL=https://polarion.engineering.redhat.com/polarion
 POLARION_PAT=<their token>
 ```
 
-### Run setup.sh
+### Regenerate .mcp.json with credentials
 
-After credentials are in place, run setup.sh with the --app flag:
+The initial `setup.sh --no-creds` run generated `.mcp.json` files before credentials existed.
+Now that `.env` files have real values, re-run setup.sh to regenerate `.mcp.json` with credentials injected:
 
 ```bash
 bash mcp/setup.sh --app <N>
 ```
 
-Where N is the mapped number from Step 3. This will:
-- Create venvs for MCP servers
-- Clone external repos (jira-mcp-server, jenkins-mcp, knowledge-graph, acm-mcp-server)
-- Set up Neo4j container if Podman is available
-- Generate `.mcp.json` for each selected app
+Use the same app number from Step 3. This time credentials exist in `.env` files, so setup.sh will find them and skip prompting. Repos and venvs are already set up, so this run is fast — it just regenerates `.mcp.json` files with correct credential env blocks.
 
-Show the setup.sh output to the user.
+Show the output to the user.
 
 ### Generate root `.mcp.json`
 
-After `setup.sh` completes (or when the Step 3 short-circuit detects app configs exist but root is missing), merge all app-level MCP configs into a single root `.mcp.json`:
+This merge must run AFTER the setup.sh regeneration pass above, because setup.sh (including deploy-acm-search.sh if oc is logged in) updates app-level `.mcp.json` files with credentials and live acm-search config.
+
+Merge all app-level MCP configs into a single root `.mcp.json`:
 
 ```bash
 python3 -c "
-import json
+import json, sys
 from pathlib import Path
 
+app_configs = ['apps/test-case-generator/.mcp.json', 'apps/z-stream-analysis/.mcp.json', 'apps/acm-hub-health/.mcp.json']
+missing = [c for c in app_configs if not Path(c).exists()]
+if missing:
+    print(f'WARNING: Missing app configs: {missing}')
+    print('Root .mcp.json will be incomplete. Re-run: bash mcp/setup.sh --app 4')
+
 merged = {'mcpServers': {}}
-for app_config in ['apps/test-case-generator/.mcp.json', 'apps/z-stream-analysis/.mcp.json', 'apps/acm-hub-health/.mcp.json']:
+for app_config in app_configs:
     p = Path(app_config)
     if p.exists():
         data = json.loads(p.read_text())
         merged['mcpServers'].update(data.get('mcpServers', {}))
+
+if not merged['mcpServers']:
+    print('ERROR: No MCP servers found in any app config. Cannot create root .mcp.json.')
+    sys.exit(1)
 
 Path('.mcp.json').write_text(json.dumps(merged, indent=2))
 print(f'Root .mcp.json created with {len(merged[\"mcpServers\"])} MCP servers: {list(merged[\"mcpServers\"].keys())}')
@@ -305,6 +358,8 @@ print(f'Root .mcp.json created with {len(merged[\"mcpServers\"])} MCP servers: {
 This gives all skills at the repo root access to every MCP server. The root `.mcp.json` is the UNION of all app-level configs — every MCP that any skill might need.
 
 Print: `Root .mcp.json created with N MCP servers.`
+
+Note: acm-search is a cluster-side MCP deployed per-cluster as needed — it is NOT required during onboarding. If `oc` happens to be logged into an ACM hub, setup.sh deploys it automatically. If not, setup.sh skips it with instructions for later. When a skill or app needs acm-search at runtime and it's not deployed, it will prompt the user to log in and run `bash mcp/deploy-acm-search.sh`. If the user rotates to a different cluster, they re-run the deploy script on the new cluster.
 
 ## Step 5: Verify and Next Steps
 

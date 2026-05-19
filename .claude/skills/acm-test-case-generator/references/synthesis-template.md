@@ -134,6 +134,13 @@ The test case must declare ALL environmental dependencies the tester needs:
 
 Nothing should be assumed. A tester should be able to read the Setup section cold and know exactly what they need before starting.
 
+**Generic, Not Specific:** Prerequisites must describe requirements generically -- never embed specific cluster names, console URLs, or environment-specific details. Test cases are reusable across any environment.
+- WRONG: "Hub: ashafi-test-az-217 (OCP 4.21 / ACM 2.17.0-226), Console: https://console-openshift-console.apps.ashafi-test-az-217.az.dev09.red-chesterfield.com/"
+- RIGHT: "ACM 2.17.x hub with Fine-Grained RBAC enabled, at least one managed cluster with CNV installed"
+- Use placeholders where commands need URLs: `<hub-api>`, `<spoke-kubeconfig>`, `<console-url>`
+- State resource counts: "at least one managed cluster", "at least one running VM"
+- Environment-specific details (cluster names, URLs used during investigation) belong only in the Investigation Trail notes section of the local markdown, never in the Polarion test case.
+
 ## Cross-Entity Verification
 
 If the feature operates on a per-entity basis (per-cluster, per-namespace, per-resource, per-policy), the TEST PLAN should include at least one step that validates behavior on a DIFFERENT entity of the same type. This catches:

@@ -3,7 +3,7 @@
 # The AI agent reads this during Stage 2 to understand component health and roles.
 # The ClusterHealthService reads this during Stage 1 for automated health checks.
 #
-# Validated against: ACM 2.16 GA on Azure (ashafi-acm-216-ga)
+# Validated against: ACM 2.16 GA on Azure (example-qe-hub-cluster)
 # Cross-referenced with: ACM UI MCP (stolostron/console @ release-2.16)
 # Populated by: live cluster discovery + refresh.py + manual curation
 # Refresh frequency: after ACM version change

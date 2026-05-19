@@ -17,6 +17,12 @@ and query component dependency graphs -- without needing API keys embedded in pr
 - **`mcp-remote`** (needed for acm-search) -- `npm install -g mcp-remote` (stdio-to-SSE bridge)
 - **`oc` CLI** (needed for acm-search, acm-kubectl) -- [OpenShift client downloads](https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest/)
 
+## What is committed in this repo vs local-only
+
+**`ai_systems_v2/mcp/`** holds **`setup.sh`**, **`verify.py`**, deploy helpers, **`jenkins-acm-tools.py`**, and (where still tracked) in-repo MCP trees such as **`acm-source-mcp-server/`** and **`polarion/`** used by **`setup.sh`** for onboard flows. There is **no** automated rsync from **`~/Documents/work/ai/tools/mcp/`** into this directory — Cursor canonical code lives only under **`tools/mcp/`** with **`~/.cursor/mcp.json`**.
+
+**Forks and upstream clones** (Jira MCP, Jenkins MCP, **`acm-mcp-server`**, knowledge-graph data, …) are installed under **`mcp/.external/`** (gitignored) by **`mcp/setup.sh`** using the **repo + branch** variables at the top of that script. On your machine you may also keep working copies under **`~/Documents/work/ai/tools/mcp/<fork>/`** for Cursor.
+
 ## Which servers do I need?
 
 | Server | Used by | What it does | Tools | Source |

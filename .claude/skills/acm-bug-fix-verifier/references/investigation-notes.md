@@ -91,7 +91,7 @@ ACM branching model: `main` receives all development; release branches receive c
 
 ### F7. Portability scan (CLEAN)
 
-All files scanned for `~`, `/Users/`, `.cursor`, `.cursorrules`, `engram` references. None found. Portability contract satisfied.
+All files scanned for `~`, `/Users/`, `.cursor`, `.cursorrules` references. None found. Portability contract satisfied.
 
 ### F8. Trigger overlap with acm-bug-hunter (CLEAN)
 

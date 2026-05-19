@@ -335,6 +335,8 @@ class DataGatherer:
                 self.cluster_investigation_service.mch_namespace = self.mch_namespace
                 FeatureAreaService.set_mch_namespace(self.mch_namespace)
                 self.logger.info(f"MCH namespace: {self.mch_namespace}")
+
+                self._deploy_acm_search(kubeconfig_path)
             else:
                 self.logger.warning("Failed to login to target cluster")
         else:
@@ -346,6 +348,51 @@ class DataGatherer:
         self.gathered_data['cluster_access']['kubeconfig_path'] = kubeconfig_path
         self.gathered_data['cluster_access']['mch_namespace'] = self.mch_namespace
         return kubeconfig_path
+
+    def _deploy_acm_search(self, kubeconfig_path: str):
+        """Deploy ACM Search MCP on the cluster if not already running."""
+        cli = self.env_service.cli
+
+        try:
+            result = subprocess.run(
+                [cli, '--kubeconfig', kubeconfig_path,
+                 'get', 'deployment', 'acm-search-mcp-server',
+                 '-n', 'acm-search',
+                 '-o', 'jsonpath={.status.readyReplicas}'],
+                capture_output=True, text=True, timeout=10
+            )
+            if result.returncode == 0 and result.stdout.strip() >= '1':
+                self.logger.info("ACM Search MCP already deployed")
+                print("  ACM Search MCP: already deployed", flush=True)
+                return
+        except Exception:
+            pass
+
+        deploy_script = Path(__file__).resolve().parents[3] / 'mcp' / 'deploy-acm-search.sh'
+        if not deploy_script.exists():
+            self.logger.debug("deploy-acm-search.sh not found, skipping")
+            return
+
+        print("  Deploying ACM Search MCP (first-time setup)...", flush=True)
+        try:
+            result = subprocess.run(
+                ['bash', str(deploy_script), '--kubeconfig', kubeconfig_path],
+                capture_output=True, text=True, timeout=360
+            )
+            if result.returncode == 0:
+                self.logger.info("ACM Search MCP deployed successfully")
+                print("  ACM Search MCP: deployed", flush=True)
+            else:
+                stderr_tail = result.stderr[-200:] if result.stderr else 'no output'
+                self.logger.warning(
+                    f"ACM Search deploy failed (non-blocking): {stderr_tail}"
+                )
+                print("  ACM Search MCP: deploy failed (non-blocking)", flush=True)
+        except subprocess.TimeoutExpired:
+            self.logger.warning("ACM Search deploy timed out (non-blocking)")
+            print("  ACM Search MCP: deploy timed out (non-blocking)", flush=True)
+        except Exception as e:
+            self.logger.warning(f"ACM Search deploy error (non-blocking): {e}")
 
     def _discover_mch_namespace(self, kubeconfig_path: str) -> str:
         """

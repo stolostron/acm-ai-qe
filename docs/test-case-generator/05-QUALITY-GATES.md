@@ -360,7 +360,7 @@ class ValidationIssue(BaseModel):
 
 Warnings do not cause FAIL but are reported in `SUMMARY.txt`.
 
-### Phase 8 Enforcement
+### Review Output Enforcement (Post-Phase 7)
 
 The quality reviewer must start its output with a JSON verification block containing:
 - `mcp_verifications` (array of verification entries, min 3)

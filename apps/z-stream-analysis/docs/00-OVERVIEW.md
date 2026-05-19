@@ -122,7 +122,7 @@ separately in .claude/traces/<session_id>.jsonl — one file per session.
 
 **3-path routing:** **Path A** (selector mismatch → AUTOMATION_BUG), **Path B1** (non-selector timeout → INFRASTRUCTURE, graduated health scoring with definitive/strong/moderate bands) (v3.3), **Path B2** (everything else → JIRA-informed investigation). **PR-4** checks feature knowledge override first (unmet prerequisites, playbook-confirmed failure paths). **D0** checks backend cross-check — if a backend issue caused the UI failure, routes to Path B2 regardless.
 
-**Post-classification validation:** **D-V5** expanded counterfactual verification with 9 templates + symmetric validation: D-V5c for AUTOMATION_BUG ("does backend confirm expectation?"), D-V5e for PRODUCT_BUG ("is product behavior correct?") (v4.0), **Layer discrepancy** — Tier 1 PRODUCT_BUG evidence when lower layer healthy but higher layer defective (v4.0), **D4** final validation, **D4b** per-test causal link verification (every test attributed to a dominant pattern must have a documented causal mechanism) (v3.3), **D5** counter-bias validation (3-test threshold rule: if 3+ tests share the same root_cause, at least 1 must be independently re-investigated) (v3.3).
+**Post-classification validation:** **D-V5** expanded counterfactual verification with 9 templates + symmetric validation: D-V5c for AUTOMATION_BUG ("does backend confirm expectation?"), D-V5e for PRODUCT_BUG mandatory 4-check gate: (1) ACM-Source MCP product source verification, (2) not an intentional product change, (3) environment prerequisites met via cluster oracle cross-reference, (4) minimum 3 investigation steps with product source evidence (v4.0), **Layer discrepancy** — Tier 1 PRODUCT_BUG evidence when lower layer healthy but higher layer defective (v4.0), **D4** final validation (PRODUCT_BUG hard gate: source checked, not intentional change, env prereqs met, 3+ investigation steps), **D4b** per-test causal link verification (every test attributed to a dominant pattern must have a documented causal mechanism) (v3.3), **D5** counter-bias validation (3-test threshold rule: if 3+ tests share the same root_cause, at least 1 must be independently re-investigated) (v3.3).
 
 See [02-STAGE2-AI-ANALYSIS.md](02-STAGE2-AI-ANALYSIS.md) Phase D for the full decision routing with evidence tables and confidence scores.
 
@@ -156,7 +156,7 @@ Every classification requires 2+ evidence sources.
 
 ## MCP Servers
 
-Five MCP servers provide tools during Stage 2 (AI Analysis). The Knowledge Graph is also queried directly via HTTP API during Stage 1 (gather.py) for dependency context.
+Seven MCP servers provide tools during Stage 1.5 and Stage 2. The Knowledge Graph is also queried directly via HTTP API during Stage 1 (gather.py) for dependency context. ACM Search MCP is auto-deployed on the cluster during Step 4 if not already running.
 
 ```
 ┌─────────────────────┐  ┌─────────────────────┐  ┌─────────────────────┐

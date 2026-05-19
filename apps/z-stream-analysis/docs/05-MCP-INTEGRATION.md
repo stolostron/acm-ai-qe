@@ -1,6 +1,6 @@
 # MCP Integration Guide
 
-How the five MCP (Model Context Protocol) servers connect Z-Stream Analysis to external systems for failure investigation.
+How the seven MCP (Model Context Protocol) servers connect Z-Stream Analysis to external systems for failure investigation.
 
 ---
 
@@ -8,7 +8,7 @@ How the five MCP (Model Context Protocol) servers connect Z-Stream Analysis to e
 
 Model Context Protocol (MCP) is a JSON-RPC protocol that allows AI agents to call external tools at runtime. Instead of the agent guessing or relying on pre-fetched data, MCP lets the agent query live systems during investigation.
 
-Z-Stream Analysis uses five MCP servers:
+Z-Stream Analysis uses seven MCP servers (five primary for Stage 2, two additional for Stage 1.5 and investigation agents):
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐

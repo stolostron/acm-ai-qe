@@ -20,7 +20,8 @@
 ## Get Started
 
 ```bash
-git clone <repo-url> && cd ai_systems_v2
+git clone https://github.com/stolostron/acm-ai-qe.git ai_systems_v2
+cd ai_systems_v2
 claude
 ```
 
@@ -110,7 +111,7 @@ ai_systems_v2/
 │   ├── acm-source-mcp-server/     # ACM Console source search
 │   └── polarion/              # Polarion test case access
 ├── .claude/                   # Claude Code configuration
-│   ├── skills/                # 16 skills: 14 ACM + onboard + grill-me (usable from repo root)
+│   ├── skills/                # 20 skills: 17 ACM + onboard + youtube-digest + grill-me (usable from repo root)
 │   ├── commands/pre-push.md   # /pre-push quality gate
 │   └── statusline.sh          # Status line (model, branch, context %)
 ├── AGENTS.md                  # Agent reference for external AI tools

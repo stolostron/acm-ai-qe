@@ -6,6 +6,10 @@ Version history for Z-Stream Pipeline Analysis. For current architecture and usa
 
 ## v4.0
 
+- **PRODUCT_BUG mandatory gate** — D-V5e upgraded from 2 soft questions to 4 mandatory checks: (1) ACM-Source MCP product source verification required, (2) intentional product change detection (intentional change + stale test = AUTOMATION_BUG, not PRODUCT_BUG), (3) cluster oracle cross-reference for environment prerequisites, (4) minimum 3 investigation steps with product source evidence. Hard gate also added at Phase D4. Prevents false PRODUCT_BUG classifications from insufficient investigation.
+- **Selector parser fix** — `extract_failing_selector()` rewritten to handle backtick-delimited selectors with embedded quotes (e.g., `input[aria-label="Select user"]`) and tag-prefixed selectors (`div#id`, `input[attr]`, `button.class`). Added `_is_valid_selector()` static method. Fixes data enrichment chain: parser → data-collector → analysis agent.
+- **Data-collector fallback** — Tasks 1-3 now extract selectors from error messages as fallback when `failing_selector` is null.
+- **PF6 migration detection** — Phase A4 Rule 1c detects PF5→PF6 migration patterns (3+ element-not-found with healthy infrastructure) for direct AUTOMATION_BUG classification.
 - **Cluster health moved to Stage 1.5** — `ClusterHealthService` deprecated. All cluster health investigation handled by the `cluster-diagnostic` AI agent (Stage 1.5), producing `cluster-diagnosis.json` with structured fields consumed by Stage 2 and Stage 3.
 - **Structured health fields** — `environment_health_score` (weighted penalty formula), `operator_health`, `subsystem_health` (with `health_depth` and `unchecked_layers`), `classification_guidance`, `counter_signals`, `image_integrity`.
 - **Console image integrity check** — Stage 1.5 compares the running console image against `healthy-baseline.yaml` expected prefixes (`quay.io:443/acm-d/console`, `quay.io/stolostron/console`). Non-standard images flagged in `image_integrity` field, Console subsystem marked degraded, image integrity penalty (-0.10) applied to health score. Stage 2 uses this to distinguish CSS/rendering failures from dead selectors.

@@ -190,7 +190,7 @@ def _classify_failure_type(self, error_text: str) -> str:
 ```
 INPUT:
   AssertionError: Timed out retrying after 30000ms: Expected to find
-  element: '#create-btn', but never found it.
+  element: `input[aria-label="Select user"]`, but never found it.
       at Context.<anonymous> (cypress/e2e/cluster/create.cy.ts:45:12)
       at runnable.run (cypress/support/commands.js:123:5)
 
@@ -199,13 +199,15 @@ OUTPUT:
     "error_type": "element_not_found",
     "root_cause_file": "cypress/e2e/cluster/create.cy.ts",
     "root_cause_line": 45,
-    "failing_selector": "#create-btn",
+    "failing_selector": "input[aria-label=\"Select user\"]",
     "frames": [
       { "file": "create.cy.ts", "line": 45, "function": "anonymous" },
       { "file": "commands.js", "line": 123, "function": "run" }
     ]
   }
 ```
+
+Handles backtick-delimited selectors with embedded quotes, tag-prefixed selectors (`div#connection`, `button.class`), `aria-label` attribute selectors, role-based selectors, and Cypress "not visible" patterns. Rejects hex color codes (e.g., `#DB242F`).
 
 **Output file:** `test-report.json`
 
@@ -215,7 +217,7 @@ OUTPUT:
 
 **Services:** `EnvironmentValidationService` (login + kubeconfig persist), `ClusterInvestigationService` (landscape)
 
-Step 4 establishes cluster access and collects landscape data. It does two things: (4a) login (two-tier credential lookup: Jenkins parameters, then console log fallback), kubeconfig persistence, and MCH namespace discovery, (4b) cluster landscape snapshot. The comprehensive health audit is handled by Stage 1.5 (cluster-diagnostic agent), which produces `cluster-diagnosis.json`.
+Step 4 establishes cluster access and collects landscape data. It does three things: (4a) login (two-tier credential lookup: Jenkins parameters, then console log fallback), kubeconfig persistence, and MCH namespace discovery, (4a-cont) auto-deploy ACM Search MCP on the cluster if not already running, (4b) cluster landscape snapshot. The comprehensive health audit is handled by Stage 1.5 (cluster-diagnostic agent), which produces `cluster-diagnosis.json`.
 
 **MCH namespace discovery (Step 4a):** After login, gather.py runs `oc get mch -A` to discover the actual MCH namespace. This can be `open-cluster-management`, `ocm`, or a custom namespace depending on the ACM installation. The discovered namespace is used for all subsequent `oc` commands and propagated to all services (`ClusterInvestigationService`, `FeatureAreaService`). Derived namespaces (`-hub`, `-observability`, `-agent`) are computed from the discovered base namespace.
 
@@ -269,6 +271,8 @@ Part of `_login_to_cluster()` (Step 4a). Extracts cluster credentials with two-t
 ```
 
 The `kubeconfig_path` is also set on `env_service.kubeconfig` so subsequent gather steps (cluster landscape, oracle) use the same authenticated kubeconfig.
+
+**ACM Search MCP auto-deploy (Step 4a):** After kubeconfig persistence and MCH namespace discovery, gather.py automatically deploys the ACM Search MCP server on the cluster if not already running. This runs `deploy-acm-search.sh --kubeconfig <path>`, which creates the `acm-search` namespace, deploys the MCP server pod, extracts the SSE route/token, and updates `.mcp.json` files. If the pod is already deployed and ready, the step is skipped. Deployment failures are non-blocking — the cluster-diagnostic agent (Stage 1.5) falls back to `oc` CLI for spoke-side queries.
 
 **Output files:** `cluster.kubeconfig`, `cluster_access` and `cluster_landscape` keys in `core-data.json`
 

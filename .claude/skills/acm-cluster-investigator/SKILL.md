@@ -123,6 +123,19 @@ Use acm-source MCP `search_code` for intended behavior. Use jira MCP `search_iss
 
 Return JSON with: test_name, root_cause_layer, root_cause_layer_name, root_cause, cause_owner, classification, confidence, evidence_sources (tiered), ruled_out_alternatives, reasoning, recommended_fix, investigation_steps_taken, affected_tests.
 
+## MCP Availability
+
+Investigation uses a tiered playbook (Tier 0-4). If an MCP is unavailable, cap at a lower tier:
+
+| MCP | Tier | Fallback |
+|-----|------|----------|
+| acm-source | Tier 1 | Stay at Tier 0 (extracted context + cluster-diagnosis.json). Note selector results as "unverified" |
+| jira | Tier 4 | Skip JIRA bug search. Classify without bug correlation |
+| polarion | Tier 4 | Skip Polarion test case lookup. Rely on other evidence sources |
+| neo4j-rhacm | Tier 4 | Use knowledge file dependency chains instead of graph queries |
+
+Tier 0-3 evidence (extracted context, cluster-diagnosis.json, oc commands, repo code) is sufficient for most classifications. Lower confidence without Tier 4 cross-system checks.
+
 ## Anti-Patterns
 
 - Do NOT classify based on error message alone -- trace to root cause

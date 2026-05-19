@@ -34,7 +34,7 @@ The setup script:
 
 ## ACM Source MCP Server
 
-**Tools:** 20
+**Tools:** 18
 **Source:** `mcp/acm-source-mcp-server/` (our code)
 **Used by:** Code Analyzer (Phase 2), UI Discoverer (Phase 3), Test Case Writer (Phase 6), Quality Reviewer (Phase 7)
 
@@ -56,6 +56,10 @@ Searches ACM Console and kubevirt-plugin source code on GitHub. Provides selecto
 | `find_test_ids(path, repo)` | Find `data-test` attributes |
 | `get_patternfly_selectors()` | Get PatternFly component selectors |
 | `get_component_types(path, repo)` | Get TypeScript types/interfaces |
+| `get_route_component(route, repo)` | Get the component that renders a route |
+| `detect_cnv_version()` | Auto-detect CNV version from cluster |
+| `get_cluster_virt_info()` | Get cluster virtualization details |
+| `list_versions()` | List all available ACM/CNV versions |
 | `list_repos()` | List available repositories |
 | `get_current_version()` | Get currently set version |
 

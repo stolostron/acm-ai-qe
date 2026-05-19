@@ -77,6 +77,15 @@ Output: `feature_knowledge.ai_enrichment` in core-data.json, plus `${KNOWLEDGE_D
 - **Validate before writing** -- every AI-generated failure path must pass schema validation
 - **Graceful degradation** -- if Task 4 fails, set `ai_enrichment: {"error": "...", "fallback": "base_playbook_only"}`
 
+## MCP Availability
+
+| MCP | Used In | Fallback |
+|-----|---------|----------|
+| acm-source | Task 2 (selector verification) | Skip Task 2 entirely. Leave `console_search` empty — downstream classifier treats missing as "unverified" |
+| jira | Task 3 (commit intent disambiguation) | Skip JIRA lookups in Task 3. Classify commit intent from diff context alone |
+
+acm-source is the primary MCP for this skill. Without it, enrichment is limited to page object resolution (Task 1) and git history analysis (Task 3). The classifier still works with unenriched data at reduced accuracy.
+
 ## Gotchas
 
 1. **PatternFly class names are not data-test selectors** -- A selector like `pf-v6-c-tree-view` is a CSS class from PatternFly, not a `data-test` attribute. Derive the component name (`TreeView`) and search for it via `search_code(query, repo, scope="components")`, not `search_code` with the raw class string.

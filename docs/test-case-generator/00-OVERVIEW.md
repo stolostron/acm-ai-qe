@@ -67,7 +67,7 @@ Generates Polarion-ready test cases for ACM Console UI features from JIRA ticket
 
 ## Pipeline Phases
 
-9 phases (0-8): 1 deterministic Python script (Phase 8), 6 AI-driven subagents (Phases 1-7), and 1 interactive orchestrator step (Phase 0). Each subagent runs in an isolated context, writes structured output to disk, and terminates.
+9 phases (0-8): 1 deterministic Python script (Phase 8), 7 AI-driven subagents (Phases 1-7), and 1 interactive orchestrator step (Phase 0). Each subagent runs in an isolated context, writes structured output to disk, and terminates.
 
 | Phase | Type | Agent/Script | Duration | Input | Output |
 |:-----:|------|-------------|----------|-------|--------|
@@ -110,7 +110,7 @@ Generates Polarion-ready test cases for ACM Console UI features from JIRA ticket
 Each pipeline run produces artifacts under `runs/<JIRA_ID>/<JIRA_ID>-<timestamp>/`:
 
 ```
-runs/ACM-30459/ACM-30459-2026-04-18T02-00-46/
+runs/test-case-generator/ACM-30459/ACM-30459-2026-04-18T02-00-46/
   gather-output.json                 # Phase 1: all gathered data
   pr-diff.txt                        # Phase 1: full PR diff
   phase1-jira.json                   # Phase 1: JIRA investigation findings
@@ -121,6 +121,7 @@ runs/ACM-30459/ACM-30459-2026-04-18T02-00-46/
   test-case.md                       # Phase 6: PRIMARY DELIVERABLE
   analysis-results.json              # Phase 6: investigation metadata
   phase7-review.md                   # Phase 7: quality review output
+  test-case-description.html         # Phase 8: Polarion description section HTML
   test-case-setup.html               # Phase 8: Polarion setup section HTML
   test-case-steps.html               # Phase 8: Polarion steps table HTML
   review-results.json                # Phase 8: structural validation + artifact completeness
@@ -152,9 +153,8 @@ All 9 areas have architecture knowledge files providing domain context for subag
 ├── SKILL.md                         # Orchestrator: sequences phases 0-8
 ├── scripts/
 │   ├── gather.py                    # Phase 1: deterministic data gathering (run by data-gatherer agent)
-│   ├── report.py                    # Phase 8: validation + HTML + summary
+│   ├── report.py                    # Phase 8: validation + HTML generation + summary
 │   ├── review_enforcement.py        # Phase 7: programmatic enforcement layer
-│   ├── generate_html.py             # Phase 8: Polarion HTML generation
 │   └── validate_artifact.py         # Phases 1-6: schema validation + pre-synthesis gate
 ├── references/
 │   ├── agents/                      # 7 subagent definitions
@@ -168,14 +168,17 @@ All 9 areas have architecture knowledge files providing domain context for subag
 │   ├── console-auth.md              # Phase 5: headless browser OAuth login reference
 │   ├── synthesis-template.md        # Phase 4: conflict resolution + optimization passes
 │   ├── phase-gates.md               # Gate rules and progress indicators
-│   └── pipeline-workflow.md         # Context flow and subagent spawning
+│   ├── pipeline-detail.md           # Input schemas, validation commands, credential resolution
+│   ├── pipeline-workflow.md         # Context flow and subagent spawning
+│   └── skill-feedback.md            # Skill correction reporting protocol
 ├── assets/
 │   └── test-case-skeleton.md        # Test case template with placeholders
 └── evals/                           # Evaluation fixtures
+    └── evals.json                   # Skill disambiguation eval queries
 
-Knowledge: .claude/knowledge/test-case-generator/  (resolved via KNOWLEDGE_DIR at runtime)
+Knowledge: .claude/knowledge/  (unified, resolved via KNOWLEDGE_DIR at runtime)
 ├── conventions/                     # Test case format rules (4 files)
-├── architecture/                    # Per-area domain knowledge (9 files)
+├── ui/                              # Per-area domain knowledge (9 files)
 └── examples/                        # Sample test case (1 file)
 ```
 

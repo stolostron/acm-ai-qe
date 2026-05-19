@@ -506,6 +506,22 @@ verification.
 ```
 A4 grouping logic:
 
+0. ENRICHMENT FALLBACK (before grouping):
+   If `console_search` and `recent_selector_changes` are null for a test
+   BUT the error message contains a clear selector (e.g., "Expected to find
+   element: `input[aria-label="Select user"]`"), extract the selector from
+   the error message yourself. Then check if 3+ tests share the same
+   extracted selector — if so, treat as a group.
+
+   For "element not found" errors where the selector contains `aria-label`,
+   `role`, tag-prefixed patterns (`div#`, `input[`, `button.`), or PF class
+   names (`pf-v5-c-*`, `pf-v6-c-*`): the error itself tells you the selector
+   the test expected. Use ACM-Source MCP to verify if the selector exists in
+   the product before classifying.
+
+   This is critical for PF migration scenarios where many tests break on
+   the same renamed selector pattern.
+
 1. INSTANT CLASSIFICATION (no investigation agent needed):
    a) "after all" hooks with prior test failed in same spec
       → NO_BUG (PR-2 cascading hook). Set is_cascading_hook_failure=true.
@@ -517,6 +533,11 @@ A4 grouping logic:
         is "PRODUCT_BUG", route to investigation instead of instant classification.
       Evidence: console_search + cross-test count.
       Set root_cause_layer=12, root_cause_layer_name="UI / Plugin / Rendering".
+   c) Tests where console_search is null BUT error message shows "element not found"
+      with a selector that is clearly a PF5→PF6 migration pattern (e.g., aria-label
+      changes, pf-v5-c → pf-v6-c, element ID changes across 3+ tests) AND
+      infrastructure is healthy → AUTOMATION_BUG (stale selector after planned
+      product migration). PF migrations are planned changes, not product regressions.
 
 2. GROUP FOR INVESTIGATION (provably linked criteria — ALL must match):
    a) Same EXACT selector AND same calling function in test code
@@ -1210,18 +1231,50 @@ D-V5c: Counterfactual for AUTOMATION_BUG classifications (v4.0)
 
 D-V5e: Counterfactual for PRODUCT_BUG classifications (v4.0)
 
-  For every test classified as PRODUCT_BUG, ask:
+  MANDATORY GATE: No test may be classified as PRODUCT_BUG without
+  completing ALL 4 checks below. If any check cannot be completed,
+  the classification defaults to AUTOMATION_BUG with low confidence.
 
   1. "Is the product behavior actually correct and the test wrong?"
-     → Check if the test assertion matches Polarion acceptance criteria
-     → If test expects old behavior but product correctly updated:
+     → MUST use ACM-Source MCP to verify the product source code:
+       - Text assertion mismatch → search_translations() or search_code()
+         to check if old text was removed or new text added
+       - Element not found → search_code() to verify element exists
+       - Button disabled → search_code() for permission/RBAC logic
+         in the relevant component
+     → If product source confirms the behavior is intentional:
        reclassify as AUTOMATION_BUG (test needs update)
+     → "Unclear" or "needs product team verification" is NOT a valid
+       PRODUCT_BUG justification — investigate until you know
 
-  2. "Is the product behavior caused by infrastructure?"
+  2. "Is evidence of an INTENTIONAL product change present?"
+     → If the test expected text A but product shows text B, and B is
+       a valid semantic improvement (e.g., 'Create' → 'Configure',
+       'Prerequisite' → 'Prerequisites and Configuration'):
+       this is AUTOMATION_BUG, not PRODUCT_BUG
+     → Rule: intentional product change + stale test assertion =
+       AUTOMATION_BUG. The product works correctly.
+     → The owner field must be "Automation Team", not "Product Team"
+
+  3. "Is the product behavior caused by infrastructure or environment?"
      → Check if the observed behavior is a consequence of a known
        infrastructure issue (e.g., button disabled because managed
        cluster is NotReady, not because of a code bug)
-     → If yes: reclassify as INFRASTRUCTURE
+     → MUST cross-reference cluster oracle and cluster-diagnosis.json
+       when the test depends on specific resources or operators:
+       - Test expects a resource → check if it exists in environment
+       - Test expects operator behavior → check operator health
+       - If resource/operator is missing or degraded, classify based
+         on WHY: environment setup gap → AUTOMATION_BUG,
+         runtime failure → INFRASTRUCTURE
+     → If yes: reclassify as INFRASTRUCTURE or AUTOMATION_BUG
+
+  4. "Does the investigation have sufficient depth?"
+     → PRODUCT_BUG requires minimum 3 investigation steps including
+       at least one ACM-Source MCP verification
+     → If investigation_steps_taken has fewer than 3 entries or
+       no product source verification, the classification is
+       insufficiently supported — investigate further
 ```
 
 After D-V validation, proceed to D4 final validation for ALL tests
@@ -1798,9 +1851,18 @@ After routing through the appropriate path, validate:
 
 | If Classifying As | Must Rule Out |
 |-------------------|---------------|
-| PRODUCT_BUG | Selector mismatch, test logic error |
+| PRODUCT_BUG | Selector mismatch, test logic error, intentional product change, environment/data prerequisite missing |
 | AUTOMATION_BUG | Backend 500 errors, environment issues |
 | INFRASTRUCTURE | Individual test bugs, product issues |
+
+**PRODUCT_BUG hard gate (v4.0 — MANDATORY):**
+
+Before ANY test is classified as PRODUCT_BUG, verify ALL of:
+
+1. **Product source checked** — At least one ACM-Source MCP call (search_code, search_translations, get_acm_selectors) was made to verify the product behavior. "Unclear" is not acceptable.
+2. **Not an intentional change** — If evidence shows text/UI changed deliberately (old value → new value where new value is semantically valid), classify as AUTOMATION_BUG.
+3. **Environment prerequisites met** — If the test depends on specific resources, operators, or data, cross-reference cluster oracle / cluster-diagnosis.json to verify they exist. Missing prerequisites → AUTOMATION_BUG (test assumes wrong environment state).
+4. **Minimum 3 investigation steps** — PRODUCT_BUG carries the highest downstream impact (product team triage). It requires deeper evidence than other classifications.
 
 ### Phase D4b: Per-Test Causal Link Verification (v3.3 — MANDATORY)
 

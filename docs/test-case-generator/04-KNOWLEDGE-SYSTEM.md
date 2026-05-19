@@ -2,7 +2,7 @@
 
 The `knowledge/` directory contains curated domain knowledge that agents read during the pipeline. Knowledge is organized into three categories: conventions (authoritative format rules), architecture (per-area domain knowledge), and examples (sample test cases).
 
-**Location:** `.claude/knowledge/test-case-generator/`, resolved via `KNOWLEDGE_DIR = ${CLAUDE_SKILL_DIR}/../../knowledge/test-case-generator/` from the portable skill pack. Contains 14 files.
+**Location:** `.claude/knowledge/`, resolved via `KNOWLEDGE_DIR = ${CLAUDE_SKILL_DIR}/../../knowledge/` from the portable skill pack. Test-case-generator content lives in `conventions/`, `ui/`, and `examples/` within the unified knowledge database.
 
 ## Directory Structure
 
@@ -13,7 +13,7 @@ knowledge/
 │   ├── polarion-html-templates.md  # HTML generation rules for Polarion import
 │   ├── area-naming-patterns.md     # Title tag patterns by console area
 │   └── cli-in-steps-rules.md       # When CLI is allowed in test steps
-├── architecture/                   # Domain knowledge per console area
+├── ui/                             # Domain knowledge per console area
 │   ├── governance.md               # Policy types, discovered vs managed
 │   ├── rbac.md                     # FG-RBAC, MCRA, scopes
 │   ├── fleet-virt.md               # Tree view, VM actions, KubeVirt
@@ -25,8 +25,8 @@ knowledge/
 │   └── credentials.md              # Provider credentials
 ├── examples/                       # Sample test cases for format reference
 │   └── sample-test-case.md         # Convention-compliant sample (fallback)
-└── patterns/                       # Learned patterns from successful runs
-    └── README.md                   # Index (grows over time)
+└── patterns/                       # Learned patterns from successful runs (planned, not yet created)
+    └── (empty — directory created on first successful run)
 ```
 
 ## Reading Rules
@@ -35,10 +35,10 @@ Agents read knowledge at specific pipeline phases:
 
 | Phase | What is read | Why |
 |-------|-------------|-----|
-| Phase 1 | `conventions/test-case-format.md`, `conventions/polarion-html-templates.md`, `architecture/<area>.md` | Loaded into `gather-output.json` for downstream subagents |
-| Phase 6 (writer) | All conventions files, `architecture/<area>.md` (constraints), peer test cases, patterns | Format and behavioral constraints before writing |
-| Phase 7 (reviewer) | Conventions files, `architecture/<area>.md` (cross-reference), common mistakes (built into agent) | Validation reference + knowledge cross-reference |
-| Phase 8 | `conventions/polarion-html-templates.md` (baked into `generate_html.py`) | HTML generation rules |
+| Phase 1 | `conventions/test-case-format.md`, `conventions/polarion-html-templates.md`, `ui/<area>.md` | Loaded into `gather-output.json` for downstream subagents |
+| Phase 6 (writer) | All conventions files, `ui/<area>.md` (constraints), peer test cases, patterns | Format and behavioral constraints before writing |
+| Phase 7 (reviewer) | Conventions files, `ui/<area>.md` (cross-reference), common mistakes (built into agent) | Validation reference + knowledge cross-reference |
+| Phase 8 | `conventions/polarion-html-templates.md` (baked into `report.py`) | HTML generation rules |
 
 ## Validation Authority
 

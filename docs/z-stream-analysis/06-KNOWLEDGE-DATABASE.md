@@ -2,7 +2,7 @@
 
 The knowledge database (`knowledge/`) provides domain reference data that the AI agent reads at the start of Stage 2 analysis. It complements the feature playbooks (`src/data/feature_playbooks/`) consumed programmatically during Stage 1.
 
-**Two copies, same content:** The app pipeline reads from `apps/z-stream-analysis/knowledge/` (app-local). Portable skills (`.claude/skills/acm-z-stream-analyzer/`, `acm-failure-classifier/`, `acm-data-enricher/`) read from `.claude/knowledge/z-stream-analysis/` via `KNOWLEDGE_DIR`. Both contain the same 64 files. Changes to domain knowledge should be applied to both locations.
+**Two copies, same content:** The app pipeline reads from `apps/z-stream-analysis/knowledge/` (app-local). Portable skills (`.claude/skills/acm-z-stream-analyzer/`, `acm-failure-classifier/`, `acm-data-enricher/`) read from `.claude/knowledge/` (unified database) via `KNOWLEDGE_DIR`. Z-stream-specific content lives in `baselines/`, `failures/`, and `diagnostics/` within the unified database. Changes to domain knowledge should be applied to both locations.
 
 ---
 

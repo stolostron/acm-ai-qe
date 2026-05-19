@@ -1,0 +1,164 @@
+{
+  "name": "AI Framework - Visual Dashboard Monitor",
+  "description": "Real-time visual dashboard using webhooks and proper data flow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "visual-status",
+        "responseMode": "lastNode"
+      },
+      "id": "visual-webhook",
+      "name": "📡 Visual Status Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 400],
+      "webhookId": "visual-status"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "seconds",
+              "secondsInterval": 30
+            }
+          ]
+        }
+      },
+      "id": "refresh-trigger",
+      "name": "🔄 Dashboard Refresh",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [250, 600]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get current execution state from static data\nconst staticData = $getWorkflowStaticData('global');\nconst items = $input.all();\n\n// Initialize static data if needed\nif (!staticData.executions) {\n  staticData.executions = {};\n}\n\n// Update with incoming data if from webhook\nif (items.length > 0 && items[0].json.jira_ticket) {\n  const data = items[0].json;\n  const execId = data.run_id || data.jira_ticket;\n  \n  if (!staticData.executions[execId]) {\n    staticData.executions[execId] = {\n      jira_ticket: data.jira_ticket,\n      start_time: new Date().toISOString(),\n      phases: {},\n      agents: {},\n      metrics: {}\n    };\n  }\n  \n  // Update based on type\n  if (data.type === 'framework_update') {\n    staticData.executions[execId].phases[data.phase] = {\n      status: data.status,\n      timestamp: data.timestamp,\n      agents: data.agents\n    };\n  } else if (data.type === 'agent_update') {\n    staticData.executions[execId].agents[data.agent] = {\n      status: data.status,\n      confidence: data.confidence,\n      execution_time: data.execution_time,\n      timestamp: data.timestamp\n    };\n  }\n  \n  staticData.current_execution = execId;\n}\n\n// Get current execution\nconst currentExecId = staticData.current_execution;\nconst currentExec = staticData.executions[currentExecId] || {};\n\n// Build visual state\nconst visualState = {\n  jira_ticket: currentExec.jira_ticket || 'No Active Execution',\n  timestamp: new Date().toISOString(),\n  \n  // Phase states with visual indicators\n  phases: {\n    initialization: getPhaseVisualState(currentExec.phases?.initialization),\n    foundation_analysis: getPhaseVisualState(currentExec.phases?.foundation_analysis),\n    deep_investigation: getPhaseVisualState(currentExec.phases?.deep_investigation),\n    qe_intelligence: getPhaseVisualState(currentExec.phases?.qe_intelligence),\n    ai_analysis: getPhaseVisualState(currentExec.phases?.ai_analysis),\n    test_generation: getPhaseVisualState(currentExec.phases?.test_generation),\n    cleanup: getPhaseVisualState(currentExec.phases?.cleanup)\n  },\n  \n  // Agent states with visual indicators\n  agents: {\n    agent_a: getAgentVisualState(currentExec.agents?.agent_a, 'JIRA Intelligence'),\n    agent_d: getAgentVisualState(currentExec.agents?.agent_d, 'Environment Assessment'),\n    agent_b: getAgentVisualState(currentExec.agents?.agent_b, 'Documentation Analysis'),\n    agent_c: getAgentVisualState(currentExec.agents?.agent_c, 'GitHub Investigation')\n  },\n  \n  // Overall metrics\n  metrics: {\n    overall_progress: calculateProgress(currentExec),\n    active_phase: getActivePhase(currentExec),\n    active_agents: getActiveAgents(currentExec),\n    execution_time: getExecutionTime(currentExec),\n    completion_estimate: getCompletionEstimate(currentExec)\n  }\n};\n\nfunction getPhaseVisualState(phase) {\n  if (!phase) return { status: 'pending', icon: '⏳', color: '#666' };\n  \n  const states = {\n    'starting': { icon: '🔄', color: '#ff9800', animation: 'pulse' },\n    'running': { icon: '⚡', color: '#2196f3', animation: 'pulse' },\n    'completed': { icon: '✅', color: '#4caf50', animation: 'none' },\n    'failed': { icon: '❌', color: '#f44336', animation: 'shake' }\n  };\n  \n  return states[phase.status] || { status: phase.status, icon: '❓', color: '#999' };\n}\n\nfunction getAgentVisualState(agent, name) {\n  const state = {\n    name: name,\n    status: agent?.status || 'inactive',\n    confidence: agent?.confidence || null,\n    execution_time: agent?.execution_time || null\n  };\n  \n  const visualStates = {\n    'inactive': { icon: '⚪', color: '#666', glow: false },\n    'starting': { icon: '🔄', color: '#ff9800', glow: true },\n    'running': { icon: '⚡', color: '#2196f3', glow: true },\n    'completed': { icon: '✅', color: '#4caf50', glow: false },\n    'failed': { icon: '❌', color: '#f44336', glow: false }\n  };\n  \n  return { ...state, ...visualStates[state.status] };\n}\n\nfunction calculateProgress(exec) {\n  const phases = Object.values(exec.phases || {});\n  if (phases.length === 0) return 0;\n  \n  const weights = {\n    'initialization': 5,\n    'foundation_analysis': 20,\n    'deep_investigation': 20,\n    'qe_intelligence': 10,\n    'ai_analysis': 20,\n    'test_generation': 20,\n    'cleanup': 5\n  };\n  \n  let progress = 0;\n  Object.entries(exec.phases || {}).forEach(([phaseName, phase]) => {\n    if (phase.status === 'completed') {\n      progress += weights[phaseName] || 0;\n    } else if (phase.status === 'running') {\n      progress += (weights[phaseName] || 0) * 0.5;\n    }\n  });\n  \n  return Math.round(progress);\n}\n\nfunction getActivePhase(exec) {\n  const phaseOrder = ['initialization', 'foundation_analysis', 'deep_investigation', 'qe_intelligence', 'ai_analysis', 'test_generation', 'cleanup'];\n  \n  for (const phaseName of phaseOrder) {\n    const phase = exec.phases?.[phaseName];\n    if (phase?.status === 'running' || phase?.status === 'starting') {\n      return phaseName.replace(/_/g, ' ').toUpperCase();\n    }\n  }\n  \n  return 'IDLE';\n}\n\nfunction getActiveAgents(exec) {\n  return Object.entries(exec.agents || {})\n    .filter(([_, agent]) => agent.status === 'running' || agent.status === 'starting')\n    .map(([name, _]) => name.replace(/_/g, ' ').toUpperCase());\n}\n\nfunction getExecutionTime(exec) {\n  if (!exec.start_time) return '00:00:00';\n  \n  const start = new Date(exec.start_time);\n  const now = new Date();\n  const diff = now - start;\n  \n  const hours = Math.floor(diff / 3600000);\n  const minutes = Math.floor((diff % 3600000) / 60000);\n  const seconds = Math.floor((diff % 60000) / 1000);\n  \n  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;\n}\n\nfunction getCompletionEstimate(exec) {\n  const progress = calculateProgress(exec);\n  if (progress === 0) return 'Not started';\n  if (progress === 100) return 'Completed';\n  \n  // Estimate based on current progress and time\n  const elapsedMinutes = exec.start_time ? (new Date() - new Date(exec.start_time)) / 60000 : 0;\n  const estimatedTotal = elapsedMinutes / (progress / 100);\n  const remainingMinutes = Math.round(estimatedTotal - elapsedMinutes);\n  \n  if (remainingMinutes < 1) return 'Less than 1 minute';\n  if (remainingMinutes < 60) return `~${remainingMinutes} minutes`;\n  \n  const hours = Math.floor(remainingMinutes / 60);\n  const mins = remainingMinutes % 60;\n  return `~${hours}h ${mins}m`;\n}\n\nreturn [{ json: visualState }];"
+      },
+      "id": "build-visual-state",
+      "name": "🎨 Build Visual State",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate interactive HTML dashboard\nconst items = $input.all();\nconst state = items[0].json;\n\nconst dashboardHTML = `\n<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <title>AI Framework Monitor - ${state.jira_ticket}</title>\n    <style>\n        * { margin: 0; padding: 0; box-sizing: border-box; }\n        \n        body {\n            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\n            background: #0a0a0a;\n            color: #fff;\n            min-height: 100vh;\n            display: flex;\n            align-items: center;\n            justify-content: center;\n        }\n        \n        .dashboard {\n            width: 95%;\n            max-width: 1600px;\n            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);\n            border-radius: 20px;\n            padding: 40px;\n            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);\n        }\n        \n        .header {\n            text-align: center;\n            margin-bottom: 40px;\n        }\n        \n        .title {\n            font-size: 2.5em;\n            font-weight: 700;\n            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);\n            -webkit-background-clip: text;\n            -webkit-text-fill-color: transparent;\n            margin-bottom: 10px;\n        }\n        \n        .subtitle {\n            font-size: 1.2em;\n            color: #8892b0;\n        }\n        \n        .metrics-grid {\n            display: grid;\n            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));\n            gap: 20px;\n            margin-bottom: 40px;\n        }\n        \n        .metric-card {\n            background: rgba(255, 255, 255, 0.05);\n            border: 1px solid rgba(255, 255, 255, 0.1);\n            border-radius: 15px;\n            padding: 20px;\n            text-align: center;\n            backdrop-filter: blur(10px);\n        }\n        \n        .metric-value {\n            font-size: 2em;\n            font-weight: 700;\n            color: #64ffda;\n            margin-bottom: 5px;\n        }\n        \n        .metric-label {\n            font-size: 0.9em;\n            color: #8892b0;\n            text-transform: uppercase;\n            letter-spacing: 1px;\n        }\n        \n        .progress-container {\n            margin-bottom: 40px;\n        }\n        \n        .progress-bar {\n            width: 100%;\n            height: 40px;\n            background: rgba(255, 255, 255, 0.1);\n            border-radius: 20px;\n            overflow: hidden;\n            position: relative;\n        }\n        \n        .progress-fill {\n            height: 100%;\n            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);\n            transition: width 0.5s ease;\n            display: flex;\n            align-items: center;\n            justify-content: center;\n            color: white;\n            font-weight: bold;\n            font-size: 1.1em;\n        }\n        \n        .phases-container {\n            margin-bottom: 40px;\n        }\n        \n        .section-title {\n            font-size: 1.5em;\n            margin-bottom: 20px;\n            color: #ccd6f6;\n        }\n        \n        .phases-grid {\n            display: grid;\n            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));\n            gap: 15px;\n        }\n        \n        .phase-card {\n            background: rgba(255, 255, 255, 0.05);\n            border: 2px solid transparent;\n            border-radius: 12px;\n            padding: 20px;\n            transition: all 0.3s ease;\n            position: relative;\n            overflow: hidden;\n        }\n        \n        .phase-card.pending {\n            border-color: #666;\n            opacity: 0.6;\n        }\n        \n        .phase-card.starting, .phase-card.running {\n            border-color: #2196f3;\n            animation: pulse 2s infinite;\n        }\n        \n        .phase-card.completed {\n            border-color: #4caf50;\n        }\n        \n        .phase-card.failed {\n            border-color: #f44336;\n            animation: shake 0.5s;\n        }\n        \n        .phase-header {\n            display: flex;\n            align-items: center;\n            gap: 10px;\n            margin-bottom: 10px;\n        }\n        \n        .phase-icon {\n            font-size: 1.5em;\n        }\n        \n        .phase-name {\n            font-weight: 600;\n            text-transform: uppercase;\n            font-size: 0.9em;\n        }\n        \n        .agents-grid {\n            display: grid;\n            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));\n            gap: 20px;\n        }\n        \n        .agent-card {\n            background: rgba(255, 255, 255, 0.05);\n            border: 2px solid transparent;\n            border-radius: 12px;\n            padding: 25px;\n            text-align: center;\n            transition: all 0.3s ease;\n        }\n        \n        .agent-card.inactive {\n            opacity: 0.5;\n            border-color: #666;\n        }\n        \n        .agent-card.starting, .agent-card.running {\n            border-color: #2196f3;\n            box-shadow: 0 0 30px rgba(33, 150, 243, 0.3);\n        }\n        \n        .agent-card.completed {\n            border-color: #4caf50;\n        }\n        \n        .agent-icon {\n            font-size: 3em;\n            margin-bottom: 15px;\n            display: block;\n        }\n        \n        .agent-name {\n            font-weight: 600;\n            margin-bottom: 10px;\n            color: #ccd6f6;\n        }\n        \n        .agent-metrics {\n            display: flex;\n            justify-content: space-around;\n            margin-top: 15px;\n            font-size: 0.9em;\n        }\n        \n        .agent-metric {\n            text-align: center;\n        }\n        \n        .agent-metric-value {\n            font-weight: 700;\n            color: #64ffda;\n        }\n        \n        @keyframes pulse {\n            0%, 100% { opacity: 1; transform: scale(1); }\n            50% { opacity: 0.8; transform: scale(1.02); }\n        }\n        \n        @keyframes shake {\n            0%, 100% { transform: translateX(0); }\n            25% { transform: translateX(-5px); }\n            75% { transform: translateX(5px); }\n        }\n        \n        .timestamp {\n            text-align: center;\n            color: #8892b0;\n            font-size: 0.9em;\n            margin-top: 30px;\n        }\n    </style>\n    <meta http-equiv=\"refresh\" content=\"5\">\n</head>\n<body>\n    <div class=\"dashboard\">\n        <div class=\"header\">\n            <h1 class=\"title\">🚀 AI Test Generator Monitor</h1>\n            <p class=\"subtitle\">Real-time Framework Execution Tracking</p>\n        </div>\n        \n        <div class=\"metrics-grid\">\n            <div class=\"metric-card\">\n                <div class=\"metric-value\">${state.jira_ticket}</div>\n                <div class=\"metric-label\">JIRA Ticket</div>\n            </div>\n            <div class=\"metric-card\">\n                <div class=\"metric-value\">${state.metrics.overall_progress}%</div>\n                <div class=\"metric-label\">Progress</div>\n            </div>\n            <div class=\"metric-card\">\n                <div class=\"metric-value\">${state.metrics.execution_time}</div>\n                <div class=\"metric-label\">Duration</div>\n            </div>\n            <div class=\"metric-card\">\n                <div class=\"metric-value\">${state.metrics.completion_estimate}</div>\n                <div class=\"metric-label\">ETA</div>\n            </div>\n        </div>\n        \n        <div class=\"progress-container\">\n            <div class=\"progress-bar\">\n                <div class=\"progress-fill\" style=\"width: ${state.metrics.overall_progress}%\">\n                    ${state.metrics.overall_progress}% Complete\n                </div>\n            </div>\n        </div>\n        \n        <div class=\"phases-container\">\n            <h2 class=\"section-title\">📊 Framework Phases</h2>\n            <div class=\"phases-grid\">\n                ${Object.entries(state.phases).map(([phase, info]) => `\n                    <div class=\"phase-card ${info.status || 'pending'}\">\n                        <div class=\"phase-header\">\n                            <span class=\"phase-icon\">${info.icon}</span>\n                            <span class=\"phase-name\">${phase.replace(/_/g, ' ')}</span>\n                        </div>\n                    </div>\n                `).join('')}\n            </div>\n        </div>\n        \n        <div class=\"agents-container\">\n            <h2 class=\"section-title\">🤖 Agent Status</h2>\n            <div class=\"agents-grid\">\n                ${Object.entries(state.agents).map(([agent, info]) => `\n                    <div class=\"agent-card ${info.status}\">\n                        <span class=\"agent-icon\">${info.icon}</span>\n                        <div class=\"agent-name\">${info.name}</div>\n                        <div class=\"agent-status\">${info.status.toUpperCase()}</div>\n                        ${info.confidence || info.execution_time ? `\n                            <div class=\"agent-metrics\">\n                                ${info.confidence ? `\n                                    <div class=\"agent-metric\">\n                                        <div class=\"agent-metric-value\">${info.confidence}%</div>\n                                        <div class=\"metric-label\">Confidence</div>\n                                    </div>\n                                ` : ''}\n                                ${info.execution_time ? `\n                                    <div class=\"agent-metric\">\n                                        <div class=\"agent-metric-value\">${info.execution_time}s</div>\n                                        <div class=\"metric-label\">Time</div>\n                                    </div>\n                                ` : ''}\n                            </div>\n                        ` : ''}\n                    </div>\n                `).join('')}\n            </div>\n        </div>\n        \n        <div class=\"timestamp\">\n            Last Updated: ${new Date(state.timestamp).toLocaleString()}\n        </div>\n    </div>\n</body>\n</html>\n`;\n\nreturn [{ json: { html: dashboardHTML, state: state } }];"
+      },
+      "id": "generate-html",
+      "name": "🖥️ Generate HTML Dashboard",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 500]
+    },
+    {
+      "parameters": {
+        "operation": "writeFile",
+        "fileName": "/tmp/ai_framework_dashboard.html",
+        "fileContent": "={{$json.html}}",
+        "options": {}
+      },
+      "id": "write-dashboard",
+      "name": "💾 Save Dashboard",
+      "type": "n8n-nodes-base.fileSystem",
+      "typeVersion": 1,
+      "position": [850, 500]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "status",
+              "value": "Dashboard updated successfully"
+            },
+            {
+              "name": "file_path",
+              "value": "/tmp/ai_framework_dashboard.html"
+            },
+            {
+              "name": "dashboard_url",
+              "value": "http://localhost:8080/ai_framework_dashboard.html"
+            },
+            {
+              "name": "state",
+              "value": "={{JSON.stringify($json.state)}}"
+            }
+          ]
+        }
+      },
+      "id": "response",
+      "name": "📤 Response",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [1050, 500]
+    }
+  ],
+  "connections": {
+    "📡 Visual Status Webhook": {
+      "main": [
+        [
+          {
+            "node": "🎨 Build Visual State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔄 Dashboard Refresh": {
+      "main": [
+        [
+          {
+            "node": "🎨 Build Visual State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎨 Build Visual State": {
+      "main": [
+        [
+          {
+            "node": "🖥️ Generate HTML Dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🖥️ Generate HTML Dashboard": {
+      "main": [
+        [
+          {
+            "node": "💾 Save Dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 Save Dashboard": {
+      "main": [
+        [
+          {
+            "node": "📤 Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2025-01-03T12:00:00.000Z",
+  "versionId": "1"
+}
+

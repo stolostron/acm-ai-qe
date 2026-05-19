@@ -5,7 +5,7 @@ description: >-
   console logs, downstream trees, and (with approval) triggering builds. Use when
   you need Jenkins pipeline data, logs, JUnit results, or to monitor or trigger jobs.
   Prefer the jenkins MCP in Cursor and Claude Code when configured (same MCP set in both
-  places, except Engram). Bundled REST docs and scripts/jenkins_api.py cover portability,
+  places). Bundled REST docs and scripts/jenkins_api.py cover portability,
   stdlib-only scripts, and any host without the MCP.
 compatibility: >-
   Requires VPN for Red Hat Jenkins and API credentials in ~/.jenkins/config.json
@@ -19,7 +19,7 @@ metadata:
 
 # Jenkins CI Client
 
-**Primary path:** use the **jenkins** MCP tools below (expected when Cursor and Claude Code are onboarded with the same MCP stack — all except Engram). That is not a bottleneck for normal QE use.
+**Primary path:** use the **jenkins** MCP tools below (expected when Cursor and Claude Code are onboarded with the same MCP stack). That is not a bottleneck for normal QE use.
 
 **Also documented:** Jenkins **Remote API** and **`jenkins_api.py`** — for stdlib-only automation (e.g. inventory refresh), `curl`/CI jobs, or any context where the agent does not expose the MCP. See [references/jenkins-remote-api.md](references/jenkins-remote-api.md) and `python3 "${CLAUDE_SKILL_DIR}/scripts/jenkins_api.py" --help`.
 

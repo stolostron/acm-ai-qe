@@ -44,19 +44,41 @@ Application Lifecycle (ALC) in ACM Console manages application deployments acros
 | `applicationDetails` | `/multicloud/applications/details/:namespace/:name` | App details |
 | `applicationTopology` | `/multicloud/applications/details/:namespace/:name/topology` | Topology view |
 
+## Create Application Dropdown
+
+The "Create application" button on the Overview tab presents three options:
+
+| Option | Description (from UI) | Status |
+|--------|----------------------|--------|
+| Argo CD ApplicationSet - Pull model | "Considered the better choice for security although you cannot deploy to hub cluster. Managed clusters pull application resources from the Git repository." | Active (recommended) |
+| Argo CD ApplicationSet - Push model | "Hub cluster pushes application resources to managed clusters requiring credentials for each cluster." | Active |
+| Subscription | (legacy model) | **Deprecated** |
+
+A "Compare application types" link is shown next to the Create button for side-by-side comparison.
+
 ## Deployment Models
 
-### 1. Subscription Model
+### 1. Subscription Model (DEPRECATED)
 Channel → Subscription → PlacementRule → ManifestWork → spokes
 - User selects source (channel), target (placement), and configuration
 - Subscription controller creates ManifestWork for each target cluster
 - Status aggregated from spoke addon reports
+- Deprecated in favor of ArgoCD ApplicationSets; still functional but no longer recommended
 
-### 2. ArgoCD/GitOps Model
-ApplicationSet → GitOps Addon → ArgoCD on hub or spokes
-- Requires `openshift-gitops` operator installed
-- ApplicationSet CRD must be registered
-- Different creation wizard from Subscription model
+### 2. ArgoCD/GitOps -- Pull Model (Recommended)
+ApplicationSet definition distributed to spokes → each spoke's ArgoCD pulls from Git → deploys locally
+- Each managed cluster runs its own ArgoCD instance (via OpenShift GitOps Operator on spokes)
+- Hub distributes the ApplicationSet definition; spokes independently reconcile
+- Hub does NOT need credentials to target clusters for deployment
+- More secure: spoke compromise does not expose other spokes
+- **Limitation:** cannot deploy to the hub cluster itself (hub is not a target in pull model)
+
+### 3. ArgoCD/GitOps -- Push Model
+Hub ArgoCD connects to spokes → pushes resources directly
+- ArgoCD runs only on the hub cluster
+- Hub needs credentials (kubeconfig/service account token) for every target cluster
+- Simpler to set up (single ArgoCD instance)
+- **Risk:** hub compromise exposes all spoke clusters via stored credentials
 
 ## Setup Prerequisites
 
@@ -72,8 +94,10 @@ ApplicationSet → GitOps Addon → ArgoCD on hub or spokes
 |-----|-------------|---------|
 | `Applications` | "Applications" | Navigation tab |
 | `Create application` | "Create application" | Button |
-| `Subscription` | "Subscription" | Application type in create wizard |
-| `Argo CD` | "Argo CD" | Application type in create wizard |
+| `Subscription` | "Subscription" | Application type in create dropdown (deprecated) |
+| `Argo CD ApplicationSet - Pull model` | "Argo CD ApplicationSet - Pull model" | Application type in create dropdown |
+| `Argo CD ApplicationSet - Push model` | "Argo CD ApplicationSet - Push model" | Application type in create dropdown |
+| `Compare application types` | "Compare application types" | Link next to Create button |
 | `Topology` | "Topology" | Tab in application details |
 | `Sync` | "Sync" | ArgoCD sync status/action |
 | `Healthy` | "Healthy" | ArgoCD health status |

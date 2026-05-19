@@ -15,7 +15,7 @@ Known cases where the classification pipeline gets confused and why.
 
 **How to detect:** If the commit message says "rename", "update text", "rebrand", or the PR is labeled as a planned change -> AUTOMATION_BUG. If the change was unintentional and breaks expected behavior -> PRODUCT_BUG.
 
-**Mitigation:** PR-3 (stale test signal) partially addresses this by looking at commit message patterns, but it's not perfect for label-only changes.
+**Mitigation:** D-V5e mandatory gate (v4.0) requires ACM-Source MCP verification before PRODUCT_BUG. If product source confirms the new text exists and the old text was intentionally replaced, classification must be AUTOMATION_BUG. PR-3 (stale test signal) provides supporting evidence via commit message patterns.
 
 ---
 
@@ -83,3 +83,48 @@ Known cases where the classification pipeline gets confused and why.
 **Impact:** The app falls back to Jenkins-only analysis (error messages, stack traces, selector search). This is still ~85-91% accurate but misses infrastructure issues that require cluster inspection.
 
 **Mitigation:** The app explicitly reports when cluster access is degraded so the user knows the analysis has limitations.
+
+---
+
+## 7. Missing Environment Resource -> Classified as PRODUCT_BUG
+
+**What happens:** Test expects a specific resource (e.g., `open-cluster-management-backup` ManagedClusterSet) that requires an operator to be deployed. The operator is enabled in MCH config but not fully deployed. The CSV export or page correctly shows only what exists.
+
+**App says:** PRODUCT_BUG (expected data missing from export/page)
+**Correct:** AUTOMATION_BUG (test hardcodes assumption about environment state)
+
+**Why it's wrong:** The product correctly exports/renders whatever resources exist. The test assertion assumes specific resources exist without verifying.
+
+**How to detect:** D-V5e check #3 requires cross-referencing cluster oracle and cluster-diagnosis.json. If the expected resource's operator/components show `status=missing`, the environment doesn't have the prerequisite.
+
+**Mitigation:** D-V5e mandatory gate (v4.0) requires environment prerequisite cross-reference before PRODUCT_BUG.
+
+---
+
+## 8. PF6 DOM Structure Change -> Classified as PRODUCT_BUG
+
+**What happens:** PF5→PF6 migration changes the DOM structure (e.g., `Text` → `Content`, `ListItem` renders differently). Product source has the correct content unchanged, but test selectors can't find it in the new DOM structure.
+
+**App says:** PRODUCT_BUG (content not found on page)
+**Correct:** AUTOMATION_BUG (PF6 DOM structure change, test selector needs update)
+
+**Why it's wrong:** The agent assumes content removal without verifying the product source. The text exists — the DOM traversal path changed.
+
+**How to detect:** D-V5e check #1 requires ACM-Source MCP verification. If `search_translations()` or `search_code()` finds the text in the product source, the content exists — the test selector is wrong.
+
+**Mitigation:** D-V5e mandatory gate (v4.0) requires product source verification. Phase A4 Rule 1c detects PF6 migration patterns (3+ element-not-found with healthy infrastructure).
+
+---
+
+## 9. RBAC Assumption Without Source Check -> Classified as PRODUCT_BUG
+
+**What happens:** A UI element is disabled for a restricted user. The agent assumes RBAC is intentionally disabling the element and classifies as PRODUCT_BUG ("access control blocks user").
+
+**App says:** PRODUCT_BUG (UI restricts user incorrectly)
+**Correct:** AUTOMATION_BUG (product has no RBAC logic in that component — disabled state is a PF6/DOM issue)
+
+**Why it's wrong:** The agent infers RBAC logic without checking if the component actually has permission checks. Many UI components have zero RBAC awareness.
+
+**How to detect:** D-V5e check #1 requires searching the product source for permission/access hooks (useAccess, useClusterPermissions, etc.) in the relevant component.
+
+**Mitigation:** D-V5e mandatory gate (v4.0) requires ACM-Source MCP verification of actual product behavior.

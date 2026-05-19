@@ -6,10 +6,7 @@
 
 The test case generation capability is available as a portable skill pack (7 skills) that works on Claude.ai, Claude Code, and API. The orchestrator skill (`acm-test-case-generator`) coordinates the pipeline. MCP tools (jira, acm-source, polarion, neo4j-rhacm) are called directly by subagents.
 
-**MCP servers needed:**
-- Required: acm-source, jira, polarion
-- Recommended: neo4j-rhacm (architecture dependency analysis)
-- Optional: acm-search (live cluster queries), acm-kubectl (spoke access), playwright (browser validation)
+**MCP servers needed:** acm-source, jira, polarion, neo4j-rhacm, acm-search, acm-kubectl, playwright
 
 **Credentials needed:** JIRA (email + API token), Polarion (JWT token)
 
@@ -28,10 +25,7 @@ The hub health diagnostic capability is available as a portable skill pack (3 sk
 - `acm-cluster-remediation` -- Cluster mutations with structured approval workflow (separate from diagnosis)
 - `acm-knowledge-learner` -- Discover unknown components, learn from cluster state, refresh baselines
 
-**MCP servers needed:**
-- Required: None (uses `oc` CLI directly)
-- Recommended: neo4j-rhacm (architecture dependency analysis)
-- Optional: acm-search (fleet-wide spoke queries)
+**MCP servers needed:** acm-source, neo4j-rhacm, acm-search
 
 **Credentials needed:** `oc login` to the ACM hub cluster
 
@@ -50,10 +44,7 @@ The z-stream failure analysis capability is available as a portable skill pack (
 - `acm-data-enricher` -- Data enrichment (selector verification, timeline analysis, knowledge gaps)
 - `acm-jenkins-client` -- Jenkins CI interface
 
-**MCP servers needed:**
-- Required: acm-source, jira, jenkins, polarion
-- Recommended: neo4j-rhacm (dependency analysis)
-- Optional: acm-search (fleet queries), acm-kubectl (spoke access)
+**MCP servers needed:** acm-source, jira, jenkins, polarion, neo4j-rhacm
 
 **Credentials needed:** JIRA (email + API token), Jenkins (username + API token), Polarion (JWT token)
 
@@ -114,13 +105,13 @@ Generates Polarion-ready test cases from JIRA tickets. 6-phase subagent pipeline
 
 ## MCP Server Reference
 
-| Server | Type | Credentials | Optional? |
-|--------|------|-------------|-----------|
-| acm-source | Local (this repo) | GitHub CLI auth (`gh auth login`) | No |
-| jira | External (cloned) | JIRA email + API token | No (for z-stream, test-case-gen) |
-| jenkins | External (cloned) | Jenkins username + API token | No (for z-stream only) |
-| polarion | Local (this repo) | Polarion JWT token (VPN required) | No (for z-stream, test-case-gen) |
-| neo4j-rhacm | PyPI (uvx) | None (local container) | Yes — dependency analysis degraded without it |
-| acm-search | External (cloned) | None (on-cluster deployment) | Yes — spoke-side visibility lost without it |
-| acm-kubectl | npm (npx) | None (uses oc login) | Yes — only needed for test-case-gen live validation |
-| playwright | npm (npx) | None (browser automation) | Yes — only needed for test-case-gen live validation |
+| Server | Type | Credentials | Used By |
+|--------|------|-------------|---------|
+| acm-source | Local (this repo) | GitHub CLI auth (`gh auth login`) | All apps and skills |
+| jira | External (cloned) | JIRA email + API token | z-stream, test-case-gen |
+| jenkins | External (cloned) | Jenkins username + API token | z-stream |
+| polarion | Local (this repo) | Polarion JWT token (VPN required) | z-stream, test-case-gen |
+| neo4j-rhacm | PyPI (uvx) | None (local container) | All apps (dependency analysis) |
+| acm-search | External (cloned) | None (on-cluster deployment) | hub-health, test-case-gen, z-stream |
+| acm-kubectl | npm (npx) | None (uses oc login) | test-case-gen, z-stream |
+| playwright | npm (npx) | None (browser automation) | test-case-gen |

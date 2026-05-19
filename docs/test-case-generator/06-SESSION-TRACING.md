@@ -260,10 +260,12 @@ On each `Stop` event, the hook reads back the entire trace file and writes a one
 
 ## Pipeline Telemetry
 
-Three Python scripts write events to `pipeline.log.jsonl` in each run directory:
+Two Python scripts in the portable skill pack write events to `pipeline.log.jsonl` in each run directory:
 
-- **`gather.py`** and **`report.py`** use `PipelineTelemetry` for Phases 1 and 8
-- **`log_phase.py`** writes `phase_end` events for AI phases (1–7), called by the orchestrator after each subagent completes
+- **`gather.py`** uses `PipelineTelemetry` for Phase 1 (data gathering)
+- **`report.py`** uses `PipelineTelemetry` for Phase 8 (report generation)
+
+> **App pipeline note:** The app pipeline (`apps/test-case-generator/`) also includes `log_phase.py` (`python -m src.scripts.log_phase`), which writes `phase_end` events for AI phases (1–7) called by the orchestrator after each subagent completes. This script is NOT part of the portable skill pack — in the portable skill, only `gather.py` and `report.py` emit telemetry.
 
 ### Events
 
@@ -272,23 +274,8 @@ Three Python scripts write events to `pipeline.log.jsonl` in each run directory:
 | `pipeline_start` | `gather.py` | `jira_id` | Script initialization |
 | `phase_start` | `gather.py`/`report.py` | `phase` | Phase begins |
 | `phase_end` | `gather.py`/`report.py` | `phase`, `elapsed_seconds`, custom metadata | Phase completes |
-| `phase_end` | `log_phase.py` | `phase`, custom metadata (verdict, mcp_verifications, etc.) | AI subagent completes |
 | `pipeline_end` | `report.py` | `total_elapsed_seconds`, `verdict` | Script finishes |
 | `error` | `gather.py`/`report.py` | `phase`, `error` | Error occurs |
-
-### Phase Telemetry (log_phase.py)
-
-```bash
-python -m src.scripts.log_phase <run-dir> <phase> [--key value ...]
-```
-
-Writes one JSONL entry per call. Reads `jira_id` from `gather-output.json` automatically.
-
-Example output:
-```json
-{"timestamp": "2026-04-28T03:55:10Z", "event": "phase_end", "jira_id": "ACM-30459", "phase": "phase_2"}
-{"timestamp": "2026-04-28T03:56:20Z", "event": "phase_end", "jira_id": "ACM-30459", "phase": "phase_8", "verdict": "PASS", "mcp_verifications": 5}
-```
 
 ### Phase 1 Metadata
 

@@ -156,6 +156,19 @@ Key output sections:
 - Credentials masked in output
 - Audit trail maintained in run directory
 
+## MCP Availability
+
+If an MCP is unavailable, degrade the investigation tier rather than aborting:
+
+| MCP | Used In | Fallback |
+|-----|---------|----------|
+| acm-source | Tier 1+ selector verification | Stay at Tier 0 (extracted context only). Note `console_search` results as "unverified" |
+| neo4j-rhacm | Tier 4 dependency analysis | Use `${KNOWLEDGE_DIR}/dependencies/` knowledge files instead |
+| jira | Phase E bug correlation | Skip Phase E. Set `jira_correlation: "unavailable"` in output |
+| polarion | PR-6b expected behavior | Skip PR-6b. Rely on other pre-routing checks |
+
+Lower-tier classifications are still valid — just note reduced confidence and which MCPs were unavailable.
+
 ## Gotchas
 
 1. **Anchoring bias on cluster health** -- A degraded cluster does NOT mean all failures are INFRASTRUCTURE. Each test still needs per-test causal link verification. A single cluster issue can coexist with automation bugs and product bugs.

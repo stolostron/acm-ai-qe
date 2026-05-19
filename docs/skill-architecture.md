@@ -1,6 +1,6 @@
 # Skill Architecture
 
-How all 14 portable ACM skills fit together.
+How all 17 portable ACM skills fit together.
 
 ## Skill Inventory
 
@@ -44,6 +44,19 @@ Skill selection / description disambiguation for this workflow: [test-case-gener
 | `acm-cluster-investigator` | Per-group 12-layer root cause investigation | acm-cluster-health (+ acm-source, neo4j-rhacm, jira, polarion MCPs) |
 | `acm-data-enricher` | Data enrichment (selector verification, timeline analysis, knowledge gaps) | (acm-source, jira MCPs) |
 | `acm-jenkins-client` | Jenkins CI MCP interface | None |
+
+### Bug Investigation Skills (2)
+
+| Skill | Purpose | Uses Shared Skills / MCPs |
+|-------|---------|--------------------------|
+| `acm-bug-hunter` | Orchestrator: 10-dimension implementation audit using test cases as starting points | acm-qe-code-analyzer, acm-knowledge-base (+ jira, acm-source, polarion, neo4j-rhacm MCPs) |
+| `acm-bug-fix-verifier` | Orchestrator: 6-phase pipeline to verify bug fixes landed in target environments | (jira, neo4j-rhacm, acm-source, playwright, acm-search, acm-kubectl MCPs) |
+
+### Environment Management Skills (1)
+
+| Skill | Purpose | Uses Shared Skills / MCPs |
+|-------|---------|--------------------------|
+| `acm-environment-finder` | Find, provision, or destroy ACM QE test environments via Jenkins job history and hub validation | acm-hub-health-check (+ jenkins MCP) |
 
 ## Design Principles
 

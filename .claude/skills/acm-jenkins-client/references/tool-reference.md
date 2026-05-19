@@ -1,6 +1,6 @@
 # Jenkins MCP Tool Reference
 
-Field shapes below describe **MCP** responses. In Cursor and Claude Code with the same MCP stack configured (except Engram), prefer these tools over hand-built REST. For HTTP parity, see [jenkins-remote-api.md](jenkins-remote-api.md).
+Field shapes below describe **MCP** responses. In Cursor and Claude Code with the same MCP stack configured, prefer these tools over hand-built REST. For HTTP parity, see [jenkins-remote-api.md](jenkins-remote-api.md).
 
 ## Build Data Fields
 

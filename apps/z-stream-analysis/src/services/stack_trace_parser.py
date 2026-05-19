@@ -433,21 +433,25 @@ class StackTraceParser:
 
     def extract_failing_selector(self, error_message: str) -> Optional[str]:
         """
-        Extract the failing selector from an error message.
+        Extract the failing CSS selector from a Cypress error message.
 
-        Common patterns:
-        - "Expected to find element: `#selector`, but never found it"
-        - "Timed out retrying: cy.get('#selector')"
-        - "Element not found: .class-name"
+        Handles backtick-delimited selectors with embedded quotes,
+        tag-prefixed selectors (div#id, input[attr], button.class),
+        and aria-label attribute selectors.
         """
         patterns = [
-            # Cypress element not found
-            re.compile(r"Expected to find element:\s*[`'\"]?([^`'\"]+)[`'\"]?"),
-            re.compile(r"cy\.get\(['\"]([^'\"]+)['\"]\)"),
-            re.compile(r"cy\.find\(['\"]([^'\"]+)['\"]\)"),
+            # Backtick-delimited (Cypress default) — must come first
+            re.compile(r"Expected to find element:\s*`([^`]+)`"),
+            re.compile(r"cy\.(?:get|find|click)\(['\"]([^'\"]+)['\"]\)"),
+
+            # Cypress "not visible" — extract from HTML tag
+            re.compile(r"not visible:\s*`<(\w+)\s[^`]*(?:class=\"([^\"]+)\"|aria-label=\"([^\"]+)\"|id=\"([^\"]+)\")"),
+
+            # Cypress role-based
+            re.compile(r"Expected to find.*role\s+['\"](\w+)['\"]"),
 
             # Generic element patterns
-            re.compile(r"Element[^:]*:\s*[`'\"]?([#.][^`'\">\s]+)[`'\"]?"),
+            re.compile(r"Element[^:]*:\s*[`'\"]?([^`'\">,\s]+[#.\[][^`'\">,\s]*)[`'\"]?"),
             re.compile(r"selector[^:]*:\s*[`'\"]?([^`'\"]+)[`'\"]?", re.IGNORECASE),
 
             # Quoted selectors
@@ -458,17 +462,50 @@ class StackTraceParser:
         for pattern in patterns:
             match = pattern.search(error_message)
             if match:
+                # For "not visible" pattern, reconstruct selector from groups
+                if 'not visible' in pattern.pattern:
+                    tag = match.group(1)
+                    cls = match.group(2)
+                    aria = match.group(3)
+                    elem_id = match.group(4)
+                    if cls:
+                        return f"{tag}.{cls.split()[0]}"
+                    if aria:
+                        return f'{tag}[aria-label="{aria}"]'
+                    if elem_id:
+                        return f"{tag}#{elem_id}"
+                    continue
+
+                # For role-based, return as-is
+                if 'role' in pattern.pattern:
+                    return f"[role='{match.group(1)}']"
+
                 selector = match.group(1).strip()
-                # Validate it looks like a selector
-                if selector and (
-                    selector.startswith('#') or
-                    selector.startswith('.') or
-                    selector.startswith('[') or
-                    'data-' in selector
-                ):
+                if not selector:
+                    continue
+
+                if self._is_valid_selector(selector):
                     return selector
 
         return None
+
+    @staticmethod
+    def _is_valid_selector(selector: str) -> bool:
+        """Check if a string looks like a CSS selector."""
+        if not selector or len(selector) < 2:
+            return False
+        # Reject hex color codes (#DB242F)
+        if re.match(r'^#[0-9A-Fa-f]{3,8}$', selector):
+            return False
+        # Accept: starts with #, ., [, or contains selector characters
+        if selector[0] in ('#', '.', '['):
+            return True
+        if 'data-' in selector or 'aria-' in selector:
+            return True
+        # Accept tag-prefixed: div#id, input[attr], button.class, tag:contains
+        if re.match(r'^[a-z]+[#.\[:]', selector):
+            return True
+        return False
 
     def get_context_range(self, frame: StackFrame, context_lines: int = 20) -> Tuple[int, int]:
         """

@@ -140,6 +140,20 @@ Read `references/classification-guide.md` for full definitions. Summary:
 | FLAKY | Inconsistent reproduction |
 | UNKNOWN | Insufficient evidence |
 
+## MCP Availability
+
+If an MCP server is unavailable (not configured or connection refused), degrade gracefully:
+
+| MCP | Impact if Missing | Fallback |
+|-----|------------------|----------|
+| acm-source | No selector verification in enrichment/classification | Skip Task 2 enrichment, classify with extracted context only |
+| jira | No bug correlation in Phase E | Skip Phase E, note "JIRA unavailable" in output |
+| polarion | No test case expected behavior lookup | Skip PR-6b check, rely on other evidence |
+| neo4j-rhacm | No dependency chain analysis | Use knowledge file dependency chains instead |
+| jenkins | No pre-flight connectivity check | Proceed if Jenkins URL is directly accessible via gather.py |
+
+Do NOT abort the pipeline for a missing optional MCP. Report which MCPs were unavailable in the pipeline summary.
+
 ## Pre-Flight Checks
 
 Before Stage 1, verify:

@@ -5,8 +5,8 @@
 The skill pack has 3 layers:
 
 1. **Shared skills** (3): Methodology and domain knowledge with zero workflow logic. Safe to modify independently.
-2. **App-specific skills** (8): Workflow logic for specific use cases. Modify with awareness of the orchestrator that calls them.
-3. **Orchestrators** (3): Pipeline controllers that compose shared and app-specific skills. Modify with full system understanding.
+2. **App-specific skills** (9): Workflow logic for specific use cases. Modify with awareness of the orchestrator that calls them.
+3. **Orchestrators** (5): Pipeline controllers that compose shared and app-specific skills. Modify with full system understanding.
 
 MCP tools (acm-source, jira, polarion, neo4j-rhacm) are called directly by subagents -- no wrapper skill needed.
 
@@ -37,6 +37,7 @@ When you modify a skill, here's what could be affected:
 | `acm-hub-health-check` | Hub health pipeline; remediation depends on its findings | Diagnostic logic changes affect report and remediation | High |
 | `acm-cluster-remediation` | Hub health pipeline | Mutation behavior changes affect cluster state | High |
 | `acm-knowledge-learner` | Hub health pipeline | Knowledge file writes change what future runs see | Low |
+| `acm-environment-finder` | Standalone (uses hub-health-check) | `refresh-inventory.py` / `hub_validation_gate.py` output or exit codes; finder-to-hub handoff | Medium |
 
 ### Orchestrators (modify with full system understanding)
 
@@ -45,6 +46,8 @@ When you modify a skill, here's what could be affected:
 | `acm-test-case-generator` | Entire TC-gen pipeline (9 phases, 7 agent files, 6 skills) | High |
 | `acm-z-stream-analyzer` | Entire z-stream pipeline (4 stages, 3 agents, 5 skills) | High |
 | `acm-hub-health-check` | Full diagnostic pipeline (6 phases, remediation, learning) | High |
+| `acm-bug-hunter` | Bug hunt pipeline (6 phases, per-dimension subagents, acm-qe-code-analyzer) | High |
+| `acm-bug-fix-verifier` | Verification pipeline (6 phases, JIRA/PR/env investigation, Playwright) | High |
 
 ## Hello World: Your First Contribution
 

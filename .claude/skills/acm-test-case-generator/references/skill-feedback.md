@@ -13,10 +13,11 @@ When a skill file produces incorrect guidance during pipeline execution, report 
 
 ## Where to Report
 
-File a GitHub issue on the `stolostron/ai-test-gen` repository:
+File a GitHub issue on the repository configured as **`origin`** for your **`ai_systems_v2`** clone (see **`git remote -v`** from that directory). From the repo root:
 
 ```bash
-gh issue create --repo stolostron/ai-test-gen \
+cd /path/to/ai_systems_v2
+gh issue create \
   --title "Skill feedback: <brief description>" \
   --label "skill-feedback" \
   --body "$(cat <<'EOF'

@@ -17,7 +17,7 @@ compatibility: >-
   Hub diagnostics: ../acm-hub-health-check/SKILL.md.
 metadata:
   author: acm-qe
-  version: "1.1.1"
+  version: "1.2.0"
 ---
 
 # ACM Environment Finder
@@ -135,6 +135,20 @@ When the **jenkins** MCP is available on the host, use **`get_job` / `get_build`
 1. Successful install with matching **RHACM_SNAPSHOT_TAG** / **ACM_CHANNEL** / user version substring.
 2. Matching **CLOUD_PROVIDER** / region.
 3. Newer timestamp.
+4. **No newer overwrite:** For each candidate, scan builds *after* it on the same `OCP_CLUSTER_NAME`. If a later build targets the same cluster with a different snapshot, the candidate is stale -- discard it.
+
+### Step E.5 -- Reachability gate (mandatory, before Step F)
+
+**NEVER present a candidate without verifying it is alive first.** The sheet is frequently stale (clusters destroyed but still listed as "Running"). For every candidate that passes Step E ranking:
+
+```bash
+curl -sk --max-time 10 -o /dev/null -w "%{http_code}" "https://console-openshift-console.apps.<cluster>.<domain>"
+```
+
+- **HTTP 200**: Proceed to Step F (full health check).
+- **Any other result** (000, ERR_NAME_NOT_RESOLVED, timeout): Discard. Mark as dead in working notes and move to next candidate.
+
+This is a fast (~1s) pre-filter. Do not skip it.
 
 ### Step F -- Health check (mandatory before recommending)
 
@@ -172,6 +186,25 @@ Default job: `CI-Jobs/ocp_deploy_and_acm_install`
 | Azure | `CLOUD_PROVIDER=AZURE` |
 | OCP 4.18 | `OCP_VERSION=4.18.x`, `OCP_RELEASE=stable-4.18` or user value |
 | Defaults | Document chosen defaults in the approval summary |
+
+### ACM_REPOSITORY default
+
+**Always use `konflux`** (team standard as of May 2026). Do not use `production` or `acm-d` unless the user explicitly requests it. This applies to all ACM versions including older z-streams (2.15, 2.16).
+
+### Cluster naming convention
+
+**NEVER use the `ci-` prefix** in `OCP_CLUSTER_NAME`. The `ci-` prefix is reserved for the automated CI process. Use descriptive names like `atif-215-hub`, `atif-az-50`, `test-217-virt`, etc. Pattern: `<user>-<version/purpose>-<optional-qualifier>`.
+
+### MCE snapshot tag mapping
+
+When provisioning, match the MCE version to the ACM version:
+
+| ACM version | MCE snapshot |
+|-------------|-------------|
+| latest-2.15 | latest-2.10 |
+| latest-2.16 | latest-2.11 |
+| latest-2.17 | latest-2.17 |
+| latest-5.0 | latest-5.0 |
 
 When the **jenkins** MCP is available, use **`get_job` / `get_build`** for configuration and recent builds before any trigger. If the MCP is unavailable, use REST per [references/jenkins-without-mcp.md](references/jenkins-without-mcp.md) and **`../acm-jenkins-client/references/jenkins-remote-api.md`**.
 

@@ -1,19 +1,22 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "acm-source-mcp-server"
 version = "0.2.0"
-description = "MCP server for ACM source code exploration via GitHub"
-readme = "README.md"
-requires-python = ">=3.10"
+description = "MCP server for ACM Console and Fleet Virtualization source code discovery"
+requires-python = ">=3.12"
 dependencies = [
-    "mcp>=1.0.0",
-    "python-dotenv>=1.0.0",
-    "pydantic>=2.0.0",
-    "pydantic-settings>=2.0.0"
+    "mcp",
+    "pydantic",
+    "pydantic-settings",
+    "python-dotenv",
+    "fastmcp>=2.14.3",
 ]
-
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
 
 [project.scripts]
 acm-source-mcp-server = "acm_source_mcp_server.main:main"
+
+[tool.setuptools.packages.find]
+include = ["acm_source_mcp_server*"]

@@ -70,7 +70,7 @@ Compact component status table with overall verdict. See
 Produces:
 
 ```markdown
-# Hub Health Report: ashafi-acm-216-ga
+# Hub Health Report: example-acm-hub-216-ga
 ## Overall Verdict: HEALTHY
 
 ## Component Status

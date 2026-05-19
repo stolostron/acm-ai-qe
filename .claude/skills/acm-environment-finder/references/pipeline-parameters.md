@@ -22,7 +22,7 @@ Description: Install OCP and ACM on a cloud provider.
 | `SKIP_ACM_INSTALL` | `true` / `false` -- if `true`, hub may be OCP-only |
 | `FIPS_ENABLED` | `true` / `false` |
 | `ACM_NAMESPACE` | Usually `ocm` |
-| `ACM_REPOSITORY` | konflux, acm-d, brew, production, ce |
+| `ACM_REPOSITORY` | konflux, acm-d, brew, production, ce. **Default to `konflux`** for all new provisions (current team standard as of May 2026). `production` was used historically but is no longer the norm. |
 
 ### Artifacts (successful installs)
 

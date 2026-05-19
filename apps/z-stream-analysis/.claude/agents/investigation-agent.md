@@ -232,8 +232,16 @@ Based on root cause layer + WHO/WHY:
 | Test selector stale (product renamed, test not updated) | AUTOMATION_BUG |
 | Test assertion expects old behavior | AUTOMATION_BUG |
 | Test setup incomplete (missing credentials, wrong parameters) | AUTOMATION_BUG |
+| Product intentionally changed text/UI (old → new, new is valid) | AUTOMATION_BUG |
+| Test expects resource/data that doesn't exist in environment | AUTOMATION_BUG |
 | Feature intentionally disabled or post-upgrade settling | NO_BUG |
 | After-all hook cascading from prior failure | NO_BUG |
+
+**PRODUCT_BUG gate:** Before classifying as PRODUCT_BUG, you MUST:
+1. Use ACM-Source MCP to verify product source code behavior (search_code, search_translations)
+2. Confirm the behavior is NOT an intentional product change (text update, UI reorganization)
+3. Cross-reference cluster oracle if the test depends on specific resources/operators
+4. Have at least 3 investigation steps with product source evidence
 
 ## MCP Tools Available
 

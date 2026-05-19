@@ -299,6 +299,7 @@ else
     update_mcp_json "$REPO_ROOT/.mcp.json" "root .mcp.json"
     update_mcp_json "$REPO_ROOT/apps/acm-hub-health/.mcp.json" "acm-hub-health .mcp.json"
     update_mcp_json "$REPO_ROOT/apps/test-case-generator/.mcp.json" "test-case-generator .mcp.json"
+    update_mcp_json "$REPO_ROOT/apps/z-stream-analysis/.mcp.json" "z-stream-analysis .mcp.json"
 fi
 
 # ── 10. Health check ───────────────────────────────────────────────

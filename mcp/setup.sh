@@ -106,13 +106,20 @@ apply_selection() {
 # App Selection (CLI argument or interactive menu)
 # -----------------------------------------------
 
-# Parse --app flag for non-interactive mode (used by /onboard skill)
+# Parse CLI flags
+# --app N      : skip app selection menu (used by /onboard skill)
+# --no-creds   : skip all credential prompts (onboard skill writes .env files separately)
 CLI_APP_CHOICE=""
+SKIP_CREDS=false
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --app)
             CLI_APP_CHOICE="$2"
             shift 2
+            ;;
+        --no-creds)
+            SKIP_CREDS=true
+            shift
             ;;
         *)
             shift
@@ -169,9 +176,11 @@ CURRENT_MCP=0
 echo ""
 echo "  Will set up $TOTAL_MCPS MCP server(s): $SELECTED_MCPS"
 echo ""
-echo "  If you don't have credentials for a server,"
-echo "  press Enter to skip -- you can add them later."
-echo ""
+if [ "$SKIP_CREDS" = false ]; then
+    echo "  If you don't have credentials for a server,"
+    echo "  press Enter to skip -- you can add them later."
+    echo ""
+fi
 
 # -----------------------------------------------
 # Prerequisites Check
@@ -198,6 +207,8 @@ if needs_mcp "acm-source"; then
         ok "GitHub CLI (gh) installed"
         if gh auth status &>/dev/null 2>&1; then
             ok "GitHub CLI authenticated"
+        elif [ "$SKIP_CREDS" = true ]; then
+            warn "GitHub CLI not authenticated. Run: gh auth login"
         else
             warn "GitHub CLI not authenticated"
             echo ""
@@ -388,6 +399,8 @@ setup_jira() {
     JIRA_ENV="$JIRA_DIR/.env"
     if [ -f "$JIRA_ENV" ] && ! grep -q "PASTE_YOUR" "$JIRA_ENV" 2>/dev/null; then
         ok "Credentials file exists: $JIRA_ENV"
+    elif [ "$SKIP_CREDS" = true ]; then
+        info "Credentials will be written by the onboard skill after setup completes."
     else
         echo ""
         info "JIRA credentials needed."
@@ -456,6 +469,25 @@ setup_jenkins() {
     JENKINS_ENV="$JENKINS_DIR/.env"
     if [ -f "$JENKINS_ENV" ] && ! grep -q "PASTE_YOUR" "$JENKINS_ENV" 2>/dev/null; then
         ok "Credentials file exists: $JENKINS_ENV"
+    elif [ "$SKIP_CREDS" = true ]; then
+        # Still try legacy migration (non-interactive)
+        LEGACY_CONFIG="$HOME/.jenkins/config.json"
+        if [ -f "$LEGACY_CONFIG" ] && ! grep -q "PASTE_YOUR" "$LEGACY_CONFIG" 2>/dev/null; then
+            info "Migrating credentials from legacy $LEGACY_CONFIG..."
+            JENKINS_USER_INPUT=$(python3 -c "import json; print(json.load(open('$LEGACY_CONFIG')).get('jenkins_user',''))" 2>/dev/null || true)
+            JENKINS_TOKEN_INPUT=$(python3 -c "import json; print(json.load(open('$LEGACY_CONFIG')).get('jenkins_token',''))" 2>/dev/null || true)
+            if [ -n "$JENKINS_USER_INPUT" ] && [ -n "$JENKINS_TOKEN_INPUT" ]; then
+                cat > "$JENKINS_ENV" <<EOF
+JENKINS_USER=$JENKINS_USER_INPUT
+JENKINS_API_TOKEN=$JENKINS_TOKEN_INPUT
+EOF
+                ok "Migrated to $JENKINS_ENV"
+            else
+                info "Credentials will be written by the onboard skill after setup completes."
+            fi
+        else
+            info "Credentials will be written by the onboard skill after setup completes."
+        fi
     else
         # Migrate from legacy ~/.jenkins/config.json if it exists
         LEGACY_CONFIG="$HOME/.jenkins/config.json"
@@ -533,6 +565,8 @@ setup_polarion() {
 
     if [ -f "$POLARION_ENV" ] && ! grep -q "PASTE_YOUR" "$POLARION_ENV" 2>/dev/null; then
         ok "Credentials file exists: $POLARION_ENV"
+    elif [ "$SKIP_CREDS" = true ]; then
+        info "Credentials will be written by the onboard skill after setup completes."
     else
         echo ""
         info "Polarion JWT token needed."
@@ -727,6 +761,19 @@ setup_acm_search() {
         return
     fi
 
+    # If marker file exists from a previous deployment, skip re-deploying
+    ACM_SEARCH_ROUTE=""
+    ACM_SEARCH_TOKEN=""
+    if [ -f "$MCP_DIR/.acm-search-config.json" ]; then
+        ok "acm-search already configured (marker file exists)"
+        if command -v jq &>/dev/null; then
+            ACM_SEARCH_ROUTE=$(jq -r '.route' "$MCP_DIR/.acm-search-config.json")
+            ACM_SEARCH_TOKEN="set"
+        fi
+        echo ""
+        return
+    fi
+
     # Ensure mcp-remote is installed globally (stdio-to-SSE bridge)
     if command -v mcp-remote &>/dev/null; then
         ACM_SEARCH_MCP_REMOTE="$(which mcp-remote)"
@@ -749,13 +796,10 @@ setup_acm_search() {
     fi
 
     # Deploy on-cluster using the non-interactive deploy script
-    ACM_SEARCH_ROUTE=""
-    ACM_SEARCH_TOKEN=""
     if command -v oc &>/dev/null && oc whoami &>/dev/null 2>&1; then
         info "Running deploy-acm-search.sh..."
         if bash "$MCP_DIR/deploy-acm-search.sh" 2>&1; then
             ok "acm-search deployed and .mcp.json updated"
-            # Read back values from marker file for status display
             if [ -f "$MCP_DIR/.acm-search-config.json" ] && command -v jq &>/dev/null; then
                 ACM_SEARCH_ROUTE=$(jq -r '.route' "$MCP_DIR/.acm-search-config.json")
                 ACM_SEARCH_TOKEN="set"
@@ -765,7 +809,7 @@ setup_acm_search() {
             echo "  oc login <hub> && bash mcp/deploy-acm-search.sh"
         fi
     else
-        warn "oc not logged in. Skipping on-cluster deployment."
+        info "oc not logged in. acm-search is deployed per-cluster when needed."
         echo "  Deploy later: oc login <hub> && bash mcp/deploy-acm-search.sh"
     fi
 
@@ -1124,7 +1168,7 @@ if needs_mcp "acm-search"; then
     elif [ -n "$ACM_SEARCH_ROUTE" ]; then
         echo -e "    ${YELLOW}DEPS${NC} acm-search   -- Deployed, but missing mcp-remote or token. Re-run setup."
     else
-        echo -e "    ${YELLOW}SETUP${NC} acm-search   -- Not deployed. Log into ACM hub and re-run setup."
+        echo -e "    ${YELLOW}LATER${NC} acm-search   -- Deploy per-cluster when needed: oc login <hub> && bash mcp/deploy-acm-search.sh"
     fi
 fi
 

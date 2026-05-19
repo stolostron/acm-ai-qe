@@ -48,17 +48,29 @@ def extract_verdict(review_text: str) -> str:
     return match.group(1).upper() if match else "UNKNOWN"
 
 
+def _extract_mcp_section(review_text: str) -> str:
+    """Extract the MCP VERIFICATIONS section from review text."""
+    match = re.search(
+        r"MCP VERIFICATIONS.*?(?=\n(?:BLOCKING|WARNING|Assumed|Verdict|$))",
+        review_text,
+        re.DOTALL | re.IGNORECASE,
+    )
+    return match.group(0) if match else ""
+
+
 def check_source_verification(review_text: str) -> bool:
-    """Check if get_component_source was used for factual verification."""
+    """Check if get_component_source was used in the MCP VERIFICATIONS section."""
+    section = _extract_mcp_section(review_text)
     return bool(
-        re.search(r"get_component_source", review_text, re.IGNORECASE)
+        re.search(r"get_component_source", section, re.IGNORECASE)
     )
 
 
 def check_translation_verification(review_text: str) -> bool:
-    """Check if search_translations was used at least once in the review."""
+    """Check if search_translations was used in the MCP VERIFICATIONS section."""
+    section = _extract_mcp_section(review_text)
     return bool(
-        re.search(r"search_translations", review_text, re.IGNORECASE)
+        re.search(r"search_translations", section, re.IGNORECASE)
     )
 
 

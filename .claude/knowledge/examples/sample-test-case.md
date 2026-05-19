@@ -170,16 +170,15 @@ oc --context <spoke-1-context> create namespace test-violation-ns --dry-run=clie
 
 ---
 
-### Step 5: Verify Backend State Matches UI
+### Step 5: Verify Policy Compliance Status via CLI (Backend Validation)
 
-1. Return to the **test-violation-summary** policy details page.
-2. Open a terminal and run the backend verification command.
+1. Run the following command to check per-cluster compliance status from the backend:
 
 ```bash
 oc get policy test-violation-summary -n open-cluster-management -o jsonpath='{range .status.status[*]}{.clusternamespace}/{.clustername}: {.compliant}{"\n"}{end}'
 ```
 
-3. Compare the backend output with the UI summary card values.
+2. Compare the backend output with the UI summary card values observed in Steps 2 and 4.
 
 **Expected Result:**
 - Each cluster's compliance status in the CLI output matches what the UI shows.

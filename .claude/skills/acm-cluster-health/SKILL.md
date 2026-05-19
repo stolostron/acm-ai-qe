@@ -99,6 +99,24 @@ Then restart Claude Code. Continue the diagnostic with `oc` CLI fallback —
 the diagnostic works without acm-search, just with reduced spoke-side
 visibility.
 
+## Quick Sanity Mode
+
+A lightweight subset of the 12-layer model for callers that need a fast go/no-go assessment without a full diagnostic. Checks 4 layers:
+
+| Layer | Check | Command |
+|-------|-------|---------|
+| L1 (Compute) | All nodes Ready | `oc get nodes --no-headers \| grep -v ' Ready'` |
+| L2 (Control Plane) | No degraded cluster operators | `oc get clusteroperators --no-headers \| awk '$4=="True" \|\| $5=="True"'` |
+| L9 (Operators) | ACM operator pods running | `oc get pods -n $MCH_NS --no-headers \| grep -v Running \| grep -v Completed` |
+| L10 (Cross-Cluster) | Managed clusters connected | `oc get managedclusters --no-headers \| grep -v True` |
+
+**Output:** `HEALTHY` / `DEGRADED` / `CRITICAL` with one-line evidence per layer.
+- HEALTHY: all 4 checks pass
+- DEGRADED: L9 or L10 has issues (operators or clusters not fully healthy)
+- CRITICAL: L1 or L2 has issues (infrastructure is broken)
+
+Use this mode when calling from another skill (e.g., live-validator) that needs a fast health gate before trusting observations.
+
 ## Key Investigation Patterns
 
 ### Discover MCH Namespace (never hardcode)

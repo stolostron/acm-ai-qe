@@ -32,6 +32,18 @@
 - [ ] AC vs Implementation discrepancies noted with source citations
 - [ ] Scope matches target JIRA story (not broader PR)
 
+## Design Efficiency (WARNING if wrong)
+
+- [ ] No redundant resources in setup (one instance with state transitions preferred)
+- [ ] No duplicate verifications (same element/behavior without intervening state change)
+- [ ] Setup/step ratio: setup doesn't create more resources than test steps reference
+
+## Coverage Gap Verification (WARNING if wrong)
+
+- [ ] Gaps triaged as "ADD TO TEST PLAN" have corresponding test steps
+- [ ] Gaps triaged as "NOTE ONLY" mentioned in Notes section (acceptable if missing)
+- [ ] Coverage gap count documented
+
 ## Format Checks (WARNING if wrong)
 
 - [ ] Setup commands have `# Expected:` comments

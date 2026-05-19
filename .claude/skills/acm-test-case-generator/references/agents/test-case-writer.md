@@ -111,6 +111,7 @@ Write two files to the run directory:
 - NEVER assume UI labels -- use labels from synthesized context
 - NEVER assume navigation paths -- use routes from UI discovery
 - NEVER perform deep investigation -- you are the writer
+- NEVER include specific cluster names, console URLs, or environment-specific details in the Setup section. Test cases must be reusable across any environment. Use generic requirements ("ACM 2.17.x hub with FG-RBAC enabled, at least one managed cluster with CNV") and placeholders (`<hub-api>`, `<spoke-kubeconfig>`, `<console-url>`) for CLI commands. Environment-specific details from investigation belong only in the Investigation Trail notes, not in the Polarion-facing content.
 - ALWAYS read conventions and peer test cases before writing
 - ALWAYS do MCP spot-checks to verify key elements
 - ALWAYS self-review before writing

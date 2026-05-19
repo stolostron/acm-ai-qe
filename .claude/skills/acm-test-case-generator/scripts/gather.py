@@ -13,7 +13,6 @@ import argparse
 import json
 import os
 import subprocess
-import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -258,9 +257,10 @@ def read_html_templates():
 def read_area_knowledge(area: str):
     kd = _resolve_knowledge_dir()
     if kd:
-        path = kd / "architecture" / f"{area}.md"
-        if path.exists():
-            return path.read_text(encoding="utf-8")
+        for subdir in ["ui", "architecture"]:
+            path = kd / subdir / f"{area}.md"
+            if path.exists():
+                return path.read_text(encoding="utf-8")
     return None
 
 

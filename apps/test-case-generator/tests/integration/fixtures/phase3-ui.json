@@ -1,0 +1,11 @@
+{
+  "acm_version": "2.17",
+  "routes": {
+    "governance": "/multicloud/governance/policies"
+  },
+  "entry_point": "All Policies > Governance > Policies",
+  "translations_verified": {
+    "policy.violation.tooltip": "Violation summary"
+  },
+  "anomalies": []
+}

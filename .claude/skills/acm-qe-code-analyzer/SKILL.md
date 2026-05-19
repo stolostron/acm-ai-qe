@@ -142,6 +142,24 @@ For each code behavior found in the diff, ask:
 
 Include a Coverage Gaps section in the output listing each gap with: description, code reference (file:function), and user impact. If all code paths map to ACs, state "No gaps found."
 
+### Step 11: Follow-Up PR Detection
+
+For each primary changed file, check for subsequent merged PRs that modify the same files:
+```bash
+gh pr list --search "path:<filepath>" --state merged --limit 5 --repo <REPO> --json number,title,mergedAt
+```
+
+Filter to PRs merged AFTER the target PR. Flag:
+- Post-merge renames of components or functions
+- Bug fixes that changed the behavior introduced by the target PR
+- Refactors that moved or restructured the code
+
+Include findings in the `follow_up_prs` section of the output. If no follow-up PRs exist, set to empty array.
+
+## Analysis Heuristics
+
+Read `${CLAUDE_SKILL_DIR}/references/analysis-rules.md` for mandatory analysis rules: full source reading, test file vs production code distinction, multi-story PR handling, area knowledge cross-referencing, MCP authority, and filter function extraction.
+
 ## Critical Rules
 
 - **MANDATORY: Read full source of primary target file** via MCP (console repos) or gh CLI (other repos), not just the diff
@@ -218,4 +236,7 @@ Backend Impact:
 
 Coverage Gaps:
 - [gap description]: [code reference] -- [user impact]
+
+Follow-Up PRs:
+- PR #NNNN: [title] (merged [date]) -- [relevance: rename/fix/refactor]
 ```

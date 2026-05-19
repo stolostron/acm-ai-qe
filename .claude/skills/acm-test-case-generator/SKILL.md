@@ -66,7 +66,10 @@ Subagent-orchestrated pipeline generating Polarion-ready test cases from JIRA ti
 
 > **Mapping note:** This skill uses a 9-phase model (Phases 0-8) where data gathering and JIRA investigation are merged into Phase 1, and investigation is split into sequential phases (2-3). The app pipeline (`apps/test-case-generator/`) consolidates investigation into 1 parallel phase. See the app README for the mapping table.
 
-Read `${CLAUDE_SKILL_DIR}/references/pipeline-detail.md` for input schemas, validation commands, credential resolution, MCP availability checks, retry protocol, and run directory structure.
+Read `${CLAUDE_SKILL_DIR}/references/pipeline-detail.md` for phase input schemas. Per-concern details are split for progressive loading:
+- Phase 0: read `${CLAUDE_SKILL_DIR}/references/phase0-inputs.md` for credential resolution and MCP availability checks
+- On validation failure: read `${CLAUDE_SKILL_DIR}/references/validation-protocol.md` for retry protocol
+- Phase 1 (before creating run dir): read `${CLAUDE_SKILL_DIR}/references/run-directory.md` for artifact naming
 
 ## Pipeline Phases
 

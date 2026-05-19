@@ -6,11 +6,11 @@ Multi-app repository for ACM quality engineering tools, built on Claude Code.
 
 ### Z-Stream Analysis (`apps/z-stream-analysis/`) — Active
 
-Jenkins pipeline failure analysis (v4.0) with classification: PRODUCT_BUG | AUTOMATION_BUG | INFRASTRUCTURE | FLAKY | NO_BUG | MIXED | UNKNOWN. v4.0 moves cluster health to Stage 1.5 cluster-diagnostic agent with structured health fields, changes PR-7 to context signals (not binding), adds PR-6b Polarion check, symmetric counterfactual (D-V5c/D-V5e), and layer discrepancy detection. v3.9 added provably linked grouping (Phase A4), per-test verification within groups (4-point check), and expanded counterfactual verification (D-V5) with 9 templates. v3.8 features 12-layer diagnostic investigation with per-group investigation agents for root-cause-first classification. Includes comprehensive cluster diagnostic (Stage 1.5) with hub-health-style investigation, diagnostic trap detection, self-healing knowledge, assertion value extraction, per-feature-area graduated infrastructure scoring, per-test causal link verification, failure mode categorization, blank page pre-routing, hook failure deduplication, temporal evidence routing, feature investigation playbooks, tiered cluster investigation, classification feedback, and standalone knowledge database (`knowledge/`).
+Jenkins pipeline failure analysis (v4.0) with classification: PRODUCT_BUG | AUTOMATION_BUG | INFRASTRUCTURE | FLAKY | NO_BUG | MIXED | UNKNOWN. v4.0 moves cluster health to Stage 1.5 cluster-diagnostic agent with structured health fields, changes PR-7 to context signals (not binding), adds PR-6b Polarion check, symmetric counterfactual (D-V5c/D-V5e) with mandatory PRODUCT_BUG 4-check gate (source verification, intentional-change detection, environment cross-reference, investigation depth), and layer discrepancy detection. v3.9 added provably linked grouping (Phase A4), per-test verification within groups (4-point check), and expanded counterfactual verification (D-V5) with 9 templates. v3.8 features 12-layer diagnostic investigation with per-group investigation agents for root-cause-first classification. Includes comprehensive cluster diagnostic (Stage 1.5) with hub-health-style investigation, diagnostic trap detection, self-healing knowledge, assertion value extraction, per-feature-area graduated infrastructure scoring, per-test causal link verification, failure mode categorization, blank page pre-routing, hook failure deduplication, temporal evidence routing, feature investigation playbooks, tiered cluster investigation, classification feedback, and standalone knowledge database (`knowledge/`).
 
 Five-stage pipeline:
 0. **Environment Oracle** (inside gather.py) — Feature-aware dependency health & knowledge database (`cluster_oracle`)
-1. **gather.py** — Extracts test data from Jenkins (builds `core-data.json` with cluster landscape and feature grounding; persists `cluster.kubeconfig` for Stage 1.5 and Stage 2)
+1. **gather.py** — Extracts test data from Jenkins (builds `core-data.json` with cluster landscape and feature grounding; persists `cluster.kubeconfig` for Stage 1.5 and Stage 2; auto-deploys ACM Search MCP on the cluster)
 1.5. **Cluster Diagnostic** (AI agent) — Comprehensive 6-phase cluster investigation producing `cluster-diagnosis.json` with environment health score, subsystem health, operator health, image integrity validation, classification guidance, dependency chain verification, 14 diagnostic trap checks (+ Trap 1b leader-election variant), service endpoint verification, OLM foundational health, sub-operator CR status, and structured data for Stage 2 routing
 2. **AI Analysis** — 12-layer diagnostic investigation: groups tests by shared signals, traces root cause through infrastructure layers (Compute→UI), classifies based on WHO caused breakage. Per-group investigation agents for deeper analysis. Produces `analysis-results.json` with `root_cause_layer` per test.
 3. **report.py** — Generates `Detailed-Analysis.md` + `analysis-report.html` from analysis results
@@ -116,9 +116,9 @@ From the repo root, launch `claude` and run `/onboard`. It detects your environm
 | ACM Source (`mcp/acm-source-mcp-server/`) | 18 | This repo | ACM Console + kubevirt-plugin source code search via GitHub |
 | Jenkins | 7+4 | [upstream](https://github.com/redhat-community-ai-tools/jenkins-mcp) + `mcp/jenkins-acm-tools.py` | Jenkins pipeline API + ACM analysis tools |
 | JIRA | 25 | [stolostron/jira-mcp-server](https://github.com/stolostron/jira-mcp-server) | Issue search, creation, management for bug correlation (Jira Cloud) |
-| Neo4j RHACM | 2 | [mcp-neo4j-cypher](https://pypi.org/project/mcp-neo4j-cypher/) (PyPI) | Component dependency analysis via Cypher queries (optional) |
+| Neo4j RHACM | 2 | [mcp-neo4j-cypher](https://pypi.org/project/mcp-neo4j-cypher/) (PyPI) | Component dependency analysis via Cypher queries |
 | ACM Search | 5 | [stolostron/acm-mcp-server](https://github.com/stolostron/acm-mcp-server) | Fleet-wide resource queries via search-postgres (spoke-side visibility) |
-| Polarion (`mcp/polarion/`) | 25 | This repo | Polarion test case access (optional) |
+| Polarion (`mcp/polarion/`) | 25 | This repo | Polarion test case management |
 | ACM Kubectl | 3 | [stolostron/acm-mcp-server](https://github.com/stolostron/acm-mcp-server) | Multicluster kubectl for hub and spoke clusters |
 | Playwright | 24 | [@playwright/mcp](https://www.npmjs.com/package/@anthropic-ai/playwright-mcp) (npm) | Browser automation for live UI validation |
 
@@ -129,7 +129,7 @@ This repo only contains our original MCP code: ACM Source, Polarion wrapper, Jen
 
 **JIRA Cloud Setup:** Run `/onboard` and provide credentials when prompted, or create `mcp/.external/jira-mcp-server/.env` with your Jira Cloud credentials after setup. Get a token at https://id.atlassian.com/manage-profile/security/api-tokens.
 
-**ACM Search Setup:** Runs as a pod on the ACM hub cluster, accessed via SSE through an OpenShift route. Deploy with `bash mcp/deploy-acm-search.sh` after `oc login` -- it auto-discovers the ACM namespace, deploys the server, extracts the route/token, and updates all `.mcp.json` files. On cluster rotation, re-run the deploy script before starting `claude`. If acm-search is unavailable, agents fall back to `oc` CLI for direct queries.
+**ACM Search Setup:** Runs as a pod on the ACM hub cluster, accessed via SSE through an OpenShift route. The z-stream analysis pipeline auto-deploys acm-search during Step 4 after cluster login — no manual setup required. For manual deployment or other apps, run `bash mcp/deploy-acm-search.sh` after `oc login`. If acm-search is unavailable, agents fall back to `oc` CLI for direct queries.
 
 ## Directory Structure
 
@@ -149,13 +149,14 @@ ai_systems_v2/
 │   ├── jenkins-acm-tools.py   # Our code: ACM-specific Jenkins analysis tools
 │   └── .external/             # Cloned at setup time (gitignored)
 ├── .claude/
-│   ├── skills/                # 19 skills: 16 ACM + onboard + youtube-digest + grill-me (usable from repo root via root .mcp.json)
+│   ├── skills/                # 20 skills: 17 ACM + onboard + youtube-digest + grill-me (usable from repo root via root .mcp.json)
 │   ├── knowledge/             # Shared knowledge database for skills (3 domains: tc-gen, z-stream, hub-health)
 │   ├── commands/pre-push.md   # /pre-push quality gate slash command
 │   ├── statusline.sh          # Status line script (model, branch, context %)
 │   └── settings.json          # Root-level Claude Code settings
 ├── AGENTS.md                  # Agent reference (tool-agnostic, for external AI tools)
 ├── CLAUDE.md                  # This file — Claude Code agent instructions
+├── context.md                 # Ubiquitous language glossary + repo design summary — read this first
 └── README.md                  # User-facing setup and onboarding guide
 ```
 
@@ -173,5 +174,8 @@ python -m pytest tests/regression/ -q                # 22 tests, no external dep
 
 # Test case generator (from app directory)
 cd apps/test-case-generator/
-python -m pytest tests/unit/ -q                      # 93 tests, no external deps
+python -m pytest tests/unit/ tests/integration/ -q   # 119 tests, no external deps
+
+# Portable skill eval harness (from repo root)
+python .claude/skills/acm-test-case-generator/evals/run_evals.py
 ```

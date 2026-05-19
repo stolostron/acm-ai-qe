@@ -106,4 +106,3 @@ Actions available depend on current state:
 - Missing hub flag (`cnv-mtv-integrations` disabled) causes the Fleet Virt tab to be absent, not an error
 - Missing spoke CNV means VMs can't exist but the UI tab still renders
 - QE repos (e2e test selectors) always use `main` branch regardless of version setting
-- For Gatekeeper mutation policies, the Clusters tab table uses a reduced column set

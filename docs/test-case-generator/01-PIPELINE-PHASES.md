@@ -104,7 +104,7 @@ Returns up to 3 test cases matching the area and version.
   "conventions": "# Test Case Conventions\n...",
   "area_knowledge": "# Governance Area Knowledge\n...",
   "html_templates": "# Polarion HTML Templates\n...",
-  "run_dir": "/path/to/runs/ACM-30459/ACM-30459-2026-04-18T02-00-46",
+  "run_dir": "/path/to/runs/test-case-generator/ACM-30459/ACM-30459-2026-04-18T02-00-46",
   "options": {
     "skip_live": false,
     "cluster_url": null,
@@ -303,13 +303,14 @@ The live-validator subagent first verifies the PR's code change is deployed on t
 ### Process
 
 1. **Environment verification:** Extract PR metadata from `gather-output.json`, get deployment info (MCH version, console image tag), determine if PR code is deployed using 3-method tiered verification (merge commit ancestry → image tag date → MCH version heuristic)
-2. **Browser authentication:** Resolve credentials from env vars (`CONSOLE_PASSWORD` / `KUBEADMIN_PASSWORD`), navigate to console, detect IDP selection page, authenticate via form-based OAuth login (see `console-auth.md`)
-3. Navigate to feature entry point in browser (requires authentication)
-4. Walk through test steps (click, fill, hover, observe, snapshot after each action)
-5. Verify backend state after UI actions (`oc get`, `find_resources` via acm-search)
-6. Check for JavaScript errors (`browser_console_messages`) and failed API calls (`browser_network_requests`)
-7. Build corrections table if live UI differs from Phase 3 source-code inferences
-8. Document discrepancies between source code expectations and live behavior
+2. **Cluster health sanity check:** Run Quick Sanity Mode from `acm-cluster-health` (Layers 1, 2, 9, 10) → HEALTHY/DEGRADED/CRITICAL. If DEGRADED or CRITICAL, flag observations as potentially unreliable but proceed.
+3. **Browser authentication:** Resolve credentials from env vars (`CONSOLE_PASSWORD` / `KUBEADMIN_PASSWORD`), navigate to console, detect IDP selection page, authenticate via form-based OAuth login (see `console-auth.md`)
+4. Navigate to feature entry point in browser (requires authentication)
+5. Walk through test steps (click, fill, hover, observe, snapshot after each action)
+6. Verify backend state after UI actions (`oc get`, `find_resources` via acm-search)
+7. Check for JavaScript errors (`browser_console_messages`) and failed API calls (`browser_network_requests`)
+8. Build corrections table if live UI differs from Phase 3 source-code inferences
+9. Document discrepancies between source code expectations and live behavior
 
 ### Output
 
@@ -432,13 +433,13 @@ See [05-QUALITY-GATES.md](05-QUALITY-GATES.md) for the full checklist.
 **Type:** Deterministic Python script
 **Script:** `scripts/report.py`
 **Duration:** ~1 second
-**Output:** `test-case-setup.html`, `test-case-steps.html`, `review-results.json`, `SUMMARY.txt`
+**Output:** `test-case-description.html`, `test-case-setup.html`, `test-case-steps.html`, `review-results.json`, `SUMMARY.txt`
 
 ### Process
 
 1. Find the test case file in the run directory
 2. Run structural validation (inlined in `scripts/report.py`)
-3. Generate Polarion HTML via `generate_html.py`
+3. Generate Polarion HTML (inlined in `report.py`)
 4. Write human-readable `SUMMARY.txt`
 5. Log telemetry events
 
@@ -462,8 +463,9 @@ The structural validator in `scripts/report.py` applies 11 checks:
 
 ### Polarion HTML Generation
 
-`generate_html.py` converts test case markdown to Polarion-compatible HTML:
+`report.py` converts test case markdown to Polarion-compatible HTML (generator inlined):
 
+- **Description HTML:** Feature description, verification list, entry point, JIRA coverage
 - **Setup HTML:** Prerequisites, test environment, bash code blocks with inline styles
 - **Steps HTML:** Two-column table (Step | Expected Result) matching Polarion's import format
 

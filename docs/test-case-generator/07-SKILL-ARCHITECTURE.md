@@ -76,7 +76,7 @@ flowchart TD
     P4 -. "SYNTHESIZED CONTEXT" .-> P6
     P6 -. "test-case.md" .-> P7
     P7 -. "PASS / NEEDS_FIXES\n(3-tier escalation)" .-> P6
-    P8 --> OUT["test-case.md\ntest-case-setup.html\ntest-case-steps.html\nSUMMARY.txt"]
+    P8 --> OUT["test-case.md\ntest-case-description.html\ntest-case-setup.html\ntest-case-steps.html\nSUMMARY.txt"]
 ```
 
 Deterministic scripts (gather.py, report.py, review_enforcement.py, validate_artifact.py) handle data collection, artifact validation, structural validation, and Polarion HTML generation. AI skills handle investigation, analysis, discovery, synthesis, writing, and quality review. After each AI phase (1-4, 6), `validate_artifact.py` validates the output and triggers retry on failure (up to 3 attempts). A pre-synthesis readiness check verifies minimum viable data across all investigation artifacts before Phase 4.
@@ -88,7 +88,7 @@ Deterministic scripts (gather.py, report.py, review_enforcement.py, validate_art
 ### 1. acm-test-case-generator — Pipeline Orchestrator
 
 **Pipeline stage:** All phases
-**Files:** SKILL.md (routing) + pipeline-detail.md (implementation) + 7 agent instruction files + 5 other reference files (phase-gates.md, pipeline-workflow.md, synthesis-template.md, console-auth.md, skill-feedback.md) + 5 scripts (gather.py, report.py, generate_html.py, review_enforcement.py, validate_artifact.py)
+**Files:** SKILL.md (routing) + pipeline-detail.md (implementation) + 7 agent instruction files + 5 other reference files (phase-gates.md, pipeline-workflow.md, synthesis-template.md, console-auth.md, skill-feedback.md) + 4 scripts (gather.py, report.py, review_enforcement.py, validate_artifact.py)
 **Depends on:** 5 skills (writer, reviewer, code-analyzer, knowledge-base, cluster-health) + 4 MCP servers (jira, acm-source, polarion, neo4j-rhacm)
 
 The entry point. Receives a JIRA ticket ID and orchestrates the 9-phase pipeline with visible phase-by-phase progress:
@@ -149,7 +149,7 @@ The entry point. Receives a JIRA ticket ID and orchestrates the 9-phase pipeline
 ### 2. acm-test-case-writer — Test Case Author (Phase 6)
 
 **Pipeline stage:** 6
-**Files:** SKILL.md (no separate reference files — conventions come from acm-knowledge-base)
+**Files:** SKILL.md, `references/writing-process.md` (6-step process + self-review checklist), `references/coverage-gap-handling.md` (gap triage rules). Conventions come from acm-knowledge-base.
 **Depends on:** acm-knowledge-base (conventions + architecture), acm-source MCP (spot-checks)
 **Invocation:** `disable-model-invocation: true` — not auto-triggered by "write a test case" prompts. Invoked by the generator's subagents via `Read` tool, or explicitly via `/acm-test-case-writer`.
 
@@ -228,7 +228,7 @@ Implementation details, AC discrepancies with source citations
 ### 3. acm-qe-code-analyzer — PR Diff Analysis (Phase 2)
 
 **Pipeline stage:** 2
-**Files:** SKILL.md (no separate reference files)
+**Files:** SKILL.md, `references/analysis-rules.md` (analysis heuristics + path resolution)
 **Depends on:** acm-source MCP (source verification), neo4j-rhacm MCP (dependency graph), jira MCP (coverage gap analysis)
 
 Analyzes PR diffs from `stolostron/console` or `kubevirt-ui/kubevirt-plugin` to understand what changed and what needs testing.
@@ -279,7 +279,7 @@ flowchart TD
 ### 4. acm-test-case-reviewer — Quality Gate (Phase 7)
 
 **Pipeline stage:** 7 (mandatory, cannot skip)
-**Files:** SKILL.md (standalone with inlined validation)
+**Files:** SKILL.md, `references/review-checklist.md` (design efficiency + coverage gap verification)
 **Depends on:** acm-source MCP (MCP spot-checks), acm-knowledge-base (conventions)
 **Invocation:** `disable-model-invocation: true` — not auto-triggered by "review test case" prompts. Invoked by the generator's subagents via `Read` tool, or explicitly via `/acm-test-case-reviewer`.
 
@@ -393,9 +393,9 @@ Queries the component dependency graph (~370 nodes, 541 relationships across 7 s
 ### 6. acm-knowledge-base — Domain Knowledge Repository
 
 **Pipeline stage:** 1–7 (referenced throughout)
-**Files:** SKILL.md + 14 knowledge files in `.claude/knowledge/test-case-generator/` (9 architecture + 4 conventions + 1 example)
+**Files:** SKILL.md + knowledge files in `.claude/knowledge/` (9 UI area files + 4 conventions + 1 example)
 **Used by:** All core pipeline skills
-**Resolution:** `KNOWLEDGE_DIR = ${CLAUDE_SKILL_DIR}/../../knowledge/test-case-generator/`
+**Resolution:** `KNOWLEDGE_DIR = ${CLAUDE_SKILL_DIR}/../../knowledge/`
 
 The knowledge backbone. Provides two categories of reference data:
 
@@ -486,7 +486,7 @@ flowchart TD
     end
 
     subgraph "Phase 8 (report.py)"
-        REP[report.py] --> HTML[test-case-setup.html\ntest-case-steps.html]
+        REP[report.py] --> HTML[test-case-description.html\ntest-case-setup.html\ntest-case-steps.html]
         REP --> RR[review-results.json]
         REP --> SUM[SUMMARY.txt]
     end
@@ -645,14 +645,12 @@ flowchart TD
 | `gather.py` | Deterministic (Python) | PR metadata, file list, peer test cases, area knowledge | Always produces `gather-output.json` + `pr-diff.txt` |
 | `validate_artifact.py` | Deterministic (Python) | Schema validation for all phase artifacts + pre-synthesis readiness check | Exit 0 = PASS, exit 1 = FAIL; cannot be skipped by AI |
 | `review_enforcement.py` | Deterministic (Python) | Parses reviewer output, counts MCP verifications | Cannot be skipped by AI |
-| `report.py` (validation) | Deterministic (Python) | Structural validation of test case markdown (inlined) | Title format, metadata, step format |
-| `generate_html.py` | Deterministic (Python) | Polarion-compatible HTML from markdown | Setup + steps HTML |
-| `report.py` | Deterministic (Python) | Orchestrates validation + HTML + summary + artifact completeness check (inlines validator + HTML generator) | Always produces output files; reports artifact completeness in `review-results.json` and `SUMMARY.txt` |
+| `report.py` | Deterministic (Python) | Structural validation + Polarion HTML generation + summary + artifact completeness check (all inlined) | Always produces output files; reports artifact completeness in `review-results.json` and `SUMMARY.txt` |
 | `log_phase` | Deterministic (Python) | Write telemetry entries between AI phases | Pipeline observability |
 | Phase 1–6 | AI (Skills) | Investigation, analysis, synthesis, writing | Evidence-based, MCP-verified |
 | Phase 7 | AI + Deterministic | Review (AI) + enforcement (Python) | Two-layer quality gate |
 
-**Portable skill scripts:** The portable skill pack (`.claude/skills/acm-test-case-generator/scripts/`) contains standalone versions of `gather.py`, `report.py`, `review_enforcement.py`, `generate_html.py`, and `validate_artifact.py` with zero external dependencies — all `src/` imports are inlined. Referenced via `${CLAUDE_SKILL_DIR}/scripts/` for portability.
+**Portable skill scripts:** The portable skill pack (`.claude/skills/acm-test-case-generator/scripts/`) contains standalone versions of `gather.py`, `report.py`, `review_enforcement.py`, and `validate_artifact.py` with zero external dependencies — all `src/` imports are inlined. Referenced via `${CLAUDE_SKILL_DIR}/scripts/` for portability.
 
 ---
 
@@ -667,7 +665,7 @@ The pipeline has three independent validation systems. All must pass at their re
 | **Phase 7** (quality-reviewer + enforcement) | Before Phase 8 | MCP verification of UI elements, AC vs implementation, scope alignment, numeric thresholds, discovered vs assumed | Semantic correctness (are the right things tested?) |
 | **Phase 8** (report.py) | After Phase 7 | Title pattern, metadata fields, section order, step format, entry point, teardown, artifact completeness | Structural correctness (is the format right?) |
 
-Phase 8 also checks pipeline artifact completeness (9 expected files: `gather-output.json`, `pr-diff.txt`, `phase1-jira.json`, `phase2-code.json`, `phase3-ui.json`, `synthesized-context.md`, `test-case.md`, `phase7-review.md`, `analysis-results.json`) and includes the result in `review-results.json` and `SUMMARY.txt`. This is reporting-only — it does not block the pipeline.
+Phase 8 also checks pipeline artifact completeness (10 expected files: `gather-output.json`, `pr-diff.txt`, `phase1-jira.json`, `phase2-code.json`, `phase3-ui.json`, `synthesized-context.md`, `phase5-live-validation.md`, `test-case.md`, `analysis-results.json`, `phase7-review.md`) and includes the result in `review-results.json` and `SUMMARY.txt`. This is reporting-only — it does not block the pipeline.
 
 All 7 subagents include an `anomalies` array in their structured output for surfacing data quality issues (empty MCP results, missing JIRA ACs, unexpected PR structure).
 
@@ -677,10 +675,10 @@ If Phase 8 fails after Phase 7 passed, fix the structural issue and re-run `repo
 
 ## Run Directory Layout
 
-Each run produces artifacts under `runs/<JIRA_ID>/<JIRA_ID>-<timestamp>/`:
+Each run produces artifacts under `runs/test-case-generator/<JIRA_ID>/<JIRA_ID>-<timestamp>/`:
 
 ```
-runs/ACM-30459/ACM-30459-2026-04-08T12-00-00/
+runs/test-case-generator/ACM-30459/ACM-30459-2026-04-08T12-00-00/
   gather-output.json                 Phase 1: collected data (deterministic)
   pr-diff.txt                        Phase 1: full PR diff (deterministic)
   phase1-jira.json                   Phase 1: JIRA investigation findings
@@ -691,6 +689,7 @@ runs/ACM-30459/ACM-30459-2026-04-08T12-00-00/
   test-case.md                       Phase 6: PRIMARY DELIVERABLE
   analysis-results.json              Phase 6: investigation metadata (audit)
   phase7-review.md                   Phase 7: quality review output
+  test-case-description.html         Phase 8: Polarion description section HTML
   test-case-setup.html               Phase 8: Polarion setup section HTML
   test-case-steps.html               Phase 8: Polarion steps table HTML
   review-results.json                Phase 8: structural validation + artifact completeness
@@ -771,9 +770,16 @@ Which tools each skill uses, and when:
 - **Artifact validation** (`test_validate_artifact.py`): Schema validation for all 6 artifact schemas (phase1-jira, phase2-code, phase3-ui, analysis-results, gather-output, synthesized-context), pre-synthesis readiness check (8 data points across 3 artifacts), edge cases (invalid JSON, unknown schema, empty file, null values), output format
 
 ```bash
-# Run unit tests (93 tests, no external deps)
+# All tests (119 tests, no external deps)
 cd apps/test-case-generator/
-python -m pytest tests/unit/ -q
+python -m pytest tests/unit/ tests/integration/ -q
+
+# Portable skill eval harness (from repo root)
+python .claude/skills/acm-test-case-generator/evals/run_evals.py
 ```
+
+Additional test files:
+- **Review enforcement** (`test_review_enforcement.py`): Scoped MCP verification counting, source/translation checks within MCP section only, verdict extraction
+- **Integration tests** (`tests/integration/test_pipeline_stages.py`): Fixture-based tests for validate_artifact.py (gather-output, phase artifacts, negative cases), pre-synthesis check, review_enforcement.py (passing/failing review fixtures, scoped verification)
 
 No cluster access, MCP servers, or JIRA/Polarion credentials required.

@@ -59,6 +59,10 @@ If a mismatch is found, mark as NEEDS_FIXES with clear correction instruction.
 
 The `KNOWLEDGE_DIR` path is provided in your input for reading knowledge files.
 
+## Output File
+
+Write your complete review output to `${RUN_DIR}/phase7-review.md`.
+
 ## Output Format
 
 **CRITICAL: Your output MUST contain these sections in this order for `review_enforcement.py` to parse correctly.**

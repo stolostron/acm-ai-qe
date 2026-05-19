@@ -7,17 +7,51 @@ Fixed HTML templates for Polarion import. Use exactly as specified.
 | Rule | Correct | Wrong |
 |------|---------|-------|
 | No space after `;` in styles | `font-size:11pt;font-family:Arial` | `font-size: 11pt; font-family: Arial` |
+| Bold text (nested) | `<span style="font-weight:bold;">Text</span>` | `<span style="font-size:11pt;...;font-weight:bold;">Text</span>` |
 | Bold text | `<span style="font-weight:bold;">Text</span>` | `<b>Text</b>` |
 | Escape `&&` | `&amp;&amp;` | `&&` |
 | Line break | `<br>` | `\n` |
 | Links | `<a href="URL" target="_top">Text</a>` | Plain URL |
 | No `<code>` tags | Use plain text or `<pre>` blocks | `<code>text</code>` |
+| No backticks | Strip markdown backticks entirely | Wrapping in `<code>` or leaving literal `` ` `` |
+| No `---` separators | Filter out markdown `---` lines | Rendering as `---<br>` text |
+| Numbered lists | Keep original numbering: `1. Item<br>` | Converting to `&bull;` bullets |
 
 ## Base Span Style
 
+Outer wrapper only. Nested elements (bold spans, bullets) inherit from this -- do not repeat it.
+
 ```
-font-size:11pt;font-family:Arial,Helvetica,sans-serif;color:#000000;line-height:1.5;
+font-size:11pt;font-family:Arial,Helvetica,sans-serif;color:#000000;line-height:1.5
 ```
+
+## Description Section Template
+
+```html
+<span style="font-size:11pt;font-family:Arial,Helvetica,sans-serif;color:#000000;line-height:1.5">
+[PROSE_PARAGRAPH]<br>
+<br>
+[SECTION_HEADING]:<br>
+1. [ITEM]<br>
+2. [ITEM]<br>
+...<br>
+<br>
+<span style="font-weight:bold;">[LABEL]:</span> [VALUE]<br>
+<span style="font-weight:bold;">[LABEL]:</span> [VALUE]<br>
+<br>
+<span style="font-weight:bold;">[LABEL]:</span> <br>
+&bull; [ITEM]<br>
+&bull; [ITEM]<br>
+</span>
+```
+
+Rules:
+- Numbered items stay numbered (not converted to bullets)
+- Bold key-value pairs: `<span style="font-weight:bold;">Label:</span> value<br>`
+- Bullet lists under a bold heading: `&bull; item<br>`
+- Inline bold in prose: `<span style="font-weight:bold;">text</span>`
+- No `<code>` tags, no backticks -- strip to plain text
+- Blank lines as `<br>`
 
 ## Setup Section Template
 

@@ -32,10 +32,10 @@ Read the full test case markdown file.
 
 ### Step 2: Read Conventions
 
-Read from acm-knowledge-base skill:
-- `references/conventions/test-case-format.md`
-- `references/conventions/area-naming-patterns.md`
-- `references/conventions/cli-in-steps-rules.md`
+Read from the knowledge database:
+- `${SKILLS_DIR}/../knowledge/conventions/test-case-format.md`
+- `${SKILLS_DIR}/../knowledge/conventions/area-naming-patterns.md`
+- `${SKILLS_DIR}/../knowledge/conventions/cli-in-steps-rules.md`
 
 ### Step 3: Structural Validation
 
@@ -60,18 +60,24 @@ Flag as WARNING if:
 
 ### Step 4: MCP Verification (MANDATORY -- minimum 3 checks)
 
-Use acm-source MCP tools directly for spot-checks. You MUST perform at least 3 MCP verifications:
+Use acm-source MCP tools directly for spot-checks.
 
-1. `set_acm_version` -- set the version from the test case
-2. `search_translations` for 1-2 key UI labels -- verify they match the test case
-3. `get_routes` -- verify the entry point route exists and matches
-4. `get_component_source` for the primary component -- verify at least ONE factual claim (field order, filtering behavior, empty state, conditional rendering)
+**Prerequisites (not counted toward the 3 minimum):**
+- `set_acm_version` -- MUST call before any search/get
+- `set_cnv_version` -- also required for Fleet Virt, CCLM, MTV area reviews
 
-For each verification, record:
-- Tool used
-- Query made
-- Result summary
-- Whether it matches the test case (true/false)
+**Counted verifications (minimum 3 required):**
+1. `search_translations` for 1-2 key UI labels -- verify they match the test case
+2. `get_routes` -- verify the entry point route exists and matches
+3. `get_component_source` for the primary component -- verify at least ONE factual claim (field order, filtering behavior, empty state, conditional rendering)
+
+**Entry point label verification:** After verifying the route via `get_routes`, check the entry point label:
+- Extract the last segment of the entry point path (e.g., "Managed clusters" from "Infrastructure > Clusters > Managed clusters")
+- Call `search_translations` with exact=true for that label
+- If NOT found, search with partial match to find what labels actually exist
+- Known mismatches: `managedClusters` → "Cluster list" (NOT "Managed clusters"). Route keys are camelCase code identifiers, not UI labels.
+
+If live validation output exists in the run directory, cross-check the entry point against what the browser actually showed.
 
 If fewer than 3 verifications are performed, the verdict MUST be NEEDS_FIXES.
 
@@ -87,7 +93,7 @@ If fewer than 3 verifications are performed, the verdict MUST be NEEDS_FIXES.
 
 ### Step 6: Knowledge File Cross-Reference
 
-Read `references/architecture/<area>.md` from acm-knowledge-base. Verify:
+Read `${SKILLS_DIR}/../knowledge/ui/<area>.md`. Verify:
 - Field order claims match the knowledge file
 - Filtering behavior claims match the knowledge file
 - Component names and CRDs are consistent
@@ -122,23 +128,47 @@ File: [path]
 Area: [area]
 Version: [version]
 
-MCP VERIFICATIONS (minimum 3 required):
-1. [tool]: [query] -> [result] -> matches test case: [true/false]
-2. [tool]: [query] -> [result] -> matches test case: [true/false]
-3. [tool]: [query] -> [result] -> matches test case: [true/false]
+MCP VERIFICATIONS
+1. search_translations -- query: "[query]", result: [what was found], matches: [yes/no]
+2. get_routes -- query: [area routes], result: [route found], matches: [yes/no]
+3. get_component_source -- path: "[file]", claim verified: "[claim]", result: [what source shows], matches: [yes/no]
 
 BLOCKING (must fix):
 1. [issue] -- Fix: [instruction]
+[or "None"]
 
 WARNING (should fix):
 1. [issue] -- Fix: [instruction]
+[or "None"]
+
+Assumed vs Discovered:
+- [element]: DISCOVERED via [tool + evidence]
+- [element]: POTENTIALLY ASSUMED (could not verify)
 
 Verdict: PASS | NEEDS_FIXES
 ```
 
+**Format requirements for `review_enforcement.py` parsing:**
+- The `MCP VERIFICATIONS` section header MUST exist (case-insensitive)
+- Each entry MUST be a numbered line starting with the bare tool name: `search_translations`, `get_routes`, `get_component_source`, etc.
+- The text MUST contain `get_component_source` (source verification)
+- The text MUST contain `search_translations` (translation verification)
+
+For standalone reviews, write the review output to the path provided by the user.
+
 ## Programmatic Enforcement
 
-After the review, the calling skill runs `report.py` (which includes inlined convention validation) to programmatically verify structural compliance. Additionally, the calling skill runs `review_enforcement.py` to verify this review output contains at least 3 MCP verification entries. If either check fails, the verdict is overridden to NEEDS_FIXES regardless of what this review concluded.
+After the review, two separate scripts validate the output:
+- `review_enforcement.py` (Phase 7) -- verifies this review output contains at least 3 MCP verification entries, source verification, and translation verification. Overrides verdict to NEEDS_FIXES if checks fail.
+- `report.py` (Phase 8) -- generates Polarion HTML and runs structural convention validation. Separate from the review enforcement.
+
+## MCP Availability
+
+| MCP | Used In | Fallback |
+|-----|---------|----------|
+| acm-source | Step 4 (MCP verification spot-checks) | Cannot perform MCP verifications. Verdict MUST be NEEDS_FIXES with note: "acm-source MCP unavailable — MCP verification skipped. Re-run review when MCP is available." |
+
+acm-source is mandatory for this skill — the 3-verification minimum cannot be met without it. Do not report PASS without MCP verification.
 
 ## Critical Rules
 

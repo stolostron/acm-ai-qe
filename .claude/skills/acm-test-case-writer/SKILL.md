@@ -37,108 +37,21 @@ This ensures missing context is always visible. If the test case has errors, the
 
 ## Prerequisites
 
-- acm-knowledge-base skill available for conventions and area knowledge
 - acm-source MCP server available for spot-check verification
+- Knowledge database available at `${SKILLS_DIR}/../knowledge/`
 
 ## Process
 
-### Step 1: Read Conventions
+Read `${CLAUDE_SKILL_DIR}/references/writing-process.md` for the full 6-step writing process, quality rules (step granularity, backend validation placement, implementation detail translation), self-review checklist, and gotchas.
 
-Before writing, read these files from the acm-knowledge-base skill:
-- `references/conventions/test-case-format.md` -- section order, naming, complexity levels
-- `references/conventions/area-naming-patterns.md` -- title tag patterns by area
-- `references/conventions/cli-in-steps-rules.md` -- when CLI is allowed in test steps
-
-### Step 2: Read Area Knowledge as Constraints
-
-Read `references/architecture/<area>.md` from the acm-knowledge-base skill. Extract:
-- **Field order** in description lists or tables
-- **Filtering behavior** (which labels/items are filtered, which function does it)
-- **Empty state behavior** (shows "-" vs hidden vs "No items")
-- **Component patterns** (compact vs full mode, popover vs inline)
-
-These are **CONSTRAINTS** the test case MUST follow. If the investigation context contradicts the knowledge file, **trust the knowledge file** and flag the discrepancy in the Notes section. Then verify via the acm-source MCP's `get_component_source` to determine which is correct.
-
-### Step 3: Scope Gate
-
-Extract the target JIRA story's Acceptance Criteria from the investigation context. Only write steps that validate these specific ACs. If the PR covers multiple stories, filter to only the target story's scope. Mention other stories in the Notes section as "Related functionality delivered in same PR but scoped to [other-story]."
-
-### Step 4: Spot-Check Key UI Elements
-
-Use the acm-source MCP tools directly for quick verification:
-1. `set_acm_version` -- set the target version
-2. `get_routes` -- verify the entry point route exists, get the full parameterized path
-3. `search_translations` -- spot-check 1-2 key labels
-4. `get_component_source` -- read the primary component, verify field order, filtering logic, empty state behavior
-5. For filtering functions: read the utility file source and extract exact filter conditions
-
-### Step 4.5: Follow Synthesis Design Optimizations
-
-If the SYNTHESIZED CONTEXT includes "Test Design Notes" with consolidation instructions (e.g., "use one policy for before/after", "resource count reduced from 4 to 2"), follow them exactly. Do NOT revert to a multi-resource approach. The synthesis phase optimized the plan for efficiency; the writer phase executes it faithfully.
-
-### Step 5: Write the Test Case
-
-Follow conventions EXACTLY:
-
-**Title:** `# RHACM4K-XXXXX - [Tag-Version] Area - Test Name`
-**Metadata:** Polarion ID, Status (Draft), Created/Updated dates
-**Polarion Fields:** Type, Level, Component, Subcomponent, Test Type, Pos/Neg, Importance, Automation, Tags, Release
-**Description:** What is tested, numbered verification list, Entry Point (verified via MCP), Dev JIRA Coverage
-**Setup:** Prerequisites, Test Environment, numbered bash commands with `# Expected:` comments
-**Test Steps:** `## Test Steps` header, then each step as `### Step N: Title` with numbered actions and bullet expected results, separated by `---`. Apply the step granularity, backend validation placement, and implementation detail translation rules below.
-**Teardown:** Bash cleanup commands with `--ignore-not-found`
-**Notes:** Implementation details, AC-vs-implementation discrepancies with source code citations
-
-#### Step Granularity Rule
-
-Each test step should verify ONE distinct behavior or interaction. If a step has expected results that test different aspects (e.g., tooltip text content AND link click navigation), split into separate steps. Ask: "If one expected result passes but another fails, would a tester need to report this as a partial pass?" If yes, split.
-
-Signs a step needs splitting:
-- Expected results verify both READ (observe/check text) and ACTION (click/interact/navigate) outcomes
-- Expected results mix UI verification with backend CLI verification
-- A single step has 4+ expected result bullets covering different behaviors
-- The step title uses "and" connecting two distinct verifications
-
-#### Backend Validation Placement Rule
-
-First, decide whether a CLI backend validation step is needed at all. **Omit it** when UI steps already provide full coverage — e.g., the UI displays data from a backend source and the test steps already verify the values are correct. A CLI step that only confirms what the UI already shows is redundant. See `cli-in-steps-rules.md` "When CLI Backend Validation Is NOT Needed" for the full rule.
-
-When a CLI backend validation step IS needed (UI action creates/modifies a resource, or backend state is not visible in UI), place it in a DEDICATED step titled "Verify [what] via CLI (Backend Validation)" — do NOT embed CLI commands within a UI-focused step. This ensures:
-- Clear context switch (browser → terminal) is visible in the step title
-- Pass/fail is cleanly attributed to UI behavior vs backend state
-- Automation can map UI steps to browser functions and CLI steps to shell functions
-
-Place backend validation steps AFTER UI steps, so the test flow is: UI verification first, then backend cross-check.
-
-Exception: Setup commands in the Setup section are not affected by this rule.
-
-#### Implementation Detail Translation Rule
-
-When the synthesized context includes implementation details (sort algorithm, comparison function, data parsing logic), translate them into OBSERVABLE verifications a tester can check. Ask: "What would a tester SEE if this implementation detail were wrong?"
-
-Examples:
-- `compareNumbers(a, b)` → "Sorting is numeric, not alphabetical (e.g., 0, 1, 2, 10 — not 0, 1, 10, 2)"
-- `text.split(':')[0]` → "The hostname displayed matches the node name (port suffix stripped)"
-- `value ?? 0` → "When no data exists, the field shows '0' (not a dash or empty)"
-- `skip: !isInstalled` → "The column/feature is NOT present when [component] is not installed"
-
-### Step 6: Self-Review Before Finalizing
-
-Check before completing:
-1. All Polarion metadata fields present and correct?
-2. `## Type: Test Case` (not "Functional")?
-3. Entry point from MCP-verified route (not assumed)?
-4. All UI labels from investigation or MCP (not from memory)?
-5. CLI only for backend validation in test steps?
-6. Setup has numbered commands with `# Expected:` comments?
-7. Teardown cleans up ALL resources created?
-8. `## Test Steps` section header present before first step?
-9. Steps separated by `---`?
-10. No fabricated filter prefixes or numeric thresholds?
-11. Any step combining passive observation with active interaction (click/navigate)? Split them.
-12. Is CLI backend validation in its own dedicated step, not embedded in a UI step?
-13. Are implementation details (sort algorithm, default values, parsing logic) translated into observable verifications?
-14. Is any CLI backend validation step redundant because UI steps already verify the same data?
+Key steps:
+1. Read conventions from `${SKILLS_DIR}/../knowledge/conventions/`
+2. Read area knowledge from `${SKILLS_DIR}/../knowledge/ui/<area>.md`
+3. Scope gate: only write steps that validate the target story's Acceptance Criteria
+4. Spot-check key UI elements via acm-source MCP
+4.5. Follow synthesis design optimizations and apply coverage gap triage — read `${CLAUDE_SKILL_DIR}/references/coverage-gap-handling.md`
+5. Write the test case following conventions exactly
+6. Self-review against the 14-point checklist
 
 ## Critical Rules
 
@@ -149,11 +62,3 @@ Check before completing:
 - If investigation context is incomplete for a step, note it as "[NEEDS VERIFICATION]"
 - If a filtering function is referenced, read its source via MCP and extract exact conditions -- do NOT paraphrase from the PR diff
 - Always include a `## Test Steps` section header before the first `### Step N:`
-
-## Gotchas
-
-1. **Filter rules from PR diffs are summaries, not source** -- PR diffs show what changed, not the full logic. Always read the filter function source via `get_component_source` to get exact conditions, thresholds, and edge cases.
-2. **Field order assumptions break silently** -- Table column order in area knowledge files reflects the current product. If a PR reorders columns via `cols.push()` or `splice()`, the test case must match the NEW order, not the knowledge file order.
-3. **Translation keys are not display text** -- A key like `policy.table.actionGroup` resolves to a different string than the key name implies. Always call `search_translations` with the key to get the actual rendered label.
-4. **Test file mock data is not product behavior** -- Automation test files often contain mock data or fixture objects. Never cite test-repo data as evidence of what the product actually does. Product source and MCP verification are the only reliable sources.
-5. **`cols.push()` means append, not insert** -- When a PR adds a column via `push()`, it goes at the END of the table. Do not assume it inserts at a specific position unless the code uses `splice()` with an explicit index.

@@ -141,19 +141,21 @@ Call `get_database_stats()` first. If unavailable, fall back to `oc` CLI.
 
 1. **Environment verification:** Follow the 3-step procedure in Environment Verification section above. Record the decision (YES/NO/UNKNOWN) with evidence.
 
-2. **Browser authentication:** Follow the 3-step auth flow from console-auth.md. Record AUTH_STATUS. If not "authenticated", skip UI interaction steps and use backend validation only.
+2. **Cluster health sanity check:** Run the Quick Sanity Mode from `acm-cluster-health/SKILL.md` (Layers 1, 2, 9, 10). If the cluster is DEGRADED or CRITICAL, flag in output as `Cluster Health: DEGRADED — observations may be unreliable` and proceed with caution. Do not abort — the validation still has value, but discrepancies may be environmental.
 
-3. **Navigate to the feature:** Browser must be authenticated first. `browser_navigate(console_url + path)`, `browser_snapshot()`, verify expected elements.
+3. **Browser authentication:** Follow the 3-step auth flow from console-auth.md. Record AUTH_STATUS. If not "authenticated", skip UI interaction steps and use backend validation only.
 
-4. **Test the feature flow:** Follow synthesized test steps. Snapshot after each action.
+4. **Navigate to the feature:** Browser must be authenticated first. `browser_navigate(console_url + path)`, `browser_snapshot()`, verify expected elements.
 
-5. **Verify backend state:** `oc get` or `find_resources` for expected K8s resources. Compare UI with backend.
+5. **Test the feature flow:** Follow synthesized test steps. Snapshot after each action.
 
-6. **Check for errors:** `browser_console_messages()`, `browser_network_requests()`.
+6. **Verify backend state:** `oc get` or `find_resources` for expected K8s resources. Compare UI with backend.
 
-7. **Build corrections table:** If live UI differs from Phase 3 source-code inferences, document each correction with evidence.
+7. **Check for errors:** `browser_console_messages()`, `browser_network_requests()`.
 
-8. **Document discrepancies:** Source says X but live UI shows Y. UI shows success but resource missing.
+8. **Build corrections table:** If live UI differs from Phase 3 source-code inferences, document each correction with evidence.
+
+9. **Document discrepancies:** Source says X but live UI shows Y. UI shows success but resource missing.
 
 ## Output
 

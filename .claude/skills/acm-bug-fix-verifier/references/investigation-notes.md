@@ -86,7 +86,7 @@ ACM branching model: `main` receives all development; release branches receive c
 ### F6. JIRA MCP write tools unverifiable at author time (ACCEPTED)
 
 **File:** SKILL.md, Phase 4
-**Issue:** `add_comment` and `transition_issue` tool names are plausible but not confirmed against the actual `stolostron/jira-mcp-server` API.
+**Resolved:** JIRA MCP is the fork at `mcp/.external/jira-mcp-server` ([atifshafi/jira-mcp-server@feat/redhat-fields](https://github.com/atifshafi/jira-mcp-server/tree/feat/redhat-fields)). `add_comment` uses parameter `comment` (not `body`); optional `attachment_paths` / `inline_attachment_paths` embed screenshots inline. Refresh with `bash mcp/setup.sh` after fork updates.
 **Resolution:** Kept as-is. Phase 4 writes are gated behind user approval, so a tool-name mismatch surfaces at runtime without harm.
 
 ### F7. Portability scan (CLEAN)

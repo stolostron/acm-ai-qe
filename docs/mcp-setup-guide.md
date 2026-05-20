@@ -11,7 +11,7 @@ Run `/onboard` in Claude Code to configure everything interactively.
 | Server | Type | Required By | Credentials |
 |--------|------|-------------|-------------|
 | acm-source | Local Python server | acm-qe-code-analyzer, acm-test-case-writer, acm-test-case-reviewer, acm-data-enricher | GitHub CLI auth (`gh auth login`) |
-| jira | Local Python server | acm-test-case-generator, acm-z-stream-analyzer | JIRA email + API token |
+| jira | Local Python server (fork clone) | acm-test-case-generator, acm-z-stream-analyzer | JIRA email + API token; installed from [atifshafi/jira-mcp-server@feat/redhat-fields](https://github.com/atifshafi/jira-mcp-server/tree/feat/redhat-fields) into `mcp/.external/` by `mcp/setup.sh` |
 | polarion | uvx + wrapper | acm-test-case-generator, acm-z-stream-analyzer | Polarion JWT token (VPN required) |
 | neo4j-rhacm | uvx + Podman container | acm-qe-code-analyzer, acm-hub-health-check (optional) | None (local container, password: rhacmgraph) |
 | acm-search | Remote SSE (on-cluster) | acm-cluster-health (optional) | On-cluster service account token |
@@ -44,7 +44,9 @@ For Claude Code apps (under `apps/`), each app has its own `.mcp.json`.
 
 ## Manual Configuration
 
-If not using `/onboard`, create `.mcp.json` at the repo root. See `apps/test-case-generator/.mcp.json` or `apps/acm-hub-health/.mcp.json` for the format.
+If not using `/onboard`, run `bash mcp/setup.sh` from the `ai_systems_v2` repo root (clones **atifshafi/jira-mcp-server** branch **feat/redhat-fields** into `mcp/.external/jira-mcp-server`, creates `.venv`, runs `scripts/verify-startup.sh`). Then create `.mcp.json` at the repo root. See `apps/test-case-generator/.mcp.json` or `apps/acm-hub-health/.mcp.json` for the format.
+
+**JIRA MCP on a fresh machine:** `bash mcp/setup.sh` → select apps that need jira → credentials in `mcp/.external/jira-mcp-server/.env` → generated config uses `.venv/bin/python`, `cwd` = that clone, **29 tools** after restart in Claude Code (`claude mcp list`).
 
 ## Credential Sources
 

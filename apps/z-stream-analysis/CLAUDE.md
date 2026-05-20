@@ -153,7 +153,7 @@ Seven MCP servers provide tools during Stage 1.5 and Stage 2. First-time setup: 
 |--------|-------|---------|
 | ACM Source | 18 | ACM Console + kubevirt-plugin source code search via GitHub |
 | Jenkins | 7+4 | Jenkins pipeline API + ACM-specific analysis tools |
-| JIRA | 25 | Issue search, creation, management for bug correlation (Jira Cloud) |
+| JIRA | 29 | Issue search, creation, attachments, inline comment images (fork `feat/redhat-fields`) |
 | Polarion | 25 | Polarion test case access + dependency discovery |
 | Knowledge Graph (Neo4j RHACM) | 2 | Component dependency analysis via Cypher queries (optional) |
 | ACM Search | 5 | Fleet-wide resource queries via search-postgres (spoke-side visibility) |

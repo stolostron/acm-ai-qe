@@ -320,8 +320,13 @@ clone_external() {
         info "Updating $name from upstream..."
         git -C "$target" fetch origin "$branch" --quiet 2>/dev/null || true
         git -C "$target" checkout "$branch" --quiet 2>/dev/null || true
-        git -C "$target" pull --quiet 2>/dev/null || true
-        ok "$name up to date"
+        # Reset to remote tip so force-pushed fork branches (e.g. rebased PRs) stay current.
+        if git -C "$target" rev-parse "origin/$branch" >/dev/null 2>&1; then
+            git -C "$target" reset --hard "origin/$branch" --quiet 2>/dev/null || true
+        else
+            git -C "$target" pull --quiet 2>/dev/null || true
+        fi
+        ok "$name up to date ($(git -C "$target" rev-parse --short HEAD 2>/dev/null || echo unknown))"
     else
         info "Cloning $name..."
         mkdir -p "$EXTERNAL_DIR"
@@ -371,9 +376,10 @@ setup_jira() {
     echo "  [$CURRENT_MCP/$TOTAL_MCPS] JIRA MCP Server"
     echo "--------------------------------------------"
     echo ""
-    echo "  What: Searches and manages JIRA issues."
+    echo "  What: Searches and manages JIRA issues (29 tools on Red Hat Cloud)."
     echo "  Used for: Finding related bugs, reading feature stories during analysis."
-    echo "  Source: https://github.com/stolostron/jira-mcp-server"
+    echo "  Source: $JIRA_REPO (branch: $JIRA_BRANCH)"
+    echo "  Upstream: https://github.com/stolostron/jira-mcp-server (PR #24)"
     echo ""
 
     clone_external "jira-mcp-server" "$JIRA_REPO" "$JIRA_BRANCH"
@@ -387,13 +393,33 @@ setup_jira() {
         ok "Virtual environment created"
     fi
 
-    if "$JIRA_VENV/bin/python" -c "import jira_mcp_server" 2>/dev/null; then
-        ok "Already installed"
-    else
-        info "Installing JIRA MCP server..."
+    info "Installing JIRA MCP server into venv (editable, dev extras)..."
+    "$JIRA_VENV/bin/pip" install -U pip --quiet 2>/dev/null || true
+    if ! "$JIRA_VENV/bin/pip" install -e "${JIRA_DIR}[dev]" --quiet 2>/dev/null; then
+        warn "pip install -e '.[dev]' failed; retrying minimal install"
         "$JIRA_VENV/bin/pip" install -e "$JIRA_DIR" --quiet 2>/dev/null || \
-        "$JIRA_VENV/bin/pip" install fastmcp jira pydantic asyncio-throttle python-dotenv uvicorn --quiet
-        ok "Dependencies installed (in venv)"
+        "$JIRA_VENV/bin/pip" install 'fastmcp>=3.3.1' jira pydantic asyncio-throttle python-dotenv uvicorn --quiet
+    fi
+    ok "Dependencies installed (in venv)"
+
+    _jira_startup_ok() {
+        [ -x "$JIRA_DIR/scripts/verify-startup.sh" ] && \
+            bash "$JIRA_DIR/scripts/verify-startup.sh" >/dev/null 2>&1
+    }
+
+    if _jira_startup_ok; then
+        ok "Startup smoke test (fastmcp Context + JiraMCPServer)"
+    else
+        warn "Startup check failed (stale venv after pull?) — recreating .venv..."
+        rm -rf "$JIRA_VENV"
+        python3 -m venv "$JIRA_VENV"
+        "$JIRA_VENV/bin/pip" install -U pip --quiet 2>/dev/null || true
+        "$JIRA_VENV/bin/pip" install -e "${JIRA_DIR}[dev]" --quiet
+        if _jira_startup_ok; then
+            ok "Startup smoke test passed after venv recreate"
+        else
+            warn "verify-startup still failing — run: cd $JIRA_DIR && make bootstrap && make verify-startup"
+        fi
     fi
 
     JIRA_ENV="$JIRA_DIR/.env"
@@ -1023,6 +1049,7 @@ all_servers = {
     'jira': {
         'command': f'{ext_dir}/jira-mcp-server/.venv/bin/python',
         'args': ['-m', 'jira_mcp_server.main'],
+        'cwd': f'{ext_dir}/jira-mcp-server',
         'env': {k: v for k, v in jira_env.items() if v and 'PASTE_YOUR' not in v},
         'timeout': 60
     },
@@ -1129,7 +1156,7 @@ fi
 if needs_mcp "jira"; then
     JIRA_VENV="$EXTERNAL_DIR/jira-mcp-server/.venv"
     if [ -f "$JIRA_VENV/bin/python" ] && "$JIRA_VENV/bin/python" -c "import jira_mcp_server" 2>/dev/null; then
-        echo -e "    ${GREEN}OK${NC}   jira         -- JIRA issue management (25 tools)"
+        echo -e "    ${GREEN}OK${NC}   jira         -- JIRA issue management (29 tools, fork feat/redhat-fields)"
     else
         echo -e "    ${YELLOW}DEPS${NC} jira         -- Re-run setup to create venv"
     fi

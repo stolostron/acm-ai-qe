@@ -79,7 +79,7 @@ Generates Polarion-ready test cases from JIRA tickets. 6-phase subagent pipeline
 |--------|-------|---------|
 | ACM Source | 18 | Console + kubevirt-plugin source code search |
 | Jenkins | 11 | Pipeline API + ACM analysis tools |
-| JIRA | 25 | Issue search, creation, management |
+| JIRA | 29 | Issue search, creation, attachments, list/download attachments, inline comment images ([atifshafi/jira-mcp-server@feat/redhat-fields](https://github.com/atifshafi/jira-mcp-server/tree/feat/redhat-fields)) |
 | Polarion | 25 | Test case access |
 | Neo4j RHACM | 2 | Component dependency graph (optional) |
 | ACM Search | 5 | Fleet-wide spoke resource queries |

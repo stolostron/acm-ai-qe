@@ -7,7 +7,7 @@ Seven MCP servers provide external data access for the pipeline. Four are used d
 | Server | Tools | Source | Phase | Setup |
 |--------|-------|--------|-------|-------|
 | acm-source | 18 | This repo (`mcp/acm-source-mcp-server/`) | 2, 3, 6, 7 | Local venv |
-| jira | 3 | [stolostron/jira-mcp-server](https://github.com/stolostron/jira-mcp-server) | 1 | Clone + venv + .env |
+| jira | 29 | [atifshafi/jira-mcp-server@feat/redhat-fields](https://github.com/atifshafi/jira-mcp-server/tree/feat/redhat-fields) | 1 | Clone + venv + .env |
 | polarion | 7 | This repo (`mcp/polarion/`) | 1 | uvx + .env |
 | neo4j-rhacm | 2 | [mcp-neo4j-cypher](https://pypi.org/project/mcp-neo4j-cypher/) (PyPI) | 1-3 | Podman container |
 | acm-search | 5 | [stolostron/acm-mcp-server](https://github.com/stolostron/acm-mcp-server) | 5 | On-cluster SSE + mcp-remote |
@@ -71,19 +71,24 @@ Always call `set_acm_version` before any other tool. For Fleet Virt features, al
 
 ## JIRA MCP Server
 
-**Tools:** 3
-**Source:** `mcp/.external/jira-mcp-server/` (cloned from stolostron)
+**Tools:** 29
+**Source:** `mcp/.external/jira-mcp-server/` (cloned from [atifshafi/jira-mcp-server](https://github.com/atifshafi/jira-mcp-server) branch `feat/redhat-fields`; upstream [PR #24](https://github.com/stolostron/jira-mcp-server/pull/24))
 **Used by:** Data Gatherer (Phase 1)
 
-Connects to Jira Cloud (Red Hat Atlassian) for ticket investigation.
+Connects to Jira Cloud (Red Hat Atlassian) for ticket investigation. Fork adds Red Hat fields (`sprint`, `qa_contact`, `severity`, `attachments`, `issue_links`, …), `add_issue_attachments`, and inline screenshots via `add_comment` `attachment_paths` / `inline_attachment_paths`.
 
-### Tools
+Refresh after fork updates: `bash mcp/setup.sh --app 3` (or `--app 4`) from repo root.
+
+### Key tools (Phase 1)
 
 | Tool | Purpose |
 |------|---------|
-| `get_issue(issue_key)` | Fetch full ticket details (does NOT return issue links) |
-| `search_issues(jql, fields, max_results)` | Search via JQL (use for linked tickets) |
+| `get_issue(issue_key)` | Full ticket + Red Hat fields, comments, `attachments`, `issue_links` |
+| `search_issues(jql, ...)` | JQL search (linked tickets, epics, duplicates) |
+| `search_users(query)` | Resolve assignees / QA contacts |
 | `get_project_components(project_key)` | List project components |
+| `add_comment(issue_key, comment, attachment_paths?, inline_attachment_paths?)` | Comment with optional inline images (user approval for writes) |
+| `add_issue_attachments(issue_key, file_paths)` | Issue-level attachments only |
 
 ### Credentials
 

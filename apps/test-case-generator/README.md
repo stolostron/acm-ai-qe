@@ -362,7 +362,7 @@ Returns `PASS` or `NEEDS_FIXES` with specific issues. On `NEEDS_FIXES`, loops ba
 | Server | Tools | Purpose |
 |--------|:-----:|---------|
 | acm-source | 18 | ACM Console + kubevirt-plugin source search via GitHub |
-| jira | 25 | JIRA ticket investigation (stories, bugs, comments, links) |
+| jira | 29 | JIRA ticket investigation (Red Hat fields, attachments, inline comment images) |
 | polarion | 25 | Existing test case coverage (Polarion work items) |
 | neo4j-rhacm | 2 | Architecture dependency graph (component relationships) |
 | acm-search | 5 | Live cluster resource queries across managed clusters |

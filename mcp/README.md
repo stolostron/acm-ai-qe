@@ -28,7 +28,7 @@ and query component dependency graphs -- without needing API keys embedded in pr
 | Server | Used by | What it does | Tools | Source |
 |--------|---------|--------------|-------|--------|
 | **acm-source** | Hub Health, Z-Stream, Test Case Gen | Searches ACM Console & Fleet Virt source code on GitHub | 18 | This repo |
-| **jira** | Z-Stream, Test Case Gen | Searches/creates JIRA issues for bug correlation | 25 | [stolostron/jira-mcp-server](https://github.com/stolostron/jira-mcp-server) |
+| **jira** | Z-Stream, Test Case Gen | Searches/creates JIRA issues, attachments, list/download attachments, inline comment images | 29 | [atifshafi/jira-mcp-server@feat/redhat-fields](https://github.com/atifshafi/jira-mcp-server/tree/feat/redhat-fields) ([PR #24](https://github.com/stolostron/jira-mcp-server/pull/24)) |
 | **jenkins** | Z-Stream | Jenkins pipeline analysis, build monitoring, failure investigation | 11 | [redhat-community-ai-tools/jenkins-mcp](https://github.com/redhat-community-ai-tools/jenkins-mcp) |
 | **polarion** | Z-Stream, Test Case Gen | Reads/writes Polarion test cases (RHACM4K project) | 25 | This repo (wrapper around [polarion-mcp](https://pypi.org/project/polarion-mcp/)) |
 | **neo4j-rhacm** | Hub Health, Z-Stream, Test Case Gen | Queries RHACM component dependency graph (370 components, 541 relationships across 7 subsystems) | 2 | [mcp-neo4j-cypher](https://pypi.org/project/mcp-neo4j-cypher/) (PyPI) + [stolostron/knowledge-graph](https://github.com/stolostron/knowledge-graph) (data) |
@@ -102,7 +102,7 @@ mcp/
 |-- verify.py                        <-- Standalone health checker (run anytime)
 |
 \-- .external/                       <-- Cloned at setup time (gitignored)
-    |-- jira-mcp-server/             <-- From stolostron/jira-mcp-server
+    |-- jira-mcp-server/             <-- From atifshafi/jira-mcp-server@feat/redhat-fields (.venv, verify-startup.sh)
     |-- jenkins-mcp/                 <-- From redhat-community-ai-tools/jenkins-mcp
     |-- acm-mcp-server/              <-- From stolostron/acm-mcp-server (acm-search + acm-kubectl)
     \-- knowledge-graph/             <-- From stolostron/knowledge-graph (Neo4j Cypher data)
@@ -131,6 +131,23 @@ External MCPs are cloned from forks with pending upstream PRs. Once merged,
 | acm-search | None (reads from cluster secret via `deploy-acm-search.sh`) | N/A |
 | acm-kubectl | None (uses `oc login`) | N/A |
 | playwright | None (browser automation) | N/A |
+
+## JIRA fork (fresh clone checklist)
+
+`setup.sh` sets:
+
+| Variable | Value |
+|----------|--------|
+| `JIRA_REPO` | `https://github.com/atifshafi/jira-mcp-server.git` |
+| `JIRA_BRANCH` | `feat/redhat-fields` |
+
+After setup, `mcp/.external/jira-mcp-server/` has a `.venv`, `.env` (your token + email), and passes `scripts/verify-startup.sh`. Generated `.mcp.json` entries use:
+
+- `command`: `mcp/.external/jira-mcp-server/.venv/bin/python`
+- `cwd`: `mcp/.external/jira-mcp-server`
+- `args`: `["-m", "jira_mcp_server.main"]`
+
+**Cursor users** can instead use the working copy at `~/Documents/work/ai/tools/mcp/jira-mcp-server/` (same fork/branch) — see `~/Documents/work/ai/tools/mcp/README.md`.
 
 ## Verifying Setup
 

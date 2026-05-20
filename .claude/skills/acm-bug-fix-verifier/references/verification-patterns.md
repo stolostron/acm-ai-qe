@@ -222,7 +222,15 @@ oc get crd <crd-name> -o yaml | grep "<pattern>"
 
 ## JIRA Comment Template
 
-When the user approves a JIRA update, use this template:
+When the user approves a JIRA update, use this template. Prefer a one-line QE close comment when the verdict is VERIFIED and the ticket is ready to close:
+
+```
+Verified on <DOWNSTREAM-build-tag> (CSV <acm-version>), closing the ticket.
+```
+
+Attach the verification screenshot **inline** via `add_comment` with `attachment_paths` and `inline_attachment_paths` (same file path in both lists). Put only the build-tag line in `comment` text — do not add `!filename|thumbnail!` wiki lines (MCP appends them once). Requires JIRA MCP fork `feat/redhat-fields` (29 tools; see `mcp/README.md`).
+
+For detailed evidence, use the expanded template:
 
 ```
 h3. QE Verification - [VERDICT]

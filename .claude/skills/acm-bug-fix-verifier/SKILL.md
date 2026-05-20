@@ -415,12 +415,17 @@ If verdict is VERIFIED, offer to update the JIRA ticket:
 
 **NEVER write to JIRA without explicit user approval.** This includes comments, transitions, labels, and field changes.
 
-If approved, use JIRA MCP:
+If approved, use JIRA MCP (param is `comment`, not `body`). For QE verify with a screenshot, pass `attachment_paths` and `inline_attachment_paths` so the image appears inline in the comment:
 ```
-mcp__jira__add_comment(issue_key="ACM-12345", body="<verification summary>")
+mcp__jira__add_comment(
+  issue_key="ACM-12345",
+  comment="Verified on <DOWNSTREAM-tag> (CSV <version>), closing the ticket.",
+  attachment_paths=["/absolute/path/to/screenshot.png"],
+  inline_attachment_paths=["/absolute/path/to/screenshot.png"],
+)
 ```
 
-See [verification-patterns.md](references/verification-patterns.md) for the JIRA comment template.
+See [verification-patterns.md](references/verification-patterns.md) for the full JIRA comment template.
 
 ### Step 4: Cleanup
 
@@ -438,7 +443,8 @@ See [verification-patterns.md](references/verification-patterns.md) for the JIRA
 |------|-------|---------|
 | `get_issue(issue_key)` | 0, 1A | Full ticket details, comments, links |
 | `search_issues(jql)` | 1A | Linked bugs, verification tickets |
-| `add_comment(issue_key, body)` | 4 | Verification comment (user approval required) |
+| `add_comment(issue_key, comment, attachment_paths?, inline_attachment_paths?)` | 4 | Verification comment; inline screenshot when paths provided (user approval required) |
+| `add_issue_attachments(issue_key, file_paths)` | 4 | Issue-level attachments only (no inline comment) |
 
 ### Playwright MCP (`playwright`) -- Required for UI verification
 

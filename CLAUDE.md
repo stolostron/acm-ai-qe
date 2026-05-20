@@ -115,7 +115,7 @@ From the repo root, launch `claude` and run `/onboard`. It detects your environm
 |--------|-------|--------|---------|
 | ACM Source (`mcp/acm-source-mcp-server/`) | 18 | This repo | ACM Console + kubevirt-plugin source code search via GitHub |
 | Jenkins | 7+4 | [upstream](https://github.com/redhat-community-ai-tools/jenkins-mcp) + `mcp/jenkins-acm-tools.py` | Jenkins pipeline API + ACM analysis tools |
-| JIRA | 25 | [stolostron/jira-mcp-server](https://github.com/stolostron/jira-mcp-server) | Issue search, creation, management for bug correlation (Jira Cloud) |
+| JIRA | 29 | [atifshafi/jira-mcp-server@feat/redhat-fields](https://github.com/atifshafi/jira-mcp-server/tree/feat/redhat-fields) | Issue search, creation, attachments, list/download attachments, inline comment images (Jira Cloud; [PR #24](https://github.com/stolostron/jira-mcp-server/pull/24)) |
 | Neo4j RHACM | 2 | [mcp-neo4j-cypher](https://pypi.org/project/mcp-neo4j-cypher/) (PyPI) | Component dependency analysis via Cypher queries |
 | ACM Search | 5 | [stolostron/acm-mcp-server](https://github.com/stolostron/acm-mcp-server) | Fleet-wide resource queries via search-postgres (spoke-side visibility) |
 | Polarion (`mcp/polarion/`) | 25 | This repo | Polarion test case management |

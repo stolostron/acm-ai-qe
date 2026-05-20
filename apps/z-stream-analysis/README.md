@@ -270,7 +270,7 @@ Each of the 12 subsystems has `architecture.md`, `data-flow.md`, and `failure-si
 | Server | Tools | Purpose |
 |--------|:-----:|---------|
 | ACM Source | 18 | ACM Console + kubevirt-plugin source search via GitHub |
-| JIRA | 25 | Issue search and bug correlation (Jira Cloud) |
+| JIRA | 29 | Issue search, bug correlation, attachments (fork `feat/redhat-fields`) |
 | Jenkins | 11 | Pipeline API + ACM analysis tools |
 | Polarion | 25 | Test case content and dependency discovery |
 | Neo4j | 2 | Component dependency analysis via Cypher |

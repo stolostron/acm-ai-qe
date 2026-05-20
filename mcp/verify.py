@@ -209,7 +209,7 @@ def check_artifacts(app_nums, needed_mcps):
         ),
         "jira": (
             EXTERNAL_DIR / "jira-mcp-server" / ".venv",
-            "import jira_mcp_server",
+            "from fastmcp import Context; import jira_mcp_server",
         ),
         "jenkins": (
             EXTERNAL_DIR / "jenkins-mcp" / ".venv",
@@ -246,6 +246,37 @@ def check_artifacts(app_nums, needed_mcps):
                 "missing",
                 "run: bash mcp/setup.sh",
             ))
+
+    if "jira" in needed_mcps:
+        jira_dir = EXTERNAL_DIR / "jira-mcp-server"
+        verify_script = jira_dir / "scripts" / "verify-startup.sh"
+        if not jira_dir.is_dir():
+            results.append((
+                "jira clone",
+                FAIL,
+                "missing",
+                "run: bash mcp/setup.sh (clones atifshafi/jira-mcp-server@feat/redhat-fields)",
+            ))
+        elif verify_script.is_file():
+            try:
+                proc = subprocess.run(
+                    ["bash", str(verify_script)],
+                    cwd=str(jira_dir),
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+                if proc.returncode == 0:
+                    results.append(("jira verify-startup", PASS, "ok", None))
+                else:
+                    results.append((
+                        "jira verify-startup",
+                        WARN,
+                        "failed",
+                        f"cd {jira_dir} && make bootstrap && make verify-startup",
+                    ))
+            except (subprocess.TimeoutExpired, OSError):
+                results.append(("jira verify-startup", WARN, "could not run", None))
 
     cred_checks = {
         "jira": EXTERNAL_DIR / "jira-mcp-server" / ".env",

@@ -274,8 +274,8 @@ bash mcp/setup.sh --app <N> --no-creds
 ```
 
 Where N is the mapped number from Step 3. This will:
-- Clone external repos into `mcp/.external/` (jira-mcp-server, jenkins-mcp, knowledge-graph, acm-mcp-server)
-- Create venvs for MCP servers
+- Clone external repos into `mcp/.external/` (jira: [atifshafi/jira-mcp-server@feat/redhat-fields](https://github.com/atifshafi/jira-mcp-server/tree/feat/redhat-fields), jenkins-mcp, knowledge-graph, acm-mcp-server)
+- Create venvs and install JIRA with `pip install -e '.[dev]'` + `scripts/verify-startup.sh`
 - Set up Neo4j container if Podman is available
 - Generate `.mcp.json` for each selected app
 

@@ -1,0 +1,2 @@
+[console_scripts]
+acm-source-mcp-server = acm_source_mcp_server.main:main

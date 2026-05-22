@@ -20,7 +20,7 @@ Jenkins pipeline failure analysis with definitive classification of each test fa
      ▼              ▼                ▼                ▼                  ▼
 cluster_oracle  core-data.json  cluster-          analysis-         Detailed-Analysis.md
                 cluster.kubeconfig  diagnosis.json  results.json    per-test-breakdown.json
-                repos/          knowledge/learned/                  SUMMARY.txt
+                repos/                                              SUMMARY.txt
                 pipeline.log.jsonl                                  pipeline.log.jsonl
 ```
 

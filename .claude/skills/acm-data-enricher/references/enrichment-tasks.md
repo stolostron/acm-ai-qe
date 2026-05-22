@@ -152,7 +152,7 @@ If none trigger, skip Task 4 entirely.
    f. Discard invalid entries
 2. Resolve prerequisites from `cluster-diagnosis.json` if it exists
 3. Write to `feature_knowledge.ai_enrichment` in core-data.json
-4. Write discoveries to `${KNOWLEDGE_DIR}/learned/feature-gaps.yaml`
+4. Write discoveries directly to `${KNOWLEDGE_DIR}/failures/<subsystem>/failure-signatures.md`
 
 ### Valid values
 - Classifications: PRODUCT_BUG, AUTOMATION_BUG, INFRASTRUCTURE, MIXED, UNKNOWN, NO_BUG, FLAKY

@@ -19,7 +19,7 @@ Builds and updates the ACM knowledge base by comparing live cluster state agains
 1. Discover what's deployed on the hub
 2. Compare against the knowledge base
 3. Identify gaps (unknown operators, undocumented dependencies, new patterns)
-4. Write discoveries to `${KNOWLEDGE_DIR}/learned/`
+4. Write discoveries directly to the appropriate knowledge file
 
 When used after a diagnostic (acm-hub-health-check), it receives richer context about what was found and can focus learning on the gaps discovered during diagnosis. Without prior diagnosis, it performs its own discovery phase.
 
@@ -102,41 +102,22 @@ your terminal, then restart Claude Code."
 
 ### Step 5: Write Discoveries
 
-Write each discovery to the knowledge `learned/` directory.
+Write each discovery directly to the appropriate knowledge file. Read the target first, check for duplicates, append in the existing format.
 
 **Unknown operator discovered:**
-Write `${KNOWLEDGE_DIR}/learned/<operator-name>.md`:
-```markdown
-# <Operator Name>
-Discovered: <date>
-
-## Overview
-- CSV: <csv name>
-- Namespace: <namespace>
-- Phase: <phase>
-- Owned CRDs: <list>
-
-## Dependencies (from introspection)
-- ownerReferences: <controller hierarchy>
-- env vars: <service references>
-- Webhooks: <targets>
-- ConsolePlugin: <UI integration>
-
-## ACM Integration
-<None | Console plugin | Addon | Deployment in ACM namespace>
-```
+Write to `${KNOWLEDGE_DIR}/architecture/<subsystem>/architecture.md` (append a new component section).
 
 **New failure pattern:**
-Write to `${KNOWLEDGE_DIR}/learned/new-patterns.yaml`
+Write to `${KNOWLEDGE_DIR}/failures/<subsystem>/failure-signatures.md` (append under the matching classification heading).
 
 **New dependency chain:**
-Write to `${KNOWLEDGE_DIR}/learned/new-chains.yaml`
+Write to `${KNOWLEDGE_DIR}/baselines/dependency-chains.yaml` (append a new chain entry).
 
 **Certificate issue:**
-Write to `${KNOWLEDGE_DIR}/learned/cert-issues.yaml`
+Write to `${KNOWLEDGE_DIR}/health/<subsystem>/known-issues.md` (append as a new numbered issue).
 
 **Post-upgrade observation:**
-Write to `${KNOWLEDGE_DIR}/learned/upgrade-observations.yaml`
+Write to `${KNOWLEDGE_DIR}/health/<subsystem>/known-issues.md` (append with version context).
 
 ## Discovery Triggers
 
@@ -152,17 +133,12 @@ Automatically investigate when ANY of these are observed:
 
 ## Baseline Refresh
 
-To refresh YAML baselines from the current cluster state:
-
-```bash
-python ${KNOWLEDGE_DIR}/refresh.py --baseline --webhooks --certs --addons
-```
-
-This updates `healthy-baseline.yaml`, `webhook-registry.yaml`, `certificate-inventory.yaml`, and `addon-catalog.yaml` from the live cluster. Use `--dry-run` to preview changes. Use `--promote` to copy from `${KNOWLEDGE_DIR}/learned/` to the main knowledge directory.
+Baseline refresh is done by the agent directly -- read the baseline file, query the cluster with `oc`, and update the file in place.
 
 ## Rules
 
 - ALL cluster operations are strictly **read-only** -- never modify the cluster during learning
-- Write ONLY to `${KNOWLEDGE_DIR}/learned/` -- never modify curated knowledge files directly
-- Discoveries are **additive** -- never delete existing learned entries, only add or update
+- Write directly to the appropriate target file (see directory map in root CLAUDE.md)
+- Discoveries are **additive** -- never delete existing content, only append
+- Read the target file first and check for duplicates before writing
 - When introspection is insufficient, note the gap rather than guessing

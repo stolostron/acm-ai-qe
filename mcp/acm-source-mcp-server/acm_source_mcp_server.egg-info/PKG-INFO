@@ -1,0 +1,10 @@
+Metadata-Version: 2.4
+Name: acm-source-mcp-server
+Version: 0.2.0
+Summary: MCP server for ACM Console and Fleet Virtualization source code discovery
+Requires-Python: >=3.12
+Requires-Dist: mcp
+Requires-Dist: pydantic
+Requires-Dist: pydantic-settings
+Requires-Dist: python-dotenv
+Requires-Dist: fastmcp>=2.14.3

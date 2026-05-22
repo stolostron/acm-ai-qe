@@ -246,7 +246,7 @@ Load knowledge baselines and compare against cluster state:
 - `healthy-baseline.yaml` -- expected pod counts and states
 - `common-diagnostic-traps.md` -- 14 patterns where the obvious diagnosis is wrong
 - Per-subsystem architecture docs
-- Previous discoveries from `knowledge/learned/`
+- Previous discoveries (agents write directly to target knowledge files)
 
 ### Phase 3: Check
 
@@ -313,7 +313,7 @@ Patterns where the obvious diagnosis is wrong. The agent checks these before con
 | `architecture/` | Per-subsystem architecture, data flow, known issues | 40 |
 | `diagnostics/` | 12-layer model, dependency chains, traps, playbooks, evidence tiers | 8 |
 | Root YAML/MD | Components, baselines, services, webhooks, certs, addons, versions, patterns | 11 |
-| `learned/` | Agent-contributed discoveries (grows over time) | 0+ |
+| `learned/` | DEPRECATED -- agents write directly to target files (architecture/, health/, failures/, etc.) | 0+ |
 
 Each of the 12 subsystems has `architecture.md`, `data-flow.md`, and `known-issues.md`.
 

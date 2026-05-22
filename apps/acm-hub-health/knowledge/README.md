@@ -71,10 +71,12 @@ Quantitative baselines for comparing cluster state against known-good values:
 - `component-registry.md` -- Master inventory of ACM components, CRDs, and namespaces
 - `failure-patterns.md` -- Symptom-to-root-cause correlation heuristics
 
-### `learned/` -- Agent-Discovered Knowledge
+### `learned/` -- DEPRECATED
 
-Written by the agent during health checks when it encounters something not
-in the static knowledge. Grows over time. Version- and cluster-specific.
+> **Deprecated.** Agents now write directly to the appropriate target
+> knowledge file (architecture/, health/, failures/, etc.) instead of
+> to `learned/`. Existing files in `learned/` are legacy and may be
+> migrated to their proper locations.
 
 ## How Knowledge is Used
 
@@ -84,13 +86,13 @@ When investigating a component, the agent follows this priority order:
 2. Check `known-issues.md` -- match symptoms against documented bug patterns
 3. Consult structured YAML -- compare cluster state against quantitative baselines
 4. Use `diagnostics/` -- follow investigation methodology and evidence rules
-5. Check `learned/` -- look for previous discoveries on this cluster
+5. Check existing knowledge files for previous agent discoveries on this cluster
 6. If nothing matches -- trigger self-healing:
    - Reverse-engineer dependencies from live cluster metadata
      (owner refs, OLM labels, CSVs, env vars, webhooks, ConsolePlugins, APIServices)
    - Cross-reference with neo4j-rhacm knowledge graph MCP
    - Use acm-source MCP to understand dependency implementation (source code)
-   - Write findings to `learned/` for future runs
+   - Write findings directly to the appropriate target knowledge file
 
 ## Refreshing Knowledge
 
@@ -102,7 +104,7 @@ python -m knowledge.refresh --baseline      # Update healthy-baseline.yaml
 python -m knowledge.refresh --webhooks      # Update webhook-registry.yaml
 python -m knowledge.refresh --certs         # Update certificate-inventory.yaml
 python -m knowledge.refresh --addons        # Update addon-catalog.yaml
-python -m knowledge.refresh --promote       # Review learned/ entries for promotion
+python -m knowledge.refresh --promote       # Review learned/ entries for promotion (deprecated)
 python -m knowledge.refresh --dry-run       # Show what would change without writing
 ```
 

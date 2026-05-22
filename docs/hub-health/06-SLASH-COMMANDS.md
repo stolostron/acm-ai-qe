@@ -259,7 +259,7 @@ checking health, focuses on discovering and documenting what's deployed:
      - Cross-reference with `neo4j-rhacm` MCP for broader dependency coverage
      - Search `docs/rhacm-docs/` for documentation
      - Use `acm-source` MCP to search source code
-   - Write findings to `knowledge/learned/`
+   - Write findings directly to the appropriate knowledge file
 
 ### When to Use
 
@@ -281,14 +281,16 @@ The optional argument scopes the learning to a specific area.
 
 ### Output
 
-Summary of what was discovered and what was written to `knowledge/learned/`.
+Summary of what was discovered and what was written to target knowledge files.
 Lists any mismatches found between knowledge and cluster state, and what
 was learned to resolve them.
 
 ### Knowledge Files Written
 
-Files are written to `knowledge/learned/<topic>.md` using the standard format
-documented in [03-KNOWLEDGE-SYSTEM.md](03-KNOWLEDGE-SYSTEM.md).
+Files are written directly to the appropriate target knowledge file
+(architecture/, health/, failures/, etc.). See
+[03-KNOWLEDGE-SYSTEM.md](03-KNOWLEDGE-SYSTEM.md) for the discovery output
+destinations. The `knowledge/learned/` directory is deprecated.
 
 ---
 

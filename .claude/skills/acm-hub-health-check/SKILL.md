@@ -204,7 +204,7 @@ When used by the acm-z-stream-analyzer (Stage 1.5), produce `cluster-diagnosis.j
 - `classification_guidance` (pre-classified infrastructure + confirmed healthy areas)
 - `attribution_rule` per infrastructure issue (when to attribute + what NOT to attribute)
 
-Write self-healing discoveries to `${KNOWLEDGE_DIR}/learned/` for future runs.
+Write self-healing discoveries directly to the appropriate knowledge file (e.g., `${KNOWLEDGE_DIR}/health/<subsystem>/known-issues.md` or `${KNOWLEDGE_DIR}/failures/<subsystem>/failure-signatures.md`). Read the target file first, check for duplicates, append in the existing format.
 
 ## Report Format (Standalone Mode)
 

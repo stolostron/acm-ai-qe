@@ -31,7 +31,7 @@ the static knowledge doesn't cover a component or dependency path.
 │                           │                   │                                       │
 │                           ▼                   ▼                                       │
 │                       Synthesized Understanding                                      │
-│                       (written to learned/*.md)                                      │
+│                       (written directly to target knowledge files)                   │
 └──────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -479,7 +479,7 @@ The `.claude/settings.json` file auto-approves two categories of commands:
   text processing utilities, file inspection, `git clone`, all acm-source
   MCP tools, all neo4j-rhacm MCP tools (read-only Cypher queries), and
   all acm-search MCP tools (read-only search database queries).
-  File writes limited to `knowledge/learned/` only.
+  Agents write directly to the appropriate knowledge file.
 - **Remediation** (double-gated): `oc patch`, `oc scale`,
   `oc rollout restart`, `oc delete pod`, `oc annotate`, `oc label`,
   `oc apply`. These are NOT auto-approved in settings.json -- Claude Code

@@ -9,14 +9,6 @@
 
 ---
 
-## What's Inside
-
-| App | What It Does | Try It |
-|-----|-------------|--------|
-| **[Hub Health](apps/acm-hub-health/)** | Diagnose ACM hub clusters in natural language. Finds root causes across 12 infrastructure layers with 59 knowledge files backing every finding. | `/health-check` |
-| **[Z-Stream Analysis](apps/z-stream-analysis/)** | Classify Jenkins pipeline failures as product bug, automation bug, or infrastructure. 5-stage pipeline with per-test evidence chains. | `/analyze <URL>` |
-| **[Test Case Generator](apps/test-case-generator/)** | Generate Polarion-ready test cases from JIRA tickets. Investigates the story, discovers UI selectors, writes the test case, reviews it for quality. | `/generate ACM-XXXXX` |
-
 ## Get Started
 
 ```bash
@@ -29,47 +21,62 @@ claude
 /onboard
 ```
 
-That's it. The onboarding skill detects your environment, walks you through MCP server setup and credentials, and gets you ready to use any app.
+The onboarding skill detects your environment, walks you through MCP server setup and credentials, and gets you ready to run any workflow.
 
 > [!TIP]
 > `/onboard` is idempotent -- run it again anytime to check what's configured and what's missing.
 
-## Usage at a Glance
+## Skills
 
-All capabilities are available as **portable skills** from the repo root -- no need to `cd` into app directories:
+19 portable skills available from the repo root -- just launch `claude` and ask in natural language.
 
-```bash
-claude                                              # from repo root
-```
+### Primary Workflows
 
-```
-"Generate a test case for ACM-30459"                # test case generation
-"Analyze this Jenkins run: https://jenkins/job/123"  # pipeline failure analysis
-"How's my hub health?"                               # cluster diagnostics (after oc login)
-```
+| Skill | What It Does | Try It |
+|-------|-------------|--------|
+| **Test Case Generator** | Generates Polarion-ready test cases from JIRA tickets. 9-phase pipeline: JIRA investigation, PR analysis, UI discovery, synthesis, optional live validation, writing, and mandatory quality review. | `"Generate a test case for ACM-30459"` |
+| **Z-Stream Analyzer** | Classifies Jenkins pipeline test failures as PRODUCT_BUG, AUTOMATION_BUG, INFRASTRUCTURE, or NO_BUG. 4-stage pipeline with data gathering, cluster diagnostics, 12-layer AI classification, and report generation. | `"Analyze this run: <JENKINS_URL>"` |
+| **Hub Health Check** | Diagnoses ACM hub cluster health using a 6-phase pipeline with 4 depth modes. Checks operators, pods, addons, subsystems, dependency chains, and known failure patterns. | `"How's my hub health?"` (after `oc login`) |
+| **Bug Hunter** | Proactively hunts for bugs in ACM feature implementations using test cases as a starting point. 10-dimension investigation with adversarial subagents. | `"Hunt bugs using RHACM4K-61733"` |
+| **Bug Fix Verifier** | Verifies whether a known bug fix has landed on a target environment. Checks branch reachability, build dates, code presence, and UI behavior. | `"Verify ACM-29818 is fixed on this cluster"` |
 
-<details>
-<summary><b>Or use app-specific slash commands</b> (from app directories)</summary>
+### Supporting Skills
 
-**Hub Health:**
-```bash
-cd apps/acm-hub-health && oc login <hub> && claude
-/health-check              # Standard diagnostic
-```
+These are called by the primary workflows or used standalone for focused tasks.
 
-**Z-Stream Analysis:**
-```bash
-cd apps/z-stream-analysis && claude
-/analyze <JENKINS_URL>     # Full pipeline
-```
+| Skill | Purpose |
+|-------|---------|
+| **Failure Classifier** | Classify individual test failures with 12-layer diagnostics and counterfactual validation. |
+| **Cluster Health** | Cluster health diagnostic toolkit (12-layer model, 14 trap patterns, dependency chains). |
+| **Cluster Investigator** | Deep-dive investigation of individual test failures tracing from symptom to root cause. |
+| **Cluster Remediation** | Remediate hub cluster issues with structured approval workflow. Proposes fixes, executes approved mutations, verifies results. |
+| **Data Enricher** | Enrich test failure data with page object resolution, selector verification, and change history analysis. |
+| **QE Code Analyzer** | PR diff analysis for test impact -- what changed and what to test. |
+| **Test Case Writer** | Writes test case markdown from pre-gathered context. Called by the generator pipeline or standalone with context already in hand. |
+| **Test Case Reviewer** | Quality review gate for test case files (conventions, UI verification, AC consistency). |
+| **Knowledge Base** | Read-only ACM Console domain reference: per-area architecture, Polarion conventions, naming patterns. |
+| **Knowledge Learner** | Builds and updates ACM knowledge by comparing live cluster state to the knowledge base. |
+| **Jenkins Client** | Interface to Jenkins CI for build status, test results, pipeline stages, console logs, and downstream trees. |
 
-**Test Case Generator:**
-```bash
-cd apps/test-case-generator && claude
-/generate ACM-XXXXX        # Full pipeline
-```
+### Utility Skills
 
-</details>
+| Skill | Purpose |
+|-------|---------|
+| **Onboard** | Interactive setup -- detects environment, configures MCP servers, prompts for credentials. |
+| **YouTube Digest** | Extracts YouTube transcripts and produces structured digests with key takeaways and timestamps. |
+| **Grill Me** | Interview-style stress testing of plans and designs until reaching shared understanding. |
+
+## Apps
+
+The primary workflows above are backed by full applications in `apps/` with their own agents, knowledge bases, tests, and slash commands.
+
+| App | Skills It Powers | Slash Commands |
+|-----|-----------------|----------------|
+| **[Z-Stream Analysis](apps/z-stream-analysis/)** | z-stream-analyzer, failure-classifier, data-enricher, cluster-investigator | `/analyze`, `/gather`, `/quick` |
+| **[Hub Health](apps/acm-hub-health/)** | hub-health-check, cluster-health, cluster-remediation, knowledge-learner | `/health-check`, `/deep`, `/sanity`, `/investigate`, `/learn` |
+| **[Test Case Generator](apps/test-case-generator/)** | test-case-generator, test-case-writer, test-case-reviewer, qe-code-analyzer | `/generate`, `/review`, `/batch` |
+
+Each app has its own `CLAUDE.md` with architecture details, data contracts, and development conventions.
 
 ## Prerequisites
 
@@ -78,42 +85,46 @@ cd apps/test-case-generator && claude
 - GitHub CLI ([`gh`](https://cli.github.com/))
 
 > [!NOTE]
-> Some apps need additional tools (`oc`, `jq`, `podman`, Node.js). The `/onboard` skill checks for everything and tells you exactly what's missing.
+> Some workflows need additional tools (`oc`, `jq`, `podman`, Node.js). The `/onboard` skill checks for everything and tells you exactly what's missing.
 
 ## How It Works
 
-Each app combines **deterministic Python scripts** (data gathering, report generation) with **AI agents** (investigation, classification, test writing) orchestrated by Claude Code. Agents access external systems through [MCP servers](https://modelcontextprotocol.io/) -- JIRA, Jenkins, Polarion, ACM cluster APIs, and a Neo4j knowledge graph.
+Each workflow combines **deterministic Python scripts** (data gathering, report generation) with **AI agents** (investigation, classification, test writing) orchestrated by Claude Code. Agents access external systems through [MCP servers](https://modelcontextprotocol.io/) -- JIRA, Jenkins, Polarion, ACM cluster APIs, and a Neo4j knowledge graph.
 
 ```
-You ──> Claude Code ──> Slash Command ──> Pipeline
-                            │
-                   ┌────────┼────────┐
-                   v        v        v
-              Python     AI Agent   MCP Servers
-              Scripts    (Claude)   (JIRA, Jenkins,
-                                    Polarion, oc, ...)
+You ──> Claude Code ──> Skill ──> Pipeline
+                          │
+                 ┌────────┼────────┐
+                 v        v        v
+            Python     AI Agent   MCP Servers
+            Scripts    (Claude)   (JIRA, Jenkins,
+                                   Polarion, oc, ...)
 ```
 
 ## Project Layout
 
 ```
 ai_systems_v2/
+├── .claude/
+│   ├── skills/                # 19 portable skills (usable from repo root)
+│   ├── knowledge/             # Shared knowledge database (11 categories, 14 subsystems)
+│   ├── commands/pre-push.md   # /pre-push quality gate
+│   ├── settings.json          # Root-level Claude Code settings
+│   └── statusline.sh          # Status line (model, branch, context %)
 ├── apps/
-│   ├── acm-hub-health/        # Cluster diagnostic agent
 │   ├── z-stream-analysis/     # Pipeline failure classifier
+│   ├── acm-hub-health/        # Cluster diagnostic agent
 │   └── test-case-generator/   # JIRA-to-Polarion test cases
-├── .mcp.json                  # Root MCP config for skills (generated by /onboard, gitignored)
-├── docs/                      # Cross-app documentation (skill architecture, MCP setup, per-app details)
 ├── mcp/                       # MCP server code + setup
 │   ├── setup.sh               # Automated MCP setup (also used by /onboard)
-│   ├── deploy-acm-search.sh   # ACM Search MCP deploy (oc login → deploy → .mcp.json)
-│   ├── verify.py              # Standalone health checker (run anytime)
-│   ├── acm-source-mcp-server/     # ACM Console source search
+│   ├── deploy-acm-search.sh   # ACM Search MCP deploy
+│   ├── verify.py              # Standalone health checker
+│   ├── acm-source-mcp-server/ # ACM Console source search
 │   └── polarion/              # Polarion test case access
-├── .claude/                   # Claude Code configuration
-│   ├── skills/                # 20 skills: 17 ACM + onboard + youtube-digest + grill-me (usable from repo root)
-│   ├── commands/pre-push.md   # /pre-push quality gate
-│   └── statusline.sh          # Status line (model, branch, context %)
+├── .mcp.json                  # Root MCP config for skills (generated by /onboard, gitignored)
+├── docs/
+│   ├── skill-architecture.md  # Skill inventory, blast radius, contributing
+│   └── skill-authoring-guide.md # Skill authoring standards
 ├── AGENTS.md                  # Agent reference for external AI tools
 ├── CLAUDE.md                  # Claude Code instructions
 └── README.md                  # You are here
@@ -123,7 +134,7 @@ ai_systems_v2/
 
 ```bash
 cd apps/z-stream-analysis
-python -m pytest tests/unit/ tests/regression/ -q    # 756 tests, no external deps
+python -m pytest tests/unit/ tests/regression/ -q    # 753 tests, no external deps
 ```
 
-See each app's `CLAUDE.md` for architecture details and development conventions.
+See each app's `CLAUDE.md` for architecture details and development conventions. For skill authoring standards, see [`docs/skill-authoring-guide.md`](docs/skill-authoring-guide.md). For the skill inventory and blast radius map, see [`docs/skill-architecture.md`](docs/skill-architecture.md).

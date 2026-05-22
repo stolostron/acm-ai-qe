@@ -2,11 +2,12 @@
 name: acm-bug-fix-verifier
 description: >-
   Verifies whether a known ACM bug fix has landed on a target environment. Takes
-  a JIRA ticket and a cluster, runs a 6-phase pipeline: parallel JIRA/PR/environment
+  a JIRA ticket and a cluster, runs a 7-phase pipeline: parallel JIRA/PR/environment
   investigation, three-tier fix presence check (branch reachability, build date,
-  code presence), Neo4j prerequisite gap analysis with heuristic fallback,
-  Playwright-driven UI/API verification, and verdict with optional JIRA update.
-  Produces BLOCKED, NOT_FIXED, PRESENT, or VERIFIED verdicts with evidence trail.
+  code presence), PR code review for fix correctness, Neo4j prerequisite gap
+  analysis with heuristic fallback, Playwright-driven UI/API verification, and
+  verdict with optional JIRA update. Produces BLOCKED, NOT_FIXED, PRESENT, or
+  VERIFIED verdicts with evidence trail.
   TRIGGER: verify bug fix, confirm fix landed, check if fixed, is the bug fixed,
   verify ACM-NNNNN on cluster, test fix on environment.
   DO NOT TRIGGER: hunt for new bugs (use acm-bug-hunter), write test cases
@@ -20,7 +21,7 @@ compatibility: >-
   Run /onboard to configure MCPs.
 metadata:
   author: acm-qe
-  version: "1.0.0"
+  version: "1.1.0"
   skill-standard: "anthropic-agent-skills-v1"
   category: verification
 ---
@@ -58,6 +59,7 @@ On skill start, create tasks for ALL phases:
 TaskCreate: Phase 0: Intake -- parse JIRA ticket, resolve environment
 TaskCreate: Phase 1: Parallel investigation (JIRA + Environment + PR)
 TaskCreate: Phase 2: Fix presence assessment (three-tier)
+TaskCreate: Phase 2b: PR code review (fix correctness)
 TaskCreate: Phase 2.5: Prerequisite gap analysis
 TaskCreate: Phase 3: Live verification (Playwright + oc)
 TaskCreate: Phase 4: Verdict and optional JIRA update
@@ -66,10 +68,11 @@ TaskCreate: Phase 4: Verdict and optional JIRA update
 Gate rules:
 1. A phase CANNOT be marked `completed` without executing it.
 2. Phase 1 subagents run in parallel. All three must complete before Phase 2.
-3. Phase 2 produces a preliminary verdict. If BLOCKED, skip Phases 2.5 and 3.
-4. Phase 2.5 MUST complete before Phase 3 starts.
-5. Phase 3 runs INLINE (not as subagent) due to Playwright MCP limitation.
-6. Phase 4 MUST NOT write to JIRA without explicit user approval.
+3. Phase 2 produces a preliminary verdict. If BLOCKED, skip Phases 2b, 2.5, and 3.
+4. Phase 2b MUST complete before Phase 2.5.
+5. Phase 2.5 MUST complete before Phase 3 starts.
+6. Phase 3 runs INLINE (not as subagent) due to Playwright MCP limitation.
+7. Phase 4 MUST NOT write to JIRA without explicit user approval.
 
 ### Approval Gates
 
@@ -251,7 +254,56 @@ See [environment-checks.md](references/environment-checks.md) section 2 for the 
 | PASS | PASS | UNAVAILABLE | **PRESENT** (lower confidence) |
 | PASS | UNAVAILABLE | PASS | **PRESENT** |
 
-If Phase 2 yields BLOCKED: skip Phases 2.5 and 3. Proceed directly to Phase 4.
+If Phase 2 yields BLOCKED: skip Phases 2b, 2.5, and 3. Proceed directly to Phase 4.
+
+---
+
+## Phase 2b: PR Code Review (Fix Correctness)
+
+**Purpose**: Understand what the code change actually does so that Phase 3 verification is informed and thorough. A fix being "in the build" is necessary but not sufficient -- the code must logically address the root cause.
+
+### Step 1 -- Read the diff
+
+Delegate PR diff analysis to the **`../acm-qe-code-analyzer/SKILL.md`** sibling skill. Spawn a subagent with:
+- PR number and repo from Phase 1C
+- Instruction: focus on changed files related to the JIRA component -- skip full test-impact analysis, return only the structural summary (what files changed, what logic changed, shared call sites)
+
+If the code analyzer skill is unavailable or the PR is small (< 5 files), use `gh pr diff` directly:
+
+```bash
+gh pr diff <PR_NUMBER> --repo <REPO>
+```
+
+For large PRs, focus on:
+- The file(s) directly related to the bug (e.g. the component/page mentioned in JIRA)
+- Test files -- do they cover the reported scenario?
+
+### Step 2 -- Assess fix correctness
+
+| Question | How to answer |
+|----------|---------------|
+| Does the change address the root cause described in JIRA? | Compare PR diff against bug description / dev comments |
+| Is the change minimal and scoped? | Large refactors alongside a one-line fix -> higher risk |
+| Are tests added/updated for the fix? | Check if test expectations match the expected behavior from JIRA |
+| Could the change break adjacent functionality? | Check if modified code is shared by other call sites |
+
+### Step 3 -- Risk and side-effect assessment
+
+Classify:
+- **Low risk**: Single-value change, default removed/added, CSS-only fix with test coverage.
+- **Medium risk**: Logic change affecting shared utility, API parameter addition, refactored flow.
+- **High risk**: Large refactor bundled with fix, changed function signatures used by multiple callers.
+
+For medium/high risk: note specific areas to watch during UI verification (Phase 3). For example, if a utility function was refactored, verify both the originally-broken page AND any other page that uses the same utility.
+
+### Step 4 -- Record findings
+
+Add to the evidence bundle:
+- Fix summary (what the code change actually does, in plain language).
+- Risk level.
+- Any areas to spot-check during verification beyond the direct repro.
+
+If the code review reveals the fix is **clearly wrong** (e.g. addresses wrong component, introduces obvious null-ref), verdict **NOT_FIXED (code review)** without needing UI verification. Proceed directly to Phase 4.
 
 ---
 
@@ -356,7 +408,21 @@ Check that the bug no longer manifests:
 - Expected text/values appear
 - No error messages matching the bug description
 
-**Step 5: CSRF-aware API verification (when applicable)**
+**Step 5: Regression spot-checks (informed by Phase 2b)**
+
+After confirming the direct fix works, run targeted regression checks based on Phase 2b findings:
+
+- **If Phase 2b identified shared code** (e.g. a utility function was refactored): verify the same flow on another page/component that uses it.
+- **If Phase 2b identified a default/value removal**: verify the manual path still works (e.g. if a checkbox default was removed, manually check the box and confirm the feature still functions when enabled).
+- **If Phase 2b identified test coverage gaps**: manually exercise the uncovered path in the UI.
+- **If Phase 2b rated LOW risk with good test coverage**: skip regression checks -- direct repro is sufficient.
+
+The regression scope should be proportional to the risk level:
+- **Low risk**: Direct repro only (Steps 3-4 are sufficient).
+- **Medium risk**: Direct repro + 1-2 adjacent spot-checks on shared code paths.
+- **High risk**: Direct repro + systematic check of all call sites identified in Phase 2b.
+
+**Step 6: CSRF-aware API verification (when applicable)**
 
 For bugs involving API behavior through the console proxy, use in-page `fetch` with CSRF header:
 
@@ -493,6 +559,10 @@ Spawn via Agent tool (`subagent_type: "general-purpose"`):
 - **Environment Profile (1B)** -- oc CLI + optional Neo4j for cluster inspection
 - **PR/Cherry-pick Analysis (1C)** -- gh CLI for PR status and cherry-pick detection
 
+### Phase 2b Subagent (Optional)
+
+For large PRs (5+ files), spawn a subagent following **`../acm-qe-code-analyzer/SKILL.md`** process. For small PRs, run `gh pr diff` inline in the orchestrator.
+
 ### Phase 3 (NO SUBAGENT)
 
 Phase 3 runs **inline** in the orchestrator. Playwright MCP tools are not accessible from subagents. This is a known platform limitation also observed in `acm-test-case-generator` Phase 5.
@@ -511,6 +581,7 @@ From the handoff document (§6). These are non-negotiable.
 6. **oc exec + grep is valid Tier C.** Grepping for code patterns inside running containers is acceptable evidence.
 7. **gh pr list for cherry-pick detection.** Use `gh pr list --search "ACM-XXXXX" --base release-2.YY` to find cherry-pick PRs.
 8. **No silent scope downgrade.** If a verification tier fails or is unavailable, state it explicitly in the verdict. Never silently omit a tier or claim higher confidence than evidence supports.
+9. **PR code review is mandatory.** Before declaring FIXED/VERIFIED, review the actual code diff (`gh pr diff`) to confirm the change is correct, minimal, and doesn't introduce side effects. A fix being "in the build" is necessary but not sufficient.
 
 ---
 
@@ -539,6 +610,8 @@ Phase 0: ACM-30001 -- "GRC policy table shows wrong compliance count"
 Phase 1: PR #4521 merged to release-2.12 on 2026-04-28
          Image date 2026-05-01 >= merge date 2026-04-28
 Phase 2: Tier A PASS, Tier B PASS, Tier C PASS -> PRESENT
+Phase 2b: gh pr diff #4521 -- fix corrects count aggregation logic.
+          Risk: LOW (single function, test updated). No regression spots needed.
 Phase 3: Backend -- grc-ui pod running, no errors
          UI -- compliance count correct after policy creation
 Phase 4: Verdict: VERIFIED (confidence: 0.95)
@@ -554,12 +627,13 @@ Phase 0: ACM-30002 -- "Search returns stale results after import"
          Cluster: current oc login, ACM 2.13.0
 Phase 1: PR #892 merged to main. Cherry-pick PR #901 open targeting release-2.13.
 Phase 2: Tier A FAIL (main-only). Cherry-pick not merged -> BLOCKED.
+         (Phase 2b, 2.5, 3 skipped)
 Phase 4: Verdict: BLOCKED
          "Fix in main. Cherry-pick PR #901 to release-2.13 is open.
           Monitor for merge, then re-verify."
 ```
 
-### Example 3: NOT_FIXED verdict
+### Example 3: NOT_FIXED (code review)
 
 ```
 User: confirm fix for ACM-30003 on my 2.16 hub
@@ -572,6 +646,23 @@ Phase 2: Tier A PASS, Tier B FAIL (image predates fix) -> NOT_FIXED.
 Phase 4: Verdict: NOT_FIXED
          "PR merged to release-2.16 but image was built 5 days before merge.
           Rebuild environment with snapshot newer than 2026-04-20."
+```
+
+### Example 4: VERIFIED with regression check (medium risk)
+
+```
+User: verify ACM-30004 on bm12
+
+Phase 0: ACM-30004 -- "RBAC role table shows wrong permission count"
+         Cluster: bm12, ACM 2.17.0, DOWNSTREAM-2026-05-18-10-00-00
+Phase 1: PR #5678 merged to release-2.17 on 2026-05-15.
+Phase 2: Tier A PASS, Tier B PASS -> PRESENT
+Phase 2b: gh pr diff #5678 -- refactored shared utility `aggregatePermissions()`.
+          Risk: MEDIUM (utility used by 3 pages). Regression spots: role detail page, user detail page.
+Phase 2.5: No gaps (RBAC prereqs met).
+Phase 3: Direct repro passes (role table correct).
+         Regression: role detail page OK, user detail page OK.
+Phase 4: Verdict: VERIFIED (confidence: 0.92)
 ```
 
 ---

@@ -95,9 +95,8 @@ self-healing (reverse-engineer from cluster if nothing matches).
 **These are references, NOT checklists.** Discover what's deployed on THIS
 cluster first. Then use knowledge as ground truth for what healthy looks like.
 
-**Writing rules:** Only write to `knowledge/learned/`. Never modify curated
-knowledge files directly during diagnosis. Use the `learn` skill for
-knowledge refresh.
+**Writing rules:** Write discoveries directly to the appropriate knowledge file
+(see root CLAUDE.md "Knowledge Database" section for protocol). `learned/` is deprecated.
 
 ---
 
@@ -154,7 +153,7 @@ does not apply rather than omitting it. Full report format in
 5. **Version matters.** Check exact ACM/MCE/OCP versions against fix versions.
 6. **Cluster shows what IS; knowledge shows what SHOULD BE.** The gap is the finding.
 7. **Explain, don't just list.** Say what the problem means and what to do.
-8. **Learn and record.** Write discoveries to `knowledge/learned/`.
+8. **Learn and record.** Write discoveries directly to the appropriate knowledge file (see root CLAUDE.md).
 
 ---
 

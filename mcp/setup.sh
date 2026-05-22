@@ -995,46 +995,9 @@ if not os.path.isfile(npx_cli_path):
     npx_cli_path = shutil.which('npx') or 'npx'
 
 def _build_acm_search_config():
-    \"\"\"Build acm-search MCP config. Reads marker file first, falls back to live cluster query.\"\"\"
-    import shutil, subprocess
-    mcp_remote = shutil.which('mcp-remote')
-    if not mcp_remote:
-        return {'command': 'echo', 'args': ['acm-search not configured -- install mcp-remote: npm install -g mcp-remote'], 'timeout': 10}
-    route, token = '', ''
-    marker = f'{mcp_dir}/.acm-search-config.json'
-    if os.path.isfile(marker):
-        try:
-            with open(marker) as mf:
-                mc = json.load(mf)
-            route = mc.get('route', '')
-            token = mc.get('token', '')
-            mr = mc.get('mcp_remote', '')
-            if mr and os.path.isfile(mr):
-                mcp_remote = mr
-        except Exception:
-            pass
-    if not route or not token:
-        try:
-            route = subprocess.check_output(
-                ['oc', 'get', 'route', '-n', 'acm-search', '-o', 'jsonpath={.items[0].spec.host}'],
-                stderr=subprocess.DEVNULL, timeout=10).decode().strip()
-            token = subprocess.check_output(
-                ['oc', 'get', 'secret', 'acm-search-client-token', '-n', 'acm-search',
-                 '-o', 'jsonpath={.data.token}'],
-                stderr=subprocess.DEVNULL, timeout=10).decode().strip()
-            if token:
-                import base64
-                token = base64.b64decode(token).decode()
-        except Exception:
-            route, token = '', ''
-    if not route or not token:
-        return {'command': 'echo', 'args': ['acm-search not configured -- run: bash mcp/deploy-acm-search.sh'], 'timeout': 10}
-    return {
-        'command': mcp_remote,
-        'args': [f'https://{route}/sse', '--header', f'Authorization: Bearer {token}', '--transport', 'sse-only'],
-        'env': {'NODE_TLS_REJECT_UNAUTHORIZED': '0'},
-        'timeout': 90
-    }
+    \"\"\"Build acm-search MCP config using the resilient proxy.\"\"\"
+    proxy_script = os.path.join(mcp_dir, 'acm-search-proxy.py')
+    return {'command': 'python3', 'args': [proxy_script], 'timeout': 30}
 
 # MCP server definitions
 # - acm-source, polarion: local (our code, in this repo)

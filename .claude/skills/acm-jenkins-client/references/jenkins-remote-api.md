@@ -18,7 +18,7 @@ JSON file (default `~/.jenkins/config.json`):
 
 HTTP **Basic** auth: `Authorization: Basic base64(user:token)`.
 
-Many internal Jenkins instances use a corporate TLS chain; scripts in this repo may disable TLS verification for automation (same pattern as `../acm-environment-finder/scripts/refresh-inventory.py`). Prefer fixing trust store when you can.
+Many internal Jenkins instances use a corporate TLS chain; scripts in this repo may disable TLS verification for automation. Prefer fixing trust store when you can.
 
 ## Job path → URL segment
 

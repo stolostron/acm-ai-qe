@@ -575,13 +575,13 @@ reviews:
 
         Z-stream-analysis tests:
         - tests/unit/ (625 tests): No network access. Test individual services.
-        - tests/regression/ (131 tests): Cross-module consistency checks,
+        - tests/regression/ (128 tests): Cross-module consistency checks,
           schema coverage, field name alignment across services.
         - tests/integration/ (45 tests): Require Jenkins VPN. Test full pipeline.
         - tests/fixtures/: Synthetic analysis-results.json for testing.
 
         Test-case-generator tests:
-        - tests/unit/ (93 tests): Convention validator (valid/invalid cases,
+        - tests/unit/ (105 tests): Convention validator (valid/invalid cases,
           area tag validation, per-step checks, teardown checks), file service
           (knowledge loading, peer discovery, sample fallback), Pydantic models
           (GatherOutput, ReviewResult, AnalysisResult schema enforcement),
@@ -704,7 +704,7 @@ reviews:
           4. Execute each fix, verify result with oc get/describe
           5. Post-remediation health check (Phase 1 + Phase 3 on affected)
 
-        === KNOWLEDGE SYSTEM (59 files) ===
+        === KNOWLEDGE SYSTEM (58 files) ===
 
         Architecture knowledge (knowledge/architecture/, 40 files):
           12 subsystems, each with architecture.md + data-flow.md +
@@ -1144,12 +1144,12 @@ reviews:
            references/conventions/. Triggers on convention, architecture,
            or domain fact questions — NOT on test case generation requests.
 
-        12 additional skills (bug-fix-verifier, bug-hunter,
+        11 additional skills (bug-fix-verifier, bug-hunter,
         cluster-health, cluster-investigator, cluster-remediation,
-        data-enricher, environment-finder, failure-classifier,
+        data-enricher, failure-classifier,
         hub-health-check, jenkins-client, knowledge-learner,
         z-stream-analyzer) serve the z-stream, hub-health,
-        bug-hunting, verification, and environment pipelines.
+        bug-hunting, and verification pipelines.
         See apps/z-stream-analysis/CLAUDE.md and apps/acm-hub-health/CLAUDE.md
         for their pipeline context. The conventions below apply to all skills.
 

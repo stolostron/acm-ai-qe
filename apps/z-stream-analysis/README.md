@@ -258,7 +258,7 @@ Output: environment health score (0.0-1.0), operator health, subsystem health, i
 | `architecture/` | Per-subsystem architecture, data flow, failure signatures | 37 |
 | `diagnostics/` | Classification decision tree, evidence tiers, diagnostic traps, 12-layer model | 5 |
 | Root YAML | Components, dependencies, selectors, endpoints, baselines, patterns | 14 |
-| `learned/` | Agent-contributed corrections and discoveries | 3+ |
+| `learned/` | Deprecated — agents now write directly to target knowledge files | — |
 
 Each of the 12 subsystems has `architecture.md`, `data-flow.md`, and `failure-signatures.md`.
 

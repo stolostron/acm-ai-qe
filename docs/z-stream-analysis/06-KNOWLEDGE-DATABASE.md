@@ -23,28 +23,29 @@ The knowledge database (`knowledge/`) provides domain reference data that the AI
                     ┌───────────▼───────────┐
                     │   knowledge/          │
                     │                       │
-                    │   Static Reference    │      ┌─────────────────────┐
-                    │   ────────────────    │      │   learned/          │
-                    │   components.yaml     │      │                     │
-                    │   dependencies.yaml   │◄─────│   corrections.yaml  │
-                    │   failure-patterns.yaml│      │   new-patterns.yaml │
-                    │   version-constraints │      │   selector-changes  │
-                    │   selectors.yaml      │      │   feature-gaps.yaml │
-                    │   api-endpoints.yaml  │      │   flux-operator.md  │
-                    │   feature-areas.yaml  │      │                     │
-                    │   test-mapping.yaml   │      │   (agent writes,    │
-                    │   + 6 more .yaml      │      │    refresh.py       │
-                    │                       │      │    promotes)         │
-                    └───────────┬───────────┘      └─────────────────────┘
+                    │   Static Reference    │
+                    │   ────────────────    │
+                    │   components.yaml     │
+                    │   dependencies.yaml   │
+                    │   failure-patterns.yaml│
+                    │   version-constraints │
+                    │   selectors.yaml      │
+                    │   api-endpoints.yaml  │
+                    │   feature-areas.yaml  │
+                    │   test-mapping.yaml   │
+                    │   + 6 more .yaml      │
+                    │                       │
+                    │   (agents write       │
+                    │    directly here)     │
+                    └───────────┬───────────┘
                                 │
                     ┌───────────▼───────────┐
                     │   refresh.py          │
                     │                       │
                     │   Sources:            │
                     │   - oc get (cluster)  │
-                    │   - ACM Source MCP        │
+                    │   - ACM Source MCP    │
                     │   - Neo4j KG          │
-                    │   - learned/ entries  │
                     └───────────────────────┘
 ```
 
@@ -64,13 +65,14 @@ The knowledge database (`knowledge/`) provides domain reference data that the AI
    feature_grounding)            analysis-results.json             │     │
                                          │                         │     │
                                          ▼                         │     │
-                                  learned/*.yaml ─────────────────►│     │
-                                  (agent writes new               │     │
-                                   patterns/corrections)           │     │
+                                  knowledge/*.yaml ◄───────────────│     │
+                                  (agent writes new                │     │
+                                   patterns/corrections            │     │
+                                   directly to target files)       │     │
                                                                    │     │
                                                             refresh.py ──┘
-                                                            (promotes learned/
-                                                             to main files)
+                                                            (refreshes from
+                                                             live sources)
 ```
 
 ---
@@ -81,7 +83,7 @@ The knowledge database (`knowledge/`) provides domain reference data that the AI
 |------|---------|---------|----------------|
 | `components.yaml` | 70 components | Component registry with health checks, pod labels, namespaces, provisioning resources (validated against live ACM 2.16 GA) | `oc get` via refresh.py + live cluster |
 | `dependencies.yaml` | 10 chains | Cascade failure tracing (incl. operator management, addon delivery, registration) | Neo4j KG + manual |
-| `failure-patterns.yaml` | 19 patterns + JIRA cache | Short-circuit classification + bug correlation | Manual + learned/ promotion |
+| `failure-patterns.yaml` | 19 patterns + JIRA cache | Short-circuit classification + bug correlation | Manual + agent writes directly |
 | `service-map.yaml` | 15+ services | Service-to-pod mapping with endpoint diagnostics (validated against live ACM 2.16 GA) | Cluster snapshot + manual |
 | `version-constraints.yaml` | 5 constraints | Version incompatibility detection (OLM ceiling, Submariner, ClusterCurator, console-mce, AnsibleJob) | Manual QE review |
 | `selectors.yaml` | 50+ selectors | UI selector ground truth | ACM Source MCP |
@@ -93,7 +95,7 @@ The knowledge database (`knowledge/`) provides domain reference data that the AI
 | `webhook-registry.yaml` | 19 webhooks | Expected webhooks with criticality and failure policies | Cluster snapshot via refresh.py |
 | `prerequisites.yaml` | 34 definitions | Machine-checkable feature prerequisites (mch_component, addon, operator, crd, informational) | Extracted from playbooks + live cluster |
 | `certificate-inventory.yaml` | 30+ secrets | TLS secret inventory with roles, rotation expectations, and failure impact per namespace | Cluster snapshot via refresh.py |
-| `learned/` | 5 files | Agent-contributed knowledge (self-healing) | AI agent writes |
+| `learned/` | — | Deprecated — agents now write directly to target knowledge files | — |
 | `refresh.py` | — | Updates knowledge from live sources | — |
 
 ---
@@ -402,86 +404,11 @@ suites:
 
 ---
 
-## learned/ Directory
+## learned/ Directory (DEPRECATED)
 
-Agent-contributed knowledge accumulated across analysis runs. Five files:
+As of May 2026, all agents write directly to target knowledge files. The `learned/` staging pattern and `refresh.py --promote` script have been removed. Agents read the target file, check for duplicates, and append in the existing format.
 
-### learned/corrections.yaml
-
-When the feedback CLI (`python -m src.scripts.feedback`) records a misclassification, it's stored here for review:
-
-```yaml
-corrections:
-  - date: "2026-03-28"
-    test_name: "Search should filter by label"
-    original_classification: AUTOMATION_BUG
-    correct_classification: INFRASTRUCTURE
-    reason: "search-postgres was down, not a selector issue"
-    pattern_to_add:
-      id: search-empty-results-postgres
-      signature: "search.*empty.*results"
-      classification: INFRASTRUCTURE
-```
-
-### learned/new-patterns.yaml
-
-When the agent discovers a failure pattern not in `failure-patterns.yaml`, it writes the pattern here:
-
-```yaml
-patterns:
-  - date: "2026-03-28"
-    id: "applicationset-crd-missing"
-    signature: "applicationsets\\.argoproj\\.io.*not found|no matches for kind.*ApplicationSet"
-    classification: INFRASTRUCTURE
-    confidence: 0.90
-    explanation: "ApplicationSet CRD not installed -- operator missing or MCE component disabled"
-    evidence: "7 tests failed with same CRD-not-found error"
-```
-
-### learned/selector-changes.yaml
-
-When the agent identifies a selector change (old selector removed, new one added):
-
-```yaml
-changes:
-  - date: "2026-03-28"
-    old_selector: ".pf-c-dropdown__toggle"
-    new_selector: ".pf-v6-c-menu-toggle"
-    feature_area: Console
-    component: "All dropdown components"
-    acm_version: "2.17"
-```
-
-### learned/feature-gaps.yaml
-
-When the data-collector agent detects gaps in feature playbooks (unmatched error patterns, missing failure paths), it records proposed entries here for review and promotion:
-
-```yaml
-gaps:
-  - date: "2026-04-13"
-    trigger: unmatched_error
-    feature_area: Console
-    gap_type: missing_failure_path
-    proposed_entry:
-      id: perspective-switcher-race-condition
-      description: "header.js openMenu() races with async rendering on OCP 4.20+"
-      classification: AUTOMATION_BUG
-      confidence: 0.90
-    source: knowledge/architecture/console/failure-signatures.md
-    evidence: "9 tests failed with cluster-dropdown-toggle not found"
-```
-
-### learned/flux-operator.md
-
-Free-form notes about non-ACM operators discovered on the cluster during Stage 1.5 diagnostics. Records operator details, ACM integration status, and classification impact so future runs can skip re-investigation:
-
-```markdown
-# Flux Operator
-Discovered: 2026-04-09
-- CSV: flux.v2.3.0
-- ACM Integration: None detected
-- Classification Impact: No direct impact on ACM test failure classification
-```
+Historical: previously agents staged discoveries here and `refresh.py --promote` moved them to permanent locations.
 
 ---
 
@@ -492,7 +419,7 @@ Script that updates knowledge files from live sources. Supports selective refres
 ### Commands
 
 ```bash
-# Refresh everything (cluster + learned/ promotion)
+# Refresh everything from live sources
 python -m knowledge.refresh
 
 # Refresh only components from connected cluster
@@ -500,9 +427,6 @@ python -m knowledge.refresh --components
 
 # Show what would change without writing
 python -m knowledge.refresh --dry-run
-
-# Promote learned/ entries to main files
-python -m knowledge.refresh --promote
 
 # Set ACM version explicitly
 python -m knowledge.refresh --acm-version 2.17
@@ -515,7 +439,7 @@ python -m knowledge.refresh --acm-version 2.17
 | `--components` | `oc get deployments` across ACM namespaces | `components.yaml` | Fully automated |
 | `--selectors` | ACM Source MCP `get_acm_selectors` | `selectors.yaml` | Prints instructions (requires MCP) |
 | `--dependencies` | Neo4j KG transitive queries | `dependencies.yaml` | Prints instructions (requires KG) |
-| `--promote` | `learned/*.yaml` entries | `failure-patterns.yaml` | Fully automated |
+| `--promote` | _(deprecated)_ | _(deprecated — agents write directly to target files)_ | — |
 
 ### Component Refresh Flow
 
@@ -536,22 +460,9 @@ refresh.py --components
     └── Update acm_version + last_refreshed timestamp
 ```
 
-### Promotion Flow
+### Promotion Flow (DEPRECATED)
 
-```
-refresh.py --promote
-    │
-    ├── Read learned/corrections.yaml
-    │   └── Display corrections for manual review
-    │
-    ├── Read learned/new-patterns.yaml
-    │   ├── Check for duplicate IDs against failure-patterns.yaml
-    │   ├── Append non-duplicates to failure-patterns.yaml
-    │   └── Remove promoted entries from learned/new-patterns.yaml
-    │
-    └── Read learned/selector-changes.yaml
-        └── Display changes for manual review
-```
+The `--promote` flag and `learned/` staging directory are deprecated. Agents now write directly to target knowledge files (e.g., `failure-patterns.yaml`, `architecture/<subsystem>/failure-signatures.md`). Agents read the target file first, check for duplicates, and append in the existing format.
 
 ---
 
@@ -584,17 +495,12 @@ The AI agent reads `knowledge/` files at the start of analysis:
 ```
 Run N: Agent classifies test failures
          │
-         ├── Discovers new pattern → writes learned/new-patterns.yaml
-         ├── Feedback CLI records correction → writes learned/corrections.yaml
-         └── Identifies selector change → writes learned/selector-changes.yaml
+         ├── Discovers new pattern → writes directly to failure-patterns.yaml
+         ├── Feedback CLI records correction → updates failure-patterns.yaml
+         └── Identifies selector change → updates selectors.yaml
 
-Before Run N+1: refresh.py --promote
-         │
-         ├── Promotes validated patterns to failure-patterns.yaml
-         └── Clears promoted entries from learned/
-
-Run N+1: Agent reads updated failure-patterns.yaml
-         └── Short-circuits classification for promoted patterns
+Run N+1: Agent reads updated knowledge files
+         └── Short-circuits classification for previously discovered patterns
 ```
 
 ---
@@ -606,7 +512,7 @@ Run N+1: Agent reads updated failure-patterns.yaml
 | Event | Action |
 |-------|--------|
 | New ACM version deployed | `python -m knowledge.refresh --components --acm-version X.Y` |
-| After analysis run | `python -m knowledge.refresh --promote` |
+| After analysis run | No action needed — agents write directly to target files |
 | Selector test failures increasing | Refresh selectors via ACM Source MCP |
 | New dependency chain discovered | Add to `dependencies.yaml` manually |
 
@@ -640,7 +546,7 @@ Add to `failure-patterns.yaml`:
     fix: "What to do about it"
 ```
 
-Or let the agent discover it — the agent writes to `learned/new-patterns.yaml`, then `refresh.py --promote` moves it to `failure-patterns.yaml`.
+Or let the agent discover it — the agent writes directly to `failure-patterns.yaml` after checking for duplicates.
 
 ### Known JIRA Bugs Section (v3.5.1)
 

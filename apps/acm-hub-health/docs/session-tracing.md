@@ -11,7 +11,7 @@ operations, and errors in structured JSONL format.
 | `oc` commands | verb, resource type, namespace, mutation flag |
 | MCP calls | server name, tool name, input/output summaries |
 | Knowledge reads | file path, diagnostic phase inference |
-| Knowledge writes | file path (learned/ directory) |
+| Knowledge writes | file path (target knowledge files; learned/ deprecated) |
 | Agent/subagent ops | prompts, subagent type, completion |
 | Prompts | user input, diagnostic type detection |
 | Errors | tool failures, MCP errors |
@@ -43,7 +43,7 @@ Knowledge file reads are tagged with the diagnostic phase they support:
 | `healthy-baseline`, `addon-catalog`, `webhook-registry`, `certificate-inventory` | check |
 | `failure-patterns`, `known-issues` | pattern-match |
 | `dependency-chains`, `evidence-tiers`, `diagnostics/` | correlate |
-| `learned/` | learn |
+| `learned/` (deprecated) | learn |
 
 ## Implementation
 

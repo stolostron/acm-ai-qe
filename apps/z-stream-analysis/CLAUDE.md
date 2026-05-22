@@ -256,7 +256,7 @@ Domain reference data for the AI agent during Stage 2 analysis. Includes per-sub
 2. **Phase B:** Check `architecture/<area>/failure-signatures.md` for known patterns before full investigation
 3. **Phase B (v3.8):** Investigation agents read `diagnostics/diagnostic-layers.md` for the 12-layer investigation methodology
 4. **Phase D:** Reference `diagnostics/classification-decision-tree.md` for routing logic and validation
-5. **After classification:** Write new discoveries to `learned/` for future runs
+5. **After classification:** Write new discoveries directly to the appropriate knowledge file (see root CLAUDE.md "Knowledge Database" section)
 
 ## Detailed Documentation
 

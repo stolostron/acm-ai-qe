@@ -270,22 +270,13 @@ update_mcp_json() {
     local backup="${target}.bak"
     cp "$target" "$backup"
 
-    jq --arg url "$SSE_URL" \
-       --arg auth "$AUTH_HEADER" \
-       --arg mcp_remote "$MCP_REMOTE_PATH" \
+    local proxy_script="${SCRIPT_DIR}/acm-search-proxy.py"
+
+    jq --arg proxy "$proxy_script" \
        '.mcpServers["acm-search"] = {
-          "command": $mcp_remote,
-          "args": [
-            $url,
-            "--header",
-            $auth,
-            "--transport",
-            "sse-only"
-          ],
-          "env": {
-            "NODE_TLS_REJECT_UNAUTHORIZED": "0"
-          },
-          "timeout": 90
+          "command": "python3",
+          "args": [$proxy],
+          "timeout": 30
         }' "$backup" > "$target"
 
     rm -f "$backup"

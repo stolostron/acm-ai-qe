@@ -40,11 +40,12 @@ it triggers a self-healing process to investigate, learn, and record findings.
 │  └────────────────────────────┘  └───────────────────────────────────────┘ │
 │                                                                            │
 │  ┌────────────────────────────────────────────────────────────────────────┐ │
-│  │ Learned Knowledge                                                      │ │
-│  │ knowledge/learned/                                                     │ │
+│  │ Agent-Discovered Knowledge                                             │ │
+│  │ (written directly to target files: architecture/, health/, failures/)  │ │
 │  │                                                                        │ │
 │  │ Written by the agent during health checks when mismatches are detected │ │
 │  │ between knowledge and cluster state. Version- and cluster-specific.    │ │
+│  │ NOTE: learned/ is deprecated. Agents write to target files directly.   │ │
 │  └────────────────────────────────────────────────────────────────────────┘ │
 │                                                                            │
 │  Topology (what exists): Cluster observation > Learned > Static            │
@@ -304,15 +305,16 @@ Cross-component failure correlation heuristics:
 
 ---
 
-## Learned Knowledge
+## Agent-Discovered Knowledge
 
-Discoveries made by the agent during health checks. Stored in
-`knowledge/learned/` as individual markdown files.
+Discoveries made by the agent during health checks. Agents write directly
+to the appropriate target knowledge file (architecture/, health/, failures/,
+etc.) rather than to `knowledge/learned/` (which is deprecated).
 
-### When Learned Knowledge Is Created
+### When Discovered Knowledge Is Created
 
-The agent writes to `knowledge/learned/` when it encounters a mismatch between
-static knowledge and cluster state during Phase 2 (Learn):
+The agent writes to the appropriate target knowledge file when it encounters
+a mismatch between static knowledge and cluster state during Phase 2 (Learn):
 
 ```
   Phase 2: Learn
@@ -329,34 +331,17 @@ static knowledge and cluster state during Phase 2 (Learn):
   Continue to Phase 3
 ```
 
-### Learned Knowledge File Format
+### Discovery Output Destinations
 
-```markdown
-# <Component/Topic Name>
+Agents write directly to the appropriate target file based on the type
+of discovery:
 
-**Discovered**: <date>
-**ACM Version**: <version from MCH>
-**Trigger**: <what mismatch was detected>
-
-## What Was Found
-<description of what was observed on the cluster>
-
-## Evidence
-- **Cluster**: <what oc commands revealed>
-- **Docs**: <what rhacm-docs said, with file references>
-- **Source**: <what acm-source MCP revealed, if applicable>
-
-## Understanding
-<synthesized explanation of the component/behavior>
-
-## Health Signals
-- **Healthy**: <what healthy looks like>
-- **Degraded**: <warning signs>
-- **Critical**: <failure indicators>
-
-## Relationship to Static Knowledge
-<how this relates to or updates existing knowledge>
-```
+| Discovery Type | Target File |
+|---|---|
+| How a subsystem works | `architecture/<subsystem>/architecture.md` |
+| Data flow through a subsystem | `architecture/<subsystem>/data-flow.md` |
+| Known health issues, bugs | `architecture/<subsystem>/known-issues.md` |
+| Expected cluster state | Structured YAML files (healthy-baseline.yaml, etc.) |
 
 ### Conflict Resolution
 
@@ -418,8 +403,8 @@ When a mismatch is detected, the agent runs a self-healing process:
            │
            ▼
   ┌──────────────────┐
-  │ Step 6: Write     │     Write to knowledge/learned/<topic>.md
-  │ learned knowledge │     using the standard format
+  │ Step 6: Write     │     Write directly to the appropriate
+  │ to target file    │     target knowledge file
   └────────┬─────────┘
            │
            ▼
@@ -476,8 +461,9 @@ deployed, CRD schemas. These vary per cluster and per ACM version.
 
 If the knowledge says search-api runs in `open-cluster-management` but the
 agent observes it in `ocm`, the agent uses `ocm`. The knowledge was wrong
-about the structural fact. This triggers self-healing -- the agent writes to
-`knowledge/learned/` to update its topology understanding.
+about the structural fact. This triggers self-healing -- the agent writes
+directly to the appropriate target knowledge file to update its topology
+understanding.
 
 ### Role 2: Health Assessment (Correctness)
 

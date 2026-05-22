@@ -19,9 +19,9 @@ and query component dependency graphs -- without needing API keys embedded in pr
 
 ## What is committed in this repo vs local-only
 
-**`ai_systems_v2/mcp/`** holds **`setup.sh`**, **`verify.py`**, deploy helpers, **`jenkins-acm-tools.py`**, and (where still tracked) in-repo MCP trees such as **`acm-source-mcp-server/`** and **`polarion/`** used by **`setup.sh`** for onboard flows. There is **no** automated rsync from **`~/Documents/work/ai/tools/mcp/`** into this directory — Cursor canonical code lives only under **`tools/mcp/`** with **`~/.cursor/mcp.json`**.
+**`mcp/`** holds **`setup.sh`**, **`verify.py`**, deploy helpers, **`jenkins-acm-tools.py`**, and in-repo MCP servers (**`acm-source-mcp-server/`** and **`polarion/`**).
 
-**Forks and upstream clones** (Jira MCP, Jenkins MCP, **`acm-mcp-server`**, knowledge-graph data, …) are installed under **`mcp/.external/`** (gitignored) by **`mcp/setup.sh`** using the **repo + branch** variables at the top of that script. On your machine you may also keep working copies under **`~/Documents/work/ai/tools/mcp/<fork>/`** for Cursor.
+**Forks and upstream clones** (Jira MCP, Jenkins MCP, **`acm-mcp-server`**, knowledge-graph data) are installed under **`mcp/.external/`** (gitignored) by **`mcp/setup.sh`** using the **repo + branch** variables at the top of that script.
 
 ## Which servers do I need?
 
@@ -147,7 +147,7 @@ After setup, `mcp/.external/jira-mcp-server/` has a `.venv`, `.env` (your token 
 - `cwd`: `mcp/.external/jira-mcp-server`
 - `args`: `["-m", "jira_mcp_server.main"]`
 
-**Cursor users** can instead use the working copy at `~/Documents/work/ai/tools/mcp/jira-mcp-server/` (same fork/branch) — see `~/Documents/work/ai/tools/mcp/README.md`.
+**Cursor users** can point their `~/.cursor/mcp.json` at the same clone (same fork/branch).
 
 ## Verifying Setup
 

@@ -143,8 +143,8 @@ knowledge and fill any gaps.
            │
            ▼
   ┌───────────────────┐
-  │ Check learned     │     knowledge/learned/*.md
-  │ knowledge         │
+  │ Check previous    │     Previous agent discoveries
+  │ discoveries       │     (in target knowledge files)
   └────────┬──────────┘
            │
            ▼
@@ -167,9 +167,10 @@ knowledge and fill any gaps.
   │ - Not in registry │     │ (see 03-KNOWLEDGE │
   │ - Different NS    │     │  -SYSTEM.md)       │
   │ - Different pods  │     │                    │
-  │ - New behavior    │     │ Write to           │
-  └────────┬──────────┘     │ learned/<topic>.md │
-           │ no             └──────────────────┘
+  │ - New behavior    │     │ Write directly to  │
+  └────────┬──────────┘     │ target knowledge   │
+           │ no             │ file               │
+                            └──────────────────┘
            ▼
   Continue with known
   reference information

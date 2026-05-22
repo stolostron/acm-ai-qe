@@ -6,28 +6,32 @@ Multi-app repository for ACM quality engineering tools, built on Claude Code.
 
 ### Z-Stream Analysis (`apps/z-stream-analysis/`) — Active
 
-Jenkins pipeline failure analysis (v4.0) with classification: PRODUCT_BUG | AUTOMATION_BUG | INFRASTRUCTURE | FLAKY | NO_BUG | MIXED | UNKNOWN. v4.0 moves cluster health to Stage 1.5 cluster-diagnostic agent with structured health fields, changes PR-7 to context signals (not binding), adds PR-6b Polarion check, symmetric counterfactual (D-V5c/D-V5e) with mandatory PRODUCT_BUG 4-check gate (source verification, intentional-change detection, environment cross-reference, investigation depth), and layer discrepancy detection. v3.9 added provably linked grouping (Phase A4), per-test verification within groups (4-point check), and expanded counterfactual verification (D-V5) with 9 templates. v3.8 features 12-layer diagnostic investigation with per-group investigation agents for root-cause-first classification. Includes comprehensive cluster diagnostic (Stage 1.5) with hub-health-style investigation, diagnostic trap detection, self-healing knowledge, assertion value extraction, per-feature-area graduated infrastructure scoring, per-test causal link verification, failure mode categorization, blank page pre-routing, hook failure deduplication, temporal evidence routing, feature investigation playbooks, tiered cluster investigation, classification feedback, and standalone knowledge database (`knowledge/`).
-
-Five-stage pipeline:
-0. **Environment Oracle** (inside gather.py) — Feature-aware dependency health & knowledge database (`cluster_oracle`)
-1. **gather.py** — Extracts test data from Jenkins (builds `core-data.json` with cluster landscape and feature grounding; persists `cluster.kubeconfig` for Stage 1.5 and Stage 2; auto-deploys ACM Search MCP on the cluster)
-1.5. **Cluster Diagnostic** (AI agent) — Comprehensive 6-phase cluster investigation producing `cluster-diagnosis.json` with environment health score, subsystem health, operator health, image integrity validation, classification guidance, dependency chain verification, 14 diagnostic trap checks (+ Trap 1b leader-election variant), service endpoint verification, OLM foundational health, sub-operator CR status, and structured data for Stage 2 routing
-2. **AI Analysis** — 12-layer diagnostic investigation: groups tests by shared signals, traces root cause through infrastructure layers (Compute→UI), classifies based on WHO caused breakage. Per-group investigation agents for deeper analysis. Produces `analysis-results.json` with `root_cause_layer` per test.
-3. **report.py** — Generates `Detailed-Analysis.md` + `analysis-report.html` from analysis results
-
-3 slash commands: `/analyze` (full pipeline), `/gather` (Stage 1 only), `/quick` (skip cluster diagnostic). 4 agents in `.claude/agents/` (analysis, cluster-diagnostic, data-collector, investigation-agent). Session tracing via Claude Code hooks captures all tool calls, MCP interactions, prompts, and subagent operations to structured JSONL files (`.claude/traces/`) with pipeline-specific enrichment (oc command parsing, pipeline stage detection, knowledge read categorization, session-level aggregate stats).
-
-See `apps/z-stream-analysis/CLAUDE.md` for schema requirements, classification guide, and MCP tool reference.
+Jenkins pipeline failure analysis with 7 classification types (PRODUCT_BUG, AUTOMATION_BUG, INFRASTRUCTURE, FLAKY, NO_BUG, MIXED, UNKNOWN). Five-stage pipeline: Environment Oracle → gather.py → Cluster Diagnostic (AI agent) → AI Analysis (12-layer investigation) → report.py. 3 slash commands (`/analyze`, `/gather`, `/quick`), 4 agents, standalone knowledge database. See `apps/z-stream-analysis/CLAUDE.md` for details.
 
 ### ACM Hub Health Agent (`apps/acm-hub-health/`) — Active
 
-AI-powered diagnostic and remediation agent for ACM hub clusters. Uses Claude Code with embedded ACM domain knowledge to perform health checks at any depth -- from quick sanity checks to deep component-level investigations. Natural language driven, no dependencies beyond `oc` + `claude`. Diagnosis is read-only; cluster fixes are executed only after presenting a structured remediation plan and getting explicit user approval. Includes structured knowledge database (`knowledge/`) with baseline, dependency chains (12 cascade paths with layer annotations), 12-layer diagnostic model (vertical root cause tracing), webhooks, certificates, addon catalog, and 14 diagnostic traps. Phase 3 uses layer-organized health checks (foundational layers first, then component layers). Phase 5 traces both horizontally (dependency chains) and vertically (12 infrastructure layers). Uses the ACM search database MCP (`acm-search`) for fleet-wide spoke-side resource queries across all managed clusters. Falls back to cluster metadata introspection (8 live metadata sources) and the Neo4j knowledge graph MCP (`neo4j-rhacm`) for dependency analysis when the curated knowledge doesn't cover a component or path. Optional CLI wrapper (`acm-hub`) enables running diagnostics from any terminal without launching an interactive session. Session tracing via Claude Code hooks captures all tool calls, MCP interactions, prompts, and errors to structured JSONL files (`.claude/traces/`) with diagnostic-specific enrichment (oc command parsing, phase inference, mutation detection, session-level aggregate stats).
-
-Usage: `oc login <hub> && claude` (from repo root or `apps/acm-hub-health/`)
+AI-powered diagnostic and remediation agent for ACM hub clusters. Read-only diagnosis with 12-layer model, 14 diagnostic traps, dependency chain tracing; cluster fixes only after explicit user approval. Uses `oc` + Claude Code with embedded knowledge database, ACM Search MCP for fleet queries, Neo4j for dependency analysis. Optional CLI wrapper (`acm-hub`). Usage: `oc login <hub> && claude`
 
 ### Test Case Generator (`apps/test-case-generator/`) — Active
 
-Generates Polarion-ready test cases for ACM Console features from JIRA tickets. 6-phase subagent pipeline: deterministic data gathering (gh CLI), parallel AI investigation (3 subagents: feature-investigator, code-change-analyzer, ui-discovery), synthesis with scope gating, AC cross-referencing, coverage gap triage, and test design optimization, optional live validation (environment verification + form-based OAuth browser authentication + oc + acm-search + acm-kubectl), AI-powered test case writing, mandatory quality review gate (AC vs implementation check, scope alignment, numeric threshold validation, design efficiency check, coverage gap verification), deterministic report/validation with Polarion HTML output and artifact completeness reporting. 6 specialized agents (each with structured anomaly reporting), 7 MCP integrations (JIRA, Polarion, ACM Source, Neo4j, ACM Search, ACM Kubectl, Playwright). Supports 9 console areas (Governance, RBAC, Fleet Virt, CCLM, MTV, Clusters, Search, Applications, Credentials). 3 skills in `.claude/skills/`: `/generate` (full pipeline with phase gates and synthesis template), `/review` (standalone quality review), `/batch` (multi-ticket generation). Portable skill pack (`.claude/skills/acm-test-case-generator/`) includes standalone scripts (gather.py, report.py, review_enforcement.py, validate_artifact.py) with zero external dependencies for repo-root execution. Session tracing via Claude Code hooks captures all tool calls, MCP interactions, prompts, subagent launches, and errors to structured JSONL files (`.claude/traces/`) with pipeline-specific enrichment (phase detection, command type inference, oc command parsing, MCP server extraction, session-level aggregate stats).
+Generates Polarion-ready test cases for ACM Console features from JIRA tickets. 6-phase subagent pipeline with mandatory quality review gate. 6 specialized agents, 7 MCP integrations, 9 console areas supported. 3 skills: `/generate` (full pipeline), `/review` (quality review), `/batch` (multi-ticket). Portable skill pack with standalone scripts for repo-root execution.
+
+## Skills (`.claude/skills/`)
+
+19 portable skills in a flat layout under `.claude/skills/`. Each skill has a `SKILL.md` entry point with YAML frontmatter, kebab-case folder name, and stdlib-only scripts. Shared skills expose raw capabilities; orchestrators compose them into multi-phase pipelines.
+
+**By domain:**
+
+| Domain | Skills | Key orchestrators |
+|--------|--------|-------------------|
+| Shared | `acm-knowledge-base`, `acm-cluster-health`, `acm-jenkins-client` | — (tools, no workflow) |
+| Test Case Gen | `acm-test-case-generator`, `acm-qe-code-analyzer`, `acm-test-case-writer`, `acm-test-case-reviewer` | `/generate`, `/review`, `/batch` |
+| Hub Health | `acm-hub-health-check`, `acm-cluster-remediation`, `acm-knowledge-learner` | `/acm-hub-health-check` |
+| Z-Stream | `acm-z-stream-analyzer`, `acm-failure-classifier`, `acm-cluster-investigator`, `acm-data-enricher` | `/analyze`, `/gather`, `/quick` |
+| Bug Investigation | `acm-bug-hunter`, `acm-bug-fix-verifier` | `/acm-bug-hunter` |
+| Utility | `onboard`, `youtube-digest`, `grill-me` | `/onboard` |
+
+**Conventions:** SKILL.md is the single entry point (no README). Progressive disclosure: frontmatter (~100 tokens) → body (<500 lines) → `references/` (on-demand). Orchestrators delegate to sibling skills via relative paths. See `docs/skill-architecture.md` for the full inventory, blast radius map, and `docs/skill-authoring-guide.md` for authoring standards.
 
 ## Getting Started
 
@@ -76,36 +80,13 @@ Commit messages use conventional format: `type: concise description`
 
 ## Running Z-Stream Analysis
 
-Open Claude Code in this repository (root or `apps/z-stream-analysis/`) and use:
-
 ```
-/analyze <JENKINS_URL>
+/analyze <JENKINS_URL>          # Full pipeline (5 stages)
+/gather <JENKINS_URL>           # Stage 1 only
+/quick <JENKINS_URL>            # Skip cluster diagnostic
 ```
 
-Or use natural language: `Analyze this run: <JENKINS_URL>`
-
-Other commands: `/gather <URL>` (Stage 1 only), `/quick <URL>` (skip cluster diagnostic for fast triage).
-
-Claude Code runs each stage with visible progress updates — do NOT delegate the entire pipeline to a single agent. See `apps/z-stream-analysis/CLAUDE.md` "Pipeline Execution UX" section.
-
-### Manual Pipeline (Advanced)
-
-```bash
-cd apps/z-stream-analysis/
-
-# Stage 1: Gather data
-python -m src.scripts.gather "<JENKINS_URL>"
-python -m src.scripts.gather "<JENKINS_URL>" --skip-env    # Skip cluster validation
-python -m src.scripts.gather "<JENKINS_URL>" --skip-repo   # Skip repo cloning
-
-# Stage 2: AI Analysis (12-layer diagnostic investigation)
-# Read core-data.json + cluster-diagnosis.json
-# Classify each failure using 12-layer model + MCP tools
-# MUST read src/schemas/analysis_results_schema.json before writing analysis-results.json
-
-# Stage 3: Generate reports
-python -m src.scripts.report runs/<run_dir>
-```
+Or natural language: `Analyze this run: <JENKINS_URL>`. Claude Code runs each stage with visible progress updates — do NOT delegate the entire pipeline to a single agent. For manual pipeline commands, see `apps/z-stream-analysis/CLAUDE.md`.
 
 ## MCP Servers (`mcp/`)
 
@@ -131,6 +112,28 @@ This repo only contains our original MCP code: ACM Source, Polarion wrapper, Jen
 
 **ACM Search Setup:** Runs as a pod on the ACM hub cluster, accessed via SSE through an OpenShift route. The z-stream analysis pipeline auto-deploys acm-search during Step 4 after cluster login — no manual setup required. For manual deployment or other apps, run `bash mcp/deploy-acm-search.sh` after `oc login`. If acm-search is unavailable, agents fall back to `oc` CLI for direct queries.
 
+## Knowledge Database (`.claude/knowledge/`)
+
+When you discover a verified, durable fact about ACM (architecture, failure pattern, UI behavior, health issue, test automation gotcha), write it directly to the appropriate file in `.claude/knowledge/`. Do NOT use `learned/` as a staging area — it is deprecated.
+
+**Write protocol:**
+1. Identify the target file from the directory map (architecture, failures, health, ui, automation, baselines, data-flow)
+2. Read the target file first
+3. Check for duplicates (semantic — same concept even if different wording)
+4. Append to the appropriate section, matching the existing format
+5. Only write verified facts (confirmed via live cluster, source code, docs, or JIRA)
+
+**Directory map (key paths):**
+- Architecture: `.claude/knowledge/architecture/<subsystem>/architecture.md`
+- Failure patterns: `.claude/knowledge/failures/<subsystem>/failure-signatures.md`
+- Health issues: `.claude/knowledge/health/<subsystem>/known-issues.md`
+- UI behavior: `.claude/knowledge/ui/<area>.md`
+- Baselines: `.claude/knowledge/baselines/*.yaml`
+- Playwright automation: `.claude/knowledge/automation/playwright/<area>.md`
+- Cypress automation: `.claude/knowledge/automation/cypress/<area>.md`
+
+**Do NOT write** ephemeral cluster state, speculative info, duplicates, or personal workflow notes.
+
 ## Directory Structure
 
 ```
@@ -149,11 +152,14 @@ ai_systems_v2/
 │   ├── jenkins-acm-tools.py   # Our code: ACM-specific Jenkins analysis tools
 │   └── .external/             # Cloned at setup time (gitignored)
 ├── .claude/
-│   ├── skills/                # 20 skills: 17 ACM + onboard + youtube-digest + grill-me (usable from repo root via root .mcp.json)
+│   ├── skills/                # 19 portable skills (usable from repo root via root .mcp.json)
 │   ├── knowledge/             # Shared knowledge database for skills (3 domains: tc-gen, z-stream, hub-health)
 │   ├── commands/pre-push.md   # /pre-push quality gate slash command
 │   ├── statusline.sh          # Status line script (model, branch, context %)
 │   └── settings.json          # Root-level Claude Code settings
+├── docs/
+│   ├── skill-architecture.md  # Full skill inventory, blast radius map, contributing guide
+│   └── skill-authoring-guide.md # SKILL.md structure, progressive disclosure, quality checklist
 ├── AGENTS.md                  # Agent reference (tool-agnostic, for external AI tools)
 ├── CLAUDE.md                  # This file — Claude Code agent instructions
 ├── context.md                 # Ubiquitous language glossary + repo design summary — read this first
@@ -165,8 +171,8 @@ ai_systems_v2/
 ```bash
 # Z-stream analysis (from app directory)
 cd apps/z-stream-analysis/
-python -m pytest tests/unit/ tests/regression/ -q    # 756 tests, no external deps
-python -m pytest tests/ -q --timeout=300             # 801 tests (requires Jenkins VPN)
+python -m pytest tests/unit/ tests/regression/ -q    # 753 tests, no external deps
+python -m pytest tests/ -q --timeout=300             # 798 tests (requires Jenkins VPN)
 
 # Hub health (from app directory)
 cd apps/acm-hub-health/

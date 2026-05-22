@@ -6,7 +6,7 @@ Use for scripted/headless calls or alongside MCP: typical QE setups have the jen
 in both Cursor and Claude Code — prefer MCP there; use this
 script when you need urllib/curl parity without loading the MCP.
 
-Reads ~/.jenkins/config.json by default (same keys as acm-environment-finder refresh script).
+Reads ~/.jenkins/config.json by default.
 """
 
 from __future__ import annotations

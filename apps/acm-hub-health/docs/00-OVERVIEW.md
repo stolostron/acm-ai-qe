@@ -42,7 +42,7 @@ a structured remediation plan and getting explicit user approval.
           │  oc get      │  │  architecture│  │  (source code)   │
           │  oc describe │  │  diagnostics │  │                  │
           │  oc logs     │  │  cross-cut   │  │  neo4j-rhacm MCP │
-          │  Remediation:│  │  learned     │  │  (dependency     │
+          │  Remediation:│  │  (see note)  │  │  (dependency     │
           │  oc patch    │  │              │  │   graph)         │
           │  (w/approval)│  │              │  │                  │
           │              │  │              │  │  acm-search MCP  │
@@ -231,8 +231,8 @@ acm-hub-health/
 │   │   ├── cluster-introspection.md    ← 8 metadata sources for reverse-engineering deps
 │   │   ├── neo4j-reference.md          ← Knowledge graph Cypher queries reference
 │   │   └── acm-search-reference.md     ← Search MCP tool parameters and query patterns
-│   └── learned/                        ← Agent-discovered knowledge (grows over time)
-│       └── <topic>.md                  ← Written by agent during self-healing
+│   └── learned/                        ← DEPRECATED (agents write directly to target files)
+│       └── <topic>.md                  ← Legacy; new discoveries go to architecture/, health/, etc.
 │
 └── .claude/
     ├── settings.json                   ← Auto-approved commands, hook configuration

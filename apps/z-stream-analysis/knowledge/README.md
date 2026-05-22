@@ -58,15 +58,11 @@ Classification methodology and investigation reference:
 | `version-constraints.yaml` | Product version incompatibilities | Version-specific routing |
 | `webhook-registry.yaml` | Expected webhooks with criticality and failure policies | Webhook verification |
 
-### Learned Knowledge (`learned/`)
+### Agent-Contributed Knowledge
 
-Agent-contributed corrections and discoveries across runs:
+As of May 2026, agents write directly to target knowledge files (e.g., `architecture/<subsystem>/architecture.md`, `failure-signatures.md`, root YAML files). There is no intermediate staging directory. Agents read the target file, check for duplicates, and append in the existing format.
 
-| File | Content |
-|------|---------|
-| `corrections.yaml` | "I classified X as Y but it was Z because..." |
-| `new-patterns.yaml` | "I found a new failure pattern: ..." |
-| `selector-changes.yaml` | "Selector X was renamed to Y in commit Z" |
+The `learned/` directory is deprecated and no longer used.
 
 ### Refresh Script
 
@@ -81,5 +77,4 @@ Usage:
 ```bash
 python knowledge/refresh.py              # Refresh all
 python knowledge/refresh.py --selectors  # Refresh selectors only
-python knowledge/refresh.py --promote    # Promote learned/ entries to main files
 ```

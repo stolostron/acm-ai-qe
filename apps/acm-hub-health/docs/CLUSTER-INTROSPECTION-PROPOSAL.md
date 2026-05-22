@@ -528,7 +528,7 @@ between "collect cluster evidence" and "query knowledge graph":
   Step 5: Web search (for third-party operator docs, if needed)
            |
            v
-  Synthesize + write to learned/
+  Synthesize + write directly to target knowledge files (learned/ deprecated)
 ```
 
 The cluster introspection step runs 6-8 `oc get` commands (all read-only,

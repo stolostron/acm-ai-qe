@@ -56,14 +56,14 @@ knowledge/
 ├── conventions/           # TC-Gen specific: test case format rules
 ├── examples/              # TC-Gen specific: format examples
 │
-├── learned/               # Shared: agent-contributed discoveries
-│   ├── corrections.yaml
-│   ├── feature-gaps.yaml
-│   ├── new-patterns.yaml
-│   ├── selector-changes.yaml
-│   └── flux-operator.md
+├── automation/            # Cursor skills: test automation knowledge
+│   ├── playwright/        # Playwright E2E (console-e2e) area knowledge
+│   │   ├── app.md, clusters.md, rbac.md, fleet-virt.md, ...
+│   └── cypress/           # Cypress E2E (clc-ui-e2e) area knowledge
+│       ├── clusters.md, rbac.md, fleet-virt.md, ...
 │
-└── refresh.py             # Refresh YAML baselines from live cluster
+└── learned/               # DEPRECATED -- all agents write directly to target files
+    └── .gitkeep
 ```
 
 ## Subsystems (14)
@@ -87,16 +87,27 @@ knowledge/
 
 ## How Each App Uses This Database
 
-All skills resolve `KNOWLEDGE_DIR = ${CLAUDE_SKILL_DIR}/../../knowledge/` and then access specific subdirectories.
+All Claude Code skills resolve `KNOWLEDGE_DIR = ${CLAUDE_SKILL_DIR}/../../knowledge/` and then access specific subdirectories.
 
 **TC-Gen** reads: `architecture/`, `ui/`, `conventions/`, `examples/`, `data-flow/`
-**Hub-Health** reads: `architecture/`, `data-flow/`, `baselines/`, `diagnostics/`, `health/`, `learned/`
-**Z-Stream** reads: `architecture/`, `data-flow/`, `baselines/`, `diagnostics/`, `failures/`, `learned/`
+**Hub-Health** reads: `architecture/`, `data-flow/`, `baselines/`, `diagnostics/`, `health/`
+**Z-Stream** reads: `architecture/`, `data-flow/`, `baselines/`, `diagnostics/`, `failures/`
+**Cursor Playwright skill** reads: `automation/playwright/`, `ui/`, `architecture/`
+**Cursor Cypress skill** reads: `automation/cypress/`, `ui/`, `architecture/`
 
-## Updating Baselines
+Cursor skills reference this DB via absolute path: `/Users/ashafi/Documents/work/ai/ai_systems_v2/.claude/knowledge/automation/{framework}/{area}.md`
 
-Run `python refresh.py` from a cluster with `oc` access to refresh YAML baselines from live state.
+## Local Mirror
 
-## Contributing Discoveries
+An identical copy is maintained at `~/Documents/work/notes/knowledge/` via:
+- **Cursor stop hook** (`~/.cursor/hooks/sync-knowledge-db.sh`) — syncs at end of each agent session
+- **Manual/fswatch script** (`ai/tools/scripts/sync-knowledge-db.sh`) — real-time sync when run from terminal
+- **launchd plist** (`~/Library/LaunchAgents/com.ashafi.sync-knowledge-db.plist`) — auto-sync on login (requires Full Disk Access for rsync)
 
-All apps write agent-discovered knowledge to `learned/`. See individual YAML files for schema.
+Agents always write to this canonical location. The mirror is read-only and auto-synced.
+
+## Contributing Knowledge
+
+ALL agents (Cursor, Claude Code, z-stream, hub-health) write directly to the appropriate target file. No staging area, no intermediate format. Read the target file first, check for duplicates, append in the correct format.
+
+The `learned/` directory is deprecated and empty. Do not write to it.

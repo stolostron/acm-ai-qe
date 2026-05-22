@@ -3,7 +3,7 @@
 Knowledge Database Refresh Script -- Z-Stream Analysis
 
 Refreshes the knowledge YAML files from live sources:
-  - ACM-UI MCP (selectors, routes, components)
+  - ACM Source MCP (selectors, routes, components)
   - Neo4j Knowledge Graph (dependency chains, subsystem topology)
   - Connected cluster (component health, pod states)
   - Learned corrections from previous analysis runs
@@ -20,7 +20,7 @@ Usage:
 Prerequisites:
     - PyYAML installed (pip install pyyaml)
     - For component refresh: oc CLI logged into ACM hub cluster
-    - For selector refresh: ACM-UI MCP server running (optional)
+    - For selector refresh: ACM Source MCP server running (optional)
     - For dependency refresh: Neo4j KG running (optional)
 """
 
@@ -174,11 +174,11 @@ def refresh_components(mch_ns: str | None, acm_version: str, dry_run: bool = Fal
 
 
 def refresh_selectors(acm_version: str, dry_run: bool = False) -> dict:
-    """Refresh selectors.yaml -- requires ACM-UI MCP (not called from this script directly)."""
+    """Refresh selectors.yaml -- requires ACM Source MCP (not called from this script directly)."""
     print("\n--- Selectors refresh ---")
-    print("  Selector refresh requires ACM-UI MCP server.")
+    print("  Selector refresh requires ACM Source MCP server.")
     print("  To refresh selectors:")
-    print(f"    1. Start ACM-UI MCP server")
+    print(f"    1. Start ACM Source MCP server")
     print(f"    2. Use Claude Code to query get_acm_selectors for each feature area")
     print(f"    3. Update knowledge/selectors.yaml with the results")
     print(f"  Current ACM version: {acm_version}")

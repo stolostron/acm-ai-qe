@@ -1,0 +1,18 @@
+{
+  "pr": {
+    "number": 9999,
+    "repo": "stolostron/console",
+    "title": "Add policy violation summary tooltip"
+  },
+  "primary_files": [
+    "frontend/src/routes/Governance/policies/PolicyViolationSummary.tsx"
+  ],
+  "translations": {
+    "policy.violation.tooltip": "Violation summary"
+  },
+  "test_scenarios": [
+    "Hover over violation count badge to see tooltip",
+    "Verify tooltip shows per-cluster violation breakdown"
+  ],
+  "anomalies": []
+}

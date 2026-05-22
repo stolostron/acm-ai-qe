@@ -64,6 +64,11 @@ oc get csv -n open-cluster-management -o name      # ACM version check
 
 Use when: verifying test prerequisites exist on the cluster (namespaces, pods, policies), checking resource counts, or validating expected state before/after test steps.
 
+**Availability check:** Call `get_database_stats()` before using any
+acm-search tool. If it fails, skip acm-search and use `oc` CLI for
+resource verification. Note: acm-search must be deployed on the hub
+cluster before the Claude Code session (`bash mcp/deploy-acm-search.sh`).
+
 ### ACM Kubectl MCP -- Multicluster operations
 
 | Tool | Purpose |
@@ -140,6 +145,9 @@ Discrepancies Found:
 
 Confirmed Behavior:
 - [list of behaviors confirmed on live cluster]
+
+Anomalies (include ONLY if something unexpected happened):
+- [what was expected] vs [what was found] — Impact: [how this affects test case quality]
 ```
 
 ## Rules

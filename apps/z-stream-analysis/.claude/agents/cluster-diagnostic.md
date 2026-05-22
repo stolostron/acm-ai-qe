@@ -33,8 +33,21 @@ This directory contains:
 ALL cluster operations are strictly read-only. You may run:
 - `oc get`, `oc describe`, `oc logs`, `oc adm top`, `oc whoami`, `oc version`
 - `oc exec <pod> -- <read-only-command>` (only for data verification like psql SELECT)
-- ACM Search MCP (`acm-search`): `find_resources`, `query_database`, `list_tables`, `get_database_stats` for fleet-wide resource queries across all managed clusters
+- ACM Search MCP (`acm-search`): `find_resources`, `query_database`, `list_tables`, `get_database_stats`, `search_tables` for fleet-wide resource queries across all managed clusters
 - ACM Kubectl MCP (`acm-kubectl`): `clusters` to list managed clusters, `kubectl` to run read-only kubectl on hub or spoke clusters
+
+### acm-search availability check
+
+Before using any acm-search tool, call `get_database_stats()` as a
+connectivity check. If it fails, returns an error, or reports 0 rows:
+- Skip ALL acm-search usage for the rest of the diagnostic
+- Fall back to `oc` CLI for spoke-side queries where possible
+- Note in the output that spoke-side visibility is limited
+
+The acm-search MCP runs as a pod on the ACM hub cluster. If it is not
+deployed, the `.mcp.json` will have a stub entry. The diagnostic works
+without it — spoke-side visibility is reduced but all other layers
+function normally.
 
 NEVER run: `oc apply`, `oc create`, `oc delete`, `oc patch`, `oc scale`, `oc edit`
 

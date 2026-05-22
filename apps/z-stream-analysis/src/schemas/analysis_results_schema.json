@@ -46,7 +46,7 @@
         "properties": {
           "tool": {
             "type": "string",
-            "description": "MCP tool name (e.g., mcp__acm-ui__set_acm_version)"
+            "description": "MCP tool name (e.g., mcp__acm-source__set_acm_version)"
           },
           "query": {
             "type": "string",

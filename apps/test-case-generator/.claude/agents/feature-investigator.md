@@ -168,6 +168,9 @@ Test Scenarios Suggested:
 1. [Happy path scenario]
 2. [Edge case scenario]
 3. [Negative scenario]
+
+Anomalies (include ONLY if something unexpected happened):
+- [what was expected] vs [what was found] — Impact: [how this affects test case quality]
 ```
 
 ## Rules

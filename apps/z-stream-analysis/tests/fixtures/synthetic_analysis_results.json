@@ -12,7 +12,7 @@
   "investigation_phases_completed": ["A", "B", "C", "D", "E"],
   "mcp_queries_executed": [
     {
-      "tool": "mcp__acm-ui__set_acm_version",
+      "tool": "mcp__acm-source__set_acm_version",
       "query": "version=2.16",
       "success": true,
       "result_summary": "Set ACM Console to release-2.16 branch"

@@ -53,6 +53,8 @@ Generates Polarion-ready test cases for ACM Console UI features from JIRA ticket
 
 ## Pipeline Stages
 
+The pipeline has 8 steps: 2 deterministic stages + 6 AI phases. "6-phase" in the tagline counts the AI phases only. The portable skill pack uses a 9-phase model (Phases 0-8) that merges data gathering with JIRA investigation and runs remaining investigation sequentially; the app consolidates investigation into 1 parallel phase. See the README "Concepts" section for the full mapping.
+
 | Phase/Stage | Type | Agent/Script | Duration | Input | Output |
 |------------|------|-------------|----------|-------|--------|
 | Phase 0 | Interactive | Orchestrator | ~10 sec | User args | Resolved inputs |
@@ -61,7 +63,7 @@ Generates Polarion-ready test cases for ACM Console UI features from JIRA ticket
 | Phase 2 | AI (orchestrator) | Main context | ~10 sec | 3 agent outputs | SYNTHESIZED CONTEXT with TEST PLAN |
 | Phase 3 | AI (optional) | live-validator | ~2-5 min | Console URL, steps | LIVE VALIDATION RESULTS |
 | Phase 4 | AI | test-case-generator | ~30-60 sec | Synthesized context | `test-case.md`, `analysis-results.json` |
-| Phase 4.5 | AI (gate) | quality-reviewer | ~30-60 sec | test-case.md | PASS or NEEDS_FIXES (loops until PASS) |
+| Phase 4.5 | AI (gate) | quality-reviewer | ~30-60 sec | test-case.md | PASS or NEEDS_FIXES (3-tier escalation) |
 | Stage 3 | Deterministic | `report.py` | ~1 sec | test-case.md | HTML, `review-results.json`, `SUMMARY.txt` |
 
 ## Agents
@@ -69,17 +71,17 @@ Generates Polarion-ready test cases for ACM Console UI features from JIRA ticket
 | Agent | Phase | MCP Tools | Role |
 |-------|-------|-----------|------|
 | Feature Investigator | 1 (parallel) | jira, polarion, neo4j-rhacm, bash | JIRA deep dive: ACs, comments, linked tickets, Polarion coverage |
-| Code Change Analyzer | 1 (parallel) | acm-ui, neo4j-rhacm, bash | PR diff analysis: changed components, UI elements, interaction models |
-| UI Discovery | 1 (parallel) | acm-ui, neo4j-rhacm, playwright (conditional), bash | ACM Console source: selectors, translations, routes, wizard steps + optional live verification |
+| Code Change Analyzer | 1 (parallel) | acm-source, neo4j-rhacm, bash | PR diff analysis: changed components, UI elements, interaction models |
+| UI Discovery | 1 (parallel) | acm-source, neo4j-rhacm, playwright (conditional), bash | ACM Console source: selectors, translations, routes, wizard steps + optional live verification |
 | Live Validator | 3 | playwright, acm-search, acm-kubectl, bash | Browser + oc CLI + fleet queries on real cluster |
-| Test Case Generator | 4 | acm-ui | Write test case markdown from synthesized context |
-| Quality Reviewer | 4.5 | acm-ui, polarion | Convention compliance, discovered vs assumed, AC vs implementation |
+| Test Case Generator | 4 | acm-source | Write test case markdown from synthesized context |
+| Quality Reviewer | 4.5 | acm-source | Convention compliance, discovered vs assumed, AC vs implementation |
 
 ## MCP Servers
 
 | Server | Tools | Source | Purpose |
 |--------|-------|--------|---------|
-| acm-ui | 20 | This repo (`mcp/acm-ui-mcp-server/`) | ACM Console source code search via GitHub |
+| acm-source | 18 | This repo (`mcp/acm-source-mcp-server/`) | ACM Console source code search via GitHub |
 | jira | 3 | [stolostron/jira-mcp-server](https://github.com/stolostron/jira-mcp-server) | JIRA ticket investigation |
 | polarion | 7 | This repo (`mcp/polarion/`) | Existing Polarion test case coverage |
 | neo4j-rhacm | 2 | [mcp-neo4j-cypher](https://pypi.org/project/mcp-neo4j-cypher/) (PyPI) | Component dependency analysis |
@@ -89,10 +91,10 @@ Generates Polarion-ready test cases for ACM Console UI features from JIRA ticket
 
 ## Run Directory Layout
 
-Each pipeline run produces artifacts under `runs/<JIRA_ID>/<JIRA_ID>-<timestamp>/`:
+Each pipeline run produces artifacts under `runs/test-case-generator/<JIRA_ID>/<JIRA_ID>-<timestamp>/`:
 
 ```
-runs/ACM-30459/ACM-30459-2026-04-18T02-00-46/
+runs/test-case-generator/ACM-30459/ACM-30459-2026-04-18T02-00-46/
   gather-output.json                 # Stage 1: all gathered data
   pr-diff.txt                        # Stage 1: full PR diff
   phase1-feature-investigation.md    # Phase 1: feature investigator output

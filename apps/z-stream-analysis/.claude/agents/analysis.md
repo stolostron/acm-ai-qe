@@ -129,7 +129,7 @@ For EVERY classification, you MUST have:
 │  ├── B1. Extracted context analysis                                │
 │  ├── B2. Timeline evidence analysis                                │
 │  ├── B3. Console log evidence                                      │
-│  ├── B4. MCP tool queries (ACM-UI, Knowledge Graph)                │
+│  ├── B4. MCP tool queries (ACM-Source, Knowledge Graph)                │
 │  ├── B5. Backend component analysis                                │
 │  ├── B5b. Component health = Tier 1 (v3.0) — always when cluster   │
 │  │        access available                                         │
@@ -223,7 +223,7 @@ cat runs/<dir>/cluster-diagnosis.json | python3 -c "import json,sys; d=json.load
 
 7. **`console_plugins`**: Shows registered ConsolePlugin CRs. Missing plugins mean missing UI tabs.
 
-8. **`image_integrity`**: Shows whether the console image matches expected registries. If `matches_expected: false`, the console is running a non-standard image (personal build, test injection, etc.). Tests failing with CSS/rendering issues in a tampered-image environment should be investigated as potential PRODUCT_BUG (the image itself is defective) rather than AUTOMATION_BUG. Use ACM-UI MCP to verify selectors against the OFFICIAL source before concluding the selector is dead.
+8. **`image_integrity`**: Shows whether the console image matches expected registries. If `matches_expected: false`, the console is running a non-standard image (personal build, test injection, etc.). Tests failing with CSS/rendering issues in a tampered-image environment should be investigated as potential PRODUCT_BUG (the image itself is defective) rather than AUTOMATION_BUG. Use ACM-Source MCP to verify selectors against the OFFICIAL source before concluding the selector is dead.
 
 **ANTI-ANCHORING RULE:** The cluster diagnostic provides
 CONTEXT, not pre-determined classification. When you analyze each test,
@@ -242,7 +242,7 @@ cause.
 image, check `console_search.verification.verified_by`. If `"data-collector"`,
 the selector was already verified against the OFFICIAL product source via
 MCP tools — trust the result. If `verification` is absent (pre-v4.0 data),
-use ACM-UI MCP `search_code("<selector>")` to verify manually. A selector
+use ACM-Source MCP `search_code("<selector>")` to verify manually. A selector
 missing from BOTH tampered AND official console is AUTOMATION_BUG (dead
 selector), not INFRASTRUCTURE.
 
@@ -429,7 +429,7 @@ cat runs/<dir>/cluster-diagnosis.json | jq '.cluster_diagnosis.infrastructure_is
 
 **Why no blanket short-circuit at score < 0.3:** A cluster can have critical infrastructure issues (tampered image, NetworkPolicy, operator at 0 replicas) AND tests with stale selectors that would fail regardless. Blanket INFRASTRUCTURE masks genuine AUTOMATION_BUGs. The investigation agent MUST verify for each test: "would this test pass if the infrastructure issue were fixed?"
 
-**When cluster is DEGRADED or CRITICAL** (score < 0.8), proceed with per-test analysis. Use `classification_guidance.affected_feature_areas` from `cluster-diagnosis.json` to know which feature areas have infrastructure issues. Tests in affected areas get INFRASTRUCTURE as the default hypothesis but STILL require per-test counterfactual verification — especially when `console_search.found=false`, verify the selector exists in the OFFICIAL console (ACM-UI MCP) before attributing to the infrastructure issue.
+**When cluster is DEGRADED or CRITICAL** (score < 0.8), proceed with per-test analysis. Use `classification_guidance.affected_feature_areas` from `cluster-diagnosis.json` to know which feature areas have infrastructure issues. Tests in affected areas get INFRASTRUCTURE as the default hypothesis but STILL require per-test counterfactual verification — especially when `console_search.found=false`, verify the selector exists in the OFFICIAL console (ACM-Source MCP) before attributing to the infrastructure issue.
 
 ### Phase A1b: Cluster Landscape Check (v3.0)
 
@@ -506,6 +506,22 @@ verification.
 ```
 A4 grouping logic:
 
+0. ENRICHMENT FALLBACK (before grouping):
+   If `console_search` and `recent_selector_changes` are null for a test
+   BUT the error message contains a clear selector (e.g., "Expected to find
+   element: `input[aria-label="Select user"]`"), extract the selector from
+   the error message yourself. Then check if 3+ tests share the same
+   extracted selector — if so, treat as a group.
+
+   For "element not found" errors where the selector contains `aria-label`,
+   `role`, tag-prefixed patterns (`div#`, `input[`, `button.`), or PF class
+   names (`pf-v5-c-*`, `pf-v6-c-*`): the error itself tells you the selector
+   the test expected. Use ACM-Source MCP to verify if the selector exists in
+   the product before classifying.
+
+   This is critical for PF migration scenarios where many tests break on
+   the same renamed selector pattern.
+
 1. INSTANT CLASSIFICATION (no investigation agent needed):
    a) "after all" hooks with prior test failed in same spec
       → NO_BUG (PR-2 cascading hook). Set is_cascading_hook_failure=true.
@@ -517,6 +533,11 @@ A4 grouping logic:
         is "PRODUCT_BUG", route to investigation instead of instant classification.
       Evidence: console_search + cross-test count.
       Set root_cause_layer=12, root_cause_layer_name="UI / Plugin / Rendering".
+   c) Tests where console_search is null BUT error message shows "element not found"
+      with a selector that is clearly a PF5→PF6 migration pattern (e.g., aria-label
+      changes, pf-v5-c → pf-v6-c, element ID changes across 3+ tests) AND
+      infrastructure is healthy → AUTOMATION_BUG (stale selector after planned
+      product migration). PF migrations are planned changes, not product regressions.
 
 2. GROUP FOR INVESTIGATION (provably linked criteria — ALL must match):
    a) Same EXACT selector AND same calling function in test code
@@ -696,7 +717,7 @@ before applying the group result. For each remaining test in the group:
 **CSS/PatternFly Exception:** When 3+ tests on the SAME page fail with
 the same CSS-related error (`visibility:hidden`, `opacity:0`,
 `display:none`) AND all reference elements rendered by the same React
-component (verified via ACM-UI MCP `search_component`), they may be
+component (verified via ACM-Source MCP `search_code(scope="components")`), they may be
 grouped even if selectors differ. BUT: verify the CSS issue is actually
 from the cluster-wide issue and not standard PF6 behavior. Standard PF6
 CSS transitions that require `waitForVisible` are AUTOMATION_BUG
@@ -824,24 +845,24 @@ Also read `knowledge/architecture/application-lifecycle/failure-signatures.md` f
 
 ```
 # At start of investigation, set ACM version
-mcp__acm-ui__set_acm_version('2.16')  # or appropriate version
+mcp__acm-source__set_acm_version('2.16')  # or appropriate version
 
 # For VM tests, detect CNV version
-mcp__acm-ui__detect_cnv_version()
+mcp__acm-source__detect_cnv_version()
 ```
 
 #### MCP Tool Trigger Matrix
 
 | Trigger Condition | MCP Tool | Query |
 |-------------------|----------|-------|
-| **Start of investigation** | `mcp__acm-ui__set_acm_version` | `set_acm_version('2.16')` (latest GA) |
-| **VM test failure** | `mcp__acm-ui__detect_cnv_version` | Auto-sets kubevirt branch (latest GA: 4.21) |
-| **Selector not found** | `mcp__acm-ui__get_acm_selectors` | `get_acm_selectors('catalog', 'clc')` |
-| **Need cross-repo search** | `mcp__acm-ui__search_code` | `search_code('create-btn', 'acm')` |
-| **Need exact file lookup** | `mcp__acm-ui__find_test_ids` | `find_test_ids('path/to/file.tsx', 'acm')` |
-| **Verify UI text** | `mcp__acm-ui__search_translations` | `search_translations('Create cluster')` |
-| **Understand wizard flow** | `mcp__acm-ui__get_wizard_steps` | `get_wizard_steps('path/wizard.tsx', 'acm')` |
-| **PatternFly fallback** | `mcp__acm-ui__get_patternfly_selectors` | `get_patternfly_selectors('button')` |
+| **Start of investigation** | `mcp__acm-source__set_acm_version` | `set_acm_version('2.16')` (latest GA) |
+| **VM test failure** | `mcp__acm-source__detect_cnv_version` | Auto-sets kubevirt branch (latest GA: 4.21) |
+| **Selector not found** | `mcp__acm-source__get_acm_selectors` | `get_acm_selectors('catalog', 'clc')` |
+| **Need cross-repo search** | `mcp__acm-source__search_code` | `search_code('create-btn', 'acm')` |
+| **Need exact file lookup** | `mcp__acm-source__find_test_ids` | `find_test_ids('path/to/file.tsx', 'acm')` |
+| **Verify UI text** | `mcp__acm-source__search_translations` | `search_translations('Create cluster')` |
+| **Understand wizard flow** | `mcp__acm-source__get_wizard_steps` | `get_wizard_steps('path/wizard.tsx', 'acm')` |
+| **PatternFly fallback** | `mcp__acm-source__get_patternfly_selectors` | `get_patternfly_selectors('button')` |
 | **Component in error** | `mcp__neo4j-rhacm__read_neo4j_cypher` | Cypher query for deps (if available) |
 | **Need live cluster resources** | `mcp__acm-search__find_resources` | Search pods, deployments, policies across all managed clusters |
 | **Need fleet-wide resource stats** | `mcp__acm-search__query_database` | SQL query against ACM Search PostgreSQL DB |
@@ -1162,7 +1183,7 @@ D-V5: Expanded counterfactual verification (v3.9 — MANDATORY for ALL
 
   | Error type | Verification | If fails |
   |---|---|---|
-  | Selector not found | ACM-UI MCP search_code("<selector>"). NOT FOUND in official → dead selector | → AUTOMATION_BUG |
+  | Selector not found | ACM-Source MCP search_code("<selector>"). NOT FOUND in official → dead selector | → AUTOMATION_BUG |
   | Button disabled | oc auth can-i. Backend GRANTS but UI disables → UI logic bug. Fallback: RBAC knowledge files | → PRODUCT_BUG or AUTOMATION_BUG |
   | Timeout | Check component health + selector existence. Both OK → test timing | → AUTOMATION_BUG |
   | Data assertion | Check backend data vs test expectation. API correct but UI wrong → transformation bug | → PRODUCT_BUG |
@@ -1210,18 +1231,50 @@ D-V5c: Counterfactual for AUTOMATION_BUG classifications (v4.0)
 
 D-V5e: Counterfactual for PRODUCT_BUG classifications (v4.0)
 
-  For every test classified as PRODUCT_BUG, ask:
+  MANDATORY GATE: No test may be classified as PRODUCT_BUG without
+  completing ALL 4 checks below. If any check cannot be completed,
+  the classification defaults to AUTOMATION_BUG with low confidence.
 
   1. "Is the product behavior actually correct and the test wrong?"
-     → Check if the test assertion matches Polarion acceptance criteria
-     → If test expects old behavior but product correctly updated:
+     → MUST use ACM-Source MCP to verify the product source code:
+       - Text assertion mismatch → search_translations() or search_code()
+         to check if old text was removed or new text added
+       - Element not found → search_code() to verify element exists
+       - Button disabled → search_code() for permission/RBAC logic
+         in the relevant component
+     → If product source confirms the behavior is intentional:
        reclassify as AUTOMATION_BUG (test needs update)
+     → "Unclear" or "needs product team verification" is NOT a valid
+       PRODUCT_BUG justification — investigate until you know
 
-  2. "Is the product behavior caused by infrastructure?"
+  2. "Is evidence of an INTENTIONAL product change present?"
+     → If the test expected text A but product shows text B, and B is
+       a valid semantic improvement (e.g., 'Create' → 'Configure',
+       'Prerequisite' → 'Prerequisites and Configuration'):
+       this is AUTOMATION_BUG, not PRODUCT_BUG
+     → Rule: intentional product change + stale test assertion =
+       AUTOMATION_BUG. The product works correctly.
+     → The owner field must be "Automation Team", not "Product Team"
+
+  3. "Is the product behavior caused by infrastructure or environment?"
      → Check if the observed behavior is a consequence of a known
        infrastructure issue (e.g., button disabled because managed
        cluster is NotReady, not because of a code bug)
-     → If yes: reclassify as INFRASTRUCTURE
+     → MUST cross-reference cluster oracle and cluster-diagnosis.json
+       when the test depends on specific resources or operators:
+       - Test expects a resource → check if it exists in environment
+       - Test expects operator behavior → check operator health
+       - If resource/operator is missing or degraded, classify based
+         on WHY: environment setup gap → AUTOMATION_BUG,
+         runtime failure → INFRASTRUCTURE
+     → If yes: reclassify as INFRASTRUCTURE or AUTOMATION_BUG
+
+  4. "Does the investigation have sufficient depth?"
+     → PRODUCT_BUG requires minimum 3 investigation steps including
+       at least one ACM-Source MCP verification
+     → If investigation_steps_taken has fewer than 3 entries or
+       no product source verification, the classification is
+       insufficiently supported — investigate further
 ```
 
 After D-V validation, proceed to D4 final validation for ALL tests
@@ -1798,9 +1851,18 @@ After routing through the appropriate path, validate:
 
 | If Classifying As | Must Rule Out |
 |-------------------|---------------|
-| PRODUCT_BUG | Selector mismatch, test logic error |
+| PRODUCT_BUG | Selector mismatch, test logic error, intentional product change, environment/data prerequisite missing |
 | AUTOMATION_BUG | Backend 500 errors, environment issues |
 | INFRASTRUCTURE | Individual test bugs, product issues |
+
+**PRODUCT_BUG hard gate (v4.0 — MANDATORY):**
+
+Before ANY test is classified as PRODUCT_BUG, verify ALL of:
+
+1. **Product source checked** — At least one ACM-Source MCP call (search_code, search_translations, get_acm_selectors) was made to verify the product behavior. "Unclear" is not acceptable.
+2. **Not an intentional change** — If evidence shows text/UI changed deliberately (old value → new value where new value is semantically valid), classify as AUTOMATION_BUG.
+3. **Environment prerequisites met** — If the test depends on specific resources, operators, or data, cross-reference cluster oracle / cluster-diagnosis.json to verify they exist. Missing prerequisites → AUTOMATION_BUG (test assumes wrong environment state).
+4. **Minimum 3 investigation steps** — PRODUCT_BUG carries the highest downstream impact (product team triage). It requires deeper evidence than other classifications.
 
 ### Phase D4b: Per-Test Causal Link Verification (v3.3 — MANDATORY)
 
@@ -2031,7 +2093,7 @@ mcp__jira__link_issue({
 
 ---
 
-## ACM-UI MCP Server Reference (19 Tools)
+## ACM-Source MCP Server Reference (19 Tools)
 
 ### Supported Versions
 
@@ -2065,7 +2127,7 @@ ACM and CNV versions are **independent** - set each to match your target environ
 |------|---------|---------|
 | `find_test_ids` | Find automation attributes | `find_test_ids('path/file.tsx', 'acm')` |
 | `get_component_source` | Get file source code | `get_component_source('path/file.tsx', 'acm')` |
-| `search_component` | Search by component name | `search_component('ClusterTable', 'acm')` |
+| `search_code(scope="components")` | Search by component name | `search_code(scope="components")('ClusterTable', 'acm')` |
 | `search_code` | GitHub code search | `search_code('create-btn', 'acm')` |
 | `get_route_component` | Map URL to source | `get_route_component('/clusters')` |
 
@@ -2204,7 +2266,7 @@ RETURN c.label
   },
   "investigation_phases_completed": ["A", "B", "C", "D", "E"],
   "mcp_queries_executed": [
-    {"tool": "mcp__acm-ui__set_acm_version", "query": "2.16", "success": true},
+    {"tool": "mcp__acm-source__set_acm_version", "query": "2.16", "success": true},
     {"tool": "mcp__jira__search_issues", "query": "project = ACM...", "success": true}
   ],
   "cross_test_correlations": {
@@ -2470,7 +2532,7 @@ python -m src.scripts.report runs/<dir>
 
 1. **Systematic over ad-hoc** - Follow 5 phases in order, every time
 2. **Multi-evidence required** - Single source is never sufficient
-3. **MCP tools mandatory** - Use ACM-UI, Knowledge Graph, JIRA when available
+3. **MCP tools mandatory** - Use ACM-Source, Knowledge Graph, JIRA when available
 4. **Cross-test correlation** - Patterns reveal root causes
 5. **Rule out alternatives** - Document why other classifications don't fit
 6. **JIRA validation** - Check for known issues before finalizing

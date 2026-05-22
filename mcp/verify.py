@@ -26,25 +26,25 @@ APP_MCP_MAP = {
     1: {
         "name": "ACM Hub Health",
         "dir": "acm-hub-health",
-        "mcps": ["acm-ui", "neo4j-rhacm", "acm-search"],
+        "mcps": ["acm-source", "neo4j-rhacm", "acm-search"],
     },
     2: {
         "name": "Z-Stream Analysis",
         "dir": "z-stream-analysis",
-        "mcps": ["acm-ui", "jira", "jenkins", "polarion", "neo4j-rhacm"],
+        "mcps": ["acm-source", "jira", "jenkins", "polarion", "neo4j-rhacm"],
     },
     3: {
         "name": "Test Case Generator",
         "dir": "test-case-generator",
         "mcps": [
-            "acm-ui", "jira", "polarion", "neo4j-rhacm",
+            "acm-source", "jira", "polarion", "neo4j-rhacm",
             "acm-search", "acm-kubectl", "playwright",
         ],
     },
 }
 
 ALL_MCPS = [
-    "acm-ui", "jira", "jenkins", "polarion",
+    "acm-source", "jira", "jenkins", "polarion",
     "neo4j-rhacm", "acm-search", "acm-kubectl", "playwright",
 ]
 
@@ -163,7 +163,7 @@ def check_prerequisites(needed_mcps):
             ver = out.split()[-1] if out else "unknown"
             results.append(("Podman", PASS, ver, None))
         else:
-            results.append(("Podman", WARN, "not found (optional)", None))
+            results.append(("Podman", WARN, "not found (needed for neo4j-rhacm)", "install: brew install podman"))
 
     return results
 
@@ -203,13 +203,13 @@ def check_artifacts(app_nums, needed_mcps):
             ))
 
     venv_checks = {
-        "acm-ui": (
-            MCP_DIR / "acm-ui-mcp-server" / ".venv",
-            "import acm_ui_mcp_server",
+        "acm-source": (
+            MCP_DIR / "acm-source-mcp-server" / ".venv",
+            "import acm_source_mcp_server",
         ),
         "jira": (
             EXTERNAL_DIR / "jira-mcp-server" / ".venv",
-            "import jira_mcp_server",
+            "from fastmcp import Context; import jira_mcp_server",
         ),
         "jenkins": (
             EXTERNAL_DIR / "jenkins-mcp" / ".venv",
@@ -247,6 +247,37 @@ def check_artifacts(app_nums, needed_mcps):
                 "run: bash mcp/setup.sh",
             ))
 
+    if "jira" in needed_mcps:
+        jira_dir = EXTERNAL_DIR / "jira-mcp-server"
+        verify_script = jira_dir / "scripts" / "verify-startup.sh"
+        if not jira_dir.is_dir():
+            results.append((
+                "jira clone",
+                FAIL,
+                "missing",
+                "run: bash mcp/setup.sh (clones atifshafi/jira-mcp-server@feat/redhat-fields)",
+            ))
+        elif verify_script.is_file():
+            try:
+                proc = subprocess.run(
+                    ["bash", str(verify_script)],
+                    cwd=str(jira_dir),
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+                if proc.returncode == 0:
+                    results.append(("jira verify-startup", PASS, "ok", None))
+                else:
+                    results.append((
+                        "jira verify-startup",
+                        WARN,
+                        "failed",
+                        f"cd {jira_dir} && make bootstrap && make verify-startup",
+                    ))
+            except (subprocess.TimeoutExpired, OSError):
+                results.append(("jira verify-startup", WARN, "could not run", None))
+
     cred_checks = {
         "jira": EXTERNAL_DIR / "jira-mcp-server" / ".env",
         "jenkins": EXTERNAL_DIR / "jenkins-mcp" / ".env",
@@ -275,6 +306,39 @@ def check_artifacts(app_nums, needed_mcps):
                 "run: bash mcp/setup.sh",
             ))
 
+    mcp_json_cred_keys = {
+        "jira": "JIRA_ACCESS_TOKEN",
+        "jenkins": "JENKINS_API_TOKEN",
+        "polarion": "POLARION_PAT",
+    }
+
+    for num in app_nums:
+        app = APP_MCP_MAP[num]
+        mcp_json = APPS_DIR / app["dir"] / ".mcp.json"
+        if not mcp_json.exists():
+            continue
+        try:
+            with open(mcp_json, encoding="utf-8") as f:
+                mcp_data = json.load(f)
+            servers = mcp_data.get("mcpServers", {})
+            for mcp_name, env_key in mcp_json_cred_keys.items():
+                if mcp_name not in needed_mcps or mcp_name not in servers:
+                    continue
+                env_block = servers[mcp_name].get("env", {})
+                env_path = cred_checks.get(mcp_name)
+                has_env_file = env_path and env_path.exists()
+                has_mcp_key = env_key in env_block and env_block[env_key]
+                if has_env_file and not has_mcp_key:
+                    results.append((
+                        f"{mcp_name} .mcp.json env",
+                        WARN,
+                        f"{env_key} in .env but missing from .mcp.json",
+                        "re-run: bash mcp/setup.sh",
+                    ))
+        except (json.JSONDecodeError, KeyError):
+            pass
+        break
+
     if "neo4j-rhacm" in needed_mcps:
         rc, out, _ = run("podman ps --format '{{.Names}}' 2>/dev/null")
         if rc == 0 and "neo4j-rhacm" in out:
@@ -292,8 +356,8 @@ def check_artifacts(app_nums, needed_mcps):
                 results.append((
                     "neo4j-rhacm container",
                     WARN,
-                    "not created (optional)",
-                    None,
+                    "not created",
+                    "run: bash mcp/setup.sh --app 4 (or start manually)",
                 ))
 
     return results

@@ -59,10 +59,10 @@ from src.services.timeline_comparison_service import TimelineComparisonService
 from src.services.stack_trace_parser import StackTraceParser
 from src.services.shared_utils import mask_sensitive_dict, SENSITIVE_PATTERNS
 from src.services.acm_console_knowledge import ACMConsoleKnowledge
-from src.services.acm_ui_mcp_client import (
-    ACMUIMCPClient,
-    get_acm_ui_mcp_client,
-    is_acm_ui_mcp_available
+from src.services.acm_source_mcp_client import (
+    ACMSourceMCPClient,
+    get_acm_source_mcp_client,
+    is_acm_source_mcp_available
 )
 from src.services.component_extractor import ComponentExtractor
 from src.services.knowledge_graph_client import (
@@ -101,11 +101,11 @@ class DataGatherer:
         self.verbose = verbose
         self.logger = self._setup_logging()
 
-        # Initialize ACM UI MCP client (optional, for element discovery)
-        self.acm_ui_mcp_client: Optional[ACMUIMCPClient] = None
-        if is_acm_ui_mcp_available():
-            self.acm_ui_mcp_client = get_acm_ui_mcp_client()
-            self.logger.info("ACM UI MCP server available - element discovery enabled")
+        # Initialize ACM Source MCP client (optional, for element discovery)
+        self.acm_source_mcp_client: Optional[ACMSourceMCPClient] = None
+        if is_acm_source_mcp_available():
+            self.acm_source_mcp_client = get_acm_source_mcp_client()
+            self.logger.info("ACM Source MCP server available - element discovery enabled")
 
         # Initialize services
         self.jenkins_service = JenkinsIntelligenceService(use_api_client=True)
@@ -115,7 +115,7 @@ class DataGatherer:
         self.stack_parser = StackTraceParser()
 
         # ACM Console Knowledge with optional MCP integration
-        self.acm_knowledge = ACMConsoleKnowledge(mcp_client=self.acm_ui_mcp_client)
+        self.acm_knowledge = ACMConsoleKnowledge(mcp_client=self.acm_source_mcp_client)
 
         # Component extractor for Knowledge Graph integration
         self.component_extractor = ComponentExtractor()
@@ -335,6 +335,8 @@ class DataGatherer:
                 self.cluster_investigation_service.mch_namespace = self.mch_namespace
                 FeatureAreaService.set_mch_namespace(self.mch_namespace)
                 self.logger.info(f"MCH namespace: {self.mch_namespace}")
+
+                self._deploy_acm_search(kubeconfig_path)
             else:
                 self.logger.warning("Failed to login to target cluster")
         else:
@@ -346,6 +348,51 @@ class DataGatherer:
         self.gathered_data['cluster_access']['kubeconfig_path'] = kubeconfig_path
         self.gathered_data['cluster_access']['mch_namespace'] = self.mch_namespace
         return kubeconfig_path
+
+    def _deploy_acm_search(self, kubeconfig_path: str):
+        """Deploy ACM Search MCP on the cluster if not already running."""
+        cli = self.env_service.cli
+
+        try:
+            result = subprocess.run(
+                [cli, '--kubeconfig', kubeconfig_path,
+                 'get', 'deployment', 'acm-search-mcp-server',
+                 '-n', 'acm-search',
+                 '-o', 'jsonpath={.status.readyReplicas}'],
+                capture_output=True, text=True, timeout=10
+            )
+            if result.returncode == 0 and result.stdout.strip() >= '1':
+                self.logger.info("ACM Search MCP already deployed")
+                print("  ACM Search MCP: already deployed", flush=True)
+                return
+        except Exception:
+            pass
+
+        deploy_script = Path(__file__).resolve().parents[3] / 'mcp' / 'deploy-acm-search.sh'
+        if not deploy_script.exists():
+            self.logger.debug("deploy-acm-search.sh not found, skipping")
+            return
+
+        print("  Deploying ACM Search MCP (first-time setup)...", flush=True)
+        try:
+            result = subprocess.run(
+                ['bash', str(deploy_script), '--kubeconfig', kubeconfig_path],
+                capture_output=True, text=True, timeout=360
+            )
+            if result.returncode == 0:
+                self.logger.info("ACM Search MCP deployed successfully")
+                print("  ACM Search MCP: deployed", flush=True)
+            else:
+                stderr_tail = result.stderr[-200:] if result.stderr else 'no output'
+                self.logger.warning(
+                    f"ACM Search deploy failed (non-blocking): {stderr_tail}"
+                )
+                print("  ACM Search MCP: deploy failed (non-blocking)", flush=True)
+        except subprocess.TimeoutExpired:
+            self.logger.warning("ACM Search deploy timed out (non-blocking)")
+            print("  ACM Search MCP: deploy timed out (non-blocking)", flush=True)
+        except Exception as e:
+            self.logger.warning(f"ACM Search deploy error (non-blocking): {e}")
 
     def _discover_mch_namespace(self, kubeconfig_path: str) -> str:
         """
@@ -462,7 +509,7 @@ class DataGatherer:
                 'gathered_at': datetime.now().isoformat(),
                 'gatherer_version': '4.0.0',
                 'jenkins_api_available': is_jenkins_available(),
-                'acm_ui_mcp_available': True,  # Always available to Claude Code agent via native MCP
+                'acm_source_mcp_available': True,  # Always available to Claude Code agent via native MCP
                 'knowledge_graph_available': None,  # Updated after _check_feature_knowledge()
                 'run_directory': str(run_dir)
             },
@@ -1481,9 +1528,9 @@ class DataGatherer:
         detected_branch = None
         cnv_version_info = None
 
-        if self.acm_ui_mcp_client:
+        if self.acm_source_mcp_client:
             try:
-                cnv_info = self.acm_ui_mcp_client.detect_cnv_version()
+                cnv_info = self.acm_source_mcp_client.detect_cnv_version()
                 if cnv_info:
                     cnv_version_info = {
                         'version': cnv_info.version,
@@ -1894,7 +1941,7 @@ class DataGatherer:
             'version': '4.0.0',
             'file_structure': 'multi-file-with-repos',
             'created_at': datetime.now().isoformat(),
-            'acm_ui_mcp_available': True,  # Always available via Claude Code native MCP
+            'acm_source_mcp_available': True,  # Always available via Claude Code native MCP
             'files': {
                 'core-data.json': {
                     'description': 'Primary analysis data (metadata, jenkins, test_report, console_log, environment, feature_knowledge)',

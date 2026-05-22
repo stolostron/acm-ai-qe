@@ -8,9 +8,9 @@
 # Run from the repository root:  bash mcp/setup.sh
 #
 # Apps and their MCP requirements:
-#   acm-hub-health    -> acm-ui, neo4j-rhacm, acm-search
-#   z-stream-analysis -> acm-ui, jira, jenkins, polarion, neo4j-rhacm
-#   test-case-generator -> acm-ui, jira, polarion, neo4j-rhacm, acm-search, acm-kubectl, playwright
+#   acm-hub-health    -> acm-source, neo4j-rhacm, acm-search
+#   z-stream-analysis -> acm-source, jira, jenkins, polarion, neo4j-rhacm
+#   test-case-generator -> acm-source, jira, polarion, neo4j-rhacm, acm-search, acm-kubectl, playwright
 #
 # All paths are resolved dynamically -- no machine-specific references.
 
@@ -50,9 +50,9 @@ check_version_floor() {
 # -----------------------------------------------
 
 # Which MCPs each app requires (space-separated)
-APP_HUB_HEALTH_MCPS="acm-ui neo4j-rhacm acm-search"
-APP_ZSTREAM_MCPS="acm-ui jira jenkins polarion neo4j-rhacm"
-APP_TESTCASE_GEN_MCPS="acm-ui jira polarion neo4j-rhacm acm-search acm-kubectl playwright"
+APP_HUB_HEALTH_MCPS="acm-source neo4j-rhacm acm-search"
+APP_ZSTREAM_MCPS="acm-source jira jenkins polarion neo4j-rhacm"
+APP_TESTCASE_GEN_MCPS="acm-source jira polarion neo4j-rhacm acm-search acm-kubectl playwright"
 
 # App directory names (relative to $REPO_ROOT/apps/)
 APP_HUB_HEALTH_DIR="acm-hub-health"
@@ -93,7 +93,7 @@ apply_selection() {
             ;;
         4)
             SELECTED_APPS="$APP_HUB_HEALTH_DIR $APP_ZSTREAM_DIR $APP_TESTCASE_GEN_DIR"
-            SELECTED_MCPS="acm-ui jira jenkins polarion neo4j-rhacm acm-search acm-kubectl playwright"
+            SELECTED_MCPS="acm-source jira jenkins polarion neo4j-rhacm acm-search acm-kubectl playwright"
             ok "Selected: All apps"
             ;;
         *)
@@ -106,13 +106,20 @@ apply_selection() {
 # App Selection (CLI argument or interactive menu)
 # -----------------------------------------------
 
-# Parse --app flag for non-interactive mode (used by /onboard skill)
+# Parse CLI flags
+# --app N      : skip app selection menu (used by /onboard skill)
+# --no-creds   : skip all credential prompts (onboard skill writes .env files separately)
 CLI_APP_CHOICE=""
+SKIP_CREDS=false
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --app)
             CLI_APP_CHOICE="$2"
             shift 2
+            ;;
+        --no-creds)
+            SKIP_CREDS=true
+            shift
             ;;
         *)
             shift
@@ -139,13 +146,13 @@ else
     echo "  Which app(s) would you like to configure?"
     echo ""
     echo -e "    ${CYAN}1)${NC} ACM Hub Health Agent"
-    echo -e "       Needs: acm-ui, neo4j-rhacm, acm-search"
+    echo -e "       Needs: acm-source, neo4j-rhacm, acm-search"
     echo ""
     echo -e "    ${CYAN}2)${NC} Z-Stream Pipeline Analysis"
-    echo -e "       Needs: acm-ui, jira, jenkins, polarion, neo4j-rhacm"
+    echo -e "       Needs: acm-source, jira, jenkins, polarion, neo4j-rhacm"
     echo ""
     echo -e "    ${CYAN}3)${NC} Test Case Generator"
-    echo -e "       Needs: acm-ui, jira, polarion, neo4j-rhacm, acm-search, acm-kubectl, playwright"
+    echo -e "       Needs: acm-source, jira, polarion, neo4j-rhacm, acm-search, acm-kubectl, playwright"
     echo ""
     echo -e "    ${CYAN}4)${NC} All apps"
     echo -e "       Sets up all MCP servers for all apps"
@@ -169,9 +176,11 @@ CURRENT_MCP=0
 echo ""
 echo "  Will set up $TOTAL_MCPS MCP server(s): $SELECTED_MCPS"
 echo ""
-echo "  If you don't have credentials for a server,"
-echo "  press Enter to skip -- you can add them later."
-echo ""
+if [ "$SKIP_CREDS" = false ]; then
+    echo "  If you don't have credentials for a server,"
+    echo "  press Enter to skip -- you can add them later."
+    echo ""
+fi
 
 # -----------------------------------------------
 # Prerequisites Check
@@ -192,16 +201,18 @@ else
     exit 1
 fi
 
-# gh CLI (needed for acm-ui)
-if needs_mcp "acm-ui"; then
+# gh CLI (needed for acm-source)
+if needs_mcp "acm-source"; then
     if command -v gh &>/dev/null; then
         ok "GitHub CLI (gh) installed"
         if gh auth status &>/dev/null 2>&1; then
             ok "GitHub CLI authenticated"
+        elif [ "$SKIP_CREDS" = true ]; then
+            warn "GitHub CLI not authenticated. Run: gh auth login"
         else
             warn "GitHub CLI not authenticated"
             echo ""
-            echo "  You need to authenticate with GitHub for the ACM UI MCP server."
+            echo "  You need to authenticate with GitHub for the ACM Source MCP server."
             echo "  This gives the server read access to stolostron/console and other repos."
             echo ""
             read -p "  Run 'gh auth login' now? [Y/n] " -n 1 -r
@@ -209,11 +220,11 @@ if needs_mcp "acm-ui"; then
             if [[ ! $REPLY =~ ^[Nn]$ ]]; then
                 gh auth login
             else
-                warn "Skipping gh auth. ACM UI MCP will not work until you run: gh auth login"
+                warn "Skipping gh auth. ACM Source MCP will not work until you run: gh auth login"
             fi
         fi
     else
-        warn "GitHub CLI (gh) not found. ACM UI MCP server will not work."
+        warn "GitHub CLI (gh) not found. ACM Source MCP server will not work."
         echo "  Install: brew install gh  (macOS) or sudo dnf install gh (Fedora/RHEL)"
         echo "  Then run: gh auth login"
     fi
@@ -309,8 +320,13 @@ clone_external() {
         info "Updating $name from upstream..."
         git -C "$target" fetch origin "$branch" --quiet 2>/dev/null || true
         git -C "$target" checkout "$branch" --quiet 2>/dev/null || true
-        git -C "$target" pull --quiet 2>/dev/null || true
-        ok "$name up to date"
+        # Reset to remote tip so force-pushed fork branches (e.g. rebased PRs) stay current.
+        if git -C "$target" rev-parse "origin/$branch" >/dev/null 2>&1; then
+            git -C "$target" reset --hard "origin/$branch" --quiet 2>/dev/null || true
+        else
+            git -C "$target" pull --quiet 2>/dev/null || true
+        fi
+        ok "$name up to date ($(git -C "$target" rev-parse --short HEAD 2>/dev/null || echo unknown))"
     else
         info "Cloning $name..."
         mkdir -p "$EXTERNAL_DIR"
@@ -323,31 +339,31 @@ clone_external() {
 # MCP Server Installation Functions
 # -----------------------------------------------
 
-setup_acm_ui() {
+setup_acm_source() {
     CURRENT_MCP=$((CURRENT_MCP + 1))
     echo "--------------------------------------------"
-    echo "  [$CURRENT_MCP/$TOTAL_MCPS] ACM UI MCP Server"
+    echo "  [$CURRENT_MCP/$TOTAL_MCPS] ACM Source MCP Server"
     echo "--------------------------------------------"
     echo ""
     echo "  What: Searches ACM Console and Fleet Virtualization source code on GitHub."
     echo "  Used for: Finding UI selectors, component source, translations."
     echo ""
 
-    ACM_UI_DIR="$MCP_DIR/acm-ui-mcp-server"
-    ACM_UI_VENV="$ACM_UI_DIR/.venv"
+    ACM_SOURCE_DIR="$MCP_DIR/acm-source-mcp-server"
+    ACM_SOURCE_VENV="$ACM_SOURCE_DIR/.venv"
 
-    if [ ! -d "$ACM_UI_VENV" ]; then
+    if [ ! -d "$ACM_SOURCE_VENV" ]; then
         info "Creating virtual environment..."
-        python3 -m venv "$ACM_UI_VENV"
+        python3 -m venv "$ACM_SOURCE_VENV"
         ok "Virtual environment created"
     fi
 
-    if "$ACM_UI_VENV/bin/python" -c "import acm_ui_mcp_server" 2>/dev/null; then
+    if "$ACM_SOURCE_VENV/bin/python" -c "import acm_source_mcp_server" 2>/dev/null; then
         ok "Already installed"
     else
-        info "Installing ACM UI MCP server..."
-        "$ACM_UI_VENV/bin/pip" install -e "$ACM_UI_DIR" --quiet 2>/dev/null || \
-        "$ACM_UI_VENV/bin/pip" install mcp pydantic pydantic-settings python-dotenv --quiet
+        info "Installing ACM Source MCP server..."
+        "$ACM_SOURCE_VENV/bin/pip" install -e "$ACM_SOURCE_DIR" --quiet 2>/dev/null || \
+        "$ACM_SOURCE_VENV/bin/pip" install mcp pydantic pydantic-settings python-dotenv --quiet
         ok "Dependencies installed (in venv)"
     fi
 
@@ -360,9 +376,10 @@ setup_jira() {
     echo "  [$CURRENT_MCP/$TOTAL_MCPS] JIRA MCP Server"
     echo "--------------------------------------------"
     echo ""
-    echo "  What: Searches and manages JIRA issues."
+    echo "  What: Searches and manages JIRA issues (29 tools on Red Hat Cloud)."
     echo "  Used for: Finding related bugs, reading feature stories during analysis."
-    echo "  Source: https://github.com/stolostron/jira-mcp-server"
+    echo "  Source: $JIRA_REPO (branch: $JIRA_BRANCH)"
+    echo "  Upstream: https://github.com/stolostron/jira-mcp-server (PR #24)"
     echo ""
 
     clone_external "jira-mcp-server" "$JIRA_REPO" "$JIRA_BRANCH"
@@ -376,18 +393,40 @@ setup_jira() {
         ok "Virtual environment created"
     fi
 
-    if "$JIRA_VENV/bin/python" -c "import jira_mcp_server" 2>/dev/null; then
-        ok "Already installed"
-    else
-        info "Installing JIRA MCP server..."
+    info "Installing JIRA MCP server into venv (editable, dev extras)..."
+    "$JIRA_VENV/bin/pip" install -U pip --quiet 2>/dev/null || true
+    if ! "$JIRA_VENV/bin/pip" install -e "${JIRA_DIR}[dev]" --quiet 2>/dev/null; then
+        warn "pip install -e '.[dev]' failed; retrying minimal install"
         "$JIRA_VENV/bin/pip" install -e "$JIRA_DIR" --quiet 2>/dev/null || \
-        "$JIRA_VENV/bin/pip" install fastmcp jira pydantic asyncio-throttle python-dotenv uvicorn --quiet
-        ok "Dependencies installed (in venv)"
+        "$JIRA_VENV/bin/pip" install 'fastmcp>=3.3.1' jira pydantic asyncio-throttle python-dotenv uvicorn --quiet
+    fi
+    ok "Dependencies installed (in venv)"
+
+    _jira_startup_ok() {
+        [ -x "$JIRA_DIR/scripts/verify-startup.sh" ] && \
+            bash "$JIRA_DIR/scripts/verify-startup.sh" >/dev/null 2>&1
+    }
+
+    if _jira_startup_ok; then
+        ok "Startup smoke test (fastmcp Context + JiraMCPServer)"
+    else
+        warn "Startup check failed (stale venv after pull?) — recreating .venv..."
+        rm -rf "$JIRA_VENV"
+        python3 -m venv "$JIRA_VENV"
+        "$JIRA_VENV/bin/pip" install -U pip --quiet 2>/dev/null || true
+        "$JIRA_VENV/bin/pip" install -e "${JIRA_DIR}[dev]" --quiet
+        if _jira_startup_ok; then
+            ok "Startup smoke test passed after venv recreate"
+        else
+            warn "verify-startup still failing — run: cd $JIRA_DIR && make bootstrap && make verify-startup"
+        fi
     fi
 
     JIRA_ENV="$JIRA_DIR/.env"
     if [ -f "$JIRA_ENV" ] && ! grep -q "PASTE_YOUR" "$JIRA_ENV" 2>/dev/null; then
         ok "Credentials file exists: $JIRA_ENV"
+    elif [ "$SKIP_CREDS" = true ]; then
+        info "Credentials will be written by the onboard skill after setup completes."
     else
         echo ""
         info "JIRA credentials needed."
@@ -456,6 +495,25 @@ setup_jenkins() {
     JENKINS_ENV="$JENKINS_DIR/.env"
     if [ -f "$JENKINS_ENV" ] && ! grep -q "PASTE_YOUR" "$JENKINS_ENV" 2>/dev/null; then
         ok "Credentials file exists: $JENKINS_ENV"
+    elif [ "$SKIP_CREDS" = true ]; then
+        # Still try legacy migration (non-interactive)
+        LEGACY_CONFIG="$HOME/.jenkins/config.json"
+        if [ -f "$LEGACY_CONFIG" ] && ! grep -q "PASTE_YOUR" "$LEGACY_CONFIG" 2>/dev/null; then
+            info "Migrating credentials from legacy $LEGACY_CONFIG..."
+            JENKINS_USER_INPUT=$(python3 -c "import json; print(json.load(open('$LEGACY_CONFIG')).get('jenkins_user',''))" 2>/dev/null || true)
+            JENKINS_TOKEN_INPUT=$(python3 -c "import json; print(json.load(open('$LEGACY_CONFIG')).get('jenkins_token',''))" 2>/dev/null || true)
+            if [ -n "$JENKINS_USER_INPUT" ] && [ -n "$JENKINS_TOKEN_INPUT" ]; then
+                cat > "$JENKINS_ENV" <<EOF
+JENKINS_USER=$JENKINS_USER_INPUT
+JENKINS_API_TOKEN=$JENKINS_TOKEN_INPUT
+EOF
+                ok "Migrated to $JENKINS_ENV"
+            else
+                info "Credentials will be written by the onboard skill after setup completes."
+            fi
+        else
+            info "Credentials will be written by the onboard skill after setup completes."
+        fi
     else
         # Migrate from legacy ~/.jenkins/config.json if it exists
         LEGACY_CONFIG="$HOME/.jenkins/config.json"
@@ -533,6 +591,8 @@ setup_polarion() {
 
     if [ -f "$POLARION_ENV" ] && ! grep -q "PASTE_YOUR" "$POLARION_ENV" 2>/dev/null; then
         ok "Credentials file exists: $POLARION_ENV"
+    elif [ "$SKIP_CREDS" = true ]; then
+        info "Credentials will be written by the onboard skill after setup completes."
     else
         echo ""
         info "Polarion JWT token needed."
@@ -727,6 +787,19 @@ setup_acm_search() {
         return
     fi
 
+    # If marker file exists from a previous deployment, skip re-deploying
+    ACM_SEARCH_ROUTE=""
+    ACM_SEARCH_TOKEN=""
+    if [ -f "$MCP_DIR/.acm-search-config.json" ]; then
+        ok "acm-search already configured (marker file exists)"
+        if command -v jq &>/dev/null; then
+            ACM_SEARCH_ROUTE=$(jq -r '.route' "$MCP_DIR/.acm-search-config.json")
+            ACM_SEARCH_TOKEN="set"
+        fi
+        echo ""
+        return
+    fi
+
     # Ensure mcp-remote is installed globally (stdio-to-SSE bridge)
     if command -v mcp-remote &>/dev/null; then
         ACM_SEARCH_MCP_REMOTE="$(which mcp-remote)"
@@ -748,45 +821,22 @@ setup_acm_search() {
         fi
     fi
 
-    # Deploy on-cluster if oc is logged in
-    ACM_SEARCH_ROUTE=""
-    ACM_SEARCH_TOKEN=""
+    # Deploy on-cluster using the non-interactive deploy script
     if command -v oc &>/dev/null && oc whoami &>/dev/null 2>&1; then
-        if oc get namespace acm-search &>/dev/null 2>&1; then
-            ok "acm-search namespace exists on cluster"
-        else
-            info "Deploying acm-search MCP server on-cluster..."
-            if [ -f "$ACM_SEARCH_DIR/scripts/create-secret.sh" ]; then
-                (cd "$ACM_SEARCH_DIR" && bash scripts/create-secret.sh 2>&1) || {
-                    warn "create-secret.sh failed. You may need to deploy manually."
-                }
+        info "Running deploy-acm-search.sh..."
+        if bash "$MCP_DIR/deploy-acm-search.sh" 2>&1; then
+            ok "acm-search deployed and .mcp.json updated"
+            if [ -f "$MCP_DIR/.acm-search-config.json" ] && command -v jq &>/dev/null; then
+                ACM_SEARCH_ROUTE=$(jq -r '.route' "$MCP_DIR/.acm-search-config.json")
+                ACM_SEARCH_TOKEN="set"
             fi
-            if [ -f "$ACM_SEARCH_DIR/Makefile" ]; then
-                (cd "$ACM_SEARCH_DIR" && make deploy-prebuilt 2>&1) || {
-                    warn "deploy-prebuilt failed. Check: oc get pods -n acm-search"
-                }
-            fi
-        fi
-
-        # Extract route URL
-        ACM_SEARCH_ROUTE=$(oc get route -n acm-search -o jsonpath='{.items[0].spec.host}' 2>/dev/null || true)
-        if [ -n "$ACM_SEARCH_ROUTE" ]; then
-            ok "Route: $ACM_SEARCH_ROUTE"
         else
-            warn "No route found in acm-search namespace."
-            echo "  Deploy manually: cd $ACM_SEARCH_DIR && bash scripts/create-secret.sh && make deploy-prebuilt"
-        fi
-
-        # Extract service account token
-        ACM_SEARCH_TOKEN=$(oc get secret acm-search-client-token -n acm-search -o jsonpath='{.data.token}' 2>/dev/null | base64 -d || true)
-        if [ -n "$ACM_SEARCH_TOKEN" ]; then
-            ok "Service account token extracted"
-        else
-            warn "Could not extract acm-search-client-token. Check: oc get secret -n acm-search"
+            warn "deploy-acm-search.sh failed. You can retry later:"
+            echo "  oc login <hub> && bash mcp/deploy-acm-search.sh"
         fi
     else
-        warn "oc not logged in. Skipping on-cluster deployment."
-        echo "  Log in first, then re-run: oc login <hub-api-url> && bash mcp/setup.sh"
+        info "oc not logged in. acm-search is deployed per-cluster when needed."
+        echo "  Deploy later: oc login <hub> && bash mcp/deploy-acm-search.sh"
     fi
 
     echo ""
@@ -852,7 +902,7 @@ setup_playwright() {
         return
     fi
 
-    ok "npx available -- playwright will run via: npx @playwright/mcp@latest"
+    ok "npx available -- playwright will use explicit node path with --ignore-https-errors"
 
     # Check if Playwright browsers are installed
     if npx playwright install --dry-run chromium &>/dev/null 2>&1; then
@@ -875,7 +925,7 @@ setup_playwright() {
 # Install Selected MCP Servers
 # -----------------------------------------------
 
-needs_mcp "acm-ui"      && setup_acm_ui
+needs_mcp "acm-source"      && setup_acm_source
 needs_mcp "jira"         && setup_jira
 needs_mcp "jenkins"      && setup_jenkins
 needs_mcp "polarion"     && setup_polarion
@@ -935,47 +985,34 @@ jira_env = read_env_file(f'{ext_dir}/jira-mcp-server/.env')
 jenkins_env = read_env_file(f'{ext_dir}/jenkins-mcp/.env')
 polarion_env = read_env_file(f'{mcp_dir}/polarion/.env')
 
+# Resolve node paths for Playwright MCP (explicit paths avoid npx resolution failures)
+import shutil
+node_path = shutil.which('node') or 'node'
+node_bin = os.path.dirname(node_path) if node_path != 'node' else '/usr/local/bin'
+_node_prefix = os.path.dirname(node_bin)
+npx_cli_path = os.path.join(_node_prefix, 'lib', 'node_modules', 'npm', 'bin', 'npx-cli.js')
+if not os.path.isfile(npx_cli_path):
+    npx_cli_path = shutil.which('npx') or 'npx'
+
 def _build_acm_search_config():
-    \"\"\"Build acm-search MCP config using mcp-remote + on-cluster SSE route.\"\"\"
-    import shutil, subprocess
-    mcp_remote = shutil.which('mcp-remote')
-    if not mcp_remote:
-        return {'command': 'echo', 'args': ['acm-search not configured -- install mcp-remote and deploy on-cluster'], 'timeout': 10}
-    try:
-        route = subprocess.check_output(
-            ['oc', 'get', 'route', '-n', 'acm-search', '-o', 'jsonpath={.items[0].spec.host}'],
-            stderr=subprocess.DEVNULL, timeout=10).decode().strip()
-        token = subprocess.check_output(
-            ['oc', 'get', 'secret', 'acm-search-client-token', '-n', 'acm-search',
-             '-o', 'jsonpath={.data.token}'],
-            stderr=subprocess.DEVNULL, timeout=10).decode().strip()
-        if token:
-            import base64
-            token = base64.b64decode(token).decode()
-    except Exception:
-        route, token = '', ''
-    if not route or not token:
-        return {'command': 'echo', 'args': ['acm-search not configured -- deploy on-cluster and re-run setup'], 'timeout': 10}
-    return {
-        'command': mcp_remote,
-        'args': [f'https://{route}/sse', '--header', f'Authorization: Bearer {token}', '--transport', 'sse-only'],
-        'env': {'NODE_TLS_REJECT_UNAUTHORIZED': '0'},
-        'timeout': 90
-    }
+    \"\"\"Build acm-search MCP config using the resilient proxy.\"\"\"
+    proxy_script = os.path.join(mcp_dir, 'acm-search-proxy.py')
+    return {'command': 'python3', 'args': [proxy_script], 'timeout': 30}
 
 # MCP server definitions
-# - acm-ui, polarion: local (our code, in this repo)
+# - acm-source, polarion: local (our code, in this repo)
 # - jira, jenkins: cloned at setup time into .external/
 # - neo4j-rhacm: runs from PyPI via uvx (no local code)
 all_servers = {
-    'acm-ui': {
-        'command': f'{mcp_dir}/acm-ui-mcp-server/.venv/bin/python',
-        'args': ['-m', 'acm_ui_mcp_server.main'],
+    'acm-source': {
+        'command': f'{mcp_dir}/acm-source-mcp-server/.venv/bin/python',
+        'args': ['-m', 'acm_source_mcp_server.main'],
         'timeout': 30
     },
     'jira': {
         'command': f'{ext_dir}/jira-mcp-server/.venv/bin/python',
         'args': ['-m', 'jira_mcp_server.main'],
+        'cwd': f'{ext_dir}/jira-mcp-server',
         'env': {k: v for k, v in jira_env.items() if v and 'PASTE_YOUR' not in v},
         'timeout': 60
     },
@@ -1016,9 +1053,10 @@ all_servers = {
         'timeout': 60
     },
     'playwright': {
-        'command': 'npx',
-        'args': ['@playwright/mcp@latest'],
-        'timeout': 30
+        'command': node_path,
+        'args': [npx_cli_path, '@playwright/mcp@latest', '--ignore-https-errors', '--test-id-attribute', 'data-test', '--codegen', 'typescript', '--caps', 'core,testing'],
+        'env': {'PATH': node_bin + ':/usr/bin:/bin:/usr/sbin:/sbin'},
+        'timeout': 60
     }
 }
 
@@ -1069,19 +1107,19 @@ echo ""
 # Server status
 echo "  Server status:"
 
-if needs_mcp "acm-ui"; then
-    ACM_UI_VENV="$MCP_DIR/acm-ui-mcp-server/.venv"
-    if [ -f "$ACM_UI_VENV/bin/python" ] && "$ACM_UI_VENV/bin/python" -c "import acm_ui_mcp_server" 2>/dev/null; then
-        echo -e "    ${GREEN}OK${NC}   acm-ui       -- ACM Console & Fleet Virt source code (20 tools)"
+if needs_mcp "acm-source"; then
+    ACM_SOURCE_VENV="$MCP_DIR/acm-source-mcp-server/.venv"
+    if [ -f "$ACM_SOURCE_VENV/bin/python" ] && "$ACM_SOURCE_VENV/bin/python" -c "import acm_source_mcp_server" 2>/dev/null; then
+        echo -e "    ${GREEN}OK${NC}   acm-source   -- ACM Console & Fleet Virt source code (18 tools)"
     else
-        echo -e "    ${YELLOW}DEPS${NC} acm-ui       -- Re-run setup to create venv"
+        echo -e "    ${YELLOW}DEPS${NC} acm-source   -- Re-run setup to create venv"
     fi
 fi
 
 if needs_mcp "jira"; then
     JIRA_VENV="$EXTERNAL_DIR/jira-mcp-server/.venv"
     if [ -f "$JIRA_VENV/bin/python" ] && "$JIRA_VENV/bin/python" -c "import jira_mcp_server" 2>/dev/null; then
-        echo -e "    ${GREEN}OK${NC}   jira         -- JIRA issue management (25 tools)"
+        echo -e "    ${GREEN}OK${NC}   jira         -- JIRA issue management (29 tools, fork feat/redhat-fields)"
     else
         echo -e "    ${YELLOW}DEPS${NC} jira         -- Re-run setup to create venv"
     fi
@@ -1120,7 +1158,7 @@ if needs_mcp "acm-search"; then
     elif [ -n "$ACM_SEARCH_ROUTE" ]; then
         echo -e "    ${YELLOW}DEPS${NC} acm-search   -- Deployed, but missing mcp-remote or token. Re-run setup."
     else
-        echo -e "    ${YELLOW}SETUP${NC} acm-search   -- Not deployed. Log into ACM hub and re-run setup."
+        echo -e "    ${YELLOW}LATER${NC} acm-search   -- Deploy per-cluster when needed: oc login <hub> && bash mcp/deploy-acm-search.sh"
     fi
 fi
 

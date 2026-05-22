@@ -21,6 +21,40 @@ from src.services.convention_validator import validate_test_case
 from src.services.html_generator import generate_html
 from src.services.telemetry import PipelineTelemetry
 
+EXPECTED_ARTIFACTS = [
+    ("gather-output.json",),
+    ("pr-diff.txt",),
+    ("phase1-feature-investigation.md", "phase1-jira.json"),
+    ("phase1-code-change-analysis.md", "phase2-code.json"),
+    ("phase1-ui-discovery.md", "phase3-ui.json"),
+    ("phase2-synthesized-context.md", "synthesized-context.md"),
+    ("phase3-live-validation.md", "phase5-live-validation.md"),
+    ("test-case.md",),
+    ("phase4.5-quality-review.md", "phase7-review.md"),
+]
+
+
+def check_artifact_completeness(run_dir: Path) -> dict:
+    """Check which pipeline artifacts were saved."""
+    present = []
+    missing = []
+    for alternates in EXPECTED_ARTIFACTS:
+        found = None
+        for name in alternates:
+            if (run_dir / name).exists():
+                found = name
+                break
+        if found:
+            present.append(found)
+        else:
+            missing.append(alternates[0])
+    return {
+        "artifacts_present": len(present),
+        "artifacts_expected": len(EXPECTED_ARTIFACTS),
+        "artifacts_missing": missing,
+        "pipeline_complete": len(missing) == 0,
+    }
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -47,9 +81,11 @@ def write_summary(
     run_dir: Path,
     test_case_path: Path,
     review_result: ReviewResult,
+    desc_path: str | None,
     setup_path: str | None,
     steps_path: str | None,
     jira_id: str,
+    artifact_check: dict | None = None,
 ) -> Path:
     """Write a human-readable SUMMARY.txt."""
     summary_lines = [
@@ -84,8 +120,21 @@ def write_summary(
         for issue in review_result.warnings:
             summary_lines.append(f"  - [{issue.category}] {issue.message}")
 
+    if artifact_check:
+        count = artifact_check["artifacts_present"]
+        total = artifact_check["artifacts_expected"]
+        if artifact_check["pipeline_complete"]:
+            summary_lines.append(f"")
+            summary_lines.append(f"Pipeline Artifacts: {count}/{total} complete")
+        else:
+            summary_lines.append(f"")
+            summary_lines.append(f"Pipeline Artifacts: {count}/{total} (INCOMPLETE)")
+            for name in artifact_check["artifacts_missing"]:
+                summary_lines.append(f"  Missing: {name}")
+
     summary_lines.append(f"")
     summary_lines.append(f"Polarion HTML:")
+    summary_lines.append(f"  Description: {'Generated' if desc_path else 'Not generated'}")
     summary_lines.append(f"  Setup: {'Generated' if setup_path else 'Not generated'}")
     summary_lines.append(f"  Steps: {'Generated' if steps_path else 'Not generated'}")
 
@@ -142,9 +191,14 @@ def main() -> None:
     print("  Running structural validation...")
     review_result = validate_test_case(str(test_case_path), area=area)
 
+    # --- Artifact completeness ---
+    artifact_check = check_artifact_completeness(run_dir)
+
+    review_data = review_result.model_dump()
+    review_data["artifacts"] = artifact_check
     review_path = run_dir / "review-results.json"
     review_path.write_text(
-        json.dumps(review_result.model_dump(), indent=2, default=str),
+        json.dumps(review_data, indent=2, default=str),
         encoding="utf-8",
     )
 
@@ -159,19 +213,28 @@ def main() -> None:
         for warning in review_result.warnings:
             print(f"    Warning: [{warning.category}] {warning.message}")
 
+    if artifact_check["pipeline_complete"]:
+        print(f"  Pipeline artifacts: {artifact_check['artifacts_present']}/{artifact_check['artifacts_expected']} complete")
+    else:
+        print(f"  Pipeline artifacts: {artifact_check['artifacts_present']}/{artifact_check['artifacts_expected']} (INCOMPLETE)")
+        for name in artifact_check["artifacts_missing"]:
+            print(f"    Missing: {name}")
+
     # --- Generate Polarion HTML ---
     print("  Generating Polarion HTML...")
-    setup_path, steps_path = generate_html(str(test_case_path), str(run_dir))
+    desc_path, setup_path, steps_path = generate_html(str(test_case_path), str(run_dir))
 
+    if desc_path:
+        print(f"  Description HTML: {Path(desc_path).name}")
     if setup_path:
         print(f"  Setup HTML: {Path(setup_path).name}")
     if steps_path:
         print(f"  Steps HTML: {Path(steps_path).name}")
-    if not setup_path and not steps_path:
+    if not desc_path and not setup_path and not steps_path:
         print("  Warning: No HTML generated (could not parse test case sections)")
 
     # --- Write summary ---
-    summary_path = write_summary(run_dir, test_case_path, review_result, setup_path, steps_path, jira_id)
+    summary_path = write_summary(run_dir, test_case_path, review_result, desc_path, setup_path, steps_path, jira_id, artifact_check)
     print(f"  Summary: {summary_path.name}")
 
     # --- Telemetry ---

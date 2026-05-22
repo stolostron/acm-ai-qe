@@ -16,7 +16,7 @@ gather.py ──┬── JenkinsAPIClient ──────────── 
             ├── TimelineComparisonService ──── Git date comparison
             ├── ComponentExtractor ─────────── Error → component names
             ├── ACMConsoleKnowledge ─────────── Directory structure mapping
-            ├── ACMUIMCPClient ─────────────── MCP fallback for Stage 1
+            ├── ACMSourceMCPClient ─────────────── MCP fallback for Stage 1
             ├── ClusterInvestigationService ── Cluster landscape + pod diagnostics (v3.0)
             ├── FeatureAreaService ────────── Test-to-feature-area mapping (v3.0)
             ├── FeatureKnowledgeService ──── Playbook loading + symptom matching (v3.1)
@@ -131,7 +131,7 @@ Stage 1+2 ─── KnowledgeGraphClient ─────────── Neo4j
 
 | Property | Value |
 |----------|-------|
-| **File** | `src/services/stack_trace_parser.py` (492 lines) |
+| **File** | `src/services/stack_trace_parser.py` (529 lines) |
 | **Purpose** | Parses JS/TS stack traces to extract file:line, error type, and failing selector |
 | **Used by** | Stage 1, Steps 3 and 7 |
 
@@ -142,14 +142,15 @@ Stage 1+2 ─── KnowledgeGraphClient ─────────── Neo4j
 | Method | Description |
 |--------|-------------|
 | `parse(stack_trace)` | Parse full stack trace into structured frames |
-| `extract_failing_selector(error_message)` | Extract CSS selector from error text |
+| `extract_failing_selector(error_message)` | Extract CSS selector from error text. Handles backtick-delimited selectors with embedded quotes, tag-prefixed selectors (`div#id`, `input[aria-label]`, `button.class`), role-based selectors, and Cypress "not visible" patterns. |
 | `extract_assertion_values(error_message)` | Extract expected vs actual values from assertion errors. Returns `{has_data_assertion, assertion_type, expected, actual, raw_assertion}` or None (v3.3) |
 | `get_context_range(frame, context_lines)` | Calculate line range for context |
+| `_is_valid_selector(selector)` | Static method. Validates CSS selector strings — accepts `#id`, `.class`, `[attr]`, tag-prefixed (`div#id`, `input[attr]`), rejects hex color codes |
 | `_classify_assertion_type(match, groups)` | Static method. Classifies assertion type from regex match (v3.3) |
 
 **Class data:** `ASSERTION_PATTERNS` — 8 regex patterns for extracting assertion values from Cypress/Chai, Jest, and generic assertion formats (v3.3)
 
-**Handles:** Webpack paths, Node.js format, async functions, Cypress error formats
+**Handles:** Webpack paths, Node.js format, async functions, Cypress error formats, backtick-delimited selectors, tag-prefixed compound selectors, aria-label attribute selectors
 
 ---
 
@@ -204,15 +205,15 @@ Stage 1+2 ─── KnowledgeGraphClient ─────────── Neo4j
 | `find_element_with_mcp(selector, search_all_repos)` | Search via MCP integration |
 ---
 
-### 8. ACMUIMCPClient
+### 8. ACMSourceMCPClient
 
 | Property | Value |
 |----------|-------|
-| **File** | `src/services/acm_ui_mcp_client.py` (295 lines) |
+| **File** | `src/services/acm_source_mcp_client.py` (295 lines) |
 | **Purpose** | Python MCP client for Stage 1 data gathering; Stage 2 uses Claude Code's native MCP |
 | **Used by** | Stage 1 (CNV detection) |
 
-**Key exports:** `ACMUIMCPClient`, `ElementInfo`, `SearchResult`, `CNVVersionInfo`, `FleetVirtSelectors`, `get_acm_ui_mcp_client`, `is_acm_ui_mcp_available`
+**Key exports:** `ACMSourceMCPClient`, `ElementInfo`, `SearchResult`, `CNVVersionInfo`, `FleetVirtSelectors`, `get_acm_source_mcp_client`, `is_acm_source_mcp_available`
 
 **Key methods:**
 
@@ -519,7 +520,7 @@ is handled by Stage 1.5 (cluster-diagnostic agent) and Stage 2 (analysis agent).
 | StackTraceParser | Steps 3, 7 | | |
 | TimelineComparisonService | Step 6 (repo cloning) | | |
 | ACMConsoleKnowledge | Step 7 | Phase B | |
-| ACMUIMCPClient | Step 6 (CNV detection) | | |
+| ACMSourceMCPClient | Step 6 (CNV detection) | | |
 | ComponentExtractor | Step 7 | | |
 | KnowledgeGraphClient | Step 9 | Phases B5, C2, E0 | |
 | ClusterInvestigationService | Step 4 | Phase B5b | |

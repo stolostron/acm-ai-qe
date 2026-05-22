@@ -22,7 +22,7 @@ gather.py, then spawns the data-collector agent to enrich the output.
 2. **data-collector agent** (AI, ~3-5 min) — Enriches `core-data.json` with
    fields that require intelligent code analysis:
    - Task 1: Resolves `page_objects` by tracing imports in `repos/automation/`
-   - Task 2: Verifies `console_search` via MCP tools (ACM-UI)
+   - Task 2: Verifies `console_search` via MCP tools (ACM-Source)
    - Task 3: Analyzes `recent_selector_changes` and `temporal_summary` using
      git history with intent assessment
 
@@ -190,7 +190,7 @@ def _classify_failure_type(self, error_text: str) -> str:
 ```
 INPUT:
   AssertionError: Timed out retrying after 30000ms: Expected to find
-  element: '#create-btn', but never found it.
+  element: `input[aria-label="Select user"]`, but never found it.
       at Context.<anonymous> (cypress/e2e/cluster/create.cy.ts:45:12)
       at runnable.run (cypress/support/commands.js:123:5)
 
@@ -199,13 +199,15 @@ OUTPUT:
     "error_type": "element_not_found",
     "root_cause_file": "cypress/e2e/cluster/create.cy.ts",
     "root_cause_line": 45,
-    "failing_selector": "#create-btn",
+    "failing_selector": "input[aria-label=\"Select user\"]",
     "frames": [
       { "file": "create.cy.ts", "line": 45, "function": "anonymous" },
       { "file": "commands.js", "line": 123, "function": "run" }
     ]
   }
 ```
+
+Handles backtick-delimited selectors with embedded quotes, tag-prefixed selectors (`div#connection`, `button.class`), `aria-label` attribute selectors, role-based selectors, and Cypress "not visible" patterns. Rejects hex color codes (e.g., `#DB242F`).
 
 **Output file:** `test-report.json`
 
@@ -215,7 +217,7 @@ OUTPUT:
 
 **Services:** `EnvironmentValidationService` (login + kubeconfig persist), `ClusterInvestigationService` (landscape)
 
-Step 4 establishes cluster access and collects landscape data. It does two things: (4a) login (two-tier credential lookup: Jenkins parameters, then console log fallback), kubeconfig persistence, and MCH namespace discovery, (4b) cluster landscape snapshot. The comprehensive health audit is handled by Stage 1.5 (cluster-diagnostic agent), which produces `cluster-diagnosis.json`.
+Step 4 establishes cluster access and collects landscape data. It does three things: (4a) login (two-tier credential lookup: Jenkins parameters, then console log fallback), kubeconfig persistence, and MCH namespace discovery, (4a-cont) auto-deploy ACM Search MCP on the cluster if not already running, (4b) cluster landscape snapshot. The comprehensive health audit is handled by Stage 1.5 (cluster-diagnostic agent), which produces `cluster-diagnosis.json`.
 
 **MCH namespace discovery (Step 4a):** After login, gather.py runs `oc get mch -A` to discover the actual MCH namespace. This can be `open-cluster-management`, `ocm`, or a custom namespace depending on the ACM installation. The discovered namespace is used for all subsequent `oc` commands and propagated to all services (`ClusterInvestigationService`, `FeatureAreaService`). Derived namespaces (`-hub`, `-observability`, `-agent`) are computed from the discovered base namespace.
 
@@ -269,6 +271,8 @@ Part of `_login_to_cluster()` (Step 4a). Extracts cluster credentials with two-t
 ```
 
 The `kubeconfig_path` is also set on `env_service.kubeconfig` so subsequent gather steps (cluster landscape, oracle) use the same authenticated kubeconfig.
+
+**ACM Search MCP auto-deploy (Step 4a):** After kubeconfig persistence and MCH namespace discovery, gather.py automatically deploys the ACM Search MCP server on the cluster if not already running. This runs `deploy-acm-search.sh --kubeconfig <path>`, which creates the `acm-search` namespace, deploys the MCP server pod, extracts the SSE route/token, and updates `.mcp.json` files. If the pod is already deployed and ready, the step is skipped. Deployment failures are non-blocking — the cluster-diagnostic agent (Stage 1.5) falls back to `oc` CLI for spoke-side queries.
 
 **Output files:** `cluster.kubeconfig`, `cluster_access` and `cluster_landscape` keys in `core-data.json`
 
@@ -559,7 +563,7 @@ Page object resolution is handled by the **data-collector agent** after gather.p
 
 ### Sub-step 7c: Console Search (data-collector agent)
 
-Selector verification in product source is handled by the **data-collector agent** after gather.py completes. The agent uses MCP tools (ACM-UI `search_code`, `search_component`) to verify selector existence with full context — understanding PatternFly components, runtime-generated selectors, and correct route/page context. gather.py initializes the field as `null`.
+Selector verification in product source is handled by the **data-collector agent** after gather.py completes. The agent uses MCP tools (ACM-Source `search_code`, `search_code(scope="components")`) to verify selector existence with full context — understanding PatternFly components, runtime-generated selectors, and correct route/page context. gather.py initializes the field as `null`.
 
 **Output:**
 ```json
@@ -844,7 +848,7 @@ core-data.json
   "gathered_at": "",
   "gatherer_version": "4.0.0",
   "jenkins_api_available": true,
-  "acm_ui_mcp_available": true,
+  "acm_source_mcp_available": true,
   "knowledge_graph_available": false,
   "run_directory": "runs/<dir>",
   "gathering_time_seconds": 0.0,
@@ -1143,7 +1147,7 @@ kubevirt-plugin is only cloned when VM/virt tests are detected.
 | `FeatureAreaService` | 8 | Test-to-feature-area mapping (v3.0) |
 | `FeatureKnowledgeService` | 9 | Playbook loading, prerequisite checks, symptom matching (v3.1) |
 | `KnowledgeGraphClient` | 9 | Neo4j dependency queries for kg_dependency_context (v3.2) |
-| `ACMUIMCPClient` | 6 | CNV detection (Step 6) |
+| `ACMSourceMCPClient` | 6 | CNV detection (Step 6) |
 | `shared_utils` | All | Config, subprocess, credentials |
 
 See [04-SERVICES-REFERENCE.md](04-SERVICES-REFERENCE.md) for detailed method signatures.

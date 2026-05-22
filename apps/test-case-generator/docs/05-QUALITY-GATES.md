@@ -6,7 +6,7 @@ The pipeline has two independent validation systems. Both must pass before a tes
 
 | Layer | When | Type | What it checks | Authoritative for |
 |-------|------|------|---------------|-------------------|
-| Phase 4.5 | Before Stage 3 | AI (quality-reviewer agent) | MCP verification of UI elements, Polarion coverage, peer consistency, discovered vs assumed, AC vs implementation | Semantic correctness |
+| Phase 4.5 | Before Stage 3 | AI (quality-reviewer agent) | MCP verification of UI elements, discovered vs assumed, AC vs implementation | Semantic correctness |
 | Stage 3 | After Phase 4.5 | Deterministic (`convention_validator.py`) | Title pattern, metadata fields, section order, step format, entry point, teardown | Structural correctness |
 
 ---
@@ -14,9 +14,9 @@ The pipeline has two independent validation systems. Both must pass before a tes
 ## Phase 4.5: Quality Reviewer Agent
 
 **Agent:** `.claude/agents/quality-reviewer.md`
-**Tools:** acm-ui, polarion
+**Tools:** acm-source
 **Verdict:** `PASS` or `NEEDS_FIXES`
-**Max iterations:** 3 (orchestrator fixes issues between iterations)
+**Recovery:** 3-tier escalation -- targeted MCP re-investigation, focused retry with evidence, placeholder and proceed (pipeline does not abort)
 
 ### Review Checklist
 
@@ -41,7 +41,9 @@ The pipeline has two independent validation systems. Both must pass before a tes
 | Step actions numbered | Blocking | `1. Action` format |
 | Step expected results | Blocking | `**Expected Result:**` with bullet items |
 | Steps separated by `---` | Blocking | Horizontal rule between steps |
-| CLI-in-steps rule | Blocking | CLI only for backend validation |
+| CLI-in-steps rule | Blocking | CLI only for backend validation, in dedicated steps (not embedded in UI steps) |
+| Step granularity | Blocking | Each step verifies one behavior — no mixing observation (read/check) with interaction (click/navigate) |
+| Implementation detail translation | Warning | Code details (sort algorithm, default values, parsing) translated to observable verifications |
 | Teardown present | Warning | Cleanup section exists |
 | `--ignore-not-found` on deletes | Warning | Idempotent cleanup |
 
@@ -49,12 +51,13 @@ The pipeline has two independent validation systems. Both must pass before a tes
 
 The reviewer performs **minimum 3 MCP verifications**. Fewer than 3 = automatic `NEEDS_FIXES`.
 
-1. `set_acm_version(<version>)` on acm-ui
+1. `set_acm_version(<version>)` on acm-source
 2. Check UI labels via `search_translations` — verify they match test case
 3. Check entry point via `get_routes` — verify navigation path exists
 4. If wizard steps mentioned: verify via `get_wizard_steps`
 5. **MANDATORY: Read primary changed component** via `get_component_source()` — verify at least one behavioral claim (field order, filtering, empty state) against actual source code
-6. Flag any unverifiable element as `POTENTIALLY ASSUMED`
+6. **MANDATORY: Verify metric/label names** — for any metric name, API field, or translation string in expected results, verify it matches the CURRENT source code via `search_translations` or `get_component_source`. JIRA descriptions may contain stale names from before implementation. If a discrepancy is found with the JIRA description, this is BLOCKING.
+7. Flag any unverifiable element as `POTENTIALLY ASSUMED`
 
 #### Step 4.5: AC vs Implementation Check
 
@@ -77,27 +80,37 @@ Read `knowledge/architecture/<area>.md` and verify:
 3. Component names and CRD references are consistent
 4. Flag contradictions as BLOCKING
 
-#### Step 5: Polarion Coverage Check
+---
 
-Search for duplicate test cases via Polarion MCP:
+### Failure State: Tier 3 Partial Pass
+
+When quality review escalates to Tier 3, unresolvable steps are marked and the pipeline proceeds:
+
+**Test step with manual verification flag:**
+
+```markdown
+### Step 4: Verify filter displays only non-compliant clusters
+
+1. Click the "Non-compliant" count in the violation summary card
+2. Observe the Clusters tab filters to show non-compliant clusters only
+
+**Expected Result:**
+- [MANUAL VERIFICATION REQUIRED: filter condition could not be verified via MCP -- acm-source search_translations returned no match for "Non-compliant" label. Verify the exact label text on a cluster running this build.]
+- Only clusters with violations are displayed
+```
+
+The summary reports which steps were flagged:
 
 ```
-get_polarion_work_items(project_id="RHACM4K", query='type:testcase AND title:"<feature>"')
+Quality review: 1 step flagged for manual verification.
+- Step 4: filter label text unverifiable via MCP
 ```
-
-Reports existing similar test cases and potential duplication.
-
-#### Step 6: Peer Consistency Check
-
-Reads 2-3 existing test cases from the same area and compares:
-- Section structure and formatting
-- Level of detail in expected results
-- Setup section format
-- Teardown approach
 
 ---
 
 ## Stage 3: Structural Validator
+
+Stage 3 processes test cases regardless of manual verification flags. `[MANUAL VERIFICATION REQUIRED]` markers pass through to the Polarion HTML output unchanged. The `SUMMARY.txt` includes a count of flagged steps when present.
 
 **Script:** `src/services/convention_validator.py`
 **Input:** `test-case.md` file path, optional area
@@ -226,6 +239,8 @@ The quality reviewer must start its output with a JSON verification block contai
 
 The orchestrator validates this block before accepting the verdict. If the block is missing or `mcp_verifications` has fewer than 3 entries, the verdict is automatically overridden to `NEEDS_FIXES` and the reviewer is re-launched.
 
+The portable skill (`acm-test-case-generator`) also runs `scripts/review_enforcement.py` which deterministically checks: 3+ MCP verifications, `get_component_source` present, `search_translations` present. It also warns (non-blocking) if the test case describes a conditional feature but lacks a negative scenario step.
+
 ---
 
 ## Quality Standards Summary
@@ -239,10 +254,12 @@ A test case must pass all of these before delivery:
 | Section order | Checks against conventions | Validates ordering |
 | Entry point discovered | MCP `get_routes()` verification | Checks `**Entry Point:**` present |
 | UI elements discovered | MCP `search_translations()` spot-check | Not checked (format only) |
-| CLI-in-steps rule | Checks CLI usage context | Not checked |
+| CLI-in-steps rule | Checks CLI in dedicated steps, not embedded in UI steps | Not checked |
+| Step granularity | Checks each step verifies one behavior (no observation + interaction mix) | Not checked |
+| Implementation detail translation | Checks code details translated to observable verifications | Not checked |
 | Setup completeness | Checks commands and expected output | Checks numbered format |
 | Step format | Checks H3 heading, actions, results | Validates `### Step N:` + `**Expected Result:**` |
 | Teardown | Checks cleanup coverage | Checks `--ignore-not-found` |
 | AC vs implementation | Compares JIRA ACs against test expectations | Not checked |
-| Peer consistency | Compares with existing test cases | Not checked |
-| Polarion duplicates | Searches Polarion for existing coverage | Not checked |
+| Metric/label name accuracy | Verifies names match current source code, not stale JIRA text | Not checked |
+| Negative scenario coverage | Warns if conditional feature lacks negative step (non-blocking) | Not checked |

@@ -1,0 +1,329 @@
+# Session Tracing
+
+Claude Code hooks capture every tool call, MCP interaction, prompt, subagent launch, and error into structured JSONL trace files. This provides full observability across all pipeline phases, including the AI subagent phases (1–7) that the Python telemetry does not cover.
+
+## Architecture
+
+The app uses two complementary telemetry systems:
+
+| System | Covers | Format | Location |
+|--------|--------|--------|----------|
+| Pipeline telemetry (`PipelineTelemetry`) | Phases 1 and 8 (deterministic Python scripts) | JSONL | `runs/<run>/pipeline.log.jsonl` |
+| Session tracing (Claude Code hooks) | All phases (0–8), all tool calls | JSONL | `.claude/traces/<session_id>.jsonl` |
+
+Pipeline telemetry captures timing and metadata for the Python scripts. Session tracing captures everything Claude Code does, including the AI agent phases that have no Python instrumentation.
+
+## Hook Configuration
+
+Defined in `.claude/settings.json` under the `hooks` key. Six event types are captured:
+
+| Hook Event | Fires When | What Is Logged |
+|-----------|-----------|---------------|
+| `PreToolUse` | Before any tool call | Tool name, input summary, MCP server/tool, oc verb/resource, pipeline phase, knowledge category |
+| `PostToolUse` | After successful tool execution | Tool name, output (truncated to 1000 chars) |
+| `PostToolUseFailure` | After tool execution error | Tool name, error message |
+| `UserPromptSubmit` | When user submits a prompt | Prompt text, pipeline command detection (generate/review/batch) |
+| `SubagentStop` | When a subagent completes | Agent ID, agent type, pipeline phase |
+| `Stop` | At turn completion | Triggers session summary computation |
+
+All hooks invoke the same script: `python3 $CLAUDE_PROJECT_DIR/.claude/hooks/agent_trace.py`
+
+### Matched Tools
+
+| Event | Matched Tools |
+|-------|--------------|
+| PreToolUse | Bash, `mcp__.*` (regex), Agent, Read, Write, Edit |
+| PostToolUse | Bash, `mcp__.*` |
+| PostToolUseFailure | `mcp__.*`, Bash |
+| UserPromptSubmit | All prompts (no matcher) |
+| SubagentStop | All subagents (no matcher) |
+| Stop | All stops (no matcher) |
+
+---
+
+## Trace File Format
+
+Each session produces a JSONL file at `.claude/traces/<session_id>.jsonl`.
+
+### Common Fields (all entries)
+
+```json
+{
+  "timestamp": "2026-04-18T03:50:32.008478+00:00",
+  "session_id": "d9b279cd-c560-4fae-a2cd-70414b71e62c",
+  "event": "tool_call"
+}
+```
+
+### Event Types
+
+#### tool_call (PreToolUse)
+
+```json
+{
+  "event": "tool_call",
+  "tool": "Bash",
+  "input": {"command": "oc get pods -n open-cluster-management"},
+  "oc_verb": "get",
+  "oc_resource": "pods",
+  "oc_namespace": "open-cluster-management"
+}
+```
+
+For MCP tools:
+```json
+{
+  "event": "tool_call",
+  "tool": "mcp__acm-source__search_translations",
+  "input": {"query": "Labels"},
+  "mcp_server": "acm-source",
+  "mcp_tool": "search_translations"
+}
+```
+
+For Agent launches:
+```json
+{
+  "event": "tool_call",
+  "tool": "Agent",
+  "input": {"description": "Data Gathering + JIRA Investigation", "subagent_type": "data-gatherer"},
+  "pipeline_phase": "phase_2",
+  "agent_prompt": "Investigate ACM-30459..."
+}
+```
+
+For knowledge file reads:
+```json
+{
+  "event": "tool_call",
+  "tool": "Read",
+  "input": {"file_path": "knowledge/conventions/test-case-format.md"},
+  "knowledge_category": "conventions",
+  "is_knowledge_read": true
+}
+```
+
+#### tool_result (PostToolUse)
+
+```json
+{
+  "event": "tool_result",
+  "tool": "Bash",
+  "output": "Phase 1: Gathering data for ACM-30459..."
+}
+```
+
+#### tool_error (PostToolUseFailure)
+
+```json
+{
+  "event": "tool_error",
+  "tool": "mcp__jira__get_issue",
+  "error": "Connection timeout"
+}
+```
+
+#### prompt (UserPromptSubmit)
+
+```json
+{
+  "event": "prompt",
+  "prompt": "/generate ACM-30459 --version 2.17",
+  "pipeline_command": "generate"
+}
+```
+
+#### subagent_complete (SubagentStop)
+
+```json
+{
+  "event": "subagent_complete",
+  "agent_id": "a1a01994c5deb0ea2",
+  "agent_type": "data-gatherer",
+  "pipeline_phase": "phase_2"
+}
+```
+
+#### turn_complete (Stop)
+
+```json
+{
+  "event": "turn_complete"
+}
+```
+
+---
+
+## Enrichment
+
+The hook script enriches trace entries with pipeline-specific metadata.
+
+### Pipeline Command Detection
+
+User prompts are matched against patterns to detect the pipeline command:
+
+| Pattern | Detected Command |
+|---------|-----------------|
+| `/generate` or `generate a test case` | `generate` |
+| `/review` or `review the test case` | `review` |
+| `/batch` or `batch generate` | `batch` |
+
+### Pipeline Phase Detection
+
+Subagent launches are tagged with their pipeline phase based on `subagent_type`:
+
+| Subagent Type | Phase |
+|---------------|-------|
+| `data-gatherer` | `phase_1` |
+| `code-analyzer` | `phase_2` |
+| `ui-discoverer` | `phase_3` |
+| `synthesizer` | `phase_4` |
+| `live-validator` | `phase_5` |
+| `test-case-writer` | `phase_6` |
+| `quality-reviewer` | `phase_7` |
+
+### Knowledge Category Detection
+
+Knowledge file reads are categorized by directory:
+
+| Path Contains | Category |
+|--------------|----------|
+| `conventions/` | `conventions` |
+| `architecture/` | `architecture` |
+| `patterns/` | `patterns` |
+| `examples/` | `examples` |
+
+### oc Command Parsing
+
+Bash commands starting with `oc` or `kubectl` are parsed for verb, resource, and namespace:
+
+```
+oc get pods -n open-cluster-management
+  -> oc_verb: "get", oc_resource: "pods", oc_namespace: "open-cluster-management"
+```
+
+Mutation verbs (`patch`, `scale`, `rollout restart`, `delete pod`, `annotate`, `label`, `apply`) are flagged with `is_mutation: true`.
+
+### MCP Server Extraction
+
+MCP tool names in `mcp__<server>__<tool>` format are parsed:
+
+```
+mcp__acm-source__search_translations
+  -> mcp_server: "acm-source", mcp_tool: "search_translations"
+```
+
+---
+
+## Session Index
+
+On each `Stop` event, the hook reads back the entire trace file and writes a one-line summary to `.claude/traces/sessions.jsonl`.
+
+### Summary Fields
+
+```json
+{
+  "session_id": "d9b279cd-c560-4fae-a2cd-70414b71e62c",
+  "timestamp": "2026-04-18T03:48:36.771524+00:00",
+  "pipeline_command": "generate",
+  "phases_seen": ["phase_2", "phase_3", "phase_4", "phase_5", "phase_7", "phase_8"],
+  "duration_sec": 180,
+  "prompts": 1,
+  "tool_calls": 57,
+  "subagent_launches": 5,
+  "mcp_calls": 12,
+  "oc_commands": 3,
+  "mutations": 0,
+  "knowledge_reads": 8,
+  "pattern_writes": 0,
+  "pipeline_outputs": 2,
+  "errors": 0
+}
+```
+
+### Aggregated Counters
+
+| Counter | What it counts |
+|---------|---------------|
+| `prompts` | User prompt events |
+| `tool_calls` | Total tool_call events |
+| `subagent_launches` | Agent tool calls |
+| `mcp_calls` | Tool calls with `mcp_server` field |
+| `oc_commands` | Bash calls with `oc_verb` field |
+| `mutations` | Bash calls with `is_mutation: true` |
+| `knowledge_reads` | Read calls with `is_knowledge_read: true` |
+| `pattern_writes` | Write/Edit calls to `knowledge/patterns/` |
+| `pipeline_outputs` | Write/Edit calls to `runs/` |
+| `errors` | tool_error events |
+
+---
+
+## Pipeline Telemetry
+
+Two Python scripts in the portable skill pack write events to `pipeline.log.jsonl` in each run directory:
+
+- **`gather.py`** uses `PipelineTelemetry` for Phase 1 (data gathering)
+- **`report.py`** uses `PipelineTelemetry` for Phase 8 (report generation)
+
+> **App pipeline note:** The app pipeline (`apps/test-case-generator/`) also includes `log_phase.py` (`python -m src.scripts.log_phase`), which writes `phase_end` events for AI phases (1–7) called by the orchestrator after each subagent completes. This script is NOT part of the portable skill pack — in the portable skill, only `gather.py` and `report.py` emit telemetry.
+
+### Events
+
+| Event | Source | Fields | When |
+|-------|--------|--------|------|
+| `pipeline_start` | `gather.py` | `jira_id` | Script initialization |
+| `phase_start` | `gather.py`/`report.py` | `phase` | Phase begins |
+| `phase_end` | `gather.py`/`report.py` | `phase`, `elapsed_seconds`, custom metadata | Phase completes |
+| `pipeline_end` | `report.py` | `total_elapsed_seconds`, `verdict` | Script finishes |
+| `error` | `gather.py`/`report.py` | `phase`, `error` | Error occurs |
+
+### Phase 1 Metadata
+
+```json
+{
+  "phase": "gather",
+  "elapsed_seconds": 1.72,
+  "pr_found": true,
+  "pr_number": 5790,
+  "area": "governance",
+  "existing_test_cases_count": 3,
+  "conventions_loaded": true
+}
+```
+
+### Phase 8 Metadata
+
+```json
+{
+  "phase": "report",
+  "elapsed_seconds": 0.5,
+  "verdict": "PASS",
+  "total_steps": 8,
+  "blocking_issues": 0,
+  "warnings": 0,
+  "html_generated": true
+}
+```
+
+---
+
+## Implementation
+
+**Hook script:** `.claude/hooks/agent_trace.py` (471 lines)
+**Trace directory:** `.claude/traces/` (gitignored)
+**Session index:** `.claude/traces/sessions.jsonl`
+
+The hook:
+1. Reads JSON event from stdin (hook event data)
+2. Parses tool name, input, output, session ID
+3. Enriches with pipeline-specific metadata (phase, command, knowledge category, oc parsing, MCP extraction)
+4. Appends one JSONL line to the session trace file
+5. On Stop events: reads back the trace, aggregates counters, writes summary to session index
+6. Always exits with code 0 (never blocks the agent)
+7. Exception-safe: silently fails on write errors
+
+### Truncation Limits
+
+- Tool input: max 2000 characters
+- Tool output: max 1000 characters
+- Agent prompts: max 2000 characters (in `agent_prompt` field), 500 characters (in `input.prompt`)

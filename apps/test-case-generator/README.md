@@ -127,11 +127,88 @@ The entire pipeline is orchestrated by [Claude Code Skills](https://docs.anthrop
 
 | Skill | Command | What it does |
 |-------|---------|-------------|
-| **Generate** | `/generate ACM-XXXXX` | Full pipeline: gather &rarr; 3 parallel investigation agents &rarr; synthesis with scope gating &rarr; optional live validation &rarr; test case writing &rarr; quality review loop (max 3 iterations) &rarr; Polarion HTML. Includes STOP checkpoints after Phase 2 and Phase 4 for user review. |
+| **Generate** | `/generate ACM-XXXXX` | Full pipeline: gather &rarr; 3 parallel investigation agents &rarr; synthesis with scope gating &rarr; optional live validation &rarr; test case writing &rarr; quality review with 3-tier escalation &rarr; Polarion HTML. Includes STOP checkpoints after Phase 2 and Phase 4 for user review. |
 | **Review** | `/review path/to/test-case.md` | Standalone quality review: loads an existing test case and runs the quality-reviewer agent against it. Returns PASS or NEEDS_FIXES with specific issues. |
 | **Batch** | `/batch ACM-1,ACM-2,ACM-3` | Multi-ticket generation: runs `/generate` sequentially for each JIRA ID. Continues on failure. Produces a summary table with status, step count, and output path per ticket. |
 
 Skills are defined in `.claude/skills/` with supporting files for phase gate enforcement (`phase-gates.md`) and the Phase 2 synthesis template (`synthesis-template.md`).
+
+## Concepts
+
+| Term | What it is | Count |
+|------|-----------|-------|
+| **Stage** | Deterministic Python script (no AI) | 2 (gather.py, report.py) |
+| **Phase** | AI-driven orchestration step | 6 (Phase 0 through Phase 4.5) |
+| **Agent** | AI entity executing a phase | 6 (feature-investigator, code-change-analyzer, ui-discovery, live-validator, test-case-generator, quality-reviewer) |
+| **Skill** | Reusable slash command | 3 (/generate, /review, /batch) |
+| **MCP integration** | External tool connection | 7 (JIRA, Polarion, ACM Source, Neo4j, ACM Search, ACM Kubectl, Playwright) |
+
+The pipeline has **8 steps**: 2 deterministic stages + 6 AI phases. The tagline "6-phase" counts the AI phases only.
+
+<details>
+<summary><b>Portable Skill Mapping</b></summary>
+
+The portable skill pack (`.claude/skills/acm-test-case-generator/`) uses a 9-phase model (Phases 0-8) that merges data gathering with JIRA investigation and runs the remaining investigation agents sequentially. The app consolidates investigation into 1 parallel phase for speed:
+
+| Portable Skill | App Pipeline | Difference |
+|---------------|-------------|------------|
+| Phase 0: Determine Inputs | Phase 0: Parse Inputs | Same |
+| Phase 1: Gather Data + JIRA Investigation | Stage 1 + Phase 1 (agent 1 of 3) | Portable: merged gather + JIRA |
+| Phase 2: Code Analysis | Phase 1 (agent 2 of 3) | App: parallel |
+| Phase 3: UI Discovery | Phase 1 (agent 3 of 3) | App: parallel |
+| Phase 4: Synthesize | Phase 2: Synthesize | Same |
+| Phase 5: Live Validation | Phase 3: Live Validation | Same |
+| Phase 6: Write Test Case | Phase 4: Write Test Case | Same |
+| Phase 7: Quality Review | Phase 4.5: Quality Review | Same |
+| Phase 8: Generate Reports | Stage 3: report.py | Same |
+
+</details>
+
+## Standalone Usage
+
+The `/review` skill runs independently on any test case markdown file:
+
+```
+/review runs/test-case-generator/ACM-30459/<run-dir>/test-case.md
+```
+
+For manual pipeline steps, see [Pipeline Phases](docs/01-PIPELINE-PHASES.md).
+
+## MCP Availability
+
+Not all MCP servers are required. The pipeline degrades gracefully:
+
+| MCP Server | Required? | If unavailable |
+|-----------|-----------|---------------|
+| **JIRA** | Yes | Pipeline cannot start (no ticket data) |
+| **acm-source** | Yes | No UI element discovery; test case quality degrades significantly |
+| **Polarion** | No | Skips existing coverage check; no duplication detection |
+| **Neo4j** | No | Skips architecture dependency analysis |
+| **Playwright** | No | Skips live browser verification (Phase 3) |
+| **acm-search** | No | Falls back to `oc get` CLI for resource queries |
+| **acm-kubectl** | No | Falls back to `oc` CLI for spoke cluster checks |
+
+When an optional server is unavailable, the agent logs the gap and proceeds. Affected test steps may include `[MANUAL VERIFICATION REQUIRED]` markers in the output.
+
+<details>
+<summary><b>Degraded Output Example</b></summary>
+
+When acm-source is partially unavailable (translations search fails):
+
+```markdown
+### Step 3: Verify policy status column shows compliance state
+
+1. Navigate to Governance > Policies
+2. Locate the test policy in the table
+3. Check the Status column value
+
+**Expected Result:**
+- [MANUAL VERIFICATION REQUIRED: status column label could not be verified -- acm-source
+  search_translations unavailable. Verify exact column header text on a running cluster.]
+- Status shows either "Compliant" or "Non-compliant" based on cluster state
+```
+
+</details>
 
 ## Phase 1: Parallel Investigation
 
@@ -144,7 +221,7 @@ flowchart LR
     subgraph "Phase 1 — Parallel"
         FI["Feature\nInvestigator\n(JIRA + Polarion)"]
         CA["Code Change\nAnalyzer\n(PR + Neo4j)"]
-        UD["UI Discovery\n(acm-ui + browser)"]
+        UD["UI Discovery\n(acm-source + browser)"]
     end
 
     FI --> P2[Phase 2: Synthesize]
@@ -155,8 +232,8 @@ flowchart LR
 | Agent | What it discovers | MCP tools |
 |-------|-------------------|-----------|
 | **Feature Investigator** | JIRA story, comments, linked tickets, Polarion coverage | jira, polarion, neo4j, bash |
-| **Code Change Analyzer** | Changed components, new UI elements, architecture impact | acm-ui, neo4j, bash |
-| **UI Discovery** | Selectors, translations, routes, wizard steps, test IDs | acm-ui, neo4j, playwright (optional), bash |
+| **Code Change Analyzer** | Changed components, new UI elements, architecture impact | acm-source, neo4j, bash |
+| **UI Discovery** | Selectors, translations, routes, wizard steps, test IDs | acm-source, neo4j, playwright (optional), bash |
 
 ## Supported Areas
 
@@ -190,7 +267,7 @@ Two independent validation layers. Both must pass before delivery:
 | **Phase 4.5** (Quality Reviewer agent) | Before Stage 3 | MCP verification of UI elements, AC vs implementation, scope alignment, numeric thresholds, discovered vs assumed |
 | **Stage 3** (`report.py`) | After Phase 4.5 | Title pattern, metadata fields, section order, step format, entry point, teardown |
 
-The quality reviewer loops: if it returns `NEEDS_FIXES`, the orchestrator fixes the issues and re-runs the reviewer until `PASS` (max 3 iterations).
+The quality reviewer uses 3-tier escalation: targeted MCP re-investigation for factual errors, focused retry with evidence, then marking unresolvable steps with `[MANUAL VERIFICATION REQUIRED]` and proceeding.
 
 <details>
 <summary><b>Pipeline Details</b></summary>
@@ -238,9 +315,8 @@ The Quality Reviewer agent validates:
 1. Convention compliance (title, metadata, section order)
 2. AC vs implementation (every acceptance criterion covered)
 3. Scope alignment (no out-of-scope steps)
-4. Discovered vs assumed (UI elements verified via acm-ui MCP)
+4. Discovered vs assumed (UI elements verified via acm-source MCP)
 5. Numeric threshold validation
-6. Peer consistency (format matches existing test cases)
 
 Returns `PASS` or `NEEDS_FIXES` with specific issues. On `NEEDS_FIXES`, loops back to Phase 4.
 
@@ -285,8 +361,8 @@ Returns `PASS` or `NEEDS_FIXES` with specific issues. On `NEEDS_FIXES`, loops ba
 
 | Server | Tools | Purpose |
 |--------|:-----:|---------|
-| acm-ui | 20 | ACM Console + kubevirt-plugin source search via GitHub |
-| jira | 25 | JIRA ticket investigation (stories, bugs, comments, links) |
+| acm-source | 18 | ACM Console + kubevirt-plugin source search via GitHub |
+| jira | 29 | JIRA ticket investigation (Red Hat fields, attachments, inline comment images) |
 | polarion | 25 | Existing test case coverage (Polarion work items) |
 | neo4j-rhacm | 2 | Architecture dependency graph (component relationships) |
 | acm-search | 5 | Live cluster resource queries across managed clusters |
@@ -301,7 +377,7 @@ First-time setup: from the repo root, run `claude` and then `/onboard`.
 <summary><b>Run Directory Structure</b></summary>
 
 ```
-runs/ACM-30459/ACM-30459-2026-04-08T12-00-00/
+runs/test-case-generator/ACM-30459/ACM-30459-2026-04-08T12-00-00/
 ├── gather-output.json              # Stage 1: all gathered data
 ├── pr-diff.txt                     # Stage 1: full PR diff
 ├── phase1-feature-investigation.md # Phase 1: feature investigator output

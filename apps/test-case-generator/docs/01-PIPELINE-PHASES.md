@@ -98,7 +98,7 @@ Returns up to 3 test cases matching the area and version.
   "conventions": "# Test Case Conventions\n...",
   "area_knowledge": "# Governance Area Knowledge\n...",
   "html_templates": "# Polarion HTML Templates\n...",
-  "run_dir": "/path/to/runs/ACM-30459/ACM-30459-2026-04-18T02-00-46",
+  "run_dir": "/path/to/runs/test-case-generator/ACM-30459/ACM-30459-2026-04-18T02-00-46",
   "options": {
     "skip_live": false,
     "cluster_url": null,
@@ -145,7 +145,7 @@ Three agents run in parallel. Each receives specific inputs from `gather-output.
 ### Agent B: Code Change Analyzer
 
 **Input:** PR number, repo, ACM version
-**MCP:** acm-ui, neo4j-rhacm, bash (gh CLI)
+**MCP:** acm-source, neo4j-rhacm, bash (gh CLI)
 **Output:** `CODE CHANGE ANALYSIS` block containing:
 - Changed components (file-by-file)
 - New UI elements (columns, fields, filters)
@@ -157,7 +157,7 @@ Three agents run in parallel. Each receives specific inputs from `gather-output.
 ### Agent C: UI Discovery
 
 **Input:** ACM version, CNV version (if Fleet Virt), feature name, area, cluster URL (optional)
-**MCP:** acm-ui, neo4j-rhacm, playwright (conditional — only with cluster URL), bash (oc CLI for cluster auth)
+**MCP:** acm-source, neo4j-rhacm, playwright (conditional — only with cluster URL), bash (oc CLI for cluster auth)
 **Output:** `UI DISCOVERY RESULTS` block containing:
 - Translations (key → UI string)
 - Routes (route name → path pattern)
@@ -313,12 +313,12 @@ Produces the primary deliverable: a Polarion-ready test case markdown file.
 
 ## Phase 4.5: Quality Review (Mandatory Gate)
 
-**Type:** AI (subagent, loops until PASS)
+**Type:** AI (subagent, 3-tier escalation)
 **Duration:** ~30-60 seconds per iteration
 **Agent:** quality-reviewer
-**Max iterations:** 3
+**Recovery:** 3-tier escalation (targeted MCP re-investigation, focused retry with evidence, placeholder and proceed)
 
-The quality reviewer validates the generated test case. If it returns `NEEDS_FIXES`, the orchestrator fixes the issues and re-runs the reviewer. This loops until `PASS` or 3 iterations.
+The quality reviewer validates the generated test case. If it returns `NEEDS_FIXES`, the orchestrator escalates through 3 tiers: targeted MCP re-investigation for factual errors, focused retry with evidence, then marking unresolvable steps with `[MANUAL VERIFICATION REQUIRED]` and proceeding. The pipeline does not abort.
 
 ### What It Checks
 
@@ -331,12 +331,10 @@ See [05-QUALITY-GATES.md](05-QUALITY-GATES.md) for the full checklist.
 | Section order | Blocking | Title → Metadata → Fields → Description → Setup → Steps → Teardown |
 | Step format | Blocking | H3 heading, numbered actions, bullet expected results |
 | CLI-in-steps rule | Blocking | CLI only for backend validation, not as UI substitute |
-| Entry point route | Blocking | Verified via acm-ui MCP `get_routes()` |
+| Entry point route | Blocking | Verified via acm-source MCP `get_routes()` |
 | UI labels | Warning | Spot-checked via `search_translations()` |
 | AC vs implementation | Blocking | Expected results consistent with JIRA ACs |
 | Scope alignment | Blocking | Steps match target story, not broader PR |
-| Polarion duplicates | Info | Search for existing coverage |
-| Peer consistency | Info | Format matches existing test cases |
 
 ---
 

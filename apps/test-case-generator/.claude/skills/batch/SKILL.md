@@ -35,10 +35,10 @@ allowed-tools:
   - Bash(basename:*)
   - Bash(dirname:*)
   - Bash(realpath:*)
-  - mcp__acm-ui__set_acm_version
-  - mcp__acm-ui__set_cnv_version
-  - mcp__acm-ui__get_routes
-  - mcp__acm-ui__search_translations
+  - mcp__acm-source__set_acm_version
+  - mcp__acm-source__set_cnv_version
+  - mcp__acm-source__get_routes
+  - mcp__acm-source__search_translations
   - mcp__jira__get_issue
   - mcp__jira__search_issues
   - mcp__polarion__get_polarion_work_items
@@ -69,9 +69,9 @@ After all tickets are processed, show a summary table:
 ```
 Batch Results
 =============
-| JIRA ID    | Status | Steps | Complexity | Output |
-|------------|--------|-------|------------|--------|
-| ACM-30459  | PASS   | 8     | medium     | runs/ACM-30459/... |
-| ACM-30460  | PASS   | 5     | simple     | runs/ACM-30460/... |
-| ACM-30461  | FAIL   | -     | -          | (validation failed) |
+| JIRA ID    | Status  | Steps | Complexity | Output |
+|------------|---------|-------|------------|--------|
+| ACM-30459  | PASS    | 8     | medium     | runs/test-case-generator/ACM-30459/... |
+| ACM-30460  | PARTIAL | 5     | simple     | runs/test-case-generator/ACM-30460/... (1 step needs manual verification) |
+| ACM-30461  | FAIL    | -     | -          | Stage 1 failed: no JIRA ticket found |
 ```

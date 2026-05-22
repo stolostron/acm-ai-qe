@@ -10,19 +10,25 @@ and query component dependency graphs -- without needing API keys embedded in pr
 ## Prerequisites
 
 - **Python 3.10+** (required) -- `brew install python3` (macOS) or `sudo dnf install python3` (Fedora/RHEL)
-- **`gh` CLI** (required for acm-ui) -- `brew install gh` (macOS)
+- **`gh` CLI** (required for acm-source) -- `brew install gh` (macOS)
 - **`uvx`** (optional, needed for polarion + neo4j) -- `pip install uv`
 - **Podman** (optional, needed for neo4j-rhacm) -- `brew install podman` (macOS)
 - **Node.js 18+** (needed for acm-search, acm-kubectl, playwright) -- `brew install node` (macOS) or `sudo dnf install nodejs` (Fedora/RHEL)
 - **`mcp-remote`** (needed for acm-search) -- `npm install -g mcp-remote` (stdio-to-SSE bridge)
 - **`oc` CLI** (needed for acm-search, acm-kubectl) -- [OpenShift client downloads](https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest/)
 
+## What is committed in this repo vs local-only
+
+**`mcp/`** holds **`setup.sh`**, **`verify.py`**, deploy helpers, **`jenkins-acm-tools.py`**, and in-repo MCP servers (**`acm-source-mcp-server/`** and **`polarion/`**).
+
+**Forks and upstream clones** (Jira MCP, Jenkins MCP, **`acm-mcp-server`**, knowledge-graph data) are installed under **`mcp/.external/`** (gitignored) by **`mcp/setup.sh`** using the **repo + branch** variables at the top of that script.
+
 ## Which servers do I need?
 
 | Server | Used by | What it does | Tools | Source |
 |--------|---------|--------------|-------|--------|
-| **acm-ui** | Hub Health, Z-Stream, Test Case Gen | Searches ACM Console & Fleet Virt source code on GitHub | 20 | This repo |
-| **jira** | Z-Stream, Test Case Gen | Searches/creates JIRA issues for bug correlation | 25 | [stolostron/jira-mcp-server](https://github.com/stolostron/jira-mcp-server) |
+| **acm-source** | Hub Health, Z-Stream, Test Case Gen | Searches ACM Console & Fleet Virt source code on GitHub | 18 | This repo |
+| **jira** | Z-Stream, Test Case Gen | Searches/creates JIRA issues, attachments, list/download attachments, inline comment images | 29 | [atifshafi/jira-mcp-server@feat/redhat-fields](https://github.com/atifshafi/jira-mcp-server/tree/feat/redhat-fields) ([PR #24](https://github.com/stolostron/jira-mcp-server/pull/24)) |
 | **jenkins** | Z-Stream | Jenkins pipeline analysis, build monitoring, failure investigation | 11 | [redhat-community-ai-tools/jenkins-mcp](https://github.com/redhat-community-ai-tools/jenkins-mcp) |
 | **polarion** | Z-Stream, Test Case Gen | Reads/writes Polarion test cases (RHACM4K project) | 25 | This repo (wrapper around [polarion-mcp](https://pypi.org/project/polarion-mcp/)) |
 | **neo4j-rhacm** | Hub Health, Z-Stream, Test Case Gen | Queries RHACM component dependency graph (370 components, 541 relationships across 7 subsystems) | 2 | [mcp-neo4j-cypher](https://pypi.org/project/mcp-neo4j-cypher/) (PyPI) + [stolostron/knowledge-graph](https://github.com/stolostron/knowledge-graph) (data) |
@@ -57,7 +63,8 @@ claude
 
 The onboarding skill detects your environment, walks you through MCP server
 configuration and credential setup, and generates `.mcp.json` for the selected
-app(s). It is idempotent -- run it again anytime to check or update your setup.
+app(s) plus a root `.mcp.json` so portable skills have full MCP access from the
+repo root. It is idempotent -- run it again anytime to check or update your setup.
 
 Under the hood, `/onboard` handles:
 1. Prerequisite checks (Python, `gh` CLI, `uvx`, Node.js, Podman)
@@ -66,6 +73,7 @@ Under the hood, `/onboard` handles:
 4. Installing dependencies into each venv
 5. Credential prompts (API tokens, emails)
 6. Generating `.mcp.json` for the selected app(s)
+7. Merging all app configs into a root `.mcp.json` (union of all MCP servers, gitignored)
 
 ## Architecture
 
@@ -75,10 +83,11 @@ at setup time from their upstream repositories:
 ```
 mcp/
 |-- setup.sh                        <-- Run this to set up everything
+|-- deploy-acm-search.sh            <-- Deploy ACM Search MCP to a cluster (oc login first)
 |-- README.md                       <-- This file
 |
-|-- acm-ui-mcp-server/              <-- Our code: ACM Console source search (20 tools)
-|   |-- acm_ui_mcp_server/          <-- Python package
+|-- acm-source-mcp-server/              <-- Our code: ACM Console source search (18 tools)
+|   |-- acm_source_mcp_server/          <-- Python package
 |   |-- pyproject.toml
 |   \-- docs/
 |
@@ -93,7 +102,7 @@ mcp/
 |-- verify.py                        <-- Standalone health checker (run anytime)
 |
 \-- .external/                       <-- Cloned at setup time (gitignored)
-    |-- jira-mcp-server/             <-- From stolostron/jira-mcp-server
+    |-- jira-mcp-server/             <-- From atifshafi/jira-mcp-server@feat/redhat-fields (.venv, verify-startup.sh)
     |-- jenkins-mcp/                 <-- From redhat-community-ai-tools/jenkins-mcp
     |-- acm-mcp-server/              <-- From stolostron/acm-mcp-server (acm-search + acm-kubectl)
     \-- knowledge-graph/             <-- From stolostron/knowledge-graph (Neo4j Cypher data)
@@ -114,14 +123,31 @@ External MCPs are cloned from forks with pending upstream PRs. Once merged,
 
 | Server | Credential file | Gitignored? |
 |--------|----------------|-------------|
-| acm-ui | `gh auth` (system) | N/A |
+| acm-source | `gh auth` (system) | N/A |
 | jira | `mcp/.external/jira-mcp-server/.env` | Yes (entire `.external/` dir) |
 | jenkins | `mcp/.external/jenkins-mcp/.env` | Yes (entire `.external/` dir) |
 | polarion | `mcp/polarion/.env` | Yes (`*.env`) |
 | neo4j-rhacm | None (local container) | N/A |
-| acm-search | None (reads from cluster secret) | N/A |
+| acm-search | None (reads from cluster secret via `deploy-acm-search.sh`) | N/A |
 | acm-kubectl | None (uses `oc login`) | N/A |
 | playwright | None (browser automation) | N/A |
+
+## JIRA fork (fresh clone checklist)
+
+`setup.sh` sets:
+
+| Variable | Value |
+|----------|--------|
+| `JIRA_REPO` | `https://github.com/atifshafi/jira-mcp-server.git` |
+| `JIRA_BRANCH` | `feat/redhat-fields` |
+
+After setup, `mcp/.external/jira-mcp-server/` has a `.venv`, `.env` (your token + email), and passes `scripts/verify-startup.sh`. Generated `.mcp.json` entries use:
+
+- `command`: `mcp/.external/jira-mcp-server/.venv/bin/python`
+- `cwd`: `mcp/.external/jira-mcp-server`
+- `args`: `["-m", "jira_mcp_server.main"]`
+
+**Cursor users** can point their `~/.cursor/mcp.json` at the same clone (same fork/branch).
 
 ## Verifying Setup
 
@@ -141,11 +167,21 @@ claude mcp list
 ```
 
 To test individual servers, ask the AI agent:
-- "List the MCP repos" -- tests acm-ui
+- "List the MCP repos" -- tests acm-source
 - "Search JIRA for project=ACM" -- tests jira
 - "Get all Jenkins jobs" -- tests jenkins
 - "Query the knowledge graph: MATCH (n) RETURN count(n)" -- tests neo4j-rhacm
 - "Get search database stats" -- tests acm-search
+
+## ACM Search Deployment
+
+The ACM Search MCP runs as a pod on the ACM hub cluster, accessed via SSE through an OpenShift route. Deploy it after `oc login`:
+
+```bash
+bash mcp/deploy-acm-search.sh
+```
+
+This auto-discovers the ACM namespace, deploys the server pod, extracts the route and token, and updates all `.mcp.json` files. Re-run after cluster rotation.
 
 ## After a reboot
 

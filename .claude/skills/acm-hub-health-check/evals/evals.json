@@ -1,0 +1,54 @@
+{
+  "skill_name": "acm-hub-health-check",
+  "version": "1.0.0",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Check hub health using different phrasings: quick check, standard health check, deep audit, targeted investigation.",
+      "expected_output": "Different phrasings route to correct depth. Quick runs Phase 1 only. Standard runs Phases 1-4. Deep runs all 6. Targeted focuses on the specified area.",
+      "assertions": [
+        "Quick-intent phrases (is my hub alive, sanity) execute Phase 1 only and complete in under 1 minute",
+        "Standard-intent phrases (health check, how's my hub) execute Phases 1-4",
+        "Deep-intent phrases (thorough, full diagnostic, deep audit) execute all 6 phases",
+        "Targeted-intent phrases (why are clusters Unknown, investigate search) focus investigation on the specified subsystem"
+      ],
+      "category": "process"
+    },
+    {
+      "id": 2,
+      "prompt": "Run a standard health check on any ACM hub cluster.",
+      "expected_output": "All 14 traps checked with explicit status. Verdict is mechanical based on findings.",
+      "assertions": [
+        "All 14 diagnostic traps are checked and reported with TRIGGERED, NOT triggered, or N/A status",
+        "Verdict follows mechanical rules: any CRIT finding → CRITICAL, any WARN → DEGRADED, else HEALTHY",
+        "No subjective qualifiers (seems, might, probably) in the verdict",
+        "MCH namespace is discovered dynamically, never hardcoded to open-cluster-management"
+      ],
+      "category": "structure"
+    },
+    {
+      "id": 3,
+      "prompt": "Run health check on hubs with different states: healthy, degraded, mixed subsystem health.",
+      "expected_output": "Skill works across different cluster states without assuming specific namespace layout or operator versions.",
+      "assertions": [
+        "Healthy hub: reports HEALTHY without false positives",
+        "Degraded hub: identifies specific degraded components with evidence",
+        "Mixed health: correctly reports per-subsystem status, does not generalize one issue to all subsystems",
+        "Does not assume specific pod counts, image registries, or namespace names without checking"
+      ],
+      "category": "edge-case"
+    },
+    {
+      "id": 4,
+      "prompt": "Run health check when cluster access is partial or unavailable.",
+      "expected_output": "Skill handles access failures gracefully. Reports blockers clearly. Proceeds with available tools when possible.",
+      "assertions": [
+        "No cluster access (oc not logged in): reports blocker clearly and stops",
+        "Partial access (oc works but acm-search unavailable): proceeds with oc-only diagnostics, notes reduced visibility",
+        "Unexpected cluster state (unknown CRDs, custom namespace): investigates rather than crashing",
+        "All cluster operations are read-only (no apply, create, delete, patch, scale)"
+      ],
+      "category": "degradation"
+    }
+  ]
+}

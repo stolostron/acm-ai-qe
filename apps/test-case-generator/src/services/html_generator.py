@@ -13,7 +13,6 @@ from pathlib import Path
 from typing import Optional
 
 BASE_STYLE = 'font-size:11pt;font-family:Arial,Helvetica,sans-serif;color:#000000;line-height:1.5'
-BOLD_STYLE = f'{BASE_STYLE};font-weight:bold'
 CODE_STYLE = 'font-family:Consolas,Monaco,monospace;font-size:10pt;background-color:#f5f5f5;padding:10px;border:1px solid #ccc;overflow-x:auto'
 
 
@@ -58,6 +57,9 @@ def generate_setup_html(content: str) -> str:
     for line in lines:
         stripped = line.strip()
 
+        if stripped == "---":
+            continue
+
         if stripped.startswith("```"):
             if in_code_block:
                 html_parts.append("</pre>")
@@ -73,12 +75,12 @@ def generate_setup_html(content: str) -> str:
 
         if stripped.startswith("**") and stripped.endswith("**"):
             label = stripped.strip("*").strip(":")
-            html_parts.append(f'<span style="{BOLD_STYLE}">{_escape_html(label)}:</span><br>')
+            html_parts.append(f'<span style="font-weight:bold;">{_escape_html(label)}:</span><br>')
         elif stripped.startswith("- "):
-            bullet_text = stripped[2:]
+            bullet_text = stripped[2:].replace('`', '')
             html_parts.append(f"&bull; {_escape_html(bullet_text)}<br>")
         elif stripped:
-            html_parts.append(f"{_escape_html(stripped)}<br>")
+            html_parts.append(f"{_escape_html(stripped.replace('`', ''))}<br>")
 
     if in_code_block:
         html_parts.append("</pre>")
@@ -182,20 +184,85 @@ def generate_steps_html(content: str) -> str:
     return "\n".join(rows)
 
 
-def generate_html(test_case_path: str, output_dir: str) -> tuple[Optional[str], Optional[str]]:
-    """Generate both setup and steps HTML files. Returns (setup_path, steps_path)."""
+def generate_description_html(content: str) -> str:
+    """Generate Polarion-compatible HTML for the Description section."""
+    desc_text = _extract_section(content, "Description", ["Setup", "Test Steps"])
+    if not desc_text:
+        return ""
+    html_parts = [f'<span style="{BASE_STYLE}">']
+    lines = desc_text.split("\n")
+    in_code_block = False
+    for line in lines:
+        stripped = line.strip()
+        if stripped == "---":
+            continue
+        if stripped.startswith("```"):
+            if in_code_block:
+                html_parts.append("</pre>")
+                in_code_block = False
+            else:
+                html_parts.append(f'<pre style="{CODE_STYLE}">')
+                in_code_block = True
+            continue
+        if in_code_block:
+            html_parts.append(_escape_html(line))
+            continue
+        if re.match(r"^\d+\.\s", stripped):
+            html_parts.append(f"{_escape_html(stripped.replace('`', ''))}<br>")
+        elif stripped.startswith("- "):
+            bullet_text = stripped[2:].replace('`', '')
+            if re.match(r"\*\*[^*]+\*\*", bullet_text):
+                bold_match = re.match(r"\*\*([^*]+)\*\*\s*(.*)", bullet_text)
+                if bold_match:
+                    html_parts.append(f'<span style="font-weight:bold;">{_escape_html(bold_match.group(1))}</span> {_escape_html(bold_match.group(2))}<br>')
+                else:
+                    html_parts.append(f"&bull; {_escape_html(bullet_text)}<br>")
+            else:
+                html_parts.append(f"&bull; {_escape_html(bullet_text)}<br>")
+        elif re.match(r"^\*\*[^*]+:\*\*", stripped):
+            bold_match = re.match(r"\*\*([^*]+):\*\*\s*(.*)", stripped)
+            if bold_match:
+                rest = bold_match.group(2).replace('`', '')
+                html_parts.append(f'<span style="font-weight:bold;">{_escape_html(bold_match.group(1))}:</span> {_escape_html(rest)}<br>')
+            else:
+                html_parts.append(f"{_escape_html(stripped.replace('`', ''))}<br>")
+        elif stripped:
+            processed = _escape_html(stripped.replace('`', ''))
+            processed = re.sub(
+                r"\*\*([^*]+)\*\*",
+                lambda m: f'<span style="font-weight:bold;">{m.group(1)}</span>',
+                processed,
+            )
+            html_parts.append(f"{processed}<br>")
+        else:
+            html_parts.append("<br>")
+    if in_code_block:
+        html_parts.append("</pre>")
+    html_parts.append("</span>")
+    return "\n".join(html_parts)
+
+
+def generate_html(test_case_path: str, output_dir: str) -> tuple[Optional[str], Optional[str], Optional[str]]:
+    """Generate description, setup, and steps HTML files. Returns (desc_path, setup_path, steps_path)."""
     path = Path(test_case_path)
     if not path.exists():
-        return None, None
+        return None, None, None
 
     content = path.read_text(encoding="utf-8")
     out = Path(output_dir)
 
+    desc_html = generate_description_html(content)
     setup_html = generate_setup_html(content)
     steps_html = generate_steps_html(content)
 
+    desc_path = None
     setup_path = None
     steps_path = None
+
+    if desc_html:
+        p = out / "test-case-description.html"
+        p.write_text(desc_html, encoding="utf-8")
+        desc_path = str(p)
 
     if setup_html:
         p = out / "test-case-setup.html"
@@ -207,4 +274,4 @@ def generate_html(test_case_path: str, output_dir: str) -> tuple[Optional[str], 
         p.write_text(steps_html, encoding="utf-8")
         steps_path = str(p)
 
-    return setup_path, steps_path
+    return desc_path, setup_path, steps_path

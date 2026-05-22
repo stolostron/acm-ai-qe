@@ -20,12 +20,10 @@ allowed-tools:
   - Bash(head:*)
   - Bash(find:*)
   - Bash(grep:*)
-  - mcp__acm-ui__set_acm_version
-  - mcp__acm-ui__search_translations
-  - mcp__acm-ui__get_routes
-  - mcp__acm-ui__get_wizard_steps
-  - mcp__polarion__get_polarion_work_item
-  - mcp__polarion__get_polarion_test_case_summary
+  - mcp__acm-source__set_acm_version
+  - mcp__acm-source__search_translations
+  - mcp__acm-source__get_routes
+  - mcp__acm-source__get_wizard_steps
 ---
 
 # Review an existing test case

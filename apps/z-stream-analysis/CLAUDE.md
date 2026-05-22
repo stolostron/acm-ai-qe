@@ -63,7 +63,7 @@ STAGE 1: gather.py      → core-data.json + cluster.kubeconfig + repos/
   Step 1: Jenkins build info (build result, params, branch, SHA)
   Step 2: Console log download + error pattern extraction
   Step 3: Test report extraction
-  Step 4: Cluster login + kubeconfig persist + MCH namespace discovery (4a), landscape (4b)
+  Step 4: Cluster login + kubeconfig persist + MCH namespace discovery + ACM Search deploy (4a), landscape (4b)
   Step 5: Feature context oracle (Polarion, KG topology, targeted dependency verification)
   Step 6-9: Repo cloning, context extraction, feature grounding, knowledge
 STAGE 1.5: cluster-diagnostic agent → cluster-diagnosis.json (comprehensive health + structured data)
@@ -71,7 +71,7 @@ STAGE 2: AI Analysis    → analysis-results.json (12-layer diagnostic investiga
 STAGE 3: report.py      → Detailed-Analysis.md + analysis-report.html + per-test-breakdown.json + SUMMARY.txt
 ```
 
-Stage 1 runs gather.py with 9 steps. Step 4 handles cluster login (with MCH namespace discovery) and landscape collection. Step 5 runs the oracle for feature context only (Polarion test cases, KG topology). Stage 1.5 runs the cluster-diagnostic agent for comprehensive health investigation, producing `cluster-diagnosis.json` with structured health data (environment_health_score, operator_health, subsystem_health, image_integrity, classification_guidance, counter_signals). The diagnostic checks 14 traps, validates console image integrity against expected registries, and reports all findings with health_depth and unchecked_layers per subsystem. Stage 2 uses the 12-layer diagnostic model with provably linked grouping (v3.9): Phase A4 groups tests using strict code-path criteria only, investigation agents trace from symptom through infrastructure layers, per-test verification checks each test within a group, and expanded counterfactual verification (9 templates) validates INFRASTRUCTURE classifications. Falls back to inline tiered investigation (v3.7) when agents are unavailable.
+Stage 1 runs gather.py with 9 steps. Step 4 handles cluster login (with MCH namespace discovery and ACM Search MCP auto-deploy) and landscape collection. Step 5 runs the oracle for feature context only (Polarion test cases, KG topology). Stage 1.5 runs the cluster-diagnostic agent for comprehensive health investigation, producing `cluster-diagnosis.json` with structured health data (environment_health_score, operator_health, subsystem_health, image_integrity, classification_guidance, counter_signals). The diagnostic checks 14 traps, validates console image integrity against expected registries, and reports all findings with health_depth and unchecked_layers per subsystem. Stage 2 uses the 12-layer diagnostic model with provably linked grouping (v3.9): Phase A4 groups tests using strict code-path criteria only, investigation agents trace from symptom through infrastructure layers, per-test verification checks each test within a group, and expanded counterfactual verification (9 templates) validates INFRASTRUCTURE classifications. Falls back to inline tiered investigation (v3.7) when agents are unavailable.
 
 See `docs/00-OVERVIEW.md` for detailed diagrams.
 
@@ -104,6 +104,7 @@ See `docs/00-OVERVIEW.md` for full classification definitions with owners and tr
 - **PR-6b** Polarion expected behavior check — PRODUCT_BUG fast-path without JIRA (v4.0)
 - **PR-7** Environment/Diagnostic context signals — ADDITIVE, not binding classifications (v4.0)
 - **D-V5** Expanded counterfactual — 9 templates + symmetric validation: D-V5c for AUTOMATION_BUG ("does backend confirm expectation?"), D-V5e for PRODUCT_BUG ("is product behavior correct?") (v4.0)
+- **D-V5e PRODUCT_BUG gate** — Mandatory 4-check verification: (1) ACM-Source MCP product source verification, (2) not an intentional product change, (3) environment prerequisites met via cluster oracle, (4) minimum 3 investigation steps (v4.0)
 - **Layer discrepancy** — Tier 1 PRODUCT_BUG evidence when lower layer healthy but higher layer defective (v4.0)
 - **D4b** Per-test causal link verification (v3.3)
 - **D5** Counter-bias validation (v3.3)
@@ -146,15 +147,17 @@ Use extracted_context first. Only access repos/ if insufficient.
 
 ## MCP Servers Available
 
-Five MCP servers provide tools during Stage 2 (AI Analysis). First-time setup: from the repo root, run `claude` then `/onboard`. See `docs/05-MCP-INTEGRATION.md` for setup details, credential configuration, and full tool reference.
+Seven MCP servers provide tools during Stage 1.5 and Stage 2. First-time setup: from the repo root, run `claude` then `/onboard`. See `docs/05-MCP-INTEGRATION.md` for setup details, credential configuration, and full tool reference.
 
 | Server | Tools | Purpose |
 |--------|-------|---------|
-| ACM-UI | 20 | ACM Console + kubevirt-plugin source code search via GitHub |
+| ACM Source | 18 | ACM Console + kubevirt-plugin source code search via GitHub |
 | Jenkins | 7+4 | Jenkins pipeline API + ACM-specific analysis tools |
-| JIRA | 25 | Issue search, creation, management for bug correlation (Jira Cloud) |
+| JIRA | 29 | Issue search, creation, attachments, inline comment images (fork `feat/redhat-fields`) |
 | Polarion | 25 | Polarion test case access + dependency discovery |
 | Knowledge Graph (Neo4j RHACM) | 2 | Component dependency analysis via Cypher queries (optional) |
+| ACM Search | 5 | Fleet-wide resource queries via search-postgres (spoke-side visibility) |
+| ACM Kubectl | 3 | Multicluster kubectl for hub and spoke clusters |
 
 **KG label mapping:** The Knowledge Graph uses descriptive labels (e.g., `"API Gateway Controller"`), not pod names (e.g., `"search-api"`). The AI instructions include a `pod_to_kg_label` map and a `query_strategy` that directs the AI to use `get_subsystem_components` first to discover actual KG labels before querying by component.
 
@@ -235,14 +238,14 @@ Two-layer structured logging captures every operation across all pipeline stages
 ## Tests
 
 ```bash
-# Fast — unit + regression (686 tests, no external deps):
+# Fast — unit + regression (756 tests, no external deps):
 python -m pytest tests/unit/ tests/regression/ -q
 
-# Full suite (731 tests, requires Jenkins VPN for integration):
+# Full suite (801 tests, requires Jenkins VPN for integration):
 python -m pytest tests/ -q --timeout=300
 ```
 
-Test structure: `tests/unit/` (625 tests across 20 service/script files), `tests/regression/` (61 cross-module consistency + schema coverage tests), `tests/integration/` (45 tests requiring Jenkins VPN), `tests/fixtures/` (synthetic analysis-results.json).
+Test structure: `tests/unit/` (625 tests across 20 service/script files), `tests/regression/` (131 cross-module consistency + schema coverage + skill conversion tests), `tests/integration/` (45 tests requiring Jenkins VPN), `tests/fixtures/` (synthetic analysis-results.json).
 
 ## Knowledge Database (`knowledge/`)
 
@@ -253,7 +256,7 @@ Domain reference data for the AI agent during Stage 2 analysis. Includes per-sub
 2. **Phase B:** Check `architecture/<area>/failure-signatures.md` for known patterns before full investigation
 3. **Phase B (v3.8):** Investigation agents read `diagnostics/diagnostic-layers.md` for the 12-layer investigation methodology
 4. **Phase D:** Reference `diagnostics/classification-decision-tree.md` for routing logic and validation
-5. **After classification:** Write new discoveries to `learned/` for future runs
+5. **After classification:** Write new discoveries directly to the appropriate knowledge file (see root CLAUDE.md "Knowledge Database" section)
 
 ## Detailed Documentation
 
@@ -266,6 +269,7 @@ Domain reference data for the AI agent during Stage 2 analysis. Includes per-sub
 | All services reference | `docs/04-SERVICES-REFERENCE.md` |
 | MCP integration guide | `docs/05-MCP-INTEGRATION.md` |
 | Knowledge database reference | `docs/06-KNOWLEDGE-DATABASE.md` |
+| Skill architecture (14 skills) | `docs/07-SKILL-ARCHITECTURE.md` |
 | Version history | `docs/CHANGELOG.md` |
 | v2.5 vs v3.0 comparison | `docs/V2.5-VS-V3.0-COMPARISON.md` |
 
@@ -282,7 +286,7 @@ z-stream-analysis/
 │   ├── architecture/      # Per-subsystem docs (12 areas, 37 files)
 │   ├── diagnostics/       # Classification methodology + 12-layer model (5 files)
 │   └── *.yaml             # Structured data files (14 files)
-├── tests/                 # Unit (625), regression (61), integration (45)
+├── tests/                 # Unit (625), regression (131), integration (45)
 ├── .claude/agents/        # analysis.md, cluster-diagnostic.md, investigation-agent.md, data-collector.md
 ├── .claude/hooks/         # agent_trace.py (trace logging)
 └── docs/                  # Detailed documentation (10 files)

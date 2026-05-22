@@ -258,7 +258,7 @@ Output: environment health score (0.0-1.0), operator health, subsystem health, i
 | `architecture/` | Per-subsystem architecture, data flow, failure signatures | 37 |
 | `diagnostics/` | Classification decision tree, evidence tiers, diagnostic traps, 12-layer model | 5 |
 | Root YAML | Components, dependencies, selectors, endpoints, baselines, patterns | 14 |
-| `learned/` | Agent-contributed corrections and discoveries | 3+ |
+| `learned/` | Deprecated — agents now write directly to target knowledge files | — |
 
 Each of the 12 subsystems has `architecture.md`, `data-flow.md`, and `failure-signatures.md`.
 
@@ -269,8 +269,8 @@ Each of the 12 subsystems has `architecture.md`, `data-flow.md`, and `failure-si
 
 | Server | Tools | Purpose |
 |--------|:-----:|---------|
-| ACM-UI | 20 | ACM Console + kubevirt-plugin source search via GitHub |
-| JIRA | 25 | Issue search and bug correlation (Jira Cloud) |
+| ACM Source | 18 | ACM Console + kubevirt-plugin source search via GitHub |
+| JIRA | 29 | Issue search, bug correlation, attachments (fork `feat/redhat-fields`) |
 | Jenkins | 11 | Pipeline API + ACM analysis tools |
 | Polarion | 25 | Test case content and dependency discovery |
 | Neo4j | 2 | Component dependency analysis via Cypher |
@@ -292,7 +292,7 @@ First-time setup: from the repo root, run `claude` then `/onboard`.
 | `TimelineComparisonService` | Git date comparison, selector drift detection |
 | `StackTraceParser` | JS/TS stack traces to file:line |
 | `ACMConsoleKnowledge` | Console directory structure and feature mapping |
-| `ACMUIMCPClient` | ACM UI MCP integration for element discovery |
+| `ACMSourceMCPClient` | ACM Source MCP integration for element discovery |
 | `ComponentExtractor` | Backend component names from test failures |
 | `KnowledgeGraphClient` | Neo4j knowledge graph queries |
 | `ClusterInvestigationService` | Component diagnostics and cluster landscape |
@@ -360,8 +360,8 @@ python -m src.scripts.feedback --stats
 ## Tests
 
 ```bash
-python -m pytest tests/unit/ tests/regression/ -q   # 686 tests, no external deps
-python -m pytest tests/ -q --timeout=300             # 731 tests (needs Jenkins VPN)
+python -m pytest tests/unit/ tests/regression/ -q   # 756 tests, no external deps
+python -m pytest tests/ -q --timeout=300             # 801 tests (needs Jenkins VPN)
 ```
 
 ## Documentation
@@ -371,4 +371,5 @@ python -m pytest tests/ -q --timeout=300             # 731 tests (needs Jenkins 
 | [Pipeline overview](docs/00-OVERVIEW.md) | [Stage 1: Data gathering](docs/01-STAGE1-DATA-GATHERING.md) |
 | [Stage 2: AI analysis](docs/02-STAGE2-AI-ANALYSIS.md) | [Stage 3: Reports](docs/03-STAGE3-REPORT-GENERATION.md) |
 | [Services reference](docs/04-SERVICES-REFERENCE.md) | [MCP integration](docs/05-MCP-INTEGRATION.md) |
-| [Knowledge database](docs/06-KNOWLEDGE-DATABASE.md) | [Version history](docs/CHANGELOG.md) |
+| [Knowledge database](docs/06-KNOWLEDGE-DATABASE.md) | [Skill architecture](docs/07-SKILL-ARCHITECTURE.md) |
+| [Version history](docs/CHANGELOG.md) | [Interactive diagrams](docs/architecture-diagrams.html) |

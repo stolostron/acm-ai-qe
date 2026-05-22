@@ -26,7 +26,7 @@ These provide supporting context but aren't conclusive alone:
 
 | Evidence | Source | What it tells you |
 |----------|--------|-------------------|
-| ACM-UI MCP selector verification | MCP tool call | Does the selector exist in a specific ACM version? |
+| ACM Source MCP selector verification | MCP tool call | Does the selector exist in a specific ACM version? |
 | JIRA bug search | MCP tool call | Is there a known bug for this component? |
 | KG dependency analysis | Neo4j query | What components depend on the failing one? |
 | `environment_health_score` | Stage 1.5 (cluster-diagnosis.json) | How healthy is the cluster overall? (0.0-1.0) |

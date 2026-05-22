@@ -82,7 +82,13 @@ automation repo (`repos/automation/`).
 
 4. **Skip files from `node_modules/`** — these are third-party libraries.
 
-5. **Skip tests with no `failing_selector`** — there's nothing to trace.
+5. **If `failing_selector` is null but the error message clearly contains a selector**
+   (e.g., `Expected to find element: \`div#connection\``), extract it yourself from
+   `error_message` using the backtick-delimited pattern: `` `<selector>` ``. This is a
+   fallback for cases where the parser missed the selector.
+
+6. **Skip tests with no `failing_selector` AND no extractable selector in the error message**
+   — there's nothing to trace.
 
 #### Output Format
 
@@ -142,11 +148,11 @@ selector, and whether the selector is on the correct route.
 
    b. **Set the ACM version** via MCP:
       ```
-      mcp__acm-ui__set_acm_version(version='2.17')
+      mcp__acm-source__set_acm_version(version='2.17')
       ```
       For VM/virt selectors, also set CNV version:
       ```
-      mcp__acm-ui__set_cnv_version(version='4.21')
+      mcp__acm-source__set_cnv_version(version='4.21')
       ```
 
    c. **Classify the selector type:**
@@ -160,23 +166,23 @@ selector, and whether the selector is on the correct route.
 
       For literal selectors (`data-testid`, `id`, custom classes):
       ```
-      mcp__acm-ui__search_code(query='cluster-dropdown-toggle', repo='acm')
+      mcp__acm-source__search_code(query='cluster-dropdown-toggle', repo='acm')
       ```
 
       For PatternFly classes (derive component name from class):
       - `pf-v6-c-tree-view` → component `TreeView`
       - `pf-v6-c-menu__list-item` → component `Menu` or `MenuList`
       ```
-      mcp__acm-ui__search_code(query='TreeView', repo='acm')
+      mcp__acm-source__search_code(query='TreeView', repo='acm')
       ```
       Also check if relevant:
       ```
-      mcp__acm-ui__search_code(query='TreeView', repo='kubevirt')
+      mcp__acm-source__search_code(query='TreeView', repo='kubevirt')
       ```
 
       For VM/virt selectors, also search kubevirt-plugin:
       ```
-      mcp__acm-ui__search_code(query='<selector>', repo='kubevirt')
+      mcp__acm-source__search_code(query='<selector>', repo='kubevirt')
       ```
 
    e. **Determine the result:**
@@ -190,9 +196,14 @@ selector, and whether the selector is on the correct route.
       - For PatternFly selectors: which component generates this class
       - For selectors that are false positives from the parser: note that
 
-3. **Skip tests with no `failing_selector`** — leave `console_search` as `null`.
+3. **If `failing_selector` is null but the error message contains a backtick-delimited
+   selector** (e.g., `` `input[aria-label="Select user"]` ``), extract it yourself
+   as a fallback.
 
-4. **Skip selectors that are obviously not real selectors** (hex color codes
+4. **Skip tests with no `failing_selector` AND no extractable selector in the error message**
+   — leave `console_search` as `null`.
+
+5. **Skip selectors that are obviously not real selectors** (hex color codes
    like `#DB242F`, single characters, etc.) — leave `console_search` as `null`.
 
 #### Output Format
@@ -330,7 +341,10 @@ and optionally checking linked JIRAs.
       - `product_commit_type`: Type of product change derived from commit
         message (refactor, fix, feature, null if no product commit)
 
-3. **Skip tests with no `failing_selector`** — leave both
+3. **If `failing_selector` is null but the error message contains a backtick-delimited
+   selector**, extract it yourself as a fallback (same as Tasks 1 and 2).
+
+4. **Skip tests with no `failing_selector` AND no extractable selector** — leave both
    `recent_selector_changes` and `temporal_summary` as `null`.
 
 4. **Skip selectors that are invalid** (hex colors, single characters) — same

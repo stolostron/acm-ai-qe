@@ -135,7 +135,7 @@ class TestRemovedFieldDetection:
         '__pycache__',
         'node_modules',
         'cluster_health_service.py',  # Deprecated service (kept for backward compat)
-        'acm_ui_mcp_client.py',       # Stub methods (Phase 2 uses native MCP)
+        'acm_source_mcp_client.py',       # Stub methods (Phase 2 uses native MCP)
     ]
 
     def _is_allowed(self, filepath: str) -> bool:

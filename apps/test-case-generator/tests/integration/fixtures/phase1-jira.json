@@ -1,0 +1,21 @@
+{
+  "story": {
+    "key": "ACM-99999",
+    "summary": "Policy violation summary tooltip",
+    "status": "In Progress",
+    "type": "Story"
+  },
+  "acceptance_criteria": [
+    "Tooltip appears on hover over violation count",
+    "Tooltip shows per-cluster breakdown"
+  ],
+  "linked_tickets": {},
+  "pr_references": [
+    {"number": 9999, "repo": "stolostron/console", "title": "Add policy violation summary tooltip"}
+  ],
+  "test_scenarios": [
+    "Verify tooltip appears on hover",
+    "Verify tooltip content matches violation data"
+  ],
+  "anomalies": []
+}

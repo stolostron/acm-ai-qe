@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "acm-source-mcp-server"
+version = "0.2.0"
+description = "MCP server for ACM Console and Fleet Virtualization source code discovery"
+requires-python = ">=3.12"
+dependencies = [
+    "mcp",
+    "pydantic",
+    "pydantic-settings",
+    "python-dotenv",
+    "fastmcp>=2.14.3",
+]
+
+[project.scripts]
+acm-source-mcp-server = "acm_source_mcp_server.main:main"
+
+[tool.setuptools.packages.find]
+include = ["acm_source_mcp_server*"]

@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Test Case Generator &mdash; Skill Architecture (D3.js Interactive)</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<style>
+:root { --bg: #080b14; --surface: #0f1320; --surface2: #141a2e; --border: #1e2640; --text: #d8dce8; --dim: #7a84a0; --accent: #38bdf8; --accent2: #f472b6; --green: #4ade80; --amber: #fbbf24; --red: #f87171; --purple: #a78bfa; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; display: flex; min-height: 100vh; }
+#main { flex: 1; display: flex; flex-direction: column; max-width: 65%; transition: max-width 0.3s; overflow-y: auto; }
+#main.full { max-width: 100%; }
+#header { padding: 24px 40px; flex-shrink: 0; }
+#tab-bar { display: flex; gap: 2px; padding: 0 40px; flex-shrink: 0; background: var(--surface2); border-bottom: 1px solid var(--border); }
+.tab { padding: 10px 18px; font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; color: var(--dim); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.2s; background: none; border-top: none; border-left: none; border-right: none; }
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.view { display: none; min-height: 600px; height: calc(100vh - 220px); overflow: hidden; position: relative; }
+.view.active { display: block; }
+#detail-panel { width: 35%; min-width: 35%; background: var(--surface); border-left: 2px solid var(--border); overflow-y: auto; position: relative; height: 100vh; transition: all 0.3s; }
+#detail-panel.hidden { width: 0; min-width: 0; border: none; overflow: hidden; }
+#detail-header { padding: 20px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; background: var(--surface); z-index: 10; }
+#detail-header h3 { font-size: 1rem; color: var(--accent); font-family: 'JetBrains Mono', monospace; }
+#detail-close { background: none; border: 1px solid var(--border); color: var(--dim); padding: 4px 12px; border-radius: 6px; cursor: pointer; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; }
+#detail-close:hover { color: var(--red); border-color: var(--red); }
+#detail-body { padding: 24px; }
+.detail-section { margin-bottom: 24px; }
+.detail-section h4 { font-size: 0.85rem; color: var(--accent2); text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 8px; font-family: 'JetBrains Mono', monospace; }
+.detail-section .label { font-size: 0.78rem; color: var(--dim); margin-bottom: 4px; font-family: 'JetBrains Mono', monospace; }
+.detail-section .value { font-size: 0.88rem; color: var(--text); margin-bottom: 12px; line-height: 1.5; }
+pre.data-block { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px; font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; color: var(--green); overflow-x: auto; white-space: pre-wrap; word-break: break-all; margin: 8px 0 16px 0; line-height: 1.6; }
+pre.data-block .key { color: var(--accent); }
+pre.data-block .str { color: var(--green); }
+pre.data-block .num { color: var(--amber); }
+pre.data-block .bool { color: var(--purple); }
+pre.data-block .dim { color: var(--dim); }
+.tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; font-family: 'JetBrains Mono', monospace; font-weight: 700; }
+.tag-pass { background: rgba(74,222,128,0.15); color: var(--green); border: 1px solid rgba(74,222,128,0.3); }
+.tag-fail { background: rgba(248,113,113,0.15); color: var(--red); border: 1px solid rgba(248,113,113,0.3); }
+.tag-phase { background: rgba(251,191,36,0.15); color: var(--amber); border: 1px solid rgba(251,191,36,0.3); }
+.tag-mcp { background: rgba(244,114,182,0.15); color: var(--accent2); border: 1px solid rgba(244,114,182,0.3); }
+.tag-agent { background: rgba(167,139,250,0.15); color: var(--purple); border: 1px solid rgba(167,139,250,0.3); }
+.tag-info { background: rgba(56,189,248,0.15); color: var(--accent); border: 1px solid rgba(56,189,248,0.3); }
+.separator { height: 1px; background: var(--border); margin: 16px 0; }
+h1 { font-size: 2.4rem; font-weight: 800; margin-bottom: 8px; background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.sub { color: var(--dim); font-size: 0.95rem; margin-bottom: 16px; font-family: 'JetBrains Mono', monospace; }
+.example-banner { background: linear-gradient(135deg, rgba(56,189,248,0.08), rgba(244,114,182,0.08)); border: 1px solid rgba(56,189,248,0.2); border-radius: 10px; padding: 16px 20px; margin-bottom: 16px; }
+.example-banner h3 { color: var(--accent); font-size: 1rem; margin-bottom: 6px; }
+.example-banner p { color: var(--dim); font-size: 0.88rem; line-height: 1.5; }
+.example-banner code { background: rgba(56,189,248,0.1); padding: 2px 6px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; color: var(--accent); }
+.click-hint { color: var(--accent2); font-size: 0.78rem; font-family: 'JetBrains Mono', monospace; margin-top: 8px; opacity: 0.7; padding: 0 40px 8px; }
+.legend { display: flex; gap: 24px; flex-wrap: wrap; padding: 10px 16px; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; margin: 0 40px 12px 40px; flex-shrink: 0; }
+.legend-item { display: flex; align-items: center; gap: 8px; }
+.legend-swatch { width: 16px; height: 16px; border-radius: 4px; background: var(--surface); }
+.legend-label { font-size: 0.78rem; font-family: 'JetBrains Mono', monospace; color: var(--dim); }
+
+.zoom-controls { position: fixed; bottom: 24px; left: 24px; z-index: 100; display: flex; flex-direction: column; gap: 6px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 8px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
+.zoom-controls button { width: 38px; height: 38px; border: 1px solid var(--border); background: var(--surface2); color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 1.1rem; font-weight: 700; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+.zoom-controls button:hover { border-color: var(--accent); color: var(--accent); background: rgba(56,189,248,0.08); }
+.zoom-pct { text-align: center; font-family: 'JetBrains Mono', monospace; font-size: 0.68rem; color: var(--dim); padding: 2px 0; user-select: none; }
+
+.node rect { cursor: pointer; transition: all 0.15s; }
+.node rect:hover { filter: brightness(1.3); }
+.node text { pointer-events: none; }
+.link { fill: none; stroke-width: 1.5px; }
+</style>
+</head>
+<body>
+
+<div id="main" class="full">
+  <div id="header">
+    <h1>Test Case Generator</h1>
+    <p class="sub">Portable Skill Architecture &mdash; 6 skills, 9-phase pipeline, 7 subagents (D3.js interactive)</p>
+    <div class="example-banner">
+      <h3>JIRA Ticket &rarr; Polarion-Ready Test Case</h3>
+      <p>The <code>acm-test-case-generator</code> orchestrator sequences 9 phases (0&ndash;8): input resolution, data gathering + JIRA investigation, PR code analysis, UI discovery, synthesis with scope gating and coverage gap triage, optional live validation (browser + CLI), test case writing, mandatory quality review with 3-tier escalation, and deterministic Polarion HTML generation. Each investigation phase runs in an isolated subagent context. 6 portable skills in 3 tiers: Orchestration, Core Pipeline, and Methodology + Knowledge.</p>
+      <p style="margin-top:8px">Click any node to see details. Use tabs to switch between views. Zoom/pan with mouse wheel or controls.</p>
+    </div>
+  </div>
+
+  <div id="tab-bar">
+    <button class="tab active" onclick="switchTab('pipeline')">Pipeline</button>
+    <button class="tab" onclick="switchTab('skills')">Skill Tiers</button>
+    <button class="tab" onclick="switchTab('mcp')">MCP Servers</button>
+    <button class="tab" onclick="switchTab('quality')">Quality Gates</button>
+    <button class="tab" onclick="switchTab('knowledge')">Knowledge</button>
+  </div>
+
+  <div id="legend-pipeline" class="legend">
+    <div class="legend-item"><div class="legend-swatch" style="border:2px solid #38bdf8;"></div><span class="legend-label">Orchestrator / Input</span></div>
+    <div class="legend-item"><div class="legend-swatch" style="border:2px solid #4ade80;"></div><span class="legend-label">AI Subagent</span></div>
+    <div class="legend-item"><div class="legend-swatch" style="border:2px solid #fbbf24;"></div><span class="legend-label">Deterministic Script</span></div>
+    <div class="legend-item"><div class="legend-swatch" style="border:2px solid #f472b6;"></div><span class="legend-label">Artifact / Output</span></div>
+    <div class="legend-item"><div class="legend-swatch" style="border:2px solid #a78bfa;"></div><span class="legend-label">Validation Layer</span></div>
+  </div>
+
+  <p class="click-hint">Click any node to see implementation details &mdash; click +/&minus; to expand/collapse branches</p>
+
+  <div id="view-pipeline" class="view active"><svg id="svg-pipeline" width="100%" height="100%"></svg></div>
+  <div id="view-skills" class="view"><svg id="svg-skills" width="100%" height="100%"></svg></div>
+  <div id="view-mcp" class="view"><svg id="svg-mcp" width="100%" height="100%"></svg></div>
+  <div id="view-quality" class="view"><svg id="svg-quality" width="100%" height="100%"></svg></div>
+  <div id="view-knowledge" class="view"><svg id="svg-knowledge" width="100%" height="100%"></svg></div>
+</div>
+
+<div class="zoom-controls">
+  <button onclick="zoomIn()" title="Zoom In">+</button>
+  <div class="zoom-pct" id="zoom-pct">100%</div>
+  <button onclick="zoomOut()" title="Zoom Out">&minus;</button>
+  <button onclick="zoomReset()" title="Reset Zoom" style="font-size:0.7rem;">R</button>
+  <div style="height:1px;background:var(--border);margin:4px 0;"></div>
+  <button onclick="expandAll()" title="Expand All" style="font-size:0.6rem;width:38px;height:28px;">E+</button>
+  <button onclick="collapseAll()" title="Collapse All" style="font-size:0.6rem;width:38px;height:28px;">C&minus;</button>
+</div>
+
+<div id="detail-panel" class="hidden">
+  <div id="detail-header">
+    <h3 id="detail-title">Details</h3>
+    <button id="detail-close" onclick="hideDetail()">Close</button>
+  </div>
+  <div id="detail-body"></div>
+</div>
+
+<script>
+/* ── Detail Panel Data ──────────────────────────────────── */
+const DATA = {
+
+'pipeline-root': { title: 'Test Case Generator Pipeline', html: `<div class="detail-section"><h4>9-Phase Pipeline</h4><div class="value">Orchestrated by <code>acm-test-case-generator</code> skill. Sequences phases 0&rarr;8, spawning isolated subagents for each AI phase. Deterministic scripts handle data gathering (Phase 1) and report generation (Phase 8). After each AI phase (1&ndash;4, 6), <code>validate_artifact.py</code> validates the output against its schema with retry (up to 3 attempts).</div></div>` },
+
+'phase0': { title: 'Phase 0: Determine Inputs', html: `<div class="detail-section"><h4>Input Resolution</h4><div class="label">What it does:</div><div class="value">Checks if critical inputs are missing and asks the user before starting.</div><div class="label">Inputs resolved:</div><div class="value">&bull; JIRA ID (always required)<br>&bull; ACM version (from JIRA fix_versions, or ask)<br>&bull; CNV version (Fleet Virt only)<br>&bull; Cluster URL (offer to skip live validation)<br>&bull; Console credentials (auto-detect from env vars)<br>&bull; Feature scope (if multiple ACs)</div><div class="label">MCP availability check:</div><div class="value">Probes REQUIRED MCPs (acm-source, jira, polarion). Warns if IMPORTANT MCPs (neo4j-rhacm) are unavailable.</div></div>` },
+
+'phase1': { title: 'Phase 1: Data Gather + JIRA Investigation', html: `<div class="detail-section"><h4>data-gatherer Subagent</h4><div class="label">Agent:</div><div class="value"><code>references/agents/data-gatherer.md</code></div><div class="label">Duration:</div><div class="value">~20&ndash;35 seconds</div><div class="label">Step 1 &mdash; Deterministic (gather.py):</div><div class="value">&bull; PR discovery via <code>gh search prs</code><br>&bull; PR metadata via <code>gh pr view --json</code><br>&bull; Full PR diff via <code>gh pr diff</code><br>&bull; Area detection (9 areas, scored by file path patterns)<br>&bull; Peer test cases, conventions, area knowledge loaded</div><div class="label">Step 2 &mdash; JIRA Investigation (AI + MCP):</div><div class="value"><span class="tag tag-mcp">jira</span> get_issue, search_issues<br><span class="tag tag-mcp">polarion</span> get_polarion_work_items, get_polarion_test_case_summary<br><span class="tag tag-mcp">neo4j</span> read_neo4j_cypher (optional)<br><span class="tag tag-mcp">bash</span> gh CLI</div><div class="label">Output:</div><div class="value"><code>gather-output.json</code>, <code>pr-diff.txt</code>, <code>phase1-jira.json</code></div><div class="label">Validation:</div><div class="value"><code>gather-output.json</code> validation FAIL &rarr; <strong>stop pipeline</strong> (deterministic script bug).<br><code>phase1-jira.json</code> validation FAIL &rarr; retry up to 3 times.</div></div>` },
+
+'phase1-artifacts': { title: 'Phase 1 Artifacts', html: `<div class="detail-section"><h4>Three Output Files</h4><div class="label">gather-output.json:</div><div class="value">Serialized GatherOutput Pydantic model: jira_id, acm_version, area, pr_data (number, title, repo, state, files, additions, deletions, diff_file), existing_test_cases[], conventions, area_knowledge, html_templates, run_dir, options, test_files[], production_files[]</div><div class="label">pr-diff.txt:</div><div class="value">Full PR diff from <code>gh pr diff</code>. Used by code-analyzer in Phase 2.</div><div class="label">phase1-jira.json:</div><div class="value">Story summary, ACs, comments with design decisions, linked tickets, existing Polarion coverage, test scenarios, anomalies[].</div></div>` },
+
+'phase2': { title: 'Phase 2: Code Analysis', html: `<div class="detail-section"><h4>code-analyzer Subagent</h4><div class="label">Agent:</div><div class="value"><code>references/agents/code-analyzer.md</code></div><div class="label">Duration:</div><div class="value">~15&ndash;30 seconds</div><div class="label">10-step analysis:</div><div class="value">1. PR metadata (gh pr view)<br>2. Full diff (gh pr diff)<br>3. Set ACM version<br>4. Analyze each changed file<br>5. <strong>MANDATORY:</strong> Read full source via <code>get_component_source</code><br>6. Verify filtering functions against source<br>7. Check component dependencies (neo4j)<br>8. Verify UI strings (search_translations)<br>9. Map changes to test scenarios<br>10. Coverage gap analysis (vs JIRA ACs)</div><div class="label">MCP tools:</div><div class="value"><span class="tag tag-mcp">acm-source</span> set_acm_version, search_code, get_component_source, search_translations, get_routes, find_test_ids<br><span class="tag tag-mcp">neo4j</span> read_neo4j_cypher<br><span class="tag tag-mcp">jira</span> get_issue (coverage gap analysis)</div><div class="label">Follow-up PR detection:</div><div class="value">For each primary file, checks for subsequent merged PRs via <code>gh pr list --search</code>. Flags post-merge renames, fixes, refactors.</div><div class="label">Output:</div><div class="value"><code>phase2-code.json</code> &mdash; changed components, UI elements, interaction models, routes, translations, filtering logic, follow-up PRs, test scenarios, coverage gaps, anomalies[]</div></div>` },
+
+'phase3': { title: 'Phase 3: UI Discovery', html: `<div class="detail-section"><h4>ui-discoverer Subagent</h4><div class="label">Agent:</div><div class="value"><code>references/agents/ui-discoverer.md</code></div><div class="label">Duration:</div><div class="value">~15&ndash;30 seconds</div><div class="label">MCP tools (full sweep):</div><div class="value"><span class="tag tag-mcp">acm-source</span> set_acm_version, set_cnv_version, search_code, get_component_source, search_translations, get_routes, get_wizard_steps, get_acm_selectors, find_test_ids, get_patternfly_selectors<br><span class="tag tag-mcp">neo4j</span> read_neo4j_cypher</div><div class="label">Must call first:</div><div class="value"><code>set_acm_version</code> before any search. For Fleet Virt/CCLM/MTV, also <code>set_cnv_version</code>.</div><div class="label">Output:</div><div class="value"><code>phase3-ui.json</code> &mdash; translations (key &rarr; UI string), routes (name &rarr; path), selectors (component &rarr; CSS), test IDs, component structure, anomalies[]</div></div>` },
+
+'pre-synthesis': { title: 'Pre-Synthesis Readiness Check', html: `<div class="detail-section"><h4>8-Point Cross-Artifact Gate</h4><div class="label">Script:</div><div class="value"><code>validate_artifact.py --pre-synthesis</code></div><div class="label">Checks 8 data points across 3 artifacts:</div><div class="value">&bull; <code>story.key</code> present<br>&bull; <code>story.summary</code> present<br>&bull; <code>acceptance_criteria</code> non-empty<br>&bull; <code>pr.number</code> present<br>&bull; <code>pr.repo</code> present<br>&bull; <code>primary_files</code> non-empty<br>&bull; <code>entry_point</code> present<br>&bull; <code>routes</code> non-empty</div><div class="label">On failure:</div><div class="value"><strong>Stop pipeline.</strong> Upstream phases already exhausted retry attempts.</div></div>` },
+
+'phase4': { title: 'Phase 4: Synthesis', html: `<div class="detail-section"><h4>synthesizer Subagent</h4><div class="label">Agent:</div><div class="value"><code>references/agents/synthesizer.md</code></div><div class="label">Duration:</div><div class="value">~10 seconds</div><div class="label">Synthesis steps:</div><div class="value">1. Merge all three investigation outputs<br>2. <strong>Scope gate:</strong> Filter to target JIRA story ACs only<br>3. <strong>AC vs Implementation:</strong> Cross-reference, flag discrepancies<br>4. <strong>Coverage gap triage:</strong> ADD TO TEST PLAN / NOTE ONLY / SKIP<br>5. <strong>5 optimization passes:</strong> state transition consolidation, resource minimization, step flow sequencing, deduplication, negative scenario placement<br>6. Write TEST PLAN</div><div class="label">Conflict resolution:</div><div class="value">&bull; UI elements: trust <strong>ui-discoverer</strong><br>&bull; Business requirements: trust <strong>data-gatherer</strong><br>&bull; What changed: trust <strong>code-analyzer</strong><br>&bull; Architecture constraints: trust <strong>knowledge-base</strong><br>&bull; Labels/strings: trust <strong>current source code</strong> (MCP)</div><div class="label">Output:</div><div class="value"><code>synthesized-context.md</code> &mdash; full investigation data + AC discrepancies + TEST PLAN</div></div>` },
+
+'phase5': { title: 'Phase 5: Live Validation', html: `<div class="detail-section"><h4>live-validator Subagent (Conditional)</h4><div class="label">Condition:</div><div class="value">Runs only when <code>--cluster-url</code> is provided and <code>--skip-live</code> is not set.</div><div class="label">Agent:</div><div class="value"><code>references/agents/live-validator.md</code></div><div class="label">Duration:</div><div class="value">~2&ndash;5 minutes</div><div class="label">Process:</div><div class="value">1. <strong>Environment verification:</strong> 3-method tiered check (merge commit ancestry &rarr; image tag date &rarr; MCH version heuristic)<br>2. <strong>Browser auth:</strong> Form-based OAuth login (see <code>console-auth.md</code>)<br>3. Navigate to feature entry point<br>4. Walk through test steps (click, fill, hover, snapshot)<br>5. Verify backend state (<code>oc get</code>, <code>find_resources</code>)<br>6. Check JS errors + failed API calls<br>7. Build corrections table</div><div class="label">Tools:</div><div class="value"><span class="tag tag-mcp">playwright</span> 24 tools (browser automation)<br><span class="tag tag-mcp">acm-search</span> 5 tools (fleet queries)<br><span class="tag tag-mcp">acm-kubectl</span> 3 tools (multicluster kubectl)<br><span class="tag tag-mcp">bash</span> oc CLI, gh CLI</div><div class="label">Post-Phase 5:</div><div class="value">Orchestrator checks for <code>## Corrections</code> section. Live UI observations override source-code-inferred values for user-visible labels.</div></div>` },
+
+'phase6': { title: 'Phase 6: Write Test Case', html: `<div class="detail-section"><h4>test-case-writer Subagent</h4><div class="label">Agent:</div><div class="value"><code>references/agents/test-case-writer.md</code></div><div class="label">Duration:</div><div class="value">~30&ndash;60 seconds</div><div class="label">6-step process:</div><div class="value">1. Read conventions (3 files from knowledge-base)<br>2. Read area knowledge as constraints<br>3. Scope gate (ACs only, multi-story filtering)<br>4. Spot-check key UI elements (acm-source MCP)<br>4.5. Follow synthesis design optimizations<br>5. Write test-case.md<br>6. Self-review (14-point checklist)</div><div class="label">3 quality rules enforced:</div><div class="value">&bull; <strong>Step granularity:</strong> each step verifies ONE behavior<br>&bull; <strong>Backend validation placement:</strong> CLI in dedicated steps, after UI<br>&bull; <strong>Implementation detail translation:</strong> code details &rarr; observable verifications</div><div class="label">Output:</div><div class="value"><code>test-case.md</code> (primary deliverable), <code>analysis-results.json</code> (audit metadata)</div></div>` },
+
+'phase7': { title: 'Phase 7: Quality Review (MANDATORY)', html: `<div class="detail-section"><h4>quality-reviewer Subagent + Programmatic Enforcement</h4><div class="label">Agent:</div><div class="value"><code>references/agents/quality-reviewer.md</code></div><div class="label">Layer 1 &mdash; AI Review (6.6 steps):</div><div class="value">1. Read test case<br>2. Read conventions (3 files)<br>3. Structural validation <span class="tag tag-fail">BLOCKING</span><br>4. MCP verification (min 3 checks) <span class="tag tag-fail">BLOCKING</span><br>5. AC vs implementation check <span class="tag tag-fail">BLOCKING</span><br>6. Knowledge file cross-reference <span class="tag tag-fail">BLOCKING</span><br>6.5. Design efficiency check (redundant resources, missed state transitions, duplicate verifications, setup/step ratio)<br>6.6. Coverage gap verification (ADD gaps have steps, NOTE gaps mentioned)</div><div class="label">Layer 2 &mdash; Programmatic Enforcement (review_enforcement.py):</div><div class="value">&bull; 3+ MCP verification entries<br>&bull; At least one <code>get_component_source</code> call<br>&bull; At least one <code>search_translations</code> call<br>&bull; Stale JIRA text check<br>&bull; Negative scenario warning<br>Can override AI verdict to NEEDS_FIXES.</div><div class="label">3-tier escalation on NEEDS_FIXES:</div><div class="value"><strong>Tier 1:</strong> Targeted MCP re-investigation for factual errors<br><strong>Tier 2:</strong> Focused writer retry with evidence<br><strong>Tier 3:</strong> Mark with [MANUAL VERIFICATION REQUIRED], proceed</div></div>` },
+
+'phase8': { title: 'Phase 8: report.py', html: `<div class="detail-section"><h4>Deterministic Report Generation</h4><div class="label">Script:</div><div class="value"><code>scripts/report.py</code> (validation + HTML generation + summary, all inlined)</div><div class="label">11 structural checks:</div><div class="value">1. Title pattern + area tag match<br>2. Metadata: 4 required fields<br>3. Polarion fields: 10 required lines<br>4. Type field: must be "Test Case"<br>5. Test Steps header<br>6. Section order<br>7. Description present<br>8. Entry point in Description<br>9. JIRA coverage in Description<br>10. Step format (H3 + expected results + numbered actions + CLI check + separators)<br>11. Teardown + Setup format</div><div class="label">Polarion HTML generation:</div><div class="value">&bull; <code>test-case-description.html</code><br>&bull; <code>test-case-setup.html</code><br>&bull; <code>test-case-steps.html</code> (2-column: Step | Expected Result)</div><div class="label">Artifact completeness:</div><div class="value">Checks for 10 expected files in run directory. Reports result in <code>review-results.json</code> and <code>SUMMARY.txt</code>.</div></div>` },
+
+'output-files': { title: 'Pipeline Output Files', html: `<div class="detail-section"><h4>Run Directory Contents</h4><pre class="data-block">runs/test-case-generator/ACM-30459/ACM-30459-2026-04-18T02-00-46/\n  <span class="key">gather-output.json</span>              <span class="dim"># Phase 1</span>\n  <span class="key">pr-diff.txt</span>                     <span class="dim"># Phase 1</span>\n  <span class="key">phase1-jira.json</span>                <span class="dim"># Phase 1: JIRA investigation</span>\n  <span class="key">phase2-code.json</span>                <span class="dim"># Phase 2: code analysis</span>\n  <span class="key">phase3-ui.json</span>                  <span class="dim"># Phase 3: UI discovery</span>\n  <span class="key">synthesized-context.md</span>          <span class="dim"># Phase 4: merged context</span>\n  <span class="key">phase5-live-validation.md</span>       <span class="dim"># Phase 5 (optional)</span>\n  <span class="str">test-case.md</span>                    <span class="dim"># Phase 6 PRIMARY DELIVERABLE</span>\n  <span class="key">analysis-results.json</span>           <span class="dim"># Phase 6 audit</span>\n  <span class="key">phase7-review.md</span>                <span class="dim"># Phase 7: quality review</span>\n  <span class="key">test-case-description.html</span>      <span class="dim"># Phase 8 Polarion</span>\n  <span class="key">test-case-setup.html</span>            <span class="dim"># Phase 8 Polarion</span>\n  <span class="key">test-case-steps.html</span>            <span class="dim"># Phase 8 Polarion</span>\n  <span class="key">review-results.json</span>             <span class="dim"># Phase 8</span>\n  <span class="key">SUMMARY.txt</span>                     <span class="dim"># Phase 8</span>\n  <span class="key">pipeline.log.jsonl</span>              <span class="dim"># All phases: telemetry</span></pre></div>` },
+
+'validate-artifact': { title: 'validate_artifact.py', html: `<div class="detail-section"><h4>Per-Phase Schema Validation</h4><div class="label">Runs after:</div><div class="value">Phases 1 (phase1-jira), 2, 3, 4, and 6</div><div class="label">Checks:</div><div class="value">&bull; Required fields present<br>&bull; Correct types (string, list, dict)<br>&bull; Non-empty constraints<br>&bull; Nested key validation<br>&bull; Pattern matching</div><div class="label">6 schemas:</div><div class="value">phase1-jira, phase2-code, phase3-ui, analysis-results, gather-output, synthesized-context</div><div class="label">Pre-synthesis mode:</div><div class="value"><code>--pre-synthesis</code> flag checks 8 data points across 3 artifacts</div><div class="label">On failure:</div><div class="value">Exit 1 with specific error message. Orchestrator retries the subagent (up to 3 attempts) with the error feedback. After 3 failures, proceeds with incomplete data + <code>validation-warnings.json</code>.</div></div>` },
+
+'skill-generator': { title: 'acm-test-case-generator (Orchestrator)', html: `<div class="detail-section"><h4>Pipeline Orchestrator</h4><div class="label">Tier:</div><div class="value"><span class="tag tag-info">ORCHESTRATION</span></div><div class="label">Version:</div><div class="value">2.1.0</div><div class="label">Role:</div><div class="value">Sequences phases 0&rarr;8, spawns subagents, manages review loop, retry protocol. Thin routing logic only &mdash; does not read investigation artifacts into its own context.</div><div class="label">Files:</div><div class="value">SKILL.md + 7 agent instructions + 5 reference files + 4 scripts + 1 asset + 1 eval</div><div class="label">Depends on:</div><div class="value">5 skills + 4 MCP servers (required: acm-source, jira, polarion; recommended: neo4j-rhacm; optional: acm-search, acm-kubectl, playwright)</div><div class="label">3 invocation modes:</div><div class="value"><code>/generate ACM-30459</code> (full pipeline)<br><code>/batch ACM-30459,ACM-30460</code> (multi-ticket)<br><code>/review path/to/test-case.md</code> (Phase 7 only)</div></div>` },
+
+'skill-writer': { title: 'acm-test-case-writer (Core)', html: `<div class="detail-section"><h4>Test Case Author (Phase 6)</h4><div class="label">Tier:</div><div class="value"><span class="tag tag-phase">CORE PIPELINE</span></div><div class="label">Version:</div><div class="value">1.0.0</div><div class="label">Invocation:</div><div class="value"><code>disable-model-invocation: true</code> &mdash; not auto-triggered. Invoked by generator subagents or explicitly.</div><div class="label">Modes:</div><div class="value"><strong>Full context:</strong> Receives synthesized context, produces test case<br><strong>Standalone:</strong> If no context, refuses and directs user to generator</div><div class="label">Depends on:</div><div class="value">acm-knowledge-base (conventions), acm-source MCP (spot-checks)</div></div>` },
+
+'skill-reviewer': { title: 'acm-test-case-reviewer (Core)', html: `<div class="detail-section"><h4>Quality Gate (Phase 7)</h4><div class="label">Tier:</div><div class="value"><span class="tag tag-phase">CORE PIPELINE</span></div><div class="label">Version:</div><div class="value">1.0.0</div><div class="label">Invocation:</div><div class="value"><code>disable-model-invocation: true</code> &mdash; not auto-triggered. Standalone for out-of-band review.</div><div class="label">Minimum 3 MCP verifications required:</div><div class="value">1. <code>search_translations</code> for key labels<br>2. <code>get_routes</code> for entry point<br>3. <code>get_component_source</code> for one factual claim</div><div class="label">Two-layer enforcement:</div><div class="value">AI review (6.6 steps) + programmatic enforcement (<code>review_enforcement.py</code>)</div></div>` },
+
+'skill-analyzer': { title: 'acm-qe-code-analyzer (Core)', html: `<div class="detail-section"><h4>PR Diff Analysis (Phase 2 / Standalone)</h4><div class="label">Tier:</div><div class="value"><span class="tag tag-phase">CORE PIPELINE</span></div><div class="label">Version:</div><div class="value">1.1.0</div><div class="label">Scope:</div><div class="value">Works with any stolostron or ACM-related repo. Defaults to <code>stolostron/console</code> and <code>kubevirt-ui/kubevirt-plugin</code>.</div><div class="label">Repo categories:</div><div class="value">&bull; Console repos (full UI analysis)<br>&bull; Backend/operator repos (controller, CRD, webhook focus)<br>&bull; Addon repos (ManifestWork, lifecycle)<br>&bull; Other (generic)</div><div class="label">Coverage gap analysis:</div><div class="value">Cross-references code behaviors against JIRA ACs. Reports gaps with description, code reference, user impact.</div></div>` },
+
+'skill-kb': { title: 'acm-knowledge-base (Reference)', html: `<div class="detail-section"><h4>Domain Knowledge Repository</h4><div class="label">Tier:</div><div class="value"><span class="tag tag-agent">METHODOLOGY + KNOWLEDGE</span></div><div class="label">Version:</div><div class="value">1.0.0</div><div class="label">Architecture files (9, authoritative):</div><div class="value">governance, rbac, fleet-virt, cclm, mtv, clusters, search, applications, credentials</div><div class="label">Convention files (4, format rules):</div><div class="value">test-case-format, area-naming-patterns, cli-in-steps-rules, polarion-html-templates</div><div class="label">Authority hierarchy:</div><div class="value">Architecture files are authoritative constraints. Contradictions flagged and verified via MCP before overriding.</div></div>` },
+
+'skill-health': { title: 'acm-cluster-health (Shared)', html: `<div class="detail-section"><h4>Cluster Diagnostic Methodology</h4><div class="label">Tier:</div><div class="value"><span class="tag tag-agent">METHODOLOGY + KNOWLEDGE</span></div><div class="label">Version:</div><div class="value">1.0.0</div><div class="label">Role:</div><div class="value">Provides 12-layer diagnostic model, 14 trap patterns, dependency chains, evidence tiers. Consumed by live-validator (Phase 5) for cluster health context. Shared with hub-health app.</div><div class="label">No workflow:</div><div class="value">Methodology only &mdash; calling skill decides what to investigate and how deep.</div></div>` },
+
+'mcp-acm-source': { title: 'acm-source MCP Server', html: `<div class="detail-section"><h4>ACM Console Source Search</h4><div class="label">Tools:</div><div class="value"><span class="num">18</span> tools</div><div class="label">Source:</div><div class="value"><code>mcp/acm-source-mcp-server/</code> (this repo)</div><div class="label">Key tools:</div><div class="value">set_acm_version, set_cnv_version, search_code, get_component_source, search_translations, get_routes, get_wizard_steps, find_test_ids, get_acm_selectors, get_patternfly_selectors</div><div class="label">Used in phases:</div><div class="value">2 (code analysis), 3 (UI discovery), 6 (writing spot-checks), 7 (review MCP verification)</div><div class="label">Gotcha:</div><div class="value">Always call <code>set_acm_version</code> before any search. Without it, lookups target the wrong branch.</div></div>` },
+'mcp-jira': { title: 'jira MCP Server', html: `<div class="detail-section"><h4>JIRA Ticket Investigation</h4><div class="label">Tools:</div><div class="value"><span class="num">3</span> tools: get_issue, search_issues, get_project_components</div><div class="label">Source:</div><div class="value">Cloned from <code>stolostron/jira-mcp-server</code></div><div class="label">Used in phase:</div><div class="value">1 (data gathering + JIRA investigation)</div><div class="label">Gotcha:</div><div class="value"><code>get_issue</code> does NOT return issue links. Use <code>search_issues</code> with JQL for linked ticket queries.</div></div>` },
+'mcp-polarion': { title: 'polarion MCP Server', html: `<div class="detail-section"><h4>Polarion Test Coverage</h4><div class="label">Tools:</div><div class="value"><span class="num">7</span> tools</div><div class="label">Source:</div><div class="value"><code>mcp/polarion/</code> (this repo)</div><div class="label">Project ID:</div><div class="value">Always <code>RHACM4K</code>. Uses Lucene query syntax (not JQL).</div><div class="label">Used in phase:</div><div class="value">1 (existing coverage check)</div></div>` },
+'mcp-neo4j': { title: 'neo4j-rhacm MCP Server', html: `<div class="detail-section"><h4>Component Dependency Graph</h4><div class="label">Tools:</div><div class="value"><span class="num">2</span> tools: get_neo4j_schema, read_neo4j_cypher</div><div class="label">Data:</div><div class="value">~370 nodes, 541 relationships across 7 subsystems</div><div class="label">Requires:</div><div class="value">Podman with <code>neo4j-rhacm</code> container running</div><div class="label">Used in phases:</div><div class="value">1&ndash;3 (optional &mdash; pipeline proceeds without it)</div></div>` },
+'mcp-playwright': { title: 'playwright MCP Server', html: `<div class="detail-section"><h4>Browser Automation</h4><div class="label">Tools:</div><div class="value"><span class="num">24</span> tools</div><div class="label">Source:</div><div class="value"><code>@playwright/mcp</code> (npm)</div><div class="label">Key tools:</div><div class="value">browser_navigate, browser_snapshot, browser_click, browser_fill, browser_take_screenshot, browser_console_messages, browser_network_requests</div><div class="label">Used in phase:</div><div class="value">5 (live validation only)</div></div>` },
+'mcp-search': { title: 'acm-search MCP Server', html: `<div class="detail-section"><h4>Fleet-Wide Resource Queries</h4><div class="label">Tools:</div><div class="value"><span class="num">5</span> tools: find_resources, query_database, list_tables, get_database_stats, search_tables</div><div class="label">Deployment:</div><div class="value">On-cluster pod, accessed via SSE through OpenShift route</div><div class="label">Used in phase:</div><div class="value">5 (live validation only)</div></div>` },
+'mcp-kubectl': { title: 'acm-kubectl MCP Server', html: `<div class="detail-section"><h4>Multicluster Kubectl</h4><div class="label">Tools:</div><div class="value"><span class="num">3</span> tools: clusters, kubectl, connect_cluster</div><div class="label">Source:</div><div class="value"><code>acm-mcp-server</code> (npm)</div><div class="label">Used in phase:</div><div class="value">5 (live validation only)</div></div>` },
+
+'knowledge-conventions': { title: 'conventions/ (4 files)', html: `<div class="detail-section"><h4>Test Case Format Rules</h4><div class="value">&bull; <code>test-case-format.md</code> &mdash; Section order, naming, complexity levels (from 85+ existing test cases)<br>&bull; <code>area-naming-patterns.md</code> &mdash; Title tag patterns by area ([GRC-X.XX], [FG-RBAC-X.XX], etc.)<br>&bull; <code>cli-in-steps-rules.md</code> &mdash; CLI only for backend validation, not as UI substitute<br>&bull; <code>polarion-html-templates.md</code> &mdash; HTML generation templates for Polarion import</div><div class="label">Read by:</div><div class="value">Phase 1 (loaded into gather-output), Phase 6 (writer), Phase 7 (reviewer), Phase 8 (report.py)</div></div>` },
+'knowledge-architecture': { title: 'architecture/ (9 files)', html: `<div class="detail-section"><h4>Per-Area Domain Knowledge</h4><div class="value">&bull; governance.md &mdash; Policy types, discovered vs managed, label filtering, field orders<br>&bull; rbac.md &mdash; FG-RBAC, MCRA, ClusterPermission, scope types<br>&bull; fleet-virt.md &mdash; Tree view, VM actions, KubeVirt, saved searches<br>&bull; cclm.md &mdash; Cross-cluster live migration wizard<br>&bull; mtv.md &mdash; Migration toolkit, fleet migration status<br>&bull; clusters.md &mdash; Cluster lifecycle, import, cluster pools<br>&bull; search.md &mdash; Search API, managed hub clusters<br>&bull; applications.md &mdash; ALC, subscriptions, channels, Argo<br>&bull; credentials.md &mdash; Provider credentials, credential forms</div><div class="label">Authority:</div><div class="value">Authoritative constraints. If analysis contradicts an architecture file, the knowledge file wins until MCP verification resolves the discrepancy.</div></div>` },
+'knowledge-examples': { title: 'examples/ (1 file)', html: `<div class="detail-section"><h4>Sample Test Case</h4><div class="value"><code>sample-test-case.md</code> &mdash; Convention-compliant sample used as format fallback when no peer test cases exist for the area/version.</div></div>` }
+};
+
+/* ── Tree Data Definitions ──────────────────────────────── */
+
+const pipelineTree = {
+  id: "pipeline-root", name: "Test Case Generator", subtitle: "9-phase pipeline", type: "orchestrator",
+  children: [
+    { id: "phase0", name: "Phase 0", subtitle: "Determine Inputs", detail: "Ask Questions", type: "orchestrator" },
+    { id: "phase1", name: "Phase 1", subtitle: "Data Gather + JIRA", detail: "data-gatherer (~20-35s)", type: "agent",
+      children: [
+        { id: "phase1-artifacts", name: "Artifacts", subtitle: "gather-output.json", detail: "pr-diff.txt, phase1-jira.json", type: "artifact" },
+        { id: "validate-artifact", name: "validate_artifact.py", subtitle: "Schema validation", detail: "Retry up to 3x", type: "validation" }
+      ]
+    },
+    { id: "phase2", name: "Phase 2", subtitle: "Code Analysis", detail: "code-analyzer (~15-30s)", type: "agent",
+      children: [
+        { id: "phase2-art", name: "phase2-code.json", subtitle: "Changed components", detail: "UI elements, test scenarios", type: "artifact" }
+      ]
+    },
+    { id: "phase3", name: "Phase 3", subtitle: "UI Discovery", detail: "ui-discoverer (~15-30s)", type: "agent",
+      children: [
+        { id: "phase3-art", name: "phase3-ui.json", subtitle: "Translations, routes", detail: "Selectors, test IDs", type: "artifact" }
+      ]
+    },
+    { id: "pre-synthesis", name: "Pre-Synthesis Gate", subtitle: "8-point readiness", detail: "validate_artifact.py --pre-synthesis", type: "validation" },
+    { id: "phase4", name: "Phase 4", subtitle: "Synthesize", detail: "Scope gate + AC check + gap triage", type: "agent",
+      children: [
+        { id: "phase4-art", name: "synthesized-context.md", subtitle: "Merged context", detail: "TEST PLAN + discrepancies", type: "artifact" }
+      ]
+    },
+    { id: "phase5", name: "Phase 5", subtitle: "Live Validation", detail: "(optional, ~2-5min)", type: "agent" },
+    { id: "phase6", name: "Phase 6", subtitle: "Write Test Case", detail: "test-case-writer (~30-60s)", type: "agent",
+      children: [
+        { id: "phase6-art", name: "test-case.md", subtitle: "PRIMARY DELIVERABLE", detail: "analysis-results.json", type: "artifact" }
+      ]
+    },
+    { id: "phase7", name: "Phase 7", subtitle: "Quality Gate", detail: "MANDATORY (3-tier escalation)", type: "validation",
+      children: [
+        { id: "phase7-ai", name: "AI Review", subtitle: "6.6 steps", detail: "min 3 MCP checks", type: "agent" },
+        { id: "phase7-enforce", name: "review_enforcement.py", subtitle: "Programmatic layer", detail: "Can override to NEEDS_FIXES", type: "validation" }
+      ]
+    },
+    { id: "phase8", name: "Phase 8", subtitle: "report.py", detail: "Validation + HTML (~1s)", type: "script",
+      children: [
+        { id: "output-files", name: "Output", subtitle: "Polarion HTML", detail: "SUMMARY.txt, review-results.json", type: "artifact" }
+      ]
+    }
+  ]
+};
+
+const skillsTree = {
+  id: "skills-root", name: "6 Portable Skills", subtitle: "3 tiers", type: "orchestrator",
+  children: [
+    { id: "tier-orch", name: "ORCHESTRATION", subtitle: "Entry point", type: "orchestrator",
+      children: [
+        { id: "skill-generator", name: "acm-test-case-generator", subtitle: "v2.1.0", detail: "Phases 0-8, all modes", type: "orchestrator" }
+      ]
+    },
+    { id: "tier-core", name: "CORE PIPELINE", subtitle: "Phase execution", type: "agent",
+      children: [
+        { id: "skill-writer", name: "acm-test-case-writer", subtitle: "v1.0.0 (Phase 6)", detail: "disable-model-invocation", type: "agent" },
+        { id: "skill-reviewer", name: "acm-test-case-reviewer", subtitle: "v1.0.0 (Phase 7)", detail: "disable-model-invocation", type: "agent" },
+        { id: "skill-analyzer", name: "acm-qe-code-analyzer", subtitle: "v1.1.0 (Phase 2)", detail: "Also standalone", type: "agent" }
+      ]
+    },
+    { id: "tier-meth", name: "METHODOLOGY + KNOWLEDGE", subtitle: "Reference data", type: "validation",
+      children: [
+        { id: "skill-kb", name: "acm-knowledge-base", subtitle: "v1.0.0", detail: "9 areas + 4 conventions", type: "validation" },
+        { id: "skill-health", name: "acm-cluster-health", subtitle: "v1.0.0", detail: "Shared with hub-health", type: "validation" }
+      ]
+    }
+  ]
+};
+
+const mcpTree = {
+  id: "mcp-root", name: "7 MCP Servers", subtitle: "External data sources", type: "orchestrator",
+  children: [
+    { id: "mcp-investigation", name: "Investigation", subtitle: "Phases 1-4, 6-7", type: "agent",
+      children: [
+        { id: "mcp-acm-source", name: "acm-source", subtitle: "18 tools", detail: "Console source search", type: "agent" },
+        { id: "mcp-jira", name: "jira", subtitle: "3 tools", detail: "Ticket investigation", type: "artifact" },
+        { id: "mcp-polarion", name: "polarion", subtitle: "7 tools", detail: "Test coverage", type: "agent" },
+        { id: "mcp-neo4j", name: "neo4j-rhacm", subtitle: "2 tools", detail: "Dependency graph (optional)", type: "validation" }
+      ]
+    },
+    { id: "mcp-live", name: "Live Validation", subtitle: "Phase 5 only", type: "script",
+      children: [
+        { id: "mcp-playwright", name: "playwright", subtitle: "24 tools", detail: "Browser automation", type: "script" },
+        { id: "mcp-search", name: "acm-search", subtitle: "5 tools", detail: "Fleet queries", type: "script" },
+        { id: "mcp-kubectl", name: "acm-kubectl", subtitle: "3 tools", detail: "Multicluster kubectl", type: "script" }
+      ]
+    }
+  ]
+};
+
+const qualityTree = {
+  id: "quality-root", name: "4 Validation Layers", subtitle: "Independent checks", type: "orchestrator",
+  children: [
+    { id: "validate-artifact", name: "Artifact Validation", subtitle: "validate_artifact.py", detail: "After phases 1-4, 6", type: "validation" },
+    { id: "pre-synthesis", name: "Pre-Synthesis Gate", subtitle: "8 data points", detail: "Between Phase 3 and 4", type: "validation" },
+    { id: "phase7", name: "Phase 7: Quality Review", subtitle: "AI + Enforcement", detail: "Semantic correctness", type: "validation",
+      children: [
+        { id: "phase7-ai", name: "AI Reviewer", subtitle: "6.6-step process", detail: "min 3 MCP verifications", type: "agent" },
+        { id: "phase7-enforce", name: "review_enforcement.py", subtitle: "Programmatic", detail: "Can override verdict", type: "script" }
+      ]
+    },
+    { id: "phase8", name: "Phase 8: report.py", subtitle: "11 structural checks", detail: "Format correctness", type: "script" }
+  ]
+};
+
+const knowledgeTree = {
+  id: "knowledge-root", name: "Knowledge System", subtitle: ".claude/knowledge/", type: "orchestrator",
+  children: [
+    { id: "knowledge-conventions", name: "conventions/", subtitle: "4 files", detail: "Format rules", type: "script" },
+    { id: "knowledge-architecture", name: "architecture/", subtitle: "9 files", detail: "Area domain knowledge", type: "agent" },
+    { id: "knowledge-examples", name: "examples/", subtitle: "1 file", detail: "sample-test-case.md", type: "artifact" }
+  ]
+};
+
+/* ── Shared constants ───────────────────────────────────── */
+const TYPE_COLORS = {
+  orchestrator: '#38bdf8',
+  agent: '#4ade80',
+  script: '#fbbf24',
+  artifact: '#f472b6',
+  validation: '#a78bfa'
+};
+const SURFACE = '#0f1320';
+const NODE_W = 220, NODE_H = 70;
+
+const trees = {};
+let activeTab = 'pipeline';
+
+/* ── Pipeline Flow Renderer (sequential, no expand/collapse) ── */
+const pipelineFlow = [
+  { id: 'phase0', name: 'Phase 0', subtitle: 'Determine Inputs', detail: 'Ask Questions', type: 'orchestrator' },
+  { id: 'phase1', name: 'Phase 1', subtitle: 'Data Gather + JIRA', detail: 'data-gatherer (~20-35s)', type: 'agent' },
+  { id: 'phase1-artifacts', name: 'Artifacts', subtitle: 'gather-output.json', detail: 'pr-diff.txt, phase1-jira.json', type: 'artifact' },
+  { id: 'validate-artifact', name: 'validate_artifact.py', subtitle: 'Schema validation', detail: 'After phases 1-4, 6', type: 'validation' },
+  { id: 'phase2', name: 'Phase 2', subtitle: 'Code Analysis', detail: 'code-analyzer (~15-30s)', type: 'agent' },
+  { id: 'phase3', name: 'Phase 3', subtitle: 'UI Discovery', detail: 'ui-discoverer (~15-30s)', type: 'agent' },
+  { id: 'pre-synthesis', name: 'Pre-Synthesis Gate', subtitle: '8-point readiness', detail: 'validate_artifact.py --pre-synthesis', type: 'validation' },
+  { id: 'phase4', name: 'Phase 4', subtitle: 'Synthesize', detail: 'Scope gate + AC check + gap triage', type: 'agent' },
+  { id: 'phase5', name: 'Phase 5', subtitle: 'Live Validation', detail: '(optional, ~2-5min)', type: 'agent' },
+  { id: 'phase6', name: 'Phase 6', subtitle: 'Write Test Case', detail: 'test-case-writer (~30-60s)', type: 'agent' },
+  { id: 'phase7', name: 'Phase 7', subtitle: 'Quality Gate', detail: 'MANDATORY (3-tier escalation)', type: 'validation' },
+  { id: 'phase8', name: 'Phase 8', subtitle: 'report.py', detail: 'Validation + HTML (~1s)', type: 'script' },
+  { id: 'output-files', name: 'Output', subtitle: 'Polarion HTML', detail: 'SUMMARY.txt, review-results.json', type: 'artifact' }
+];
+
+function renderFlow(containerId) {
+  const container = document.getElementById(containerId);
+  const svg = d3.select(container);
+  svg.selectAll('*').remove();
+
+  const width = container.parentElement.clientWidth || 1200;
+  const height = container.parentElement.clientHeight || 600;
+  svg.attr('width', width).attr('height', height);
+
+  const g = svg.append('g');
+  const zoom = d3.zoom().scaleExtent([0.2, 4]).on('zoom', (e) => {
+    g.attr('transform', e.transform);
+    document.getElementById('zoom-pct').textContent = Math.round(e.transform.k * 100) + '%';
+  });
+  svg.call(zoom);
+  trees[containerId] = { svg, g, zoom, data: pipelineTree, width, height };
+
+  const stepW = NODE_W, stepH = NODE_H, gapX = 40, gapY = 20;
+  const cols = 4;
+  const totalW = stepW + gapX;
+  const totalH = stepH + gapY;
+
+  pipelineFlow.forEach((step, i) => {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    const isReversed = row % 2 === 1;
+    const cx = isReversed ? (cols - 1 - col) * totalW + stepW / 2 + 40 : col * totalW + stepW / 2 + 40;
+    const cy = row * (totalH + 30) + stepH / 2 + 30;
+    step._cx = cx;
+    step._cy = cy;
+  });
+
+  for (let i = 0; i < pipelineFlow.length - 1; i++) {
+    const a = pipelineFlow[i], b = pipelineFlow[i + 1];
+    const sameRow = Math.floor(i / cols) === Math.floor((i + 1) / cols);
+    if (sameRow) {
+      g.append('path')
+        .attr('d', `M${a._cx + stepW / 2},${a._cy} L${b._cx - stepW / 2},${b._cy}`)
+        .attr('fill', 'none')
+        .attr('stroke', TYPE_COLORS[b.type] || '#1e2640')
+        .attr('stroke-width', 1.5)
+        .attr('stroke-opacity', 0.5)
+        .attr('marker-end', 'url(#arrow-' + b.type + ')');
+    } else {
+      const midY = (a._cy + b._cy) / 2;
+      g.append('path')
+        .attr('d', `M${a._cx},${a._cy + stepH / 2} L${a._cx},${midY} L${b._cx},${midY} L${b._cx},${b._cy - stepH / 2}`)
+        .attr('fill', 'none')
+        .attr('stroke', TYPE_COLORS[b.type] || '#1e2640')
+        .attr('stroke-width', 1.5)
+        .attr('stroke-opacity', 0.5)
+        .attr('marker-end', 'url(#arrow-' + b.type + ')');
+    }
+  }
+
+  const defs = svg.append('defs');
+  Object.entries(TYPE_COLORS).forEach(([type, color]) => {
+    defs.append('marker')
+      .attr('id', 'arrow-' + type)
+      .attr('viewBox', '0 0 10 10')
+      .attr('refX', 10).attr('refY', 5)
+      .attr('markerWidth', 8).attr('markerHeight', 8)
+      .attr('orient', 'auto')
+      .append('path')
+      .attr('d', 'M0,0 L10,5 L0,10 Z')
+      .attr('fill', color)
+      .attr('fill-opacity', 0.6);
+  });
+
+  pipelineFlow.forEach(step => {
+    const ng = g.append('g')
+      .attr('class', 'node')
+      .attr('transform', `translate(${step._cx},${step._cy})`)
+      .style('cursor', 'pointer')
+      .on('click', () => showDetail(step.id));
+
+    ng.append('rect')
+      .attr('x', -stepW / 2).attr('y', -stepH / 2)
+      .attr('width', stepW).attr('height', stepH)
+      .attr('rx', 10).attr('ry', 10)
+      .attr('fill', SURFACE)
+      .attr('stroke', TYPE_COLORS[step.type] || '#1e2640')
+      .attr('stroke-width', step.id.startsWith('phase') ? 2.5 : 1.5);
+
+    ng.append('text')
+      .attr('y', -14).attr('text-anchor', 'middle')
+      .attr('fill', TYPE_COLORS[step.type] || '#d8dce8')
+      .attr('font-family', "'JetBrains Mono', monospace")
+      .attr('font-size', '0.72rem').attr('font-weight', '700')
+      .text(step.name);
+
+    ng.append('text')
+      .attr('y', 4).attr('text-anchor', 'middle')
+      .attr('fill', '#d8dce8')
+      .attr('font-family', "'Inter', sans-serif")
+      .attr('font-size', '0.68rem')
+      .text(step.subtitle);
+
+    ng.append('text')
+      .attr('y', 20).attr('text-anchor', 'middle')
+      .attr('fill', '#7a84a0')
+      .attr('font-family', "'JetBrains Mono', monospace")
+      .attr('font-size', '0.58rem')
+      .text(step.detail);
+  });
+
+  const t = d3.zoomIdentity.translate(40, 20).scale(0.85);
+  svg.call(zoom.transform, t);
+}
+
+/* ── D3 Tree Renderer (with separate +/- and detail click zones) ── */
+
+function renderTree(containerId, data) {
+  const container = document.getElementById(containerId);
+  const svg = d3.select(container);
+  svg.selectAll('*').remove();
+
+  const width = container.parentElement.clientWidth || 1200;
+  const height = container.parentElement.clientHeight || 600;
+  svg.attr('width', width).attr('height', height);
+
+  const g = svg.append('g');
+  const zoom = d3.zoom().scaleExtent([0.2, 4]).on('zoom', (e) => {
+    g.attr('transform', e.transform);
+    document.getElementById('zoom-pct').textContent = Math.round(e.transform.k * 100) + '%';
+  });
+  svg.call(zoom);
+  trees[containerId] = { svg, g, zoom, data, width, height };
+
+  const root = d3.hierarchy(data);
+  root.x0 = height / 2;
+  root.y0 = 80;
+
+  let idCounter = 0;
+  root.descendants().forEach(d => { d._id = idCounter++; });
+
+  function update(source) {
+    const hGap = 260, vGap = 90;
+    const treeLayout = d3.tree().nodeSize([vGap, hGap]);
+    treeLayout(root);
+
+    const nodes = root.descendants();
+    const links = root.links();
+
+    g.selectAll('.link').remove();
+    links.forEach(lnk => {
+      const sx = lnk.source.y + NODE_W / 2, sy = lnk.source.x;
+      const tx = lnk.target.y - NODE_W / 2, ty = lnk.target.x;
+      const mx = (sx + tx) / 2;
+      g.append('path')
+        .attr('class', 'link')
+        .attr('d', `M${sx},${sy} C${mx},${sy} ${mx},${ty} ${tx},${ty}`)
+        .attr('stroke', TYPE_COLORS[lnk.target.data.type] || '#1e2640')
+        .attr('stroke-opacity', 0.4)
+        .attr('fill', 'none')
+        .attr('stroke-width', 1.5);
+    });
+
+    g.selectAll('.node').remove();
+
+    nodes.forEach(d => {
+      const ng = g.append('g')
+        .attr('class', 'node')
+        .attr('transform', `translate(${d.y},${d.x})`);
+
+      ng.append('rect')
+        .attr('x', -NODE_W / 2).attr('y', -NODE_H / 2)
+        .attr('width', NODE_W).attr('height', NODE_H)
+        .attr('rx', 10).attr('ry', 10)
+        .attr('fill', SURFACE)
+        .attr('stroke', TYPE_COLORS[d.data.type] || '#1e2640')
+        .attr('stroke-width', d.data.id && d.data.id.startsWith('phase') ? 2.5 : 1.5)
+        .style('cursor', 'pointer')
+        .on('click', () => showDetail(d.data.id));
+
+      ng.append('text')
+        .attr('y', -14).attr('text-anchor', 'middle')
+        .attr('fill', TYPE_COLORS[d.data.type] || '#d8dce8')
+        .attr('font-family', "'JetBrains Mono', monospace")
+        .attr('font-size', '0.72rem').attr('font-weight', '700')
+        .text(d.data.name);
+
+      ng.append('text')
+        .attr('y', 4).attr('text-anchor', 'middle')
+        .attr('fill', '#d8dce8')
+        .attr('font-family', "'Inter', sans-serif")
+        .attr('font-size', '0.68rem')
+        .text(d.data.subtitle || '');
+
+      ng.append('text')
+        .attr('y', 20).attr('text-anchor', 'middle')
+        .attr('fill', '#7a84a0')
+        .attr('font-family', "'JetBrains Mono', monospace")
+        .attr('font-size', '0.58rem')
+        .text(d.data.detail || '');
+
+      if (d.children || d._children) {
+        const btnSize = 22;
+        const btnX = NODE_W / 2 - btnSize - 4;
+        const btnY = -NODE_H / 2 + 4;
+
+        ng.append('rect')
+          .attr('x', btnX).attr('y', btnY)
+          .attr('width', btnSize).attr('height', btnSize)
+          .attr('rx', 4).attr('ry', 4)
+          .attr('fill', 'rgba(255,255,255,0.05)')
+          .attr('stroke', '#7a84a0')
+          .attr('stroke-width', 0.8)
+          .style('cursor', 'pointer')
+          .on('click', (event) => {
+            event.stopPropagation();
+            if (d.children) { d._children = d.children; d.children = null; }
+            else { d.children = d._children; d._children = null; }
+            update(d);
+          });
+
+        ng.append('text')
+          .attr('x', btnX + btnSize / 2).attr('y', btnY + btnSize / 2 + 5)
+          .attr('text-anchor', 'middle')
+          .attr('fill', '#7a84a0')
+          .attr('font-family', "'JetBrains Mono', monospace")
+          .attr('font-size', '0.8rem').attr('font-weight', '700')
+          .style('pointer-events', 'none')
+          .text(d._children ? '+' : '\u2212');
+      }
+    });
+  }
+
+  update(root);
+
+  const t = d3.zoomIdentity.translate(80, height / 2);
+  svg.call(zoom.transform, t);
+}
+
+/* ── Tab Switching ──────────────────────────────────────── */
+
+function switchTab(tab) {
+  activeTab = tab;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('view-' + tab).classList.add('active');
+
+  if (tab === 'pipeline') {
+    if (!trees['svg-pipeline']) renderFlow('svg-pipeline');
+  } else {
+    const map = { skills: ['svg-skills', skillsTree], mcp: ['svg-mcp', mcpTree], quality: ['svg-quality', qualityTree], knowledge: ['svg-knowledge', knowledgeTree] };
+    const [svgId, data] = map[tab];
+    if (!trees[svgId]) renderTree(svgId, data);
+  }
+}
+
+function showDetail(id) {
+  const d = DATA[id];
+  if (!d) return;
+  document.getElementById('detail-title').textContent = d.title;
+  document.getElementById('detail-body').innerHTML = d.html;
+  document.getElementById('detail-panel').classList.remove('hidden');
+  document.getElementById('main').classList.remove('full');
+}
+
+function hideDetail() {
+  document.getElementById('detail-panel').classList.add('hidden');
+  document.getElementById('main').classList.add('full');
+}
+
+function zoomIn() {
+  const t = trees['svg-' + activeTab];
+  if (t) t.svg.transition().duration(300).call(t.zoom.scaleBy, 1.3);
+}
+function zoomOut() {
+  const t = trees['svg-' + activeTab];
+  if (t) t.svg.transition().duration(300).call(t.zoom.scaleBy, 0.7);
+}
+function zoomReset() {
+  const t = trees['svg-' + activeTab];
+  if (t) {
+    if (activeTab === 'pipeline') {
+      const tr = d3.zoomIdentity.translate(40, 20).scale(0.85);
+      t.svg.transition().duration(500).call(t.zoom.transform, tr);
+    } else {
+      const tr = d3.zoomIdentity.translate(80, t.height / 2);
+      t.svg.transition().duration(500).call(t.zoom.transform, tr);
+    }
+  }
+}
+function expandAll() {
+  if (activeTab === 'pipeline') return;
+  const svgId = 'svg-' + activeTab;
+  const map = { skills: skillsTree, mcp: mcpTree, quality: qualityTree, knowledge: knowledgeTree };
+  delete trees[svgId];
+  renderTree(svgId, map[activeTab]);
+}
+function collapseAll() {
+  if (activeTab === 'pipeline') return;
+  const svgId = 'svg-' + activeTab;
+  const map = { skills: skillsTree, mcp: mcpTree, quality: qualityTree, knowledge: knowledgeTree };
+  function collapseNodes(node) {
+    if (node.children) {
+      node.children.forEach(c => collapseNodes(c));
+    }
+  }
+  delete trees[svgId];
+  renderTree(svgId, map[activeTab]);
+}
+
+window.addEventListener('load', () => renderFlow('svg-pipeline'));
+window.addEventListener('resize', () => {
+  const svgId = 'svg-' + activeTab;
+  delete trees[svgId];
+  if (activeTab === 'pipeline') {
+    renderFlow(svgId);
+  } else {
+    const map = { skills: skillsTree, mcp: mcpTree, quality: qualityTree, knowledge: knowledgeTree };
+    renderTree(svgId, map[activeTab]);
+  }
+});
+</script>
+
+</body>
+</html>

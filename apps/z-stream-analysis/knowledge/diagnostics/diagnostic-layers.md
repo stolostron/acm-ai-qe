@@ -119,7 +119,7 @@ c) WHY is it in this state?
    oc logs <related-pod> --tail=100
    oc get events -n <ns> --sort-by=.lastTimestamp
    ```
-   - ACM-UI MCP: search_code("<component>") for intended behavior
+   - ACM Source MCP: search_code("<component>") for intended behavior
    - JIRA MCP: search_issues() for related bugs
    - Knowledge DB: read failure-signatures.md for known patterns
 
@@ -368,7 +368,7 @@ Knowledge: per-subsystem data-flow.md files (8 subsystems have these)
 ```
 Check: oc get consoleplugins
        oc get pods -n <acm-ns> | grep console
-       ACM-UI MCP: search_code("<failing-selector>")
+       ACM Source MCP: search_code("<failing-selector>")
 Healthy: Plugins registered, console pods Running, selectors in product source
 Broken: Plugin not registered, PatternFly regression, React error boundary
 Signal: Selector not in product source? Could be Layer 12 (stale test selector).
@@ -461,7 +461,7 @@ The key question: **"Would this test PASS if the cluster-wide issue were fixed?"
 ### Template 1: Selector Not Found + Cluster-Wide Issue
 
 ```
-Check:  ACM-UI MCP search_code("<selector>")
+Check:  ACM Source MCP search_code("<selector>")
 If selector NOT FOUND in official console → AUTOMATION_BUG (dead selector)
 If selector FOUND in official but not in tampered → INFRASTRUCTURE
 The cluster-wide issue matters ONLY if the selector exists in the official
@@ -485,7 +485,7 @@ Fallback (kubeconfig expired): check test role against RBAC architecture
 ```
 Check:  oc get deploy <component> -n <ns> (is the backend healthy?)
         oc logs <component-pod> --tail=50 (any errors?)
-        ACM-UI MCP search_code("<selector>") (does element exist?)
+        ACM Source MCP search_code("<selector>") (does element exist?)
 If component healthy AND selector exists → AUTOMATION_BUG (timing issue)
 If component unhealthy → verify THIS test depends on that component
 If selector doesn't exist → AUTOMATION_BUG regardless of component health

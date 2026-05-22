@@ -19,23 +19,23 @@ else
 fi
 echo ""
 
-# 2. Ensure acm-ui MCP server is set up (lives at repo level)
+# 2. Ensure acm-source MCP server is set up (lives at repo level)
 MCP_DIR="$REPO_ROOT/mcp"
-ACM_UI_DIR="$MCP_DIR/acm-ui-mcp-server"
-if [ -d "$ACM_UI_DIR" ]; then
-  if [ ! -d "$ACM_UI_DIR/.venv" ]; then
-    echo "Setting up acm-ui MCP server virtual environment..."
-    echo "  (at $ACM_UI_DIR)"
-    python3 -m venv "$ACM_UI_DIR/.venv"
-    "$ACM_UI_DIR/.venv/bin/pip" install -e "$ACM_UI_DIR/" 2>/dev/null || {
-      echo "Note: acm-ui MCP install requires the package. Check mcp/acm-ui-mcp-server/README.md"
+ACM_SOURCE_DIR="$MCP_DIR/acm-source-mcp-server"
+if [ -d "$ACM_SOURCE_DIR" ]; then
+  if [ ! -d "$ACM_SOURCE_DIR/.venv" ]; then
+    echo "Setting up acm-source MCP server virtual environment..."
+    echo "  (at $ACM_SOURCE_DIR)"
+    python3 -m venv "$ACM_SOURCE_DIR/.venv"
+    "$ACM_SOURCE_DIR/.venv/bin/pip" install -e "$ACM_SOURCE_DIR/" 2>/dev/null || {
+      echo "Note: acm-source MCP install requires the package. Check mcp/acm-source-mcp-server/README.md"
     }
     echo "Done."
   else
-    echo "acm-ui MCP venv already exists, skipping."
+    echo "acm-source MCP venv already exists, skipping."
   fi
 else
-  echo "Warning: mcp/acm-ui-mcp-server/ not found at repo root."
+  echo "Warning: mcp/acm-source-mcp-server/ not found at repo root."
   echo "Run 'bash mcp/setup.sh' from the ai_systems_v2 root, or copy the server manually."
 fi
 echo ""
@@ -118,7 +118,7 @@ else
 fi
 echo ""
 
-# 4. Generate .mcp.json (acm-hub-health needs acm-ui + neo4j-rhacm + acm-search)
+# 4. Generate .mcp.json (acm-hub-health needs acm-source + neo4j-rhacm + acm-search)
 echo "Generating .mcp.json..."
 
 # Build acm-search config dynamically based on what we discovered
@@ -151,10 +151,10 @@ acm_search = json.loads(sys.argv[1])
 
 config = {
     'mcpServers': {
-        'acm-ui': {
-            'command': '../../mcp/acm-ui-mcp-server/.venv/bin/python',
-            'args': ['-m', 'acm_ui_mcp_server.main'],
-            'cwd': '../../mcp/acm-ui-mcp-server',
+        'acm-source': {
+            'command': '../../mcp/acm-source-mcp-server/.venv/bin/python',
+            'args': ['-m', 'acm_source_mcp_server.main'],
+            'cwd': '../../mcp/acm-source-mcp-server',
             'timeout': 30
         },
         'neo4j-rhacm': {

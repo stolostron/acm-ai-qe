@@ -11,7 +11,7 @@ v3.9 builds on v3.8's layer-based root cause analysis with three key additions t
 **Key changes from v3.8.1:**
 - **Phase A4 (v3.9):** Provably linked grouping replaces symptom-based grouping. Groups require identical code paths (same selector+function, same before-all hook, same spec+error+line). "Button disabled", "same feature area", and "similar error" are NOT valid grouping criteria.
 - **Phase B (v3.9):** Per-test verification within groups. After investigating the first test, a mandatory 4-point check (code path, backend component, user role, error element) verifies each subsequent test. Failures split from the group and receive individual investigation inline.
-- **Phase D-V5 (v3.9, updated v4.0):** Expanded counterfactual verification with 9 templates (selector, button-disabled, timeout, data-assertion, blank-page, CSS, NetworkPolicy, operator, ResourceQuota). Symmetric validation: D-V5c validates AUTOMATION_BUG ("does backend confirm test expectation?"), D-V5e validates PRODUCT_BUG ("is product behavior actually correct?"). Plus evidence duplication detection and per-test evidence requirement.
+- **Phase D-V5 (v3.9, updated v4.0):** Expanded counterfactual verification with 9 templates (selector, button-disabled, timeout, data-assertion, blank-page, CSS, NetworkPolicy, operator, ResourceQuota). Symmetric validation: D-V5c validates AUTOMATION_BUG ("does backend confirm test expectation?"), D-V5e validates PRODUCT_BUG with mandatory 4-check gate: (1) ACM-Source MCP product source verification, (2) confirm not an intentional product change, (3) environment prerequisites met via cluster oracle cross-reference, (4) minimum 3 investigation steps with product source evidence. Plus evidence duplication detection and per-test evidence requirement.
 - **Output:** Every test includes `root_cause_layer` (1-12), `root_cause_layer_name`, `investigation_steps_taken`, `cause_owner`, and optional `verification_status` (v3.9)
 
 The 12 layers (bottom to top): Compute (1), Control Plane (2), Network (3), Storage (4), Configuration (5), Authentication (6), Authorization (7), API/CRD/Webhook (8), Operator (9), Cross-Cluster (10), Data Flow (11), UI/Plugin (12).
@@ -24,7 +24,7 @@ The 5-phase structure (A-E) is preserved. The layer-based investigation is the m
 
 **Invocation:** The analysis agent reads the run directory and applies the 12-layer investigation methodology within a 5-phase framework.
 
-**Input:** `core-data.json` + `cluster-diagnosis.json` (from Stages 1/1.5), `repos/` (fallback), MCP servers (ACM-UI, Jenkins, JIRA, Polarion, Knowledge Graph)
+**Input:** `core-data.json` + `cluster-diagnosis.json` (from Stages 1/1.5), `repos/` (fallback), MCP servers (ACM Source, Jenkins, JIRA, Polarion, Knowledge Graph)
 
 **Output:** `analysis-results.json` (classification per test with root cause layer, evidence, and investigation steps)
 
@@ -33,8 +33,8 @@ core-data.json ──► AI Agent ──► analysis-results.json
                       │
      ┌────────┬───────┼───────┬──────────┐
      ▼        ▼       ▼       ▼          ▼
-  ACM-UI   Jenkins   JIRA  Polarion  Knowledge
-  (20)     (11)     (25)   (25)     Graph MCP
+  ACM Source   Jenkins   JIRA  Polarion  Knowledge
+  (18)     (11)     (25)   (25)     Graph MCP
 ```
 
 ### Full Investigation Flow
@@ -66,7 +66,7 @@ core-data.json ──► AI Agent ──► analysis-results.json
 │  B1: Check extracted_context (test code, page objects, selectors)   │
 │  B2: Check recent_selector_changes + temporal_summary (renamed?)   │
 │  B3: Check console_log (500s? network errors? auth errors?)        │
-│  B4: Query MCP tools (ACM-UI search, JIRA, Knowledge Graph)        │
+│  B4: Query MCP tools (ACM Source search, JIRA, Knowledge Graph)        │
 │  B5: Backend component analysis (detected_components → KG)          │
 │  B5b: Targeted pod investigation [conditional]                      │
 │        └── Trigger: 500 errors OR ambiguous classification          │
@@ -118,8 +118,11 @@ core-data.json ──► AI Agent ──► analysis-results.json
 │       └── Symmetric validation (v4.0):                              │
 │           D-V5c: AUTOMATION_BUG — "does backend confirm test        │
 │                  expectation?" If backend disagrees, reconsider.    │
-│           D-V5e: PRODUCT_BUG — "is product behavior actually        │
-│                  correct?" If product works as designed, reconsider.│
+│           D-V5e: PRODUCT_BUG — mandatory 4-check gate:              │
+│                  (1) ACM-Source MCP source verification             │
+│                  (2) not an intentional product change              │
+│                  (3) env prerequisites met (cluster oracle)         │
+│                  (4) minimum 3 investigation steps                  │
 │       └── Layer discrepancy (v4.0): lower layer healthy but higher  │
 │           layer defective = Tier 1 PRODUCT_BUG evidence             │
 │       └── Evidence duplication: 5+ identical → flag & verify 2      │
@@ -276,7 +279,7 @@ For each test in test_report.failed_tests[]:
       └── Auth errors → PRODUCT_BUG signal
 
   B4: Query MCP tools (if needed)
-      ├── ACM-UI: search_code, find_test_ids, get_component_source
+      ├── ACM Source: search_code, find_test_ids, get_component_source
       ├── JIRA: search_issues (for related bugs)
       └── Knowledge Graph: read_neo4j_cypher (component dependencies)
 

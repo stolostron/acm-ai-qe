@@ -37,7 +37,7 @@ reviews:
           Step 2: Console log download + error pattern extraction
           Step 3: JUnit/XML test report parsing + stack trace parsing
           Step 4a: Cluster login (two-tier: Jenkins params → console log fallback) +
-            kubeconfig persistence + MCH namespace discovery
+            kubeconfig persistence + MCH namespace discovery + ACM Search MCP auto-deploy
             (namespace can be open-cluster-management, ocm, or custom — discovered via oc get mch -A)
           Step 4b: Cluster landscape (managed clusters, operators, resource pressure)
           Backend health: handled by Stage 1.5 (cluster diagnostic) and Stage 2 (analysis agent)
@@ -88,8 +88,9 @@ reviews:
           selector+function, same before-all hook, same spec+error+line)
           Phase B: Per-group investigation agents, per-test 4-point verification
           Phase D: PR-1 through PR-7 pre-routing, D-V5 counterfactual (9 templates),
-          symmetric D-V5c (AUTOMATION_BUG) and D-V5e (PRODUCT_BUG)
-          Uses 5 MCP servers: ACM-UI (20 tools), Jenkins (11), JIRA (25),
+          symmetric D-V5c (AUTOMATION_BUG) and D-V5e (PRODUCT_BUG) with mandatory
+          4-check gate (source verification, intentional-change, env cross-ref, depth)
+          Uses 5 MCP servers: ACM-Source (20 tools), Jenkins (11), JIRA (25),
           Polarion (25), Neo4j RHACM (2)
 
         Stage 3 (report.py) → Detailed-Analysis.md + analysis-report.html +
@@ -221,7 +222,7 @@ reviews:
           Does NOT perform primary investigation — only spot-checks via MCP.
 
         Phase 4.5 (quality-reviewer agent, MANDATORY GATE) → PASS or NEEDS_FIXES
-          Loop: launch reviewer → if NEEDS_FIXES, fix and re-launch → max 3 iterations.
+          3-tier escalation: targeted MCP re-investigation → focused retry with evidence → placeholder and proceed.
           Must PASS before Stage 3 runs.
 
         Stage 3 (report.py) → review-results.json + HTML + SUMMARY.txt
@@ -292,30 +293,39 @@ reviews:
         === AGENTS (6) ===
 
         feature-investigator.md: Phase 1 — JIRA MCP + Polarion MCP + Neo4j + gh CLI
-        code-change-analyzer.md: Phase 1 — gh CLI + acm-ui MCP + Neo4j.
+        code-change-analyzer.md: Phase 1 — gh CLI + acm-source MCP + JIRA MCP + Neo4j.
           Must read primary file via get_component_source (not just diff).
           Must distinguish test files from production code.
           Must cross-reference with knowledge/architecture/<area>.md.
           Trusts MCP source over PR diff when they disagree.
-        ui-discovery.md: Phase 1 — acm-ui MCP (all tools) + Neo4j +
+          Step 9: Coverage gap analysis — cross-references code behaviors against
+          JIRA ACs (via jira MCP get_issue), identifies user-visible code paths
+          not covered by any AC. Gaps reported in output for synthesis triage.
+        ui-discovery.md: Phase 1 — acm-source MCP (all tools) + Neo4j +
           Playwright (conditional: live browser verification when cluster URL provided) +
           bash (oc login for cluster auth)
         live-validator.md: Phase 3 — Playwright (24 tools) + oc CLI + acm-search + acm-kubectl
-        test-case-generator.md: Phase 4 — acm-ui MCP (spot-check + source verification).
+        test-case-generator.md: Phase 4 — acm-source MCP (spot-check + source verification).
           Must read knowledge/architecture/<area>.md as constraints (Step 1.5).
           Must verify filtering functions via get_component_source (Step 3).
           Trusts MCP source over PR diff for filter rules.
-        quality-reviewer.md: Phase 4.5 — acm-ui MCP + Polarion MCP.
+        quality-reviewer.md: Phase 4.5 — acm-source MCP + Polarion MCP.
           Min 3 MCP verifications required (fewer = NEEDS_FIXES).
           Must call get_component_source on primary file (Step 4).
+          Must call search_translations at least once (verify metric/label names against source).
           Must cross-reference knowledge/architecture/<area>.md (Step 4.6).
           Must verify AC discrepancy Notes via source code (Step 4.5).
+          Step 4.7: Design efficiency check — flags redundant resources,
+          missed state transitions, duplicate verifications, setup/step ratio
+          (WARNINGs, not BLOCKING).
+          Step 4.8: Coverage gap verification — checks gaps triaged as
+          "ADD TO TEST PLAN" are covered by test steps (WARNING if missing).
 
         === KEY CONVENTIONS ===
 
         - gather.py is deterministic — no AI, no agents, no MCP calls
         - Phase 4 test-case-generator does NOT do primary investigation — only
-          spot-checks 1-2 elements via acm-ui MCP
+          spot-checks 1-2 elements via acm-source MCP
         - Phase 4.5 is a HARD STOP — test case must pass quality review before
           Stage 3 can run
         - Convention files in knowledge/conventions/ are authoritative and must
@@ -343,7 +353,14 @@ reviews:
         Reads gather-output.json for jira_id and area (not directory name parsing).
         Runs convention_validator.validate_test_case(path, area=area).
         Generates Polarion HTML via html_generator.generate_html().
+        Checks artifact completeness (9 expected files in run directory).
+        Each expected artifact has alternate file names — the app pipeline
+        uses phase1-*/phase2-*/phase4.5-* names, the portable skill uses
+        phase1-jira.json/phase2-code.json/phase3-ui.json/synthesized-context.md/
+        phase5-live-validation.md/phase7-review.md. Either naming scheme
+        counts as present. EXPECTED_ARTIFACTS is a list of tuples.
         Writes review-results.json + HTML files + SUMMARY.txt.
+        Artifact completeness is reporting-only (does not block pipeline).
         Does NOT consume Phase 4.5 quality-reviewer output — they are
         independent validation layers (Phase 4.5 = semantic, Stage 3 = structural).
 
@@ -416,24 +433,28 @@ reviews:
 
         Agents in test-case-generator:
         - feature-investigator.md: Phase 1 JIRA deep dive (jira, polarion, neo4j, gh CLI)
-        - code-change-analyzer.md: Phase 1 PR diff analysis (gh CLI, acm-ui, neo4j)
-        - ui-discovery.md: Phase 1 source code discovery (acm-ui, neo4j, playwright conditional, bash)
+        - code-change-analyzer.md: Phase 1 PR diff analysis (gh CLI, acm-source, jira, neo4j)
+        - ui-discovery.md: Phase 1 source code discovery (acm-source, neo4j, playwright conditional, bash)
         - live-validator.md: Phase 3 live cluster verification (playwright, oc, acm-search, acm-kubectl)
-        - test-case-generator.md: Phase 4 test case writer (acm-ui spot-check only)
-        - quality-reviewer.md: Phase 4.5 quality gate (acm-ui, polarion)
+        - test-case-generator.md: Phase 4 test case writer (acm-source spot-check only)
+        - quality-reviewer.md: Phase 4.5 quality gate (acm-source)
+
+        All 6 tc-gen agents include an optional Anomalies section in their
+        output format for surfacing data quality issues (empty MCP results,
+        missing JIRA ACs, unexpected PR structure) upstream.
 
         MCP tool signatures (do NOT flag these as incorrect):
-        - mcp__acm-ui__search_code(query='...', repo='acm')
+        - mcp__acm-source__search_code(query='...', repo='acm')
           repo is a string ('acm' or 'kubevirt'), NOT a list
-        - mcp__acm-ui__set_acm_version(version='2.17')
+        - mcp__acm-source__set_acm_version(version='2.17')
           version is a string
-        - mcp__acm-ui__set_cnv_version(version='4.21')
-        - mcp__acm-ui__search_component(query='...', repo='acm')
-        - mcp__acm-ui__detect_cnv_version()
-        - mcp__acm-ui__get_acm_selectors(source='catalog', component='clc')
-        - mcp__acm-ui__get_patternfly_selectors(component='button')
-        - mcp__acm-ui__get_route_component(url_path='/multicloud/...')
-        - mcp__acm-ui__find_test_ids(component_path='...', repo='acm')
+        - mcp__acm-source__set_cnv_version(version='4.21')
+        - mcp__acm-source__search_component(query='...', repo='acm')
+        - mcp__acm-source__detect_cnv_version()
+        - mcp__acm-source__get_acm_selectors(source='catalog', component='clc')
+        - mcp__acm-source__get_patternfly_selectors(component='button')
+        - mcp__acm-source__get_route_component(url_path='/multicloud/...')
+        - mcp__acm-source__find_test_ids(component_path='...', repo='acm')
         - mcp__neo4j-rhacm__read_neo4j_cypher(query='...')
         - mcp__jira__search_issues(jql='...')
         - mcp__jira__get_issue(issue_key='ACM-12345')
@@ -539,7 +560,7 @@ reviews:
         - feature_area_service.py: Test-to-subsystem mapping
         - feature_knowledge_service.py: Playbook loading, prerequisite checks
         - knowledge_graph_client.py: Neo4j KG queries, subsystem mapping
-        - acm_ui_mcp_client.py: ACM-UI MCP wrapper for gather.py
+        - acm_source_mcp_client.py: ACM-Source MCP wrapper for gather.py
         - component_extractor.py: Backend component name extraction
         - acm_console_knowledge.py: PatternFly version detection, feature routes
         - shared_utils.py: KNOWN_REPOS mapping, utility functions
@@ -554,20 +575,24 @@ reviews:
 
         Z-stream-analysis tests:
         - tests/unit/ (625 tests): No network access. Test individual services.
-        - tests/regression/ (61 tests): Cross-module consistency checks,
+        - tests/regression/ (128 tests): Cross-module consistency checks,
           schema coverage, field name alignment across services.
         - tests/integration/ (45 tests): Require Jenkins VPN. Test full pipeline.
         - tests/fixtures/: Synthetic analysis-results.json for testing.
 
         Test-case-generator tests:
-        - tests/unit/ (38 tests): Convention validator (valid/invalid cases,
+        - tests/unit/ (105 tests): Convention validator (valid/invalid cases,
           area tag validation, per-step checks, teardown checks), file service
           (knowledge loading, peer discovery, sample fallback), Pydantic models
-          (GatherOutput, ReviewResult, AnalysisResult schema enforcement).
+          (GatherOutput, ReviewResult, AnalysisResult schema enforcement),
+          artifact completeness (both app and portable skill naming schemes).
         - tests/unit/test_convention_validator.py: Tests structural validation
           including the approved ACM-30459 test case and sample test case.
         - tests/unit/test_models.py: Verifies all 3 data contract models
           serialize correctly and have expected fields.
+        - tests/unit/test_artifact_completeness.py: Tests pipeline artifact
+          detection with app names (phase1-*), portable skill names
+          (phase1-jira.json etc.), mixed names, and empty directories.
 
         Check for: tests referencing removed methods, renamed files, or
         changed field names. Unit tests must be self-contained. Regression
@@ -645,7 +670,7 @@ reviews:
           Cross-chain: shared dependency (klusterlet, storage, addon-manager)?
           Traps: verify conclusion against common-diagnostic-traps.md (14)
           Fallback: cluster introspection (8 metadata sources), then
-            neo4j-rhacm MCP, then acm-ui MCP for source code understanding.
+            neo4j-rhacm MCP, then acm-source MCP for source code understanding.
 
         Phase 6: Deep Investigate (deep/targeted)
           Pod logs (--tail=100, --previous), namespace events (sorted),
@@ -662,7 +687,7 @@ reviews:
             jq, grep, wc, sort, head, tail, awk, cut, cat, ls, find,
             git clone (docs repos), python3/python (data processing)
           Tools: Read, Glob, Grep, Agent, Write/Edit to knowledge/learned/*
-          MCP: acm-ui (20 tools), neo4j-rhacm (2 tools), acm-search (5 tools)
+          MCP: acm-source (20 tools), neo4j-rhacm (2 tools), acm-search (5 tools)
 
         Remediation Mode (NEVER auto-approved):
           Mutation: oc patch, oc scale, oc rollout restart, oc delete pod,
@@ -679,7 +704,7 @@ reviews:
           4. Execute each fix, verify result with oc get/describe
           5. Post-remediation health check (Phase 1 + Phase 3 on affected)
 
-        === KNOWLEDGE SYSTEM (59 files) ===
+        === KNOWLEDGE SYSTEM (58 files) ===
 
         Architecture knowledge (knowledge/architecture/, 40 files):
           12 subsystems, each with architecture.md + data-flow.md +
@@ -747,7 +772,7 @@ reviews:
           6. Webhooks (cross-operator validation dependencies)
           7. ConsolePlugins (UI integration topology)
           8. APIServices (API aggregation dependencies)
-        Then: neo4j-rhacm MCP → acm-ui MCP → write to knowledge/learned/.
+        Then: neo4j-rhacm MCP → acm-source MCP → write to knowledge/learned/.
 
         === SESSION TRACING ===
 
@@ -835,7 +860,7 @@ reviews:
         - Diagnostic trap count ("14 traps") ↔ common-diagnostic-traps.md
         - Introspection source count ("8 sources") ↔ listed sources
         - Knowledge file references ↔ files actually in knowledge/
-        - MCP tool names ↔ .mcp.json server configuration (acm-ui, neo4j-rhacm, acm-search)
+        - MCP tool names ↔ .mcp.json server configuration (acm-source, neo4j-rhacm, acm-search)
         - Cascade chain count (12 narrative, 12 YAML) ↔ dependency-chains.md/yaml
 
     - path: "apps/acm-hub-health/.claude/settings.json"
@@ -844,7 +869,7 @@ reviews:
 
         Structure:
         - permissions.allow: Read-only oc commands + MCP tools (auto-approved for diagnosis)
-          Includes mcp__acm-ui__*, mcp__neo4j-rhacm__*, mcp__acm-search__*
+          Includes mcp__acm-source__*, mcp__neo4j-rhacm__*, mcp__acm-search__*
         - hooks: 6 event types triggering agent_trace.py
         - statusLine: command-based status bar (shared script at ../../.claude/statusline.sh)
 
@@ -1035,8 +1060,8 @@ reviews:
     - path: "apps/acm-hub-health/setup.sh"
       instructions: |
         One-time initialization script. Clones rhacm-docs, sets up
-        acm-ui MCP venv, clones and builds acm-search MCP (Node.js),
-        generates .mcp.json (acm-ui, neo4j-rhacm, acm-search), verifies
+        acm-source MCP venv, clones and builds acm-search MCP (Node.js),
+        generates .mcp.json (acm-source, neo4j-rhacm, acm-search), verifies
         prerequisites (oc, claude, uvx, node, podman), checks neo4j-rhacm
         container status.
 
@@ -1050,7 +1075,7 @@ reviews:
     - path: "mcp/**/*.py"
       instructions: |
         MCP server code. This repo maintains:
-        - mcp/acm-ui-mcp-server/: ACM Console + kubevirt-plugin source search
+        - mcp/acm-source-mcp-server/: ACM Console + kubevirt-plugin source search
           via GitHub API. 20 tools. Supports version switching (ACM 2.11-2.17,
           CNV 4.14-4.22).
         - mcp/polarion/: Polarion test case access wrapper. 25 tools.
@@ -1067,6 +1092,117 @@ reviews:
         Playwright (24 tools) runs via npx — no local code in this repo.
 
         Do NOT modify files in mcp/.external/.
+
+    - path: ".claude/skills/acm-*/**"
+      instructions: |
+        Portable skill pack for ACM quality engineering. 5 skills usable
+        from the repo root via the root .mcp.json (generated by /onboard).
+
+        === SKILL INVENTORY ===
+
+        1. acm-test-case-generator (ORCHESTRATOR):
+           9-phase pipeline (Phases 0-8) generating Polarion-ready test cases.
+           SKILL.md (~180 lines) contains routing logic, phase gates, and
+           escalation tiers only. Implementation detail (input schemas,
+           validation commands, credential cascade, retry protocol, run
+           directory structure) lives in references/pipeline-detail.md (~260
+           lines). Phase gate decision rules in references/phase-gates.md.
+           Skill feedback protocol in references/skill-feedback.md.
+           7 agent files in references/agents/:
+             data-gatherer.md, code-analyzer.md, ui-discoverer.md,
+             synthesizer.md, live-validator.md, test-case-writer.md,
+             quality-reviewer.md
+           Standalone scripts in scripts/ (zero external deps, stdlib only):
+             gather.py, report.py, validate_artifact.py,
+             review_enforcement.py
+           Evals in evals/evals.json (assertions per JIRA ticket).
+
+        2. acm-test-case-writer (APP-SPECIFIC):
+           Writes test case markdown from pre-gathered context. Called by
+           generator Phase 6. Has disable-model-invocation: true — must NOT
+           be triggered autonomously by the model. Only invoked explicitly
+           by the generator orchestrator or direct user request with full
+           context provided inline.
+
+        3. acm-test-case-reviewer (APP-SPECIFIC):
+           Quality review gate for test case files. Called by generator
+           Phase 7. Has disable-model-invocation: true — must NOT be
+           triggered autonomously. Standalone review (user provides a file
+           path) is valid; post-generation review is internal to the
+           generator pipeline.
+
+        4. acm-qe-code-analyzer (APP-SPECIFIC):
+           PR diff analysis for test impact. Called by generator Phase 2.
+           Triggers on PR analysis requests WITHOUT Polarion/JIRA pipeline
+           intent. If a JIRA ID is present alongside a PR, the generator
+           skill handles the full pipeline instead.
+
+        5. acm-knowledge-base (SHARED):
+           Domain knowledge lookup for ACM areas (governance, rbac,
+           fleet-virt, clusters, search, applications, credentials, cclm,
+           mtv). References in references/architecture/ and
+           references/conventions/. Triggers on convention, architecture,
+           or domain fact questions — NOT on test case generation requests.
+
+        11 additional skills (bug-fix-verifier, bug-hunter,
+        cluster-health, cluster-investigator, cluster-remediation,
+        data-enricher, failure-classifier,
+        hub-health-check, jenkins-client, knowledge-learner,
+        z-stream-analyzer) serve the z-stream, hub-health,
+        bug-hunting, and verification pipelines.
+        See apps/z-stream-analysis/CLAUDE.md and apps/acm-hub-health/CLAUDE.md
+        for their pipeline context. The conventions below apply to all skills.
+
+        === SKILL.MD STRUCTURE ===
+
+        Every SKILL.md uses YAML frontmatter:
+          name: (kebab-case, 1-64 chars)
+          description: (MUST include TRIGGER and DO NOT TRIGGER sections
+            for disambiguation — prevents model auto-selection errors)
+          compatibility: (claude-code version)
+          metadata: (author, version)
+          allowed-tools: (optional, lists scripts the skill may execute)
+          disable-model-invocation: (true on writer + reviewer)
+
+        Body contains skill instructions. Orchestrators reference agent
+        files and other skills by name/path.
+
+        === CONTENT BOUNDARIES ===
+
+        SKILL.md: Phase routing, gate decisions, escalation tiers, safety
+          rules. No input schemas, no validation commands, no credential
+          resolution logic.
+        pipeline-detail.md: Input schemas (<input> blocks per phase),
+          validation commands, credential cascade, MCP availability check,
+          retry protocol, run directory structure.
+        Agent files (references/agents/*.md): Full subagent instructions
+          for each pipeline phase.
+
+        Content must not be duplicated across these boundaries. If input
+        schemas appear in SKILL.md, they were incorrectly placed.
+
+        === MCP INTEGRATION ===
+
+        Skills call MCP tools directly via subagents — no wrapper skill
+        needed. MCP servers: acm-source (18 tools), jira (25 tools),
+        polarion (25 tools), neo4j-rhacm (2 tools), acm-search (5 tools),
+        acm-kubectl (3 tools), playwright (24 tools).
+
+        === REVIEW RULES ===
+
+        - SKILL.md description MUST have TRIGGER / DO NOT TRIGGER to
+          prevent false skill selection
+        - Writer and reviewer MUST keep disable-model-invocation: true
+        - Scripts must have zero pip dependencies (stdlib only)
+        - Agent files must not reference SKILL.md content (they run in
+          isolated subagent context with no access to the parent skill)
+        - Changes to pipeline-detail.md input schemas must be reflected
+          in the corresponding agent file's expected inputs
+        - Phase numbering: portable skill uses Phases 0-8; the app
+          pipeline in apps/test-case-generator/ uses different numbering
+          (see app README for mapping table)
+        - References in SKILL.md to agent files must use relative paths
+          from the skill root
 
   tools:
     ruff:

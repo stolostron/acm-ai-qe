@@ -2,9 +2,15 @@
 """
 Resilient MCP proxy for ACM Search.
 
+Proxies to stolostron/acm-mcp-server (https://github.com/stolostron/acm-mcp-server)
+which provides the ACM Search PostgreSQL MCP server deployed on-cluster.
+
 When the cluster is reachable: execs into mcp-remote (zero overhead passthrough).
 When unreachable or not deployed: serves a stub MCP that returns structured
 "cluster unreachable" errors so agents can detect the state and fall back to oc CLI.
+
+Copyright Red Hat, Inc.
+SPDX-License-Identifier: Apache-2.0
 
 Usage in .mcp.json:
   "acm-search": {

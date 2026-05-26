@@ -130,6 +130,12 @@ ai_systems_v2/
 └── README.md                  # You are here
 ```
 
+## License & Attribution
+
+This project is licensed under the **Apache License 2.0** (SPDX: `Apache-2.0`). See [LICENSE](LICENSE).
+
+This repo integrates with MCP servers maintained by other teams (JIRA, Jenkins, Knowledge Graph, ACM Search). All external code usage, fork provenance, upstream PRs, and design inspirations are documented in **[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)**.
+
 ## Contributing
 
 ```bash

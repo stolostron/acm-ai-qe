@@ -34,7 +34,7 @@ and query component dependency graphs -- without needing API keys embedded in pr
 | **neo4j-rhacm** | Hub Health, Z-Stream, Test Case Gen | Queries RHACM component dependency graph (370 components, 541 relationships across 7 subsystems) | 2 | [mcp-neo4j-cypher](https://pypi.org/project/mcp-neo4j-cypher/) (PyPI) + [stolostron/knowledge-graph](https://github.com/stolostron/knowledge-graph) (data) |
 | **acm-search** | Hub Health, Test Case Gen | Fleet-wide resource queries across all managed clusters via search-postgres (spoke-side visibility) | 5 | [stolostron/acm-mcp-server](https://github.com/stolostron/acm-mcp-server) |
 | **acm-kubectl** | Test Case Gen | Multicluster kubectl -- list/run commands on hub and spoke clusters | 3 | [stolostron/acm-mcp-server](https://github.com/stolostron/acm-mcp-server) |
-| **playwright** | Test Case Gen | Browser automation for live UI validation (navigate, click, screenshot) | 24 | [@playwright/mcp](https://www.npmjs.com/package/@anthropic-ai/playwright-mcp) (npm) |
+| **playwright** | Test Case Gen | Browser automation for live UI validation (navigate, click, screenshot) | 24 | [@playwright/mcp](https://www.npmjs.com/package/@playwright/mcp) (npm) |
 
 ### What works without optional servers
 

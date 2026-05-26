@@ -13,7 +13,6 @@ Workflows are **user-triggered or scheduled** multi-phase processes. The user kn
 | [test-case-generation](test-case-generation.md) | Generate Polarion-ready test cases from JIRA tickets via 6-phase subagent pipeline | `/generate`, `/review`, `/batch` |
 | [hub-health-check](hub-health-check.md) | Diagnose ACM hub cluster health using 6-phase diagnostic methodology | `/health-check`, `/deep`, `/sanity`, `/investigate` |
 | [pre-push](pre-push.md) | Quality gate before pushing code (tests, lint, credentials, forbidden files) | `/pre-push` |
-| [knowledge-sweep](knowledge-sweep.md) | Investigate ACM subsystems and update the shared knowledge database | On demand via `investigate-and-learn` skill |
 
 ## Org-level workflows (inherited)
 

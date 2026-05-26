@@ -28,7 +28,7 @@ The onboarding skill detects your environment, walks you through MCP server setu
 
 ## Skills
 
-19 portable skills available from the repo root -- just launch `claude` and ask in natural language.
+17 portable skills available from the repo root -- just launch `claude` and ask in natural language.
 
 ### Primary Workflows
 
@@ -63,8 +63,6 @@ These are called by the primary workflows or used standalone for focused tasks.
 | Skill | Purpose |
 |-------|---------|
 | **Onboard** | Interactive setup -- detects environment, configures MCP servers, prompts for credentials. |
-| **YouTube Digest** | Extracts YouTube transcripts and produces structured digests with key takeaways and timestamps. |
-| **Grill Me** | Interview-style stress testing of plans and designs until reaching shared understanding. |
 
 ## Apps
 
@@ -106,7 +104,7 @@ You ──> Claude Code ──> Skill ──> Pipeline
 ```
 ai_systems_v2/
 ├── .claude/
-│   ├── skills/                # 19 portable skills (usable from repo root)
+│   ├── skills/                # 17 portable skills (usable from repo root)
 │   ├── knowledge/             # Shared knowledge database (11 categories, 14 subsystems)
 │   ├── commands/pre-push.md   # /pre-push quality gate
 │   ├── settings.json          # Root-level Claude Code settings

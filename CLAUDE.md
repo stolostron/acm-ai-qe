@@ -18,7 +18,7 @@ Generates Polarion-ready test cases for ACM Console features from JIRA tickets. 
 
 ## Skills (`.claude/skills/`)
 
-19 portable skills in a flat layout under `.claude/skills/`. Each skill has a `SKILL.md` entry point with YAML frontmatter, kebab-case folder name, and stdlib-only scripts. Shared skills expose raw capabilities; orchestrators compose them into multi-phase pipelines.
+17 portable skills in a flat layout under `.claude/skills/`. Each skill has a `SKILL.md` entry point with YAML frontmatter, kebab-case folder name, and stdlib-only scripts. Shared skills expose raw capabilities; orchestrators compose them into multi-phase pipelines.
 
 **By domain:**
 
@@ -29,7 +29,7 @@ Generates Polarion-ready test cases for ACM Console features from JIRA tickets. 
 | Hub Health | `acm-hub-health-check`, `acm-cluster-remediation`, `acm-knowledge-learner` | `/acm-hub-health-check` |
 | Z-Stream | `acm-z-stream-analyzer`, `acm-failure-classifier`, `acm-cluster-investigator`, `acm-data-enricher` | `/analyze`, `/gather`, `/quick` |
 | Bug Investigation | `acm-bug-hunter`, `acm-bug-fix-verifier` | `/acm-bug-hunter` |
-| Utility | `onboard`, `youtube-digest`, `grill-me` | `/onboard` |
+| Utility | `onboard` | `/onboard` |
 
 **Conventions:** SKILL.md is the single entry point (no README). Progressive disclosure: frontmatter (~100 tokens) → body (<500 lines) → `references/` (on-demand). Orchestrators delegate to sibling skills via relative paths. See `docs/skill-architecture.md` for the full inventory, blast radius map, and `docs/skill-authoring-guide.md` for authoring standards.
 
@@ -164,7 +164,7 @@ ai_systems_v2/
 │   ├── jenkins-acm-tools.py   # Our code: ACM-specific Jenkins analysis tools
 │   └── .external/             # Cloned at setup time (gitignored)
 ├── .claude/
-│   ├── skills/                # 19 portable skills (usable from repo root via root .mcp.json)
+│   ├── skills/                # 17 portable skills (usable from repo root via root .mcp.json)
 │   ├── knowledge/             # Shared knowledge database for skills (3 domains: tc-gen, z-stream, hub-health)
 │   ├── commands/pre-push.md   # /pre-push quality gate slash command
 │   ├── statusline.sh          # Status line script (model, branch, context %)

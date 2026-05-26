@@ -1,5 +1,11 @@
 # AI Systems Suite — Agent Reference
 
+<!-- This is the tool-agnostic agent reference. For Claude Code-specific instructions,
+     see CLAUDE.md. Both files are maintained separately: AGENTS.md omits Claude-specific
+     details (settings, slash commands, CodeRabbit) to stay portable across AI tools.
+     Per agentic-sdlc convention, some squads symlink AGENTS.md -> CLAUDE.md; this repo
+     keeps them separate because CLAUDE.md contains tool-specific configuration. -->
+
 Multi-app repository for ACM quality engineering tools built on Claude Code. **GitHub:** [stolostron/acm-ai-qe](https://github.com/stolostron/acm-ai-qe).
 
 ## Build and Test
@@ -139,6 +145,12 @@ ai_systems_v2/
 │   ├── hub-health/            # Hub health detailed docs
 │   ├── test-case-generator/   # TC gen detailed docs (pipeline, agents, quality gates)
 │   └── z-stream-analysis/     # Z-stream detailed docs
+├── workflows/                 # Named multi-phase processes (user/cron triggered)
+├── solutions/                 # Battle-tested SOPs for known problems (agent self-help)
+├── repos/
+│   └── repos.yaml             # QE repo registry
+├── team-members/
+│   └── team-members.md        # Console QE squad roster
 ├── mcp/
 │   ├── setup.sh               # Interactive MCP setup
 │   ├── deploy-acm-search.sh   # ACM Search MCP deploy (oc login → deploy → .mcp.json)
@@ -146,8 +158,8 @@ ai_systems_v2/
 │   ├── acm-source-mcp-server/     # ACM Console source search
 │   ├── polarion/              # Polarion wrapper
 │   └── jenkins-acm-tools.py   # ACM-specific Jenkins tools
-├── CLAUDE.md                  # Claude Code instructions
-├── AGENTS.md                  # This file
+├── CLAUDE.md                  # Claude Code instructions (tool-specific; see also this file)
+├── AGENTS.md                  # This file (tool-agnostic agent reference)
 ├── context.md                 # Ubiquitous language glossary + repo design summary (read first for shared terms)
 ├── README.md                  # User-facing setup and onboarding guide
 └── .coderabbit.yaml           # CodeRabbit review config

@@ -51,6 +51,18 @@ cp .claude/settings.local.json.example .claude/settings.local.json
 
 Edit `permissions.allow` / `permissions.deny` as needed. The example uses **repo-relative** Bash paths only (no home-directory absolutes). `/pre-push` and onboarding remind you not to commit this file.
 
+## Org-Level Workflows (Inherited)
+
+This repo participates in org-wide workflows defined in [stolostron/agentic-sdlc](https://github.com/stolostron/agentic-sdlc):
+
+| Workflow | When to use | Reference |
+|----------|-------------|-----------|
+| CVE & dependency updates | Scheduled or on-demand security audit | [agentic-sdlc/workflows/cve-updates.md](https://github.com/stolostron/agentic-sdlc/blob/main/workflows/cve-updates.md) |
+| SR&ED filing | Annual tax credit reporting cycle | [agentic-sdlc/workflows/sred.md](https://github.com/stolostron/agentic-sdlc/blob/main/workflows/sred.md) |
+| Coding process | New feature, bug fix, or refactor | [agentic-sdlc/workflows/coding.md](https://github.com/stolostron/agentic-sdlc/blob/main/workflows/coding.md) |
+
+Squad-specific workflows are documented in [`workflows/`](workflows/README.md). Problem-specific SOPs are in [`solutions/`](solutions/README.md).
+
 ## CodeRabbit Review Policy
 
 After modifying code in any app (`z-stream-analysis`, `acm-hub-health`, `test-case-generator`), run `/coderabbit:review uncommitted` when changes touch:
@@ -160,6 +172,12 @@ ai_systems_v2/
 ├── docs/
 │   ├── skill-architecture.md  # Full skill inventory, blast radius map, contributing guide
 │   └── skill-authoring-guide.md # SKILL.md structure, progressive disclosure, quality checklist
+├── workflows/                 # Named multi-phase processes (user/cron triggered)
+├── solutions/                 # Battle-tested SOPs for known problems (agent self-help)
+├── repos/
+│   └── repos.yaml             # QE repo registry (console, e2e, MCP source repos)
+├── team-members/
+│   └── team-members.md        # Console QE squad roster
 ├── AGENTS.md                  # Agent reference (tool-agnostic, for external AI tools)
 ├── CLAUDE.md                  # This file — Claude Code agent instructions
 ├── context.md                 # Ubiquitous language glossary + repo design summary — read this first

@@ -1,0 +1,80 @@
+# ACM Console QE Repositories
+#
+# All repos listed here are the primary repositories that the Console QE squad
+# works with for testing, automation, and tooling.
+#
+# Categories:
+#   console          — ACM Console frontend and plugins
+#   e2e-automation   — End-to-end test automation repos
+#   ai-qe            — AI-assisted QE tooling (this repo)
+#   mcp              — MCP servers used by this repo
+#   docs             — Documentation repos
+#
+# These are reference-only — not cloned locally. MCP servers provide source
+# code access for console and kubevirt-plugin. E2E repos are cloned
+# separately in the user's workspace.
+
+repos:
+
+  # ============================================================
+  # ACM Console frontend
+  # ============================================================
+
+  console:
+    stolostron:
+      - repo: stolostron/console
+        description: ACM Console frontend (React, PatternFly)
+
+    open-cluster-management-io:
+      - repo: open-cluster-management-io/kubevirt-plugin
+        description: KubeVirt plugin for ACM Console (Fleet Virtualization UI)
+
+  # ============================================================
+  # E2E test automation
+  # ============================================================
+
+  e2e-automation:
+    stolostron:
+      - repo: stolostron/clc-ui-e2e
+        description: Cypress E2E tests for Console (CLC squad)
+
+      - repo: stolostron/console-e2e
+        description: Playwright E2E tests for Console
+
+      - repo: stolostron/acmqe-clc-test
+        description: CLC backend QE tests (Go, includes virt/CCLM tests)
+
+  # ============================================================
+  # AI-assisted QE tooling
+  # ============================================================
+
+  ai-qe:
+    stolostron:
+      - repo: stolostron/acm-ai-qe
+        description: AI systems suite — this repo (z-stream analysis, hub health, test case gen)
+
+  # ============================================================
+  # MCP servers (source repos for MCP infrastructure)
+  # ============================================================
+
+  mcp:
+    stolostron:
+      - repo: stolostron/jira-mcp-server
+        description: JIRA MCP server (upstream; atifshafi fork used locally)
+
+      - repo: stolostron/acm-mcp-server
+        description: ACM Search + ACM Kubectl MCP servers
+
+    redhat-community-ai-tools:
+      - repo: redhat-community-ai-tools/jenkins-mcp
+        description: Jenkins MCP server (upstream)
+
+  # ============================================================
+  # Documentation
+  # ============================================================
+
+  docs:
+    stolostron:
+      - repo: stolostron/rhacm-docs
+        description: Red Hat ACM product documentation
+        branch: 2.15_stage

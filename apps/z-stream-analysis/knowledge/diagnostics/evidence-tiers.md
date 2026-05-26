@@ -1,5 +1,7 @@
 # Evidence Tiers
 
+<!-- Origin: Adapted from acm-hub-health evidence tier framework with z-stream classification weights -->
+
 How evidence is weighted in the classification decision.
 
 ---

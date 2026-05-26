@@ -3,6 +3,7 @@
 # diagnostic notes. Used by the AI agent when Layer 3 endpoint verification
 # finds a Service with zero ready endpoints -- this file answers "what breaks?"
 #
+# Origin: Adapted from acm-hub-health knowledge database
 # Validated against: ACM 2.16 GA on Azure (example-qe-hub-cluster)
 # Refresh frequency: after ACM version change
 

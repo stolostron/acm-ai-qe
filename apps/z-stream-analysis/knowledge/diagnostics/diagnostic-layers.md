@@ -1,5 +1,7 @@
 # 12-Layer Diagnostic Model
 
+<!-- Origin: Adapted from acm-hub-health diagnostic layers with z-stream classification context -->
+
 Investigation methodology for finding the root cause of test failures.
 Trace from the symptom downward through infrastructure layers until you
 find the broken layer. Then investigate WHO caused it and WHY.

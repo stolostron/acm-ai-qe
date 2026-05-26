@@ -7,7 +7,7 @@ Seven MCP servers provide external data access for the pipeline. Four are used d
 | Server | Tools | Source | Phase | Setup |
 |--------|-------|--------|-------|-------|
 | acm-source | 18 | This repo (`mcp/acm-source-mcp-server/`) | 1, 4, 4.5 | Local venv |
-| jira | 3 | [stolostron/jira-mcp-server](https://github.com/stolostron/jira-mcp-server) | 1 | Clone + venv + .env |
+| jira | 3 | [atifshafi/jira-mcp-server@feat/redhat-fields](https://github.com/atifshafi/jira-mcp-server/tree/feat/redhat-fields) (fork of [stolostron/jira-mcp-server](https://github.com/stolostron/jira-mcp-server), [PR #24](https://github.com/stolostron/jira-mcp-server/pull/24)) | 1 | Clone + venv + .env |
 | polarion | 7 | This repo (`mcp/polarion/`) | 1 | uvx + .env |
 | neo4j-rhacm | 2 | [mcp-neo4j-cypher](https://pypi.org/project/mcp-neo4j-cypher/) (PyPI) | 1 | Podman container |
 | acm-search | 5 | [stolostron/acm-mcp-server](https://github.com/stolostron/acm-mcp-server) | 3 | On-cluster SSE + mcp-remote |
@@ -68,7 +68,7 @@ Always call `set_acm_version` before any other tool. For Fleet Virt features, al
 ## JIRA MCP Server
 
 **Tools:** 3
-**Source:** `mcp/.external/jira-mcp-server/` (cloned from stolostron)
+**Source:** `mcp/.external/jira-mcp-server/` (fork: [atifshafi/jira-mcp-server@feat/redhat-fields](https://github.com/atifshafi/jira-mcp-server/tree/feat/redhat-fields), upstream: [stolostron/jira-mcp-server](https://github.com/stolostron/jira-mcp-server))
 **Used by:** Feature Investigator
 
 Connects to Jira Cloud (Red Hat Atlassian) for ticket investigation.

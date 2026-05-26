@@ -2,11 +2,18 @@
 """
 Polarion MCP Wrapper - Patches SSL + adds enhanced tools for test case workflows.
 
+Base package: polarion-mcp (https://pypi.org/project/polarion-mcp/) - MIT License
+Test run tools inspired by: stolostron/acm-workflows (hchenxa, ACM QE Team)
+  https://github.com/stolostron/acm-workflows/tree/main/Claude/plugins/polarion-tools
+
 Enhancements over base polarion-mcp:
 - SSL verification disabled for Red Hat internal Polarion
 - get_test_steps: Fetch test step content (step text + expected results)
 - get_test_case_summary: Get setup, description, and step titles in one call
 - Increased timeout for large requests (30s vs 8s)
+
+Copyright Red Hat, Inc.
+SPDX-License-Identifier: Apache-2.0
 
 Usage: python polarion-mcp-wrapper.py
 """

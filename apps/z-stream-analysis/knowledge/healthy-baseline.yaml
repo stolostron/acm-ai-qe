@@ -3,6 +3,7 @@
 # Used by ClusterHealthService (Stage 1 Step 4) for baseline comparison,
 # and by the AI agent during Stage 2 for deviation detection.
 #
+# Origin: Adapted from acm-hub-health knowledge database
 # Validated against: ACM 2.16 GA on Azure (example-qe-hub-cluster)
 #   OCP 4.21.5, 6 nodes (3 control-plane + 3 worker)
 #   All pods healthy, 0 non-running pods, 0 NetworkPolicies, 0 ResourceQuotas

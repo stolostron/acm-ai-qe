@@ -21,14 +21,11 @@ When the agent encounters an error during work, it searches `solutions/` by extr
 
 ## Solution Catalog
 
+No solutions yet. Solutions are added organically as agents encounter and resolve real problems during work.
+
 | Solution | Description |
 |----------|-------------|
-| [propagator-tls-cert-corruption](propagator-tls-cert-corruption.md) | Governance propagator CrashLoopBackOff due to corrupted TLS certificate |
-| [s3-storage-thanos-crash](s3-storage-thanos-crash.md) | thanos-store/compactor CrashLoopBackOff from S3 credential or bucket misconfiguration |
-| [search-database-corruption](search-database-corruption.md) | Search queries fail with "relation search.resources does not exist" |
-| [stale-mch-status-trap](stale-mch-status-trap.md) | MCH CR reports Running but operator is down -- status is frozen |
-| [obs-namespace-cleanup](obs-namespace-cleanup.md) | Observability reinstall fails due to orphaned resources from previous install |
-| [carbon-to-patternfly-selectors](carbon-to-patternfly-selectors.md) | E2E test failures from stale Carbon Design System selectors after Console migration to PatternFly |
+| <!-- add entries as they are created --> | |
 
 ## Adding a New Solution
 

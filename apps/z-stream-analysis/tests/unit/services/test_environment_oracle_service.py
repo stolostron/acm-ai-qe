@@ -167,6 +167,26 @@ class TestPhase5Synthesize(unittest.TestCase):
         self.assertIn('search-api', kg_names)
         self.assertIn('search-collector', kg_names)
 
+    def test_synthesize_skips_crd_kg_components(self):
+        """KG components ending with ' CRD' should be skipped."""
+        identification = {'feature_areas': ['CLC'], 'polarion_ids': []}
+        landscape = {'mch_version': '2.17.0-76'}
+        knowledge_context = {
+            'feature_components': {
+                'CLC': ['cluster-manager', 'AddOnTemplate CRD', 'ClusterDeployment CRD']
+            }
+        }
+
+        targets = self.oracle._phase5_synthesize(
+            identification, landscape, knowledge_context
+        )
+
+        kg_targets = [t for t in targets if t.source == 'kg']
+        kg_names = [t.name for t in kg_targets]
+        self.assertIn('cluster-manager', kg_names)
+        self.assertNotIn('AddOnTemplate CRD', kg_names)
+        self.assertNotIn('ClusterDeployment CRD', kg_names)
+
     def test_synthesize_includes_managed_clusters(self):
         """Managed clusters target is always included."""
         identification = {'feature_areas': ['CLC'], 'polarion_ids': []}
@@ -398,6 +418,46 @@ class TestPhase6Investigate(unittest.TestCase):
         )
         result = self.oracle._check_component(target)
         self.assertEqual(result.status, 'missing')
+
+    def test_normalize_component_name_spaces_to_hyphens(self):
+        self.assertEqual(
+            EnvironmentOracleService._normalize_component_name('Cluster Manager'),
+            'cluster-manager'
+        )
+
+    def test_normalize_component_name_ampersand(self):
+        self.assertEqual(
+            EnvironmentOracleService._normalize_component_name('Search & Discovery'),
+            'search-discovery'
+        )
+
+    def test_normalize_component_name_already_kebab(self):
+        self.assertEqual(
+            EnvironmentOracleService._normalize_component_name('search-api'),
+            'search-api'
+        )
+
+    def test_normalize_component_name_mixed_case(self):
+        self.assertEqual(
+            EnvironmentOracleService._normalize_component_name('Registration Controller'),
+            'registration-controller'
+        )
+
+    @patch.object(EnvironmentOracleService, '_run_command')
+    def test_check_component_kg_label_matches_deployment(self, mock_cmd):
+        """KG label 'Cluster Manager' should match deployment 'cluster-manager'."""
+        mock_cmd.return_value = (
+            True,
+            'ocm   cluster-manager   1/1   1   1   5d\n',
+            ''
+        )
+        target = DependencyTarget(
+            id='kg-clc-cluster-manager', type='component',
+            name='Cluster Manager',
+            description='KG component', component_name='Cluster Manager',
+        )
+        result = self.oracle._check_component(target)
+        self.assertEqual(result.status, 'healthy')
 
     @patch.object(EnvironmentOracleService, '_run_command')
     def test_check_managed_clusters(self, mock_cmd):

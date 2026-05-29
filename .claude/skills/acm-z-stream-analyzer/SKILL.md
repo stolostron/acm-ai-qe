@@ -76,6 +76,16 @@ Follow the 6-phase diagnostic process:
 5. **Correlate:** Trace dependency chains, identify root causes across subsystems
 6. **Output:** Write `cluster-diagnosis.json` with structured health data
 
+The `cluster-diagnosis.json` **must** include these fields (required by the HTML report):
+- `cluster_connectivity` (boolean) — true if cluster API is reachable
+- `environment_health_score` (float 0.0-1.0) — weighted health score with penalty breakdown
+- `cluster_identity` (object) — `api_url`, `ocp_version`, `acm_version`, `mce_version`, `mch_namespace`, `mch_phase`, `node_count`, `node_ready_count`, `managed_cluster_count`, `managed_cluster_ready_count`
+- `operator_health` (object keyed by name) — each with `namespace`, `desired_replicas`, `available_replicas`, `status` (OK/DEGRADED/CRITICAL), `detail`
+- `console_plugins` (array) — each with `name`, `service`, `namespace`
+- `critical_issue_count` (integer) — count of critical infrastructure issues
+
+See `.claude/agents/cluster-diagnostic.md` Step 6.2 for the full schema with examples.
+
 Show summary: "Verdict: HEALTHY/DEGRADED/CRITICAL -- N subsystems checked, M issues found."
 
 Skip if `--skip-env` was used or cluster access is unavailable.
@@ -83,10 +93,12 @@ Skip if `--skip-env` was used or cluster access is unavailable.
 ### Data Enrichment (AI, runs after Stage 1.5)
 
 Using the acm-data-enricher skill, enrich `core-data.json`:
-- Task 1: Resolve page objects (trace imports)
-- Task 2: Verify selector existence (via acm-source MCP)
-- Task 3: Selector timeline analysis (git history + intent)
-- Task 4: Feature knowledge gap filling (conditional)
+- Task 1: Resolve page objects (trace imports) -- **requires repos/**
+- Task 2: Verify selector existence (via acm-source MCP) -- **no repos needed**
+- Task 3: Selector timeline analysis (git history + intent) -- **requires repos/**
+- Task 4: Feature knowledge gap filling (conditional) -- **no repos needed**
+
+**Always run data enrichment when there are failed tests.** When `--skip-repo` was used, the agent runs Tasks 2 and 4 only (Tasks 1 and 3 are skipped with documented markers). Only skip data enrichment entirely when there are zero failed tests.
 
 No stage banner needed -- runs quietly before Stage 2.
 

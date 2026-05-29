@@ -27,11 +27,44 @@ From `core-data.json` you can read:
 - `test_report.failed_tests` — array of failed tests with parsed stack traces
 - `feature_grounding` — which feature areas are affected
 
+## Partial Execution (--skip-repo mode)
+
+When `repositories` in `core-data.json` is empty (`{}`) or the `repos/` directory
+does not exist, repos were not cloned (`--skip-repo` was used). In this mode:
+
+| Task | Action | Reason |
+|------|--------|--------|
+| Task 1: Page Objects | **SKIP** | Requires `repos/automation/` to trace imports |
+| Task 2: Selector Verification | **RUN** | Uses acm-source MCP only, no local repos needed |
+| Task 3: Timeline Analysis | **SKIP** | Requires `repos/console/` and `repos/automation/` for git history |
+| Task 4: Gap Filling | **RUN** (if triggered) | Uses `knowledge/` directory only, no repos needed |
+
+For skipped tasks, write explicit markers to `core-data.json` so the downstream
+classifier knows why data is absent (not a silent omission):
+
+```json
+{
+  "extracted_context": {
+    "page_objects": [],
+    "page_objects_skip_reason": "repos_not_available",
+    "recent_selector_changes": null,
+    "recent_selector_changes_skip_reason": "repos_not_available",
+    "temporal_summary": null,
+    "temporal_summary_skip_reason": "repos_not_available"
+  }
+}
+```
+
+Detection: check `core-data.json` `repositories` field at startup. If it is `{}`
+or does not contain `automation` or `console` keys, enter partial execution mode.
+Log which tasks are being skipped and why.
+
 ## Tasks
 
 Execute all four tasks in order (Task 4 runs conditionally based on gap
 detection triggers). Write results back to `core-data.json` once at the
-end (read once, update in memory, write once).
+end (read once, update in memory, write once). If repos are unavailable
+(see "Partial Execution" above), skip Tasks 1 and 3, run Tasks 2 and 4.
 
 ---
 

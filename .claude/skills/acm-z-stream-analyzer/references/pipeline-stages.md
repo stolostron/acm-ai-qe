@@ -14,10 +14,11 @@ Stage 1.5: Cluster diagnostic  -> cluster-diagnosis.json
   Produces structured health data with classification guidance
 
 Data enrichment: acm-data-enricher -> enriches core-data.json
-  Task 1: Resolve page objects
-  Task 2: Verify selector existence (MCP)
-  Task 3: Selector timeline analysis (git)
-  Task 4: Feature knowledge gap filling (conditional)
+  Task 1: Resolve page objects [requires repos/]
+  Task 2: Verify selector existence (MCP) [no repos needed]
+  Task 3: Selector timeline analysis (git) [requires repos/]
+  Task 4: Feature knowledge gap filling (conditional) [no repos needed]
+  Note: Always runs when failed tests exist. With --skip-repo, runs Tasks 2+4 only.
 
 Stage 2: AI Analysis           -> analysis-results.json
   Phase A: Ground and group

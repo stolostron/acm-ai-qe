@@ -22,6 +22,8 @@ When a user asks to analyze a Jenkins run, **do NOT delegate the entire pipeline
 
    After Stage 1.5 (or after Stage 1 if 1.5 is skipped), spawn the `data-collector` agent with the run directory path. It enriches `core-data.json` with data that requires AI code analysis (resolving `page_objects` by tracing imports, verifying `console_search` selector existence via MCP, analyzing `recent_selector_changes` with git history and intent assessment, and building selector-level `temporal_summary`). No stage banner needed — it runs quietly before Stage 2.
 
+   **Always spawn the data-collector when there are failed tests**, even with `--skip-repo`. Tasks 2 (MCP selector verification) and 4 (knowledge gap filling) do not need local repos. The agent detects repo availability from `core-data.json`'s `repositories` field and runs only the tasks it can. Only skip the data-collector entirely when there are zero failed tests.
+
 3. **Stage 2** — Use the `analysis` agent for AI analysis. Before launching, output:
    ```
    Stage 2: Analyzing <N> failed tests (12-layer diagnostic investigation)...

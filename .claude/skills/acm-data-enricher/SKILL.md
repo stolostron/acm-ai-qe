@@ -20,10 +20,12 @@ KNOWLEDGE_DIR = ${CLAUDE_SKILL_DIR}/../../knowledge/
 ## Input
 
 A run directory path containing:
-- `core-data.json` -- primary data file with failed tests and metadata
-- `repos/automation/` -- cloned test automation repo (Cypress, Playwright)
-- `repos/console/` -- cloned product source repo (stolostron/console)
-- `repos/kubevirt-plugin/` -- cloned kubevirt UI repo (if VM tests detected)
+- `core-data.json` -- primary data file with failed tests and metadata (REQUIRED)
+- `repos/automation/` -- cloned test automation repo (Cypress, Playwright) -- needed by Tasks 1, 3
+- `repos/console/` -- cloned product source repo (stolostron/console) -- needed by Task 3
+- `repos/kubevirt-plugin/` -- cloned kubevirt UI repo (if VM tests detected) -- needed by Task 3
+
+When `--skip-repo` was used, `repos/` will not exist and `repositories` in `core-data.json` will be `{}`. In this mode, skip Tasks 1 and 3 (they require local repos) and run Tasks 2 and 4 (they use MCP and knowledge/ only). Write `*_skip_reason: "repos_not_available"` markers for skipped task outputs so downstream consumers know why data is absent.
 
 From `core-data.json`, read:
 - `cluster_landscape.mch_version` -- ACM version for MCP queries

@@ -965,6 +965,10 @@ class EnvironmentOracleService:
                     continue
                 seen_ids.add(comp_id)
 
+                # Skip CRD entries — their existence is validated by operator health
+                if comp_name.endswith(' CRD'):
+                    continue
+
                 # Use playbook namespace if known, otherwise None
                 # (Phase 6 will search all namespaces when namespace is None)
                 ns = comp_ns_map.get(comp_name)
@@ -990,6 +994,9 @@ class EnvironmentOracleService:
                 if comp_id in seen_ids:
                     continue
                 seen_ids.add(comp_id)
+
+                if comp_name.endswith(' CRD'):
+                    continue
 
                 targets.append(DependencyTarget(
                     id=comp_id,
@@ -1262,9 +1269,25 @@ class EnvironmentOracleService:
                 check_command=f"oc {cmd_str}",
             )
 
+    @staticmethod
+    def _normalize_component_name(name: str) -> str:
+        """Normalize KG label to K8s deployment name format for matching.
+
+        KG uses human-readable labels like "Cluster Manager" while K8s
+        deployments use kebab-case like "cluster-manager".
+        """
+        normalized = name.lower().strip()
+        normalized = normalized.replace(' & ', '-')
+        normalized = normalized.replace('&', '-')
+        normalized = normalized.replace(' ', '-')
+        while '--' in normalized:
+            normalized = normalized.replace('--', '-')
+        return normalized
+
     def _check_component(self, target: DependencyTarget) -> DependencyHealth:
         """Check a component's deployment/pod status on the cluster."""
         comp_name = target.component_name or target.name
+        comp_name_normalized = self._normalize_component_name(comp_name)
         # No default namespace — search all namespaces with -A
 
         # Try deployment first
@@ -1281,9 +1304,9 @@ class EnvironmentOracleService:
                 parts = l.split()
                 if len(parts) >= 2:
                     deploy_name = parts[1].lower()
-                    if (deploy_name == comp_name.lower()
-                            or deploy_name.startswith(comp_name.lower() + '-')
-                            or deploy_name.startswith(comp_name.lower() + '.')):
+                    if (deploy_name == comp_name_normalized
+                            or deploy_name.startswith(comp_name_normalized + '-')
+                            or deploy_name.startswith(comp_name_normalized + '.')):
                         matching.append(l)
             if matching:
                 # Parse: NAMESPACE NAME READY UP-TO-DATE AVAILABLE AGE
@@ -1328,9 +1351,9 @@ class EnvironmentOracleService:
                 parts = l.split()
                 if len(parts) >= 2:
                     pod_name = parts[1].lower()
-                    if (pod_name == comp_name.lower()
-                            or pod_name.startswith(comp_name.lower() + '-')
-                            or pod_name.startswith(comp_name.lower() + '.')):
+                    if (pod_name == comp_name_normalized
+                            or pod_name.startswith(comp_name_normalized + '-')
+                            or pod_name.startswith(comp_name_normalized + '.')):
                         matching.append(l)
             if matching:
                 line = matching[0]

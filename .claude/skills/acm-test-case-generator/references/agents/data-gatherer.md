@@ -85,7 +85,14 @@ python ${CLAUDE_SKILL_DIR}/scripts/gather.py <JIRA_ID> [--version VERSION] [--pr
 
 **Do NOT pre-create a run directory.** gather.py is the single source of truth for the directory path and naming convention. Use the path it returns for all subsequent artifact writes.
 
-2. **Read `gather-output.json`** from the run directory. Note the PR count, area, version, and whether PRs were found.
+2. **Read `gather-output.json`** from the run directory. Note the PR count, area, version, `cnv_version`, and whether PRs were found.
+
+3. **CNV version resolution (Fleet Virt / CCLM / MTV only):** If `area` is `fleet-virt`, `cclm`, or `mtv` and `cnv_version` is null in `gather-output.json`:
+   - Call `mcp__acm-source__list_versions()` to get the ACM-to-CNV version mapping
+   - Match the ACM version from `gather-output.json` to the corresponding CNV version
+   - If a cluster is available, `mcp__acm-source__detect_cnv_version()` is more accurate
+   - Record the resolved `cnv_version` in your `phase1-jira.json` output
+   - If resolution fails, set `cnv_version` to `"latest"` and add an anomaly
 
 ### Part B: JIRA Investigation + PR Discovery
 
@@ -147,6 +154,7 @@ Write `phase1-jira.json` to the run directory with this structure:
   },
   "pr_references": [{"number": 5790, "repo": "stolostron/console", "title": "...", "files_changed": 5}],
   "existing_polarion_coverage": [{"id": "RHACM4K-XXXXX", "title": "..."} ],
+  "cnv_version": "4.20 or null (resolved from PR base branch or MCP list_versions)",
   "architecture_context": "subsystem and dependency info or null",
   "test_scenarios": ["scenario 1", "scenario 2", "..."],
   "anomalies": []

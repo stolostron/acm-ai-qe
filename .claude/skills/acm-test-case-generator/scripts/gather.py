@@ -12,6 +12,7 @@ Usage:
 import argparse
 import json
 import os
+import re
 import subprocess
 import time
 from datetime import datetime, timezone
@@ -123,7 +124,7 @@ def get_pr_metadata(pr_number: int, repo: str = "stolostron/console"):
     output = _run_gh([
         "pr", "view", str(pr_number),
         "--repo", repo,
-        "--json", "title,body,files,additions,deletions,mergedAt,mergeCommit,state",
+        "--json", "title,body,files,additions,deletions,mergedAt,mergeCommit,state,baseRefName",
     ])
     if not output:
         return None
@@ -141,6 +142,7 @@ def get_pr_metadata(pr_number: int, repo: str = "stolostron/console"):
             "deletions": data.get("deletions", 0),
             "merged_at": data.get("mergedAt"),
             "merge_commit_sha": (data.get("mergeCommit") or {}).get("oid"),
+            "base_branch": data.get("baseRefName"),
             "diff_file": None,
         }
     except (json.JSONDecodeError, KeyError):
@@ -186,6 +188,26 @@ def detect_area_from_files(files: list):
 # ---------------------------------------------------------------------------
 # File service (inlined from src/services/file_service.py)
 # ---------------------------------------------------------------------------
+
+VIRT_AREAS = {"fleet-virt", "cclm", "mtv"}
+
+
+def _detect_cnv_version(pr_data_list: list, area: str):
+    """Auto-detect CNV version from kubevirt-plugin PR base branch."""
+    if area not in VIRT_AREAS:
+        return None
+    for pr in pr_data_list:
+        repo = pr.get("repo", "")
+        if "kubevirt-plugin" not in repo and "kubevirt" not in repo.split("/")[-1].lower():
+            continue
+        base = pr.get("base_branch", "") or ""
+        m = re.match(r"release-(\d+\.\d+)", base)
+        if m:
+            return m.group(1)
+        if base == "main":
+            return "latest"
+    return None
+
 
 AREA_TO_COMPONENT_DIRS = {
     "governance": ["grc"],
@@ -426,11 +448,19 @@ def main():
             else:
                 production_files.append(f)
 
+    # --- CNV Version Detection (Fleet Virt / CCLM / MTV only) ---
+    cnv_version = _detect_cnv_version(pr_data_list, area) if area else None
+    if cnv_version:
+        print(f"  CNV version detected: {cnv_version}")
+    elif area in VIRT_AREAS:
+        print(f"  CNV version not found in PR data (Phase 1 AI will resolve via MCP)")
+
     # --- Build Output ---
     pr_data = pr_data_list[0] if pr_data_list else None
     output = {
         "jira_id": jira_id,
         "acm_version": acm_version,
+        "cnv_version": cnv_version,
         "area": area,
         "pr_data": pr_data,
         "pr_data_list": pr_data_list,

@@ -33,6 +33,7 @@ JIRA_ID: <value>
 PR_NUMBER: <value>
 REPO: <value>
 ACM_VERSION: <value>
+CNV_VERSION: <value or "N/A">
 AREA: <value>
 RUN_DIR: <path>
 PR_DIFF_PATH: <path to pr-diff.txt>
@@ -40,6 +41,8 @@ KNOWLEDGE_DIR: ${CLAUDE_SKILL_DIR}/../../knowledge
 SKILLS_DIR: ${CLAUDE_SKILL_DIR}/..
 </input>
 ```
+
+CNV_VERSION: Read from `gather-output.json` (`cnv_version` field). If null, check `phase1-jira.json`. Use `"N/A"` for non-virtualization areas.
 
 ### Phase 3: UI Discovery
 

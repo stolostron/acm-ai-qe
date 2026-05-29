@@ -84,9 +84,8 @@ Resolve before starting the pipeline:
 3. **PR Number**: Auto-detect from JIRA description/comments, or ask if not found
 4. **Area**: Auto-detect from PR file paths (governance, rbac, fleet-virt, clusters, search, applications, credentials, cclm, mtv)
 5. **Cluster URL** (optional): Run `oc whoami --show-server 2>/dev/null`. If logged in, derive console URL via `oc get route console -n openshift-console -o jsonpath='{.spec.host}' 2>/dev/null`. If unavailable, ask or skip live validation. In headless mode (`-p`), auto-detect only.
-6. **CNV Version** (Fleet Virt only): Ask or auto-detect via `mcp__acm-source__set_cnv_version`
-7. **Console Credentials** (optional): Resolve via the priority cascade in `pipeline-detail.md#phase-0-credential-resolution`.
-8. **MCP Availability Check**: Run the MCP probe described in `pipeline-detail.md#phase-0-mcp-availability-check`. If REQUIRED MCPs are unavailable, warn the user. If IMPORTANT MCPs are unavailable, warn and proceed.
+6. **Console Credentials** (optional): Resolve via the priority cascade in `pipeline-detail.md#phase-0-credential-resolution`.
+7. **MCP Availability Check**: Run the MCP probe described in `pipeline-detail.md#phase-0-mcp-availability-check`. If REQUIRED MCPs are unavailable, warn the user. If IMPORTANT MCPs are unavailable, warn and proceed.
 
 If all inputs can be inferred from the JIRA ticket, proceed without asking.
 

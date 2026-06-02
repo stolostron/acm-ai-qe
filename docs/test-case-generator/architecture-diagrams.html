@@ -45,6 +45,29 @@ pre.data-block .dim { color: var(--dim); }
 .tag-agent { background: rgba(167,139,250,0.15); color: var(--purple); border: 1px solid rgba(167,139,250,0.3); }
 .tag-info { background: rgba(56,189,248,0.15); color: var(--accent); border: 1px solid rgba(56,189,248,0.3); }
 .separator { height: 1px; background: var(--border); margin: 16px 0; }
+.sample-banner { background: linear-gradient(135deg, rgba(74,222,128,0.08), rgba(56,189,248,0.08)); border: 1px solid rgba(74,222,128,0.2); border-radius: 8px; padding: 10px 14px; margin: 16px 0 8px 0; }
+.sample-banner h4 { color: var(--green); font-size: 0.82rem; font-family: 'JetBrains Mono', monospace; margin-bottom: 4px; }
+.sample-banner .meta { color: var(--dim); font-size: 0.72rem; font-family: 'JetBrains Mono', monospace; }
+.file-tab { display: inline-block; padding: 4px 10px; margin: 4px 4px 4px 0; border-radius: 4px; font-size: 0.72rem; font-family: 'JetBrains Mono', monospace; cursor: pointer; border: 1px solid var(--border); color: var(--dim); background: var(--surface2); transition: all 0.15s; }
+.file-tab:hover { border-color: var(--accent); color: var(--accent); }
+.file-tab.active { color: var(--green); border-color: var(--green); background: rgba(74,222,128,0.08); }
+.sample-file { display: none; }
+.sample-file.active { display: block; }
+pre.data-block { max-height: 500px; overflow-y: auto; }
+details.agent-details { margin: 8px 0 16px 0; }
+details.agent-details summary { cursor: pointer; color: var(--accent); font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; font-weight: 600; padding: 8px 12px; background: rgba(56,189,248,0.05); border: 1px solid var(--border); border-radius: 6px; user-select: none; list-style: none; }
+details.agent-details summary::-webkit-details-marker { display: none; }
+details.agent-details summary::before { content: '\25B6 '; font-size: 0.6rem; margin-right: 6px; transition: transform 0.15s; display: inline-block; }
+details.agent-details[open] summary::before { transform: rotate(90deg); }
+details.agent-details summary:hover { border-color: var(--accent); background: rgba(56,189,248,0.1); }
+details.agent-details[open] summary { border-radius: 6px 6px 0 0; border-bottom-color: var(--border); }
+.agent-def { max-height: 500px; overflow-y: auto; background: var(--bg); border: 1px solid var(--border); border-top: none; border-radius: 0 0 8px 8px; padding: 16px; font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: var(--text); line-height: 1.7; white-space: pre-wrap; word-break: break-word; }
+.agent-def .sh { color: var(--accent2); font-weight: 700; display: block; margin-top: 14px; margin-bottom: 2px; font-size: 0.74rem; letter-spacing: 0.5px; }
+.agent-def .sh:first-child { margin-top: 0; }
+.check-grid { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 8px 0 16px 0; font-size: 0.78rem; }
+.check-grid .ck { color: var(--accent); font-family: 'JetBrains Mono', monospace; font-weight: 600; white-space: nowrap; }
+.check-grid .cd { color: var(--dim); line-height: 1.5; }
+
 h1 { font-size: 2.4rem; font-weight: 800; margin-bottom: 8px; background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
 .sub { color: var(--dim); font-size: 0.95rem; margin-bottom: 16px; font-family: 'JetBrains Mono', monospace; }
 .example-banner { background: linear-gradient(135deg, rgba(56,189,248,0.08), rgba(244,114,182,0.08)); border: 1px solid rgba(56,189,248,0.2); border-radius: 10px; padding: 16px 20px; margin-bottom: 16px; }
@@ -78,6 +101,7 @@ h1 { font-size: 2.4rem; font-weight: 800; margin-bottom: 8px; background: linear
       <h3>JIRA Ticket &rarr; Polarion-Ready Test Case</h3>
       <p>The <code>acm-test-case-generator</code> orchestrator sequences 9 phases (0&ndash;8): input resolution, data gathering + JIRA investigation, PR code analysis, UI discovery, synthesis with scope gating and coverage gap triage, optional live validation (browser + CLI), test case writing, mandatory quality review with 3-tier escalation, and deterministic Polarion HTML generation. Each investigation phase runs in an isolated subagent context. 6 portable skills in 3 tiers: Orchestration, Core Pipeline, and Methodology + Knowledge.</p>
       <p style="margin-top:8px">Click any node to see details. Use tabs to switch between views. Zoom/pan with mouse wheel or controls.</p>
+      <p style="margin-top:6px;color:var(--green);font-size:0.82rem;">Sample data from <strong>ACM-30649</strong> run (2026-05-25) &mdash; click artifact nodes to see real pipeline output.</p>
     </div>
   </div>
 
@@ -130,31 +154,1914 @@ const DATA = {
 
 'pipeline-root': { title: 'Test Case Generator Pipeline', html: `<div class="detail-section"><h4>9-Phase Pipeline</h4><div class="value">Orchestrated by <code>acm-test-case-generator</code> skill. Sequences phases 0&rarr;8, spawning isolated subagents for each AI phase. Deterministic scripts handle data gathering (Phase 1) and report generation (Phase 8). After each AI phase (1&ndash;4, 6), <code>validate_artifact.py</code> validates the output against its schema with retry (up to 3 attempts).</div></div>` },
 
-'phase0': { title: 'Phase 0: Determine Inputs', html: `<div class="detail-section"><h4>Input Resolution</h4><div class="label">What it does:</div><div class="value">Checks if critical inputs are missing and asks the user before starting.</div><div class="label">Inputs resolved:</div><div class="value">&bull; JIRA ID (always required)<br>&bull; ACM version (from JIRA fix_versions, or ask)<br>&bull; Cluster URL (offer to skip live validation)<br>&bull; Console credentials (auto-detect from env vars)<br>&bull; Feature scope (if multiple ACs)</div><div class="label">Auto-resolved in Phase 1:</div><div class="value">&bull; CNV version &mdash; derived from kubevirt-plugin PR base branch or ACM&rarr;CNV version mapping via MCP. Only relevant for Fleet Virt / CCLM / MTV areas.</div><div class="label">MCP availability check:</div><div class="value">Probes REQUIRED MCPs (acm-source, jira, polarion). Warns if IMPORTANT MCPs (neo4j-rhacm) are unavailable.</div></div>` },
+'phase0': { title: 'Phase 0: Determine Inputs', html: `<div class="detail-section"><h4>Input Resolution</h4><div style="margin:6px 0 10px;"><span class="tag tag-info">Skill: acm-test-case-generator</span> <span class="tag tag-phase">Orchestrator logic</span></div><div class="label">What it does:</div><div class="value">Checks if critical inputs are missing and asks the user before starting.</div><div class="label">Inputs resolved:</div><div class="value">&bull; JIRA ID (always required)<br>&bull; ACM version (from JIRA fix_versions, or ask)<br>&bull; Cluster URL (offer to skip live validation)<br>&bull; Console credentials (auto-detect from env vars)<br>&bull; Feature scope (if multiple ACs)</div><div class="label">Auto-resolved in Phase 1:</div><div class="value">&bull; CNV version &mdash; derived from kubevirt-plugin PR base branch or ACM&rarr;CNV version mapping via MCP. Only relevant for Fleet Virt / CCLM / MTV areas.</div><div class="label">MCP availability check:</div><div class="value">Probes REQUIRED MCPs (acm-source, jira, polarion). Warns if IMPORTANT MCPs (neo4j-rhacm) are unavailable.</div><div class="separator"></div><details class="agent-details"><summary>Full Orchestrator Definition (acm-test-case-generator/SKILL.md)</summary><div class="agent-def"><span class="sh">YAML FRONTMATTER</span>
+---
+name: acm-test-case-generator
+description: &gt;-
+  Use this skill when the user wants a FULL end-to-end Polarion-ready ACM Console UI
+  test case from a JIRA ticket (e.g. ACM-30459): JIRA + PRs + UI discovery + synthesis
+  + optional live validation + writing + mandatory quality review. This is the ONLY
+  skill for that complete path. Do NOT use acm-test-case-writer or acm-qe-code-analyzer
+  for the same request—they are partial workflows. Do NOT use acm-knowledge-base alone;
+  it is reference-only. TRIGGER: generate/write test case from JIRA, Polarion test case
+  for ACM ticket, test coverage for a story. DO NOT TRIGGER: PR-only diff analysis without
+  JIRA-to-Polarion pipeline (use acm-qe-code-analyzer); review-only (use acm-test-case-reviewer).
+compatibility: &gt;-
+  Required MCPs: acm-source, jira, polarion. Recommended: neo4j-rhacm. Optional:
+  acm-search, acm-kubectl, playwright. Also needs gh CLI. Run /onboard to configure.
+metadata:
+  author: acm-qe
+  version: "2.1.0"
+allowed-tools:
+  - Read
+  - Write
+  - Edit
+  - Glob
+  - Grep
+  - Agent
+  - Bash(python \${CLAUDE_SKILL_DIR}/scripts/gather.py:*)
+  - Bash(python \${CLAUDE_SKILL_DIR}/scripts/report.py:*)
+  - Bash(python \${CLAUDE_SKILL_DIR}/scripts/review_enforcement.py:*)
+  - Bash(python \${CLAUDE_SKILL_DIR}/scripts/validate_artifact.py:*)
+  - Bash(python:*)
+  - Bash(python3:*)
+  - mcp__acm-source__list_repos
+  - Bash(gh:*)
+  - Bash(git:*)
+  - Bash(ls:*)
+  - Bash(cat:*)
+  - Bash(mkdir:*)
+  - Bash(jq:*)
+  - Bash(head:*)
+  - Bash(tail:*)
+  - Bash(grep:*)
+  - Bash(find:*)
+  - Bash(wc:*)
+  - Bash(echo:*)
+  - Bash(date:*)
+  - Bash(basename:*)
+  - Bash(dirname:*)
+  - Bash(realpath:*)
+  - Bash(oc:*)
+  - mcp__acm-source__set_acm_version
+  - mcp__acm-source__set_cnv_version
+  - mcp__acm-source__get_routes
+  - mcp__acm-source__search_translations
+  - mcp__acm-source__get_component_source
+  - mcp__acm-source__search_code
+  - mcp__jira__get_issue
+  - mcp__jira__search_issues
+  - mcp__polarion__get_polarion_work_items
+  - mcp__polarion__get_polarion_work_item
+  - mcp__polarion__get_polarion_test_case_summary
+  - mcp__polarion__check_polarion_status
+---
 
-'phase1': { title: 'Phase 1: Data Gather + JIRA Investigation', html: `<div class="detail-section"><h4>data-gatherer Subagent</h4><div class="label">Agent:</div><div class="value"><code>references/agents/data-gatherer.md</code></div><div class="label">Duration:</div><div class="value">~20&ndash;35 seconds</div><div class="label">Step 1 &mdash; Deterministic (gather.py):</div><div class="value">&bull; PR discovery via <code>gh search prs</code><br>&bull; PR metadata + base branch via <code>gh pr view --json</code><br>&bull; Full PR diff via <code>gh pr diff</code><br>&bull; Area detection (9 areas, scored by file path patterns)<br>&bull; CNV version auto-detection from kubevirt-plugin PR base branch (Fleet Virt / CCLM / MTV only)<br>&bull; Peer test cases, conventions, area knowledge loaded</div><div class="label">Step 2 &mdash; JIRA Investigation (AI + MCP):</div><div class="value"><span class="tag tag-mcp">jira</span> get_issue, search_issues<br><span class="tag tag-mcp">polarion</span> get_polarion_work_items, get_polarion_test_case_summary<br><span class="tag tag-mcp">neo4j</span> read_neo4j_cypher (optional)<br><span class="tag tag-mcp">bash</span> gh CLI</div><div class="label">CNV version resolution (AI fallback):</div><div class="value">If area is Fleet Virt / CCLM / MTV and <code>cnv_version</code> is null in gather-output.json, the AI agent resolves it via <code>list_versions</code> or <code>detect_cnv_version</code> MCP. Writes resolved value to <code>phase1-jira.json</code>.</div><div class="label">Output:</div><div class="value"><code>gather-output.json</code> (includes <code>cnv_version</code>), <code>pr-diff.txt</code>, <code>phase1-jira.json</code></div><div class="label">Validation:</div><div class="value"><code>gather-output.json</code> validation FAIL &rarr; <strong>stop pipeline</strong> (deterministic script bug).<br><code>phase1-jira.json</code> validation FAIL &rarr; retry up to 3 times.</div></div>` },
+Use this skill when the user wants a FULL end-to-end Polarion-ready ACM Console UI
+  + optional live validation + writing + mandatory quality review. This is the ONLY
+  skill for that complete path. Do NOT use acm-test-case-writer or acm-qe-code-analyzer
+  for the same request—they are partial workflows. Do NOT use acm-knowledge-base alone;
+  JIRA-to-Polarion pipeline (use acm-qe-code-analyzer); review-only (use acm-test-case-reviewer).
+  acm-search, acm-kubectl, playwright. Also needs gh CLI. Run /onboard to configure.
+<span class="sh">ACM Console Test Case Generator</span>
+
+Subagent-orchestrated pipeline generating Polarion-ready test cases from JIRA tickets. Each investigation phase runs in an isolated subagent context, writes structured output to disk, and terminates &mdash; preventing context pressure and recency bias. The orchestrator is thin routing logic only.
+
+&gt; <strong>Mapping note:</strong> This skill uses a 9-phase model (Phases 0-8) where data gathering and JIRA investigation are merged into Phase 1, and investigation is split into sequential phases (2-3). The app pipeline (apps/test-case-generator/) consolidates investigation into 1 parallel phase. See the app README for the mapping table.
+
+Read \${CLAUDE_SKILL_DIR}/references/pipeline-detail.md for phase input schemas. Per-concern details are split for progressive loading:
+&bull; Phase 0: read \${CLAUDE_SKILL_DIR}/references/phase0-inputs.md for credential resolution and MCP availability checks
+&bull; On validation failure: read \${CLAUDE_SKILL_DIR}/references/validation-protocol.md for retry protocol
+&bull; Phase 1 (before creating run dir): read \${CLAUDE_SKILL_DIR}/references/run-directory.md for artifact naming
+
+<span class="sh">Pipeline Phases</span>
+
+Read references/phase-gates.md for gate rules and progress indicators.
+
+<strong>Phase 0: Determine Inputs</strong>
+
+Resolve before starting the pipeline:
+
+1. <strong>JIRA ID</strong> (required): The ticket to generate a test case for (e.g., ACM-30459)
+2. <strong>ACM Version</strong>: From JIRA fix_versions, or ask: "Which ACM version?"
+3. <strong>PR Number</strong>: Auto-detect from JIRA description/comments, or ask if not found
+4. <strong>Area</strong>: Auto-detect from PR file paths (governance, rbac, fleet-virt, clusters, search, applications, credentials, cclm, mtv)
+5. <strong>Cluster URL</strong> (optional): Run oc whoami --show-server 2&gt;/dev/null. If logged in, derive console URL via oc get route console -n openshift-console -o jsonpath='{.spec.host}' 2&gt;/dev/null. If unavailable, ask or skip live validation. In headless mode (-p), auto-detect only.
+6. <strong>Console Credentials</strong> (optional): Resolve via the priority cascade in pipeline-detail.md#phase-0-credential-resolution.
+7. <strong>MCP Availability Check</strong>: Run the MCP probe described in pipeline-detail.md#phase-0-mcp-availability-check. If REQUIRED MCPs are unavailable, warn the user. If IMPORTANT MCPs are unavailable, warn and proceed.
+
+If all inputs can be inferred from the JIRA ticket, proceed without asking.
+
+<strong>Phase 1: Gather Data + Investigate JIRA Story</strong>
+
+Read \${CLAUDE_SKILL_DIR}/references/agents/data-gatherer.md. Spawn a subagent (Agent tool, description: "Data Gathering + JIRA Investigation") with the full agent instructions and the Phase 1 input from pipeline-detail.md.
+
+&bull; gather-output validation FAIL: <strong>stop the pipeline</strong> (gather.py is deterministic &mdash; failures indicate a script bug, not an LLM issue).
+&bull; phase1-jira validation FAIL: enter Retry Protocol (see pipeline-detail.md).
+
+Read gather-output.json to fill in any unresolved inputs (PR number, area, repo). Record the run directory path.
+
+Do NOT read phase1-jira.json into orchestrator context.
+Show: "Phase 1 complete. Gathered N PRs, JIRA findings written to phase1-jira.json."
+
+<strong>Phase 2: Analyze PR Code Changes</strong>
+
+Read \${CLAUDE_SKILL_DIR}/references/agents/code-analyzer.md. Spawn a subagent (description: "Code Analysis") with the instructions and the Phase 2 input from pipeline-detail.md.
+
+If validation PASS: continue. If FAIL: enter Retry Protocol.
+
+Show: "Phase 2 complete. Code analysis written to phase2-code.json."
+
+<strong>Phase 3: Discover UI Elements</strong>
+
+Read \${CLAUDE_SKILL_DIR}/references/agents/ui-discoverer.md. Spawn a subagent (description: "UI Discovery") with the instructions and the Phase 3 input from pipeline-detail.md.
+
+If validation PASS: continue. If FAIL: enter Retry Protocol.
+
+Show: "Phase 3 complete. UI elements written to phase3-ui.json."
+
+<strong>Pre-Synthesis Readiness Check</strong>
+
+Run the pre-synthesis validation (see pipeline-detail.md).
+
+If PASS: continue to Phase 4.
+If FAIL: <strong>stop the pipeline</strong>. Upstream phases already exhausted their retry attempts. Report the missing data to the user.
+
+<strong>Phase 4: Synthesize</strong>
+
+Read \${CLAUDE_SKILL_DIR}/references/agents/synthesizer.md. Spawn a subagent (description: "Synthesis") with the instructions and the Phase 4 input from pipeline-detail.md.
+
+If validation PASS: continue. If FAIL: enter Retry Protocol.
+
+Show: "Phase 4 complete. Synthesized context written."
+
+<strong>Phase 5: Live Validation (conditional)</strong>
+
+<strong>Skip</strong> if no cluster URL was resolved in Phase 0: "Skipping live validation &mdash; no cluster available."
+
+Read \${CLAUDE_SKILL_DIR}/references/agents/live-validator.md. Spawn a subagent (description: "Live Validation") with the instructions and the Phase 5 input from pipeline-detail.md.
+
+Verify phase5-live-validation.md exists. Apply live validation corrections per pipeline-detail.md#phase-5-live-validation-corrections.
+
+Show: "Phase 5 complete. Live validation written."
+
+<strong>Phase 6: Write Test Case</strong>
+
+Read \${CLAUDE_SKILL_DIR}/references/agents/test-case-writer.md. Spawn a subagent (description: "Test Case Writing") with the instructions and the Phase 6 input from pipeline-detail.md.
+
+If validation PASS: continue. If FAIL: enter Retry Protocol.
+
+Show: "Phase 6 complete. Test case written."
+
+<strong>Phase 7: Quality Review (MANDATORY GATE)</strong>
+
+Read \${CLAUDE_SKILL_DIR}/references/agents/quality-reviewer.md. Spawn a subagent (description: "Quality Review") with the instructions and the Phase 7 input from pipeline-detail.md.
+
+Read the review output. Run programmatic enforcement (see pipeline-detail.md).
+
+<strong>If PASS:</strong> proceed to Phase 8.
+
+<strong>If NEEDS_FIXES &mdash; 3-tier escalation:</strong>
+
+<strong>Tier 1 (inline MCP):</strong> Parse BLOCKING issues. Make 1-3 targeted MCP calls (set_acm_version, search_translations, get_component_source) for correct values. Fix test-case.md via Edit. Spawn NEW quality-reviewer subagent. Re-run enforcement.
+
+<strong>Tier 2 (writer retry):</strong> Spawn NEW test-case-writer subagent with MODE: REVISION and reviewer flags. Spawn NEW quality-reviewer subagent. Re-run enforcement.
+
+<strong>Tier 3 (proceed):</strong> Mark unresolvable steps with [MANUAL VERIFICATION REQUIRED: &lt;issue&gt;]. Proceed to Phase 8.
+
+Show: "Quality review PASSED." or "Quality review: N steps flagged for manual verification."
+
+<strong>Phase 8: Generate Reports</strong>
+
+python \${CLAUDE_SKILL_DIR}/scripts/report.py &lt;run-directory&gt;
+
+Show the final summary with all output file paths.
+
+<span class="sh">Safety Rules</span>
+
+1. <strong>Read-only</strong> &mdash; never modify JIRA tickets, Polarion items, or cluster resources
+2. <strong>No assumptions</strong> &mdash; all UI labels, routes, selectors from MCP or investigation
+3. <strong>Evidence-based</strong> &mdash; every expected result traces to a source
+4. <strong>Quality gate</strong> &mdash; never deliver without passing review AND programmatic enforcement
+5. <strong>Skill feedback</strong> &mdash; if any skill file produces incorrect guidance during the pipeline, follow \${CLAUDE_SKILL_DIR}/references/skill-feedback.md to report the issue</div></details></div>` },
+
+'phase1': { title: 'Phase 1: Data Gather + JIRA Investigation', html: `<div class="detail-section"><h4>data-gatherer Subagent</h4><div style="margin:6px 0 10px;"><span class="tag tag-info">Skill: acm-test-case-generator</span> <span class="tag tag-agent">Agent: data-gatherer</span></div><div class="label">Agent:</div><div class="value"><code>references/agents/data-gatherer.md</code></div><div class="label">Duration:</div><div class="value">~20&ndash;35 seconds</div><div class="label">Input from orchestrator:</div><div class="value">&bull; <code>JIRA_ID</code>, <code>ACM_VERSION</code>, <code>AREA</code> &mdash; values resolved in Phase 0 (from user input or JIRA ticket)<br>&bull; <code>SKILLS_DIR</code> &mdash; path to sibling skills (for Step 0 skill loading)<br>&bull; No files passed in &mdash; this is the first phase. The agent runs <code>gather.py</code> which creates the run directory and produces <code>gather-output.json</code>, <code>pr-diff.txt</code>, and <code>phase1-jira.json</code></div><div class="label">Step 1 &mdash; Deterministic (gather.py):</div><div class="value">&bull; PR discovery via <code>gh search prs</code><br>&bull; PR metadata + base branch via <code>gh pr view --json</code><br>&bull; Full PR diff via <code>gh pr diff</code><br>&bull; Area detection (9 areas, scored by file path patterns)<br>&bull; CNV version auto-detection from kubevirt-plugin PR base branch (Fleet Virt / CCLM / MTV only)<br>&bull; Peer test cases, conventions, area knowledge loaded</div><div class="label">Step 2 &mdash; JIRA Investigation (AI + MCP):</div><div class="value">The AI agent reads the JIRA ticket and surrounding context to understand what the feature is, what it should do, and whether anyone has already tested it. Specifically:<br><br>&bull; <strong>Story details</strong> <span class="tag tag-mcp">jira</span> &mdash; Fetches the full JIRA story (summary, acceptance criteria, fix version, components, labels). The acceptance criteria become the scope gate for the entire pipeline: every test step written later must trace back to at least one AC.<br><br>&bull; <strong>JIRA comments</strong> <span class="tag tag-mcp">jira</span> &mdash; Reads all comments on the ticket. Comments are the richest source of edge cases, design decisions, and scope changes that are not captured in the AC text itself. Downstream agents use these to catch behaviors that would otherwise be missed.<br><br>&bull; <strong>Linked tickets</strong> <span class="tag tag-mcp">jira</span> &mdash; Searches for related tickets via JQL (QE tracking sub-tasks, sibling stories, linked bugs). These reveal scope decisions, known issues, and related test efforts that inform what to include or exclude from the test case.<br><br>&bull; <strong>PR cross-reference</strong> <span class="tag tag-mcp">bash</span> &mdash; Compares PRs found by gather.py (via git search) against PR links embedded in the JIRA ticket. If JIRA references PRs that gather.py missed (e.g., in other repos), the agent fetches those too. Ensures the code analyzer in Phase 2 sees all relevant code changes.<br><br>&bull; <strong>Existing Polarion coverage</strong> <span class="tag tag-mcp">polarion</span> &mdash; Queries Polarion for any test cases that already cover this feature area and version. This prevents the pipeline from generating a duplicate test case for something that already has coverage, and lets the writer learn from the structure of existing tests.<br><br>&bull; <strong>Architecture context</strong> <span class="tag tag-mcp">neo4j</span> &mdash; Optionally queries the component dependency graph to understand how the changed component fits into the broader system. Helps downstream agents understand blast radius and side effects. Graceful fallback if Neo4j is unavailable.</div><div class="label">CNV version resolution (Fleet Virt / CCLM / MTV only):</div><div class="value">For virtualization areas, gather.py looks for a kubevirt-plugin PR in the discovered PRs. If found, it reads the PR&rsquo;s base branch (e.g., <code>release-4.20</code>) and extracts the CNV version from it. This version is needed so that all downstream MCP source lookups (Phases 2, 3, 6, 7) search the correct kubevirt-plugin branch.</div><div class="label">Output:</div><div class="value">Three files are written to the run directory:<br>&bull; <code>gather-output.json</code> &mdash; everything from Step 1 (PR data, area, conventions, knowledge) bundled as a single handoff artifact for all downstream phases<br>&bull; <code>pr-diff.txt</code> &mdash; the raw PR diff, used by the code analyzer in Phase 2 to understand exactly what lines changed<br>&bull; <code>phase1-jira.json</code> &mdash; the structured JIRA investigation from Step 2 (story, ACs, comments, linked tickets, Polarion coverage, test scenarios)</div><div class="label">Validation:</div><div class="value"><code>gather-output.json</code> validation FAIL &rarr; <strong>stop pipeline</strong> (this is a deterministic script, so a failure here means a bug in gather.py itself).<br><code>phase1-jira.json</code> validation FAIL &rarr; retry up to 3 times (the AI agent may have missed a required field; retries include the specific error so it can correct).</div><div class="separator"></div><details class="agent-details"><summary>Full Agent Definition (references/agents/data-gatherer.md)</summary><div class="agent-def">You are the data gathering and JIRA investigation specialist for ACM Console test case generation. You execute the deterministic gather script, perform deep JIRA investigation, discover ALL linked PRs (including from JIRA's development panel), and produce two structured artifacts for downstream agents.
+
+<span class="sh">MCP Tool Reference</span>
+
+<strong>JIRA MCP Tools</strong>
+
+| Tool | Purpose | Example |
+| get_issue(issue_key) | Full ticket details: summary, description, comments, fix_versions, components, labels, status, priority, assignee | get_issue(issue_key="ACM-30459") |
+| search_issues(jql) | Search tickets using JQL query syntax | search_issues(jql='project = ACM AND type = Bug AND status != Closed') |
+
+<strong>Gotchas:</strong>
+&bull; get_issue does NOT return issue links &mdash; use search_issues with JQL to find related tickets
+&bull; Comment field is comment, NOT body
+&bull; get_issue returns comments inline &mdash; read ALL of them for implementation decisions and edge cases
+&bull; JQL is case-sensitive for field names: fixVersion not fix_version, summary not title
+&bull; String values in JQL must be quoted: fixVersion = "ACM 2.17.0"
+
+<strong>JQL patterns:</strong>
+search_issues(jql='summary ~ "[QE] --- ACM-XXXXX"')           -- QE tracking ticket
+search_issues(jql='parent = ACM-XXXXX')                        -- Sub-tasks
+search_issues(jql='project = ACM AND fixVersion = "ACM 2.17.0" AND component = "COMPONENT"')
+search_issues(jql='project = ACM AND summary ~ "keyword" AND type = Bug AND status != Closed')
+
+<strong>Component mapping:</strong>
+
+| Area | JIRA Component Value |
+| Governance | Governance |
+| RBAC, Fleet Virt, CCLM, MTV | Virtualization |
+| Clusters, Credentials | Cluster Lifecycle |
+| Search | Search |
+| Applications | Application Lifecycle |
+
+If the area is not listed, read the components field from the source ticket.
+
+<strong>Polarion MCP Tools</strong>
+
+| Tool | Purpose |
+| get_polarion_work_items(project_id, query) | Search work items using Lucene query |
+| get_polarion_work_item(project_id, work_item_id, fields) | Get full work item details |
+| get_polarion_test_case_summary(project_id, work_item_id) | Quick summary: title, setup, steps |
+
+<strong>Gotchas:</strong>
+&bull; Project ID is ALWAYS RHACM4K &mdash; never use a different project ID
+&bull; Query syntax is Lucene, NOT JQL: type:testcase AND title:"feature" (not type = testcase)
+&bull; fields="@basic" for quick checks, fields="@all" for full details
+
+<strong>Lucene query patterns:</strong>
+get_polarion_work_items(project_id="RHACM4K", query='type:testcase AND title:"governance labels"')
+get_polarion_work_items(project_id="RHACM4K", query='type:testcase AND caseautomation:"notautomated"')
+
+<span class="sh">Additional Tools (not in shared skills)</span>
+
+<strong>Neo4j MCP (optional)</strong>
+
+mcp__neo4j-rhacm__read_neo4j_cypher("MATCH (n:RHACMComponent) WHERE n.label CONTAINS 'FeatureName' RETURN n.label, n.subsystem")
+mcp__neo4j-rhacm__read_neo4j_cypher("MATCH (a)-[r]-&gt;(b) WHERE a.label CONTAINS 'FeatureName' RETURN a.label, type(r), b.label")
+
+<strong>GitHub CLI (bash)</strong>
+
+gh pr view &lt;N&gt; --repo &lt;REPO&gt; --json title,body,files,additions,deletions
+gh pr diff &lt;N&gt; --repo &lt;REPO&gt;
+
+<span class="sh">Process</span>
+
+<strong>Part A: Run Gather Script</strong>
+
+1. <strong>Run gather.py</strong> via Bash. It creates the run directory (runs/test-case-generator/&lt;JIRA_ID&gt;/&lt;JIRA_ID&gt;-&lt;YYYY-MM-DDTHH-MM-SS&gt;/), discovers initial PRs via gh search, downloads diffs, and loads conventions. <strong>The last line of stdout is the run directory path</strong> &mdash; capture it.
+
+python \${CLAUDE_SKILL_DIR}/scripts/gather.py &lt;JIRA_ID&gt; [--version VERSION] [--pr PR_NUMBER] [--area AREA] [--repo REPO]
+
+<strong>Do NOT pre-create a run directory.</strong> gather.py is the single source of truth for the directory path and naming convention. Use the path it returns for all subsequent artifact writes.
+
+2. <strong>Read gather-output.json</strong> from the run directory. Note the PR count, area, version, cnv_version, and whether PRs were found.
+
+3. <strong>CNV version resolution (Fleet Virt / CCLM / MTV only):</strong> If area is fleet-virt, cclm, or mtv and cnv_version is null in gather-output.json:
+   &bull; Call mcp__acm-source__list_versions() to get the ACM-to-CNV version mapping
+   &bull; Match the ACM version from gather-output.json to the corresponding CNV version
+   &bull; If a cluster is available, mcp__acm-source__detect_cnv_version() is more accurate
+   &bull; Record the resolved cnv_version in your phase1-jira.json output
+   &bull; If resolution fails, set cnv_version to "latest" and add an anomaly
+
+<strong>Part B: JIRA Investigation + PR Discovery</strong>
+
+3. <strong>Read the story</strong> via get_issue(issue_key). Extract: summary, description, acceptance criteria, fix version, components, labels, status. <strong>CRITICAL: Also extract the git_pull_requests field</strong> &mdash; this contains PR URLs from JIRA's development panel (GitHub integration).
+
+4. <strong>Cross-reference JIRA PR links against gather.py results.</strong> Parse PR URLs from git_pull_requests (format: comma-separated URLs like https://github.com/stolostron/console/pull/5790). Extract repo and PR number from each URL. For any PRs not already in gather-output.json's pr_data_list:
+   &bull; Run gh pr view &lt;N&gt; --repo &lt;REPO&gt; --json title,body,files,additions,deletions to get metadata
+   &bull; Run gh pr diff &lt;N&gt; --repo &lt;REPO&gt; to get the diff
+   &bull; Append the diff to pr-diff.txt (with a header separator: # PR #N (repo))
+   &bull; Update gather-output.json with the new PR in pr_data_list and pr_data (if first PR)
+   &bull; Re-detect area from combined file paths if area was not specified
+
+5. <strong>If ZERO PRs found from both sources</strong> (gather.py gh search AND JIRA git_pull_requests): write error to run directory and stop with message "No PRs found for &lt;JIRA_ID&gt;. Cannot proceed without code changes to analyze."
+
+6. <strong>Read ALL comments</strong> &mdash; they contain implementation decisions, edge cases, design trade-offs, QE feedback.
+
+7. <strong>Find linked tickets</strong> using JQL patterns above:
+   &bull; QE tracking: summary ~ "[QE] --- ACM-XXXXX"
+   &bull; Sub-tasks: parent = ACM-XXXXX
+   &bull; Sibling stories in same fixVersion + component (check for renames, behavior changes, edge cases affecting target story)
+   &bull; Related bugs: type = Bug AND summary ~ "keyword"
+
+8. <strong>Check existing Polarion coverage</strong> using Polarion MCP tools above (always project_id="RHACM4K", Lucene syntax).
+
+9. <strong>Check architecture context</strong> via Neo4j (if available): subsystem, dependencies, dependents.
+
+10. <strong>Identify what to test:</strong> Map ACs to testable scenarios. Identify edge cases from comments. Note RBAC implications, conditional UI.
+
+<strong>Part C: Write Artifacts</strong>
+
+11. <strong>Write phase1-jira.json</strong> to the run directory (see Output section below).
+
+12. <strong>Update gather-output.json</strong> if new PRs were discovered in Part B (update pr_data, pr_data_list, area, file lists).
+
+<span class="sh">Output</span>
+
+Write phase1-jira.json to the run directory with this structure:
+
+{
+  "story": {
+    "key": "ACM-XXXXX",
+    "summary": "...",
+    "description_excerpt": "...",
+    "status": "...",
+    "fix_version": "ACM X.XX.X",
+    "components": ["..."],
+    "labels": ["..."]
+  },
+  "acceptance_criteria": ["AC1", "AC2", "..."],
+  "comments_with_decisions": ["key insight 1", "..."],
+  "edge_cases": ["edge case 1", "..."],
+  "rbac_impact": "description or null",
+  "linked_tickets": {
+    "qe_tracking": "ACM-YYYYY or null",
+    "sub_tasks": ["..."],
+    "siblings": [{"key": "ACM-ZZZZZ", "summary": "...", "relevance": "..."}],
+    "bugs": ["..."]
+  },
+  "pr_references": [{"number": 5790, "repo": "stolostron/console", "title": "...", "files_changed": 5}],
+  "existing_polarion_coverage": [{"id": "RHACM4K-XXXXX", "title": "..."} ],
+  "cnv_version": "4.20 or null (resolved from PR base branch or MCP list_versions)",
+  "architecture_context": "subsystem and dependency info or null",
+  "test_scenarios": ["scenario 1", "scenario 2", "..."],
+  "anomalies": []
+}
+
+The pr_references field MUST contain ALL discovered PRs from both sources (gather.py gh search + JIRA development panel).
+
+<span class="sh">Rules</span>
+
+&bull; Run gather.py FIRST &mdash; it creates the run directory and loads conventions
+&bull; Read ALL JIRA comments &mdash; richest source of edge cases
+&bull; ALWAYS extract git_pull_requests from get_issue response &mdash; this is the primary PR discovery source
+&bull; NEVER skip linked ticket search &mdash; QE tracking tickets have scope decisions
+&bull; ALWAYS check Polarion for existing coverage before suggesting scenarios
+&bull; If a tool is unavailable, note it in anomalies and proceed
+&bull; If gather.py fails (non-zero exit), report the error and stop
+
+<span class="sh">Retry Handling</span>
+
+If a &lt;retry&gt; block is present in your input, the orchestrator's schema validator found errors in your previous output. Read your previous output at the path given in PREVIOUS_OUTPUT_PATH. Review each VALIDATION_ERRORS entry. Re-investigate the missing or malformed data using the same MCP tools &mdash; do not add placeholder values. Write corrected output to the same path (phase1-jira.json), preserving any valid data from the previous attempt.</div></details></div>` },
 
 'phase1-artifacts': { title: 'Phase 1 Artifacts', html: `<div class="detail-section"><h4>Three Output Files</h4><div class="label">gather-output.json:</div><div class="value">Serialized GatherOutput Pydantic model: jira_id, acm_version, area, pr_data (number, title, repo, state, files, additions, deletions, diff_file), existing_test_cases[], conventions, area_knowledge, html_templates, run_dir, options, test_files[], production_files[]</div><div class="label">pr-diff.txt:</div><div class="value">Full PR diff from <code>gh pr diff</code>. Used by code-analyzer in Phase 2.</div><div class="label">phase1-jira.json:</div><div class="value">Story summary, ACs, comments with design decisions, linked tickets, existing Polarion coverage, test scenarios, anomalies[].</div></div>` },
 
-'phase2': { title: 'Phase 2: Code Analysis', html: `<div class="detail-section"><h4>code-analyzer Subagent</h4><div class="label">Agent:</div><div class="value"><code>references/agents/code-analyzer.md</code></div><div class="label">Duration:</div><div class="value">~15&ndash;30 seconds</div><div class="label">10-step analysis:</div><div class="value">1. PR metadata (gh pr view)<br>2. Full diff (gh pr diff)<br>3. Set ACM version<br>4. Analyze each changed file<br>5. <strong>MANDATORY:</strong> Read full source via <code>get_component_source</code><br>6. Verify filtering functions against source<br>7. Check component dependencies (neo4j)<br>8. Verify UI strings (search_translations)<br>9. Map changes to test scenarios<br>10. Coverage gap analysis (vs JIRA ACs)</div><div class="label">MCP tools:</div><div class="value"><span class="tag tag-mcp">acm-source</span> set_acm_version, search_code, get_component_source, search_translations, get_routes, find_test_ids<br><span class="tag tag-mcp">neo4j</span> read_neo4j_cypher<br><span class="tag tag-mcp">jira</span> get_issue (coverage gap analysis)</div><div class="label">Follow-up PR detection:</div><div class="value">For each primary file, checks for subsequent merged PRs via <code>gh pr list --search</code>. Flags post-merge renames, fixes, refactors.</div><div class="label">Output:</div><div class="value"><code>phase2-code.json</code> &mdash; changed components, UI elements, interaction models, routes, translations, filtering logic, follow-up PRs, test scenarios, coverage gaps, anomalies[]</div></div>` },
+'phase2': { title: 'Phase 2: Code Analysis', html: `<div class="detail-section"><h4>code-analyzer Subagent</h4><div style="margin:6px 0 10px;"><span class="tag tag-info">Skill: acm-qe-code-analyzer</span> <span class="tag tag-agent">Agent: code-analyzer</span></div><div class="label">Agent:</div><div class="value"><code>references/agents/code-analyzer.md</code></div><div class="label">Duration:</div><div class="value">~15&ndash;30 seconds</div><div class="label">Input from orchestrator:</div><div class="value">&bull; <code>JIRA_ID</code>, <code>PR_NUMBER</code>, <code>REPO</code>, <code>ACM_VERSION</code>, <code>CNV_VERSION</code>, <code>AREA</code> &mdash; values from Phase 0 + <code>gather-output.json</code><br>&bull; Reads <code>pr-diff.txt</code> &mdash; the full PR diff produced by Phase 1, used to analyze what code changed line by line<br>&bull; Reads <code>gather-output.json</code> &mdash; PR metadata (files list, additions, deletions) to know which files to analyze<br>&bull; <code>KNOWLEDGE_DIR</code> &mdash; path to <code>.claude/knowledge/</code> for area-specific architecture constraints<br>&bull; <code>SKILLS_DIR</code> &mdash; path to sibling skills (reads <code>acm-qe-code-analyzer/SKILL.md</code> in Step 0)</div><div class="label">10-step analysis:</div><div class="value">1. PR metadata (gh pr view)<br>2. Full diff (gh pr diff)<br>3. Set ACM version<br>4. Analyze each changed file<br>5. <strong>MANDATORY:</strong> Read full source via <code>get_component_source</code><br>6. Verify filtering functions against source<br>7. Check component dependencies (neo4j)<br>8. Verify UI strings (search_translations)<br>9. Map changes to test scenarios<br>10. Coverage gap analysis (vs JIRA ACs)</div><div class="label">MCP tools:</div><div class="value"><span class="tag tag-mcp">acm-source</span> set_acm_version, search_code, get_component_source, search_translations, get_routes, find_test_ids<br><span class="tag tag-mcp">neo4j</span> read_neo4j_cypher<br><span class="tag tag-mcp">jira</span> get_issue (coverage gap analysis)</div><div class="label">Follow-up PR detection:</div><div class="value">For each primary file, checks for subsequent merged PRs via <code>gh pr list --search</code>. Flags post-merge renames, fixes, refactors.</div><div class="label">Output:</div><div class="value"><code>phase2-code.json</code> &mdash; changed components, UI elements, interaction models, routes, translations, filtering logic, follow-up PRs, test scenarios, coverage gaps, anomalies[]. The synthesizer (Phase 4) uses this to cross-reference code behaviors against JIRA ACs &mdash; identifying which ACs have implementation evidence and which do not. Coverage gaps feed directly into the test plan&rsquo;s step design, and the verified translations and field orders become the expected values in the final test case steps.</div><div class="separator"></div><details class="agent-details"><summary>Full Agent Definition (references/agents/code-analyzer.md)</summary><div class="agent-def">You are a code change analysis specialist for ACM Console test case generation. You read PR diffs to understand exactly what changed, identify new UI elements, and perform coverage gap analysis against JIRA acceptance criteria.
 
-'phase3': { title: 'Phase 3: UI Discovery', html: `<div class="detail-section"><h4>ui-discoverer Subagent</h4><div class="label">Agent:</div><div class="value"><code>references/agents/ui-discoverer.md</code></div><div class="label">Duration:</div><div class="value">~15&ndash;30 seconds</div><div class="label">MCP tools (full sweep):</div><div class="value"><span class="tag tag-mcp">acm-source</span> set_acm_version, set_cnv_version, search_code, get_component_source, search_translations, get_routes, get_wizard_steps, get_acm_selectors, find_test_ids, get_patternfly_selectors<br><span class="tag tag-mcp">neo4j</span> read_neo4j_cypher</div><div class="label">Must call first:</div><div class="value"><code>set_acm_version</code> before any search. For Fleet Virt/CCLM/MTV, also <code>set_cnv_version</code>.</div><div class="label">Output:</div><div class="value"><code>phase3-ui.json</code> &mdash; translations (key &rarr; UI string), routes (name &rarr; path), selectors (component &rarr; CSS), test IDs, component structure, anomalies[]</div></div>` },
+<span class="sh">Step 0: Load Skill References (MANDATORY -- before any work)</span>
 
-'pre-synthesis': { title: 'Pre-Synthesis Readiness Check', html: `<div class="detail-section"><h4>8-Point Cross-Artifact Gate</h4><div class="label">Script:</div><div class="value"><code>validate_artifact.py --pre-synthesis</code></div><div class="label">Checks 8 data points across 3 artifacts:</div><div class="value">&bull; <code>story.key</code> present<br>&bull; <code>story.summary</code> present<br>&bull; <code>acceptance_criteria</code> non-empty<br>&bull; <code>pr.number</code> present<br>&bull; <code>pr.repo</code> present<br>&bull; <code>primary_files</code> non-empty<br>&bull; <code>entry_point</code> present<br>&bull; <code>routes</code> non-empty</div><div class="label">On failure:</div><div class="value"><strong>Stop pipeline.</strong> Upstream phases already exhausted retry attempts.</div></div>` },
+Read this shared skill file for analysis methodology, coverage gap rules, and critical rules.
+Use the MCP tools directly as documented below. Do NOT invoke the Skill tool.
 
-'phase4': { title: 'Phase 4: Synthesis', html: `<div class="detail-section"><h4>synthesizer Subagent</h4><div class="label">Agent:</div><div class="value"><code>references/agents/synthesizer.md</code></div><div class="label">Duration:</div><div class="value">~10 seconds</div><div class="label">Synthesis steps:</div><div class="value">1. Merge all three investigation outputs<br>2. <strong>Scope gate:</strong> Filter to target JIRA story ACs only<br>3. <strong>AC vs Implementation:</strong> Cross-reference, flag discrepancies<br>4. <strong>Coverage gap triage:</strong> ADD TO TEST PLAN / NOTE ONLY / SKIP<br>5. <strong>5 optimization passes:</strong> state transition consolidation, resource minimization, step flow sequencing, deduplication, negative scenario placement<br>6. Write TEST PLAN</div><div class="label">Conflict resolution:</div><div class="value">&bull; UI elements: trust <strong>ui-discoverer</strong><br>&bull; Business requirements: trust <strong>data-gatherer</strong><br>&bull; What changed: trust <strong>code-analyzer</strong><br>&bull; Architecture constraints: trust <strong>knowledge-base</strong><br>&bull; Labels/strings: trust <strong>current source code</strong> (MCP)</div><div class="label">Output:</div><div class="value"><code>synthesized-context.md</code> &mdash; full investigation data + AC discrepancies + TEST PLAN</div></div>` },
+&bull; \${SKILLS_DIR}/acm-qe-code-analyzer/SKILL.md &mdash; PR analysis methodology, coverage gap rules, critical rules (full source reads, test file distinction, multi-story PRs)
 
-'phase5': { title: 'Phase 5: Live Validation', html: `<div class="detail-section"><h4>live-validator Subagent (Conditional)</h4><div class="label">Condition:</div><div class="value">Runs only when <code>--cluster-url</code> is provided and <code>--skip-live</code> is not set.</div><div class="label">Agent:</div><div class="value"><code>references/agents/live-validator.md</code></div><div class="label">Duration:</div><div class="value">~2&ndash;5 minutes</div><div class="label">Process:</div><div class="value">1. <strong>Environment verification:</strong> 3-method tiered check (merge commit ancestry &rarr; image tag date &rarr; MCH version heuristic)<br>2. <strong>Browser auth:</strong> Form-based OAuth login (see <code>console-auth.md</code>)<br>3. Navigate to feature entry point<br>4. Walk through test steps (click, fill, hover, snapshot)<br>5. Verify backend state (<code>oc get</code>, <code>find_resources</code>)<br>6. Check JS errors + failed API calls<br>7. Build corrections table</div><div class="label">Tools:</div><div class="value"><span class="tag tag-mcp">playwright</span> 24 tools (browser automation)<br><span class="tag tag-mcp">acm-search</span> 5 tools (fleet queries)<br><span class="tag tag-mcp">acm-kubectl</span> 3 tools (multicluster kubectl)<br><span class="tag tag-mcp">bash</span> oc CLI, gh CLI</div><div class="label">Post-Phase 5:</div><div class="value">Orchestrator checks for <code>## Corrections</code> section. Live UI observations override source-code-inferred values for user-visible labels.</div></div>` },
+<strong>ACM Source MCP Tools (inline reference)</strong>
 
-'phase6': { title: 'Phase 6: Write Test Case', html: `<div class="detail-section"><h4>test-case-writer Subagent</h4><div class="label">Agent:</div><div class="value"><code>references/agents/test-case-writer.md</code></div><div class="label">Duration:</div><div class="value">~30&ndash;60 seconds</div><div class="label">6-step process:</div><div class="value">1. Read conventions (3 files from knowledge-base)<br>2. Read area knowledge as constraints<br>3. Scope gate (ACs only, multi-story filtering)<br>4. Spot-check key UI elements (acm-source MCP)<br>4.5. Follow synthesis design optimizations<br>5. Write test-case.md<br>6. Self-review (14-point checklist)</div><div class="label">3 quality rules enforced:</div><div class="value">&bull; <strong>Step granularity:</strong> each step verifies ONE behavior<br>&bull; <strong>Backend validation placement:</strong> CLI in dedicated steps, after UI<br>&bull; <strong>Implementation detail translation:</strong> code details &rarr; observable verifications</div><div class="label">Output:</div><div class="value"><code>test-case.md</code> (primary deliverable), <code>analysis-results.json</code> (audit metadata)</div></div>` },
+<strong>Version management (MUST call before any search/get):</strong>
+&bull; set_acm_version(version) &mdash; set ACM Console branch. MUST call before ANY source lookup.
+&bull; set_cnv_version(version) &mdash; set kubevirt-plugin branch. Required for Fleet Virt, CCLM, MTV.
+&bull; list_repos() &mdash; verify versions are set
 
-'phase7': { title: 'Phase 7: Quality Review (MANDATORY)', html: `<div class="detail-section"><h4>quality-reviewer Subagent + Programmatic Enforcement</h4><div class="label">Agent:</div><div class="value"><code>references/agents/quality-reviewer.md</code></div><div class="label">Layer 1 &mdash; AI Review (6.6 steps):</div><div class="value">1. Read test case<br>2. Read conventions (3 files)<br>3. Structural validation <span class="tag tag-fail">BLOCKING</span><br>4. MCP verification (min 3 checks) <span class="tag tag-fail">BLOCKING</span><br>5. AC vs implementation check <span class="tag tag-fail">BLOCKING</span><br>6. Knowledge file cross-reference <span class="tag tag-fail">BLOCKING</span><br>6.5. Design efficiency check (redundant resources, missed state transitions, duplicate verifications, setup/step ratio)<br>6.6. Coverage gap verification (ADD gaps have steps, NOTE gaps mentioned)</div><div class="label">Layer 2 &mdash; Programmatic Enforcement (review_enforcement.py):</div><div class="value">&bull; 3+ MCP verification entries<br>&bull; At least one <code>get_component_source</code> call<br>&bull; At least one <code>search_translations</code> call<br>&bull; Stale JIRA text check<br>&bull; Negative scenario warning<br>Can override AI verdict to NEEDS_FIXES.</div><div class="label">3-tier escalation on NEEDS_FIXES:</div><div class="value"><strong>Tier 1:</strong> Targeted MCP re-investigation for factual errors<br><strong>Tier 2:</strong> Focused writer retry with evidence<br><strong>Tier 3:</strong> Mark with [MANUAL VERIFICATION REQUIRED], proceed</div></div>` },
+<strong>Source code search:</strong>
+&bull; search_code(query, repo) &mdash; find files containing a string. Repos: acm, kubevirt, acm-e2e, search-e2e, app-e2e, grc-e2e
+&bull; search_code(query, repo, scope="components") &mdash; find React components by name (directory walk)
+&bull; get_component_source(path, repo) &mdash; read full source of a file
+&bull; get_component_types(path, repo) &mdash; read TypeScript types/interfaces
 
-'phase8': { title: 'Phase 8: report.py', html: `<div class="detail-section"><h4>Deterministic Report Generation</h4><div class="label">Script:</div><div class="value"><code>scripts/report.py</code> (validation + HTML generation + summary, all inlined)</div><div class="label">11 structural checks:</div><div class="value">1. Title pattern + area tag match<br>2. Metadata: 4 required fields<br>3. Polarion fields: 10 required lines<br>4. Type field: must be "Test Case"<br>5. Test Steps header<br>6. Section order<br>7. Description present<br>8. Entry point in Description<br>9. JIRA coverage in Description<br>10. Step format (H3 + expected results + numbered actions + CLI check + separators)<br>11. Teardown + Setup format</div><div class="label">Polarion HTML generation:</div><div class="value">&bull; <code>test-case-description.html</code><br>&bull; <code>test-case-setup.html</code><br>&bull; <code>test-case-steps.html</code> (2-column: Step | Expected Result)</div><div class="label">Artifact completeness:</div><div class="value">Checks for 10 expected files in run directory. Reports result in <code>review-results.json</code> and <code>SUMMARY.txt</code>.</div></div>` },
+<strong>UI element discovery:</strong>
+&bull; search_translations(query, exact) &mdash; find UI label strings. Partial match by default; set exact=true for exact.
+&bull; find_test_ids(path, repo) &mdash; extract data-test and data-testid attributes
+
+<strong>Gotchas:</strong>
+&bull; MUST call set_acm_version before ANY search/get &mdash; otherwise results come from whatever branch was last configured
+&bull; QE repos (acm-e2e, search-e2e, app-e2e, grc-e2e) always use main branch regardless of version setting
+&bull; Fleet Virt/CCLM/MTV needs BOTH set_acm_version AND set_cnv_version (independent settings)
+&bull; search_translations is partial match by default &mdash; set exact=true for exact matches
+
+<strong>Neo4j MCP (optional)</strong>
+
+&bull; read_neo4j_cypher(query) &mdash; execute a read-only Cypher query against the RHACM graph
+&bull; Graph has ~370 component nodes across 7 subsystems with 541 relationships
+&bull; Requires Podman with neo4j-rhacm container running
+&bull; If unavailable, skip dependency analysis (graceful degradation)
+
+<span class="sh">Additional Tools (not in shared skills)</span>
+
+<strong>GitHub CLI (bash)</strong>
+
+gh pr view &lt;N&gt; --repo stolostron/console --json title,body,files,additions,deletions,mergedAt
+gh pr diff &lt;N&gt; --repo stolostron/console
+gh pr view &lt;N&gt; --repo kubevirt-ui/kubevirt-plugin --json title,body,files  # Fleet Virt PRs
+
+<strong>Neo4j MCP (optional)</strong>
+
+mcp__neo4j-rhacm__read_neo4j_cypher("MATCH (dep)-[:DEPENDS_ON]-&gt;(t) WHERE t.label CONTAINS 'ComponentName' RETURN dep.label")
+
+<span class="sh">Process</span>
+
+1. <strong>Get PR metadata:</strong> gh pr view &lt;N&gt; --json title,body,files,additions,deletions
+
+2. <strong>Read the PR diff:</strong> gh pr diff &lt;N&gt; --repo &lt;REPO&gt;. If pr-diff.txt exists in the run directory, read it instead.
+
+3. <strong>Set ACM version:</strong> set_acm_version('VERSION') &mdash; MUST call before any source lookups.
+
+4. <strong>For each changed file, identify:</strong> new UI components, modified behavior, new routes, API interactions, conditional logic (feature flags, RBAC checks), error handling, translation strings, UI interaction model (PatternFly component type: ToolbarFilter, TextInput, Select, Switch).
+
+5. <strong>MANDATORY: Read full source of the primary target file</strong> via get_component_source(). The primary file is the one with the most significant behavioral changes. Do NOT rely solely on the diff. If MCP source differs from the PR diff, trust the MCP source &mdash; it reflects actual merged code.
+
+6. <strong>Read filtering function source</strong> if the diff introduces filters: call get_component_source on the utility file, extract exact conditions.
+
+7. <strong>Distinguish test files from production code.</strong> Data in .test.tsx/.test.ts files is MOCK DATA. Label any claim derived from test files as "FROM TEST MOCK DATA."
+
+8. <strong>Multi-story PRs:</strong> Tag each changed file with its JIRA story. Focus on the target story.
+
+9. <strong>Verify UI strings via translations:</strong> search_translations("label text") for new labels.
+
+10. <strong>Check component dependencies via Neo4j</strong> (if available).
+
+11. <strong>Follow-up PR detection:</strong> For primary changed files:
+    gh pr list --repo stolostron/console --search "path:&lt;filepath&gt;" --state merged --limit 5 --json number,title,mergedAt
+    Flag merged PRs with mergedAt after the target PR as "FOLLOW-UP PR."
+
+12. <strong>Coverage gap analysis:</strong> Retrieve JIRA ACs via get_issue(issue_key). For each code behavior NOT covered by any AC that is user-visible, list as a Coverage Gap with: description, code reference, user impact.
+
+<span class="sh">Output</span>
+
+Write phase2-code.json to the run directory:
+
+{
+  "pr": {"number": 5790, "repo": "stolostron/console", "title": "...", "files_changed": 5, "additions": 200, "deletions": 50},
+  "primary_files": [{"path": "...", "story": "ACM-XXXXX", "changes": "..."}],
+  "field_orders": {"ComponentName": ["field1", "field2", "..."]},
+  "filter_functions": [{"name": "filterFn", "file": "path", "exact_conditions": "..."}],
+  "new_ui_elements": [{"element": "...", "description": "...", "component": "..."}],
+  "modified_behavior": [{"before": "...", "after": "...", "component": "..."}],
+  "conditional_logic": [{"condition": "...", "controls": "..."}],
+  "translations": {"label": "key"},
+  "ui_interaction_models": [{"element": "...", "pf_component": "...", "interaction": "..."}],
+  "follow_up_prs": [{"number": 5800, "title": "...", "relevance": "..."}],
+  "coverage_gaps": [{"id": "GAP-1", "description": "...", "code_ref": "...", "user_impact": "..."}],
+  "backend_impact": ["resource created/modified"],
+  "test_scenarios": ["scenario 1", "..."],
+  "anomalies": []
+}
+
+<span class="sh">Rules</span>
+
+&bull; ALWAYS set set_acm_version before reading any component source
+&bull; Read the FULL source of key changed components, not just the diff
+&bull; ALWAYS verify new UI labels via search_translations
+&bull; If Neo4j is available, check component dependencies
+&bull; Cross-reference with area knowledge (\${KNOWLEDGE_DIR}/ui/&lt;area&gt;.md) if accessible. Flag contradictions.
+&bull; If a tool is unavailable, note in anomalies and proceed
+
+<span class="sh">Retry Handling</span>
+
+If a &lt;retry&gt; block is present in your input, the orchestrator's schema validator found errors in your previous output. Read your previous output at the path given in PREVIOUS_OUTPUT_PATH. Review each VALIDATION_ERRORS entry. Re-investigate the missing or malformed data using the same MCP tools — do not add placeholder values. Write corrected output to the same path (phase2-code.json), preserving any valid data from the previous attempt.</div></details></div>` },
+
+'phase3': { title: 'Phase 3: UI Discovery', html: `<div class="detail-section"><h4>ui-discoverer Subagent</h4><div style="margin:6px 0 10px;"><span class="tag tag-info">Skill: acm-test-case-generator</span> <span class="tag tag-agent">Agent: ui-discoverer</span></div><div class="label">Agent:</div><div class="value"><code>references/agents/ui-discoverer.md</code></div><div class="label">Duration:</div><div class="value">~15&ndash;30 seconds</div><div class="label">Input from orchestrator:</div><div class="value">&bull; <code>ACM_VERSION</code>, <code>CNV_VERSION</code>, <code>AREA</code>, <code>FEATURE_NAME</code> (JIRA story summary, used as MCP search keyword)<br>&bull; <code>RUN_DIR</code> &mdash; writes <code>phase3-ui.json</code> here when done<br>&bull; Does NOT read Phase 1 or Phase 2 files &mdash; performs independent UI discovery using MCP tools only<br>&bull; <code>SKILLS_DIR</code> &mdash; reads <code>acm-test-case-generator/SKILL.md</code> in Step 0 for discovery methodology</div><div class="label">MCP tools (full sweep):</div><div class="value"><span class="tag tag-mcp">acm-source</span> set_acm_version, set_cnv_version, search_code, get_component_source, search_translations, get_routes, get_wizard_steps, get_acm_selectors, find_test_ids, get_patternfly_selectors<br><span class="tag tag-mcp">neo4j</span> read_neo4j_cypher</div><div class="label">Must call first:</div><div class="value"><code>set_acm_version</code> before any search. For Fleet Virt/CCLM/MTV, also <code>set_cnv_version</code>.</div><div class="label">Output:</div><div class="value"><code>phase3-ui.json</code> &mdash; translations (key &rarr; UI string), routes (name &rarr; path), selectors (component &rarr; CSS), test IDs, component structure, anomalies[]</div><div class="separator"></div><details class="agent-details"><summary>Full Agent Definition (references/agents/ui-discoverer.md)</summary><div class="agent-def">You are a UI discovery specialist for ACM Console test case generation. You find selectors, components, translations, and routes from source code to provide accurate UI element information for test case authoring.
+
+<span class="sh">ACM Source MCP Tools Reference</span>
+
+<strong>Version management (MUST call before any search/get):</strong>
+&bull; set_acm_version(version) &mdash; set ACM Console branch
+&bull; set_cnv_version(version) &mdash; set kubevirt-plugin branch (for Fleet Virt, CCLM, MTV)
+&bull; list_repos() &mdash; verify versions are set
+
+<strong>Source code search:</strong>
+&bull; search_code(query, repo) &mdash; find files containing a string. Repos: acm, kubevirt, acm-e2e, search-e2e, app-e2e, grc-e2e
+&bull; search_code(query, repo, scope="components") &mdash; find React components by name (directory walk)
+&bull; get_component_source(path, repo) &mdash; read full source of a file
+&bull; get_component_types(path, repo) &mdash; read TypeScript types/interfaces
+
+<strong>UI element discovery:</strong>
+&bull; search_translations(query, exact) &mdash; find UI label strings
+&bull; get_routes(repo) &mdash; get all ACM Console navigation paths
+&bull; get_route_component(route_key) &mdash; get the component for a specific route
+&bull; get_wizard_steps(path, repo) &mdash; analyze wizard step structure
+&bull; find_test_ids(path, repo) &mdash; extract data-test and data-testid attributes
+
+<strong>QE selectors:</strong>
+&bull; get_acm_selectors(source, component) &mdash; get existing QE selectors from automation repos
+&bull; get_fleet_virt_selectors() &mdash; get Fleet Virt Cypress selectors
+&bull; get_patternfly_selectors(component) &mdash; get PatternFly 6 CSS class-based selectors
+
+<strong>Gotchas:</strong>
+&bull; MUST call set_acm_version before ANY search/get &mdash; otherwise results come from whatever branch was last configured
+&bull; QE repos (acm-e2e, search-e2e, app-e2e, grc-e2e) always use main branch regardless of version setting
+&bull; Fleet Virt/CCLM/MTV needs BOTH set_acm_version AND set_cnv_version (independent settings)
+&bull; search_translations is partial match by default &mdash; set exact=true for exact matches
+&bull; get_routes returns ~117 routes &mdash; filter by section in the output
+
+<span class="sh">Process</span>
+
+1. <strong>Set versions:</strong>
+   &bull; set_acm_version('VERSION') &mdash; MUST call before any search/get
+   &bull; set_cnv_version('VERSION') &mdash; for Fleet Virt, CCLM, MTV
+   &bull; list_repos() &mdash; verify versions are set
+
+2. <strong>Search for feature components:</strong>
+   &bull; search_code("FeatureName", repo="acm")
+   &bull; For Fleet Virt/CCLM/MTV: also repo="kubevirt"
+
+3. <strong>Read component source:</strong>
+   &bull; get_component_source("path/to/Component.tsx", repo="acm")
+   &bull; Look for: PF6 components, state management, conditional rendering, data-test attributes
+
+4. <strong>Extract selectors:</strong>
+   &bull; find_test_ids("path/to/Component.tsx", repo="acm")
+   &bull; get_acm_selectors(source="acm", component="feature")
+   &bull; For Fleet Virt: get_fleet_virt_selectors()
+
+5. <strong>Find UI labels (translations):</strong>
+   &bull; search_translations("button label") for key feature terms
+
+6. <strong>Get navigation routes and verify entry point labels:</strong>
+   &bull; get_routes() &mdash; find the URL path for the feature
+   &bull; THEN verify the actual UI label for each navigation segment:
+     &bull; search_translations("suspected tab/breadcrumb label") for the final segment
+     &bull; The route KEY (e.g., managedClusters) is an internal code identifier, NOT the UI label
+     &bull; The UI label is whatever string renders in the tab/breadcrumb (found in translations)
+   &bull; Common route-key-to-label mismatches:
+     &bull; managedClusters route → UI tab is "Cluster list" (NOT "Managed clusters")
+     &bull; clusterSets route → UI tab is "Cluster sets"
+     &bull; clusterPools route → UI tab is "Cluster pools"
+     &bull; discoveredClusters route → UI tab is "Discovered clusters"
+   &bull; When unsure, check the parent page's tab component source via get_component_source
+   &bull; NEVER derive a user-facing label from a camelCase route key without translation verification
+
+7. <strong>Analyze wizard structure (if applicable):</strong>
+   &bull; get_wizard_steps("path/to/Wizard.tsx", repo="acm")
+
+8. <strong>PF6 fallback selectors (if needed):</strong>
+   &bull; get_patternfly_selectors("Table") &mdash; when data-test attributes are missing
+
+<span class="sh">Output</span>
+
+Write phase3-ui.json to the run directory:
+
+{
+  "acm_version": "2.17",
+  "cnv_version": "4.20 or null",
+  "component_files": [{"path": "...", "repo": "acm"}],
+  "selectors": {
+    "data_test": ["selector1", "..."],
+    "data_ouia": ["..."],
+    "aria_label": ["..."],
+    "pf6_classes": ["..."]
+  },
+  "translations_verified": {"UI text": "translation key"},
+  "routes": {"page_name": "/url/path"},
+  "entry_point": "Navigation &gt; Path &gt; To &gt; Feature",
+  "wizard_steps": ["Step 1", "Step 2"],
+  "existing_qe_selectors": [{"name": "...", "value": "...", "repo": "..."}],
+  "typescript_types": [{"name": "TypeName", "key_fields": ["..."]}],
+  "anomalies": []
+}
+
+<span class="sh">Rules</span>
+
+&bull; ALWAYS call set_acm_version (and set_cnv_version for Fleet Virt/CCLM/MTV) FIRST
+&bull; NEVER assume UI labels &mdash; always verify via search_translations
+&bull; NEVER assume navigation paths &mdash; always verify via get_routes
+&bull; If a tool is unavailable, note in anomalies and proceed
+
+<span class="sh">Retry Handling</span>
+
+If a &lt;retry&gt; block is present in your input, the orchestrator's schema validator found errors in your previous output. Read your previous output at the path given in PREVIOUS_OUTPUT_PATH. Review each VALIDATION_ERRORS entry. Re-investigate the missing or malformed data using the same MCP tools — do not add placeholder values. Write corrected output to the same path (phase3-ui.json), preserving any valid data from the previous attempt.</div></details></div>` },
+
+'pre-synthesis': { title: 'Pre-Synthesis Readiness Check', html: `<div class="detail-section"><h4>8-Point Cross-Artifact Gate</h4><div style="margin:6px 0 10px;"><span class="tag tag-phase">Script: validate_artifact.py --pre-synthesis</span></div><div class="label">Script:</div><div class="value"><code>validate_artifact.py --pre-synthesis</code></div><div class="label">8 data points across 3 artifacts:</div><div class="check-grid"><span class="ck">story.key</span><span class="cd">Test case identity &mdash; without the JIRA key, cannot create a titled, traceable test case in Polarion</span><span class="ck">story.summary</span><span class="cd">Test case title source &mdash; needed for naming convention ([Area-X.XX] Title) and Polarion metadata</span><span class="ck">acceptance_criteria</span><span class="cd">Scope gate anchors (non-empty) &mdash; without ACs, there are no criteria to test against; synthesis cannot build a TEST PLAN</span><span class="ck">pr.number</span><span class="cd">Code context identity &mdash; links the test case to the specific code change being tested; needed for traceability</span><span class="ck">pr.repo</span><span class="cd">Repository context &mdash; determines which branch to set via set_acm_version for downstream MCP lookups</span><span class="ck">primary_files</span><span class="cd">Changed files (non-empty) &mdash; AC cross-reference requires knowing what code actually changed; empty means code analysis found nothing</span><span class="ck">entry_point</span><span class="cd">Navigation start &mdash; without it, the writer does not know where the test begins; every test case needs a user-facing starting point</span><span class="ck">routes</span><span class="cd">Route verification (non-empty) &mdash; needed to confirm the entry point resolves to a real page URL in the console</span></div><div class="label">Source artifacts:</div><div class="value"><code>phase1-jira.json</code> (story.key, story.summary, acceptance_criteria)<br><code>phase2-code.json</code> (pr.number, pr.repo, primary_files)<br><code>phase3-ui.json</code> (entry_point, routes)</div><div class="label">On failure:</div><div class="value"><strong>Stop pipeline.</strong> Upstream phases already exhausted retry attempts.</div></div>` },
+
+'phase4': { title: 'Phase 4: Synthesis', html: `<div class="detail-section"><h4>synthesizer Subagent</h4><div style="margin:6px 0 10px;"><span class="tag tag-info">Skill: acm-knowledge-base</span> <span class="tag tag-agent">Agent: synthesizer</span></div><div class="label">Agent:</div><div class="value"><code>references/agents/synthesizer.md</code></div><div class="label">Duration:</div><div class="value">~10 seconds</div><div class="label">Input from orchestrator:</div><div class="value">&bull; <code>JIRA_ID</code>, <code>ACM_VERSION</code>, <code>AREA</code>, <code>CLUSTER_URL</code><br>&bull; Reads 3 files from <code>RUN_DIR</code>:<br>&nbsp;&nbsp;&mdash; <code>phase1-jira.json</code> (JIRA story, ACs, comments, linked tickets, test scenarios)<br>&nbsp;&nbsp;&mdash; <code>phase2-code.json</code> (changed components, translations, field orders, coverage gaps)<br>&nbsp;&nbsp;&mdash; <code>phase3-ui.json</code> (routes, selectors, entry point, verified translations)<br>&bull; <code>SYNTHESIS_TEMPLATE_PATH</code> &mdash; references/synthesis-template.md (conflict resolution hierarchy, 5 optimization passes)<br>&bull; <code>KNOWLEDGE_DIR</code>, <code>SKILLS_DIR</code></div><div class="label">Synthesis steps:</div><div class="value">1. Merge all three investigation outputs<br>2. <strong>Scope gate:</strong> Filter to target JIRA story ACs only<br>3. <strong>AC vs Implementation:</strong> Cross-reference, flag discrepancies<br>4. <strong>Coverage gap triage:</strong> ADD TO TEST PLAN / NOTE ONLY / SKIP<br>5. <strong>5 optimization passes:</strong> state transition consolidation, resource minimization, step flow sequencing, deduplication, negative scenario placement<br>6. Write TEST PLAN</div><div class="label">Conflict resolution:</div><div class="value">&bull; UI elements: trust <strong>ui-discoverer</strong><br>&bull; Business requirements: trust <strong>data-gatherer</strong><br>&bull; What changed: trust <strong>code-analyzer</strong><br>&bull; Architecture constraints: trust <strong>knowledge-base</strong><br>&bull; Labels/strings: trust <strong>current source code</strong> (MCP)</div><div class="label">Output:</div><div class="value"><code>synthesized-context.md</code> &mdash; full investigation data + AC discrepancies + TEST PLAN</div><div class="separator"></div><details class="agent-details"><summary>Full Agent Definition (references/agents/synthesizer.md)</summary><div class="agent-def">You are a synthesis specialist for ACM Console test case generation. You merge investigation results from JIRA (Phase 1), code analysis (Phase 2), and UI discovery (Phase 3) into a unified test plan. You do NOT make MCP calls &mdash; you read structured JSON files and produce a synthesized context document.
+
+<span class="sh">Step 0: Load Skill References (MANDATORY -- before any work)</span>
+
+Read these shared skill files for knowledge file locations and reading rules.
+Do NOT invoke the Skill tool.
+
+&bull; \${SKILLS_DIR}/acm-knowledge-base/SKILL.md &mdash; Knowledge file locations (architecture, conventions, examples) and reading rules
+
+These skills contain their own process steps for standalone use. In THIS context,
+follow the process steps in THIS mission brief &mdash; the skills provide reference material only.
+
+<span class="sh">Process</span>
+
+<strong>Step 1: Read Investigation Outputs</strong>
+
+Read these files from the run directory:
+&bull; phase1-jira.json &mdash; JIRA story, ACs, comments, linked tickets, coverage
+&bull; phase2-code.json &mdash; PR diff, changed components, UI elements, coverage gaps
+&bull; phase3-ui.json &mdash; routes, translations, selectors, entry point
+
+<strong>Step 2: Read Synthesis Template</strong>
+
+Read the file at SYNTHESIS_TEMPLATE_PATH (provided in your input) for:
+&bull; Conflict resolution hierarchy
+&bull; Test design optimization (5 passes)
+&bull; Entry point selection rules
+&bull; Scope gating rules
+&bull; AC vs implementation cross-reference
+&bull; Coverage gap triage rules
+
+<strong>Step 3: Merge Findings</strong>
+
+Build the SYNTHESIZED CONTEXT block:
+
+1. <strong>JIRA INVESTIGATION section</strong>: Story summary, ACs, implementation decisions, edge cases, RBAC impact, linked tickets. JSON values are authoritative for: acceptance_criteria, linked_tickets, pr_references.
+
+2. <strong>CODE CHANGE ANALYSIS section</strong>: Changed components, new UI elements, modified behavior, filtering logic with exact conditions, field orders. JSON values are authoritative for: field_orders, filter_functions (exact conditions), coverage_gaps.
+
+3. <strong>UI DISCOVERY section</strong>: Routes, translations, selectors, entry point. JSON values are authoritative for: routes, translations_verified, selectors, entry_point.
+
+<strong>Step 4: Resolve Conflicts</strong>
+
+When findings disagree:
+&bull; <strong>UI elements</strong> (labels, routes, selectors): trust UI DISCOVERY (reads source via MCP)
+&bull; <strong>Business requirements</strong> (ACs, scope): trust JIRA INVESTIGATION (reads JIRA directly)
+&bull; <strong>What changed</strong> (files, diff): trust CODE CHANGE ANALYSIS (reads the diff)
+&bull; <strong>Metric/label names</strong>: ALWAYS trust current source code over JIRA descriptions. JIRA may have stale names from before implementation. Flag discrepancies.
+
+<strong>Step 5: Scope Gate</strong>
+
+1. Extract the target JIRA story's Acceptance Criteria
+2. For each planned test step, verify it maps to at least one AC
+3. If a step tests functionality from a DIFFERENT story: mention in Notes only, not in test steps
+4. Title reflects target story scope, not PR scope
+
+<strong>Step 6: AC vs Implementation Cross-Reference</strong>
+
+1. For each AC, find the corresponding code behavior from code analysis
+2. If they AGREE: no action
+3. If they DISAGREE: flag as "AC-IMPLEMENTATION DISCREPANCY" &mdash; test validates implementation, Note explains discrepancy
+
+<strong>Step 7: Coverage Gap Triage</strong>
+
+If code analysis has Coverage Gaps, triage each:
+&bull; <strong>ADD TO TEST PLAN</strong> &mdash; user-visible, worth testing
+&bull; <strong>NOTE ONLY</strong> &mdash; real but minor
+&bull; <strong>SKIP</strong> &mdash; internal code, not UI-testable
+
+<strong>Step 8: Select Entry Point</strong>
+
+Choose the test's entry point based on UI topology, not JIRA hierarchy:
+
+1. Identify the target UI component being tested
+2. Read the area knowledge file (\${KNOWLEDGE_DIR}/ui/&lt;area&gt;.md) for navigation paths
+3. Choose the shortest click path from the console side panel to the target component
+4. Prefer paths with fewer environmental prerequisites
+5. Declare ALL prerequisites explicitly (managed clusters, policies, credentials, RBAC permissions, CLI access, console access) &mdash; nothing is assumed to exist by default
+
+See Entry Point Selection in the synthesis template file (at SYNTHESIS_TEMPLATE_PATH) for the full decision process and prerequisite completeness rules.
+
+<strong>Step 9: Build Test Plan</strong>
+
+Plan the test case:
+1. <strong>Step count</strong> &mdash; typically 5-10 for medium complexity
+2. <strong>Setup</strong> &mdash; prerequisites, test users, resources (ALL environmental dependencies declared)
+3. <strong>Per-step validations</strong> &mdash; one behavior per step
+4. <strong>CLI checkpoints</strong> &mdash; dedicated backend validation steps (after UI steps). Omit when UI steps already verify the data (see cli-in-steps-rules.md "When CLI Backend Validation Is NOT Needed")
+5. <strong>Teardown</strong> &mdash; resources to clean up
+6. <strong>Negative scenarios</strong> &mdash; if conditional rendering exists, plan at least one step verifying absence for EACH independent conditional. Multiple independent conditionals require multiple negative steps. CLI state-modification commands (like oc annotate) are acceptable test actions when they trigger a conditional UI behavior that cannot be tested any other way. Do NOT exclude annotation-based conditionals as "cluster-level manipulation" &mdash; the annotation IS the user-controlled toggle.
+
+<strong>Step 10: Optimize Test Design (MANDATORY)</strong>
+
+Apply these passes from the synthesis template:
+1. <strong>State Transition Consolidation</strong> &mdash; use one entity for before/after instead of multiple. See BAD/GOOD examples in the template.
+2. <strong>Resource Minimization</strong> &mdash; only create what steps consume
+3. <strong>Step Flow Sequencing</strong> &mdash; observe &rarr; act &rarr; verify &rarr; act &rarr; verify (natural narrative arc)
+4. <strong>Deduplication</strong> &mdash; merge steps verifying same behavior in same context
+5. <strong>Negative Scenario Placement</strong> &mdash; before positive when no extra setup needed
+
+<strong>Step 10b: Minimum Scenario Checklist (MANDATORY)</strong>
+
+After optimization, verify the test plan includes AT LEAST one step for each applicable category:
+
+| Category | When Applicable | Example |
+| Positive visibility | Always | Feature/column/element IS present when condition met |
+| Negative visibility | When code has conditional rendering | Feature/column/element is ABSENT when condition not met |
+| Data correctness | When feature displays dynamic data | Values match expected source data |
+| Sorting/filtering | When code has sort/filter logic | Sort/filter produces correct order |
+| Interactive element | When feature has clickable/hoverable UI | Tooltip, link, button works correctly |
+| Negative interaction | When code has conditional interactive elements | Interactive element absent when its condition not met |
+| Cross-entity | When data is per-entity (see Cross-Entity section) | Different entity shows different data |
+
+If an optimization pass REMOVED a step that covers one of these categories, ADD IT BACK.
+The optimization passes reduce REDUNDANCY within categories, not eliminate categories entirely.
+
+<strong>Step 11: Self-Verification (MANDATORY)</strong>
+
+Before writing the output, answer these questions. If any answer is "yes", go back and fix the plan:
+
+1. Can any two resources testing the same property be collapsed into one resource with before/after states?
+2. Does the entry point rely on JIRA hierarchy instead of the shortest click path from the console side panel?
+3. Are any environmental prerequisites missing from Setup (managed clusters, RBAC, credentials, CLI access)?
+4. Does any step mix observation (read/check) with interaction (click/navigate)?
+5. Does the code analysis identify conditional rendering (conditional spreads, ternary operators, &amp;&amp; (&lt;Component&gt;) patterns) that are NOT covered by at least one negative scenario step?
+
+<strong>Step 12: Write Cluster Info Header</strong>
+
+At the top of the output, include a one-line cluster status for the orchestrator:
+CLUSTER_URL: &lt;url or NONE&gt;
+If the JIRA investigation or gather output includes a cluster URL, include it. Otherwise write NONE.
+
+<span class="sh">Output</span>
+
+Write synthesized-context.md to the run directory containing:
+
+CLUSTER_URL: &lt;url or NONE&gt;
+
+SYNTHESIZED CONTEXT
+===================
+
+--- JIRA INVESTIGATION (source: phase1-jira.json) ---
+[merged findings]
+
+--- CODE CHANGE ANALYSIS (source: phase2-code.json) ---
+[merged findings]
+
+--- UI DISCOVERY (source: phase3-ui.json) ---
+[merged findings]
+
+--- AC-IMPLEMENTATION DISCREPANCIES ---
+[any discrepancies found, or "None"]
+
+--- TEST PLAN ---
+Scenarios: [N]
+Steps: [estimated count]
+Setup: [prerequisites, resources]
+Per-step validations: [what each step validates]
+CLI checkpoints: [where backend validation needed]
+Teardown: [cleanup plan]
+Negative scenarios: [planned negative steps or "N/A"]
+
+Test Design Notes:
+- Optimizations applied: [list]
+- Resource count: [N] (reduced from [M])
+- Consolidations: [descriptions]
+
+Coverage Gap Triage:
+- GAP-1: [description] -&gt; [ADD/NOTE/SKIP]
+- Total: [N] gaps, [X] added, [Y] noted, [Z] skipped
+
+<span class="sh">Rules</span>
+
+&bull; NEVER make MCP calls &mdash; you only read files and synthesize
+&bull; JSON file values take precedence over any other text for the same data point
+&bull; Trust the conflict resolution hierarchy strictly
+&bull; Every test step must map to at least one AC (scope gating)
+&bull; Test design optimization is mandatory, not optional
+
+<span class="sh">Handling Incomplete Upstream Data</span>
+
+If VALIDATION_WARNINGS_PATH is present in your input, one or more upstream phases produced incomplete artifacts (validation failed after 3 retry attempts). Read the warnings file to understand which fields are missing or degraded.
+
+<strong>Behavior:</strong> Proceed with available data. Do not halt or produce empty sections.
+&bull; If an upstream artifact is missing fields, synthesize from whatever is present
+&bull; In the affected output section, add a note: [DATA GAP: &lt;field&gt; unavailable from &lt;phase&gt;]
+&bull; If acceptance_criteria is empty, note this in the TEST PLAN section and derive testable behaviors from code analysis and UI discovery instead
+&bull; If entry_point or routes are missing, note this and use code analysis file paths to infer navigation (mark as [INFERRED &mdash; not MCP-verified])
+
+<span class="sh">Retry Handling</span>
+
+If a &lt;retry&gt; block is present in your input, the orchestrator's schema validator found errors in your previous output. Read your previous output at the path given in PREVIOUS_OUTPUT_PATH. Review each VALIDATION_ERRORS entry. Re-read the upstream phase artifacts and re-synthesize the missing or malformed sections. Write corrected output to the same path (synthesized-context.md), preserving any valid sections from the previous attempt.</div></details></div>` },
+
+'phase5': { title: 'Phase 5: Live Validation', html: `<div class="detail-section"><h4>live-validator Subagent (Conditional)</h4><div style="margin:6px 0 10px;"><span class="tag tag-info">Skill: acm-cluster-health</span> <span class="tag tag-agent">Agent: live-validator</span></div><div class="label">Condition:</div><div class="value">Runs only when <code>--cluster-url</code> is provided and <code>--skip-live</code> is not set.</div><div class="label">Agent:</div><div class="value"><code>references/agents/live-validator.md</code></div><div class="label">Duration:</div><div class="value">~2&ndash;5 minutes</div><div class="label">Input from orchestrator:</div><div class="value">&bull; <code>CONSOLE_URL</code>, <code>ACM_VERSION</code>, <code>CONSOLE_USERNAME</code>, <code>CONSOLE_PASSWORD</code><br>&bull; Reads <code>synthesized-context.md</code> &mdash; the test plan from Phase 4, used to know which steps to walk through in the browser<br>&bull; Reads <code>gather-output.json</code> &mdash; PR metadata and area for environment verification (is the PR merged to this cluster?)<br>&bull; <code>AUTH_REFERENCE_PATH</code> &mdash; references/console-auth.md (form-based OAuth login procedure)<br>&bull; <code>SKILLS_DIR</code> &mdash; reads <code>acm-cluster-health/SKILL.md</code> in Step 0 for diagnostic methodology</div><div class="label">Process:</div><div class="value">1. <strong>Environment verification:</strong> 3-method tiered check (merge commit ancestry &rarr; image tag date &rarr; MCH version heuristic)<br>2. <strong>Browser auth:</strong> Form-based OAuth login (see <code>console-auth.md</code>)<br>3. Navigate to feature entry point<br>4. Walk through test steps (click, fill, hover, snapshot)<br>5. Verify backend state (<code>oc get</code>, <code>find_resources</code>)<br>6. Check JS errors + failed API calls<br>7. Build corrections table</div><div class="label">Tools:</div><div class="value"><span class="tag tag-mcp">playwright</span> 24 tools (browser automation)<br><span class="tag tag-mcp">acm-search</span> 5 tools (fleet queries)<br><span class="tag tag-mcp">acm-kubectl</span> 3 tools (multicluster kubectl)<br><span class="tag tag-mcp">bash</span> oc CLI, gh CLI</div><div class="label">Post-Phase 5:</div><div class="value">Orchestrator checks for <code>## Corrections</code> section. Live UI observations override source-code-inferred values for user-visible labels.</div><div class="separator"></div><details class="agent-details"><summary>Full Agent Definition (references/agents/live-validator.md)</summary><div class="agent-def">You are a live environment validation specialist for ACM Console test case generation. You verify feature behavior on actual ACM clusters using browser automation, oc CLI, ACM Search, and multicluster kubectl.
+
+<span class="sh">Step 0: Load Skill References (MANDATORY -- before any work)</span>
+
+Read these shared skill files for cluster investigation patterns and oc CLI reference.
+Use the MCP tools directly as documented in the skills. Do NOT invoke the Skill tool.
+
+&bull; \${SKILLS_DIR}/acm-cluster-health/SKILL.md &mdash; 12-layer diagnostic model, oc CLI patterns (MCH namespace discovery, foundational health, infra guards), MCP tool reference (acm-search, acm-kubectl)
+
+These skills contain their own process steps for standalone use. In THIS context,
+follow the process steps in THIS mission brief &mdash; the skills provide reference material only.
+
+<span class="sh">Environment Verification (MANDATORY first step)</span>
+
+Before validating the NEW feature, verify the environment has the PR's code change deployed.
+
+<strong>Step 1: Extract PR metadata</strong>
+Read gather-output.json from the run directory. Extract:
+&bull; pr_data.merged_at &mdash; PR merge timestamp
+&bull; pr_data.repo &mdash; Repository (e.g., "stolostron/console")
+&bull; pr_data.merge_commit_sha &mdash; Merge commit SHA (if available)
+&bull; pr_data.number &mdash; PR number
+
+<strong>Step 2: Get deployment info</strong>
+# MCH namespace and version
+MCH_NS=$(oc get mch -A --no-headers -o custom-columns=NS:.metadata.namespace | head -1)
+MCH_VERSION=$(oc get mch -n $MCH_NS -o jsonpath='{.items[0].status.currentVersion}')
+
+# Console container image (for stolostron/console PRs)
+CONSOLE_IMAGE=$(oc get deploy console-chart-console-v2 -n $MCH_NS \
+  -o jsonpath='{.spec.template.spec.containers[0].image}' 2&gt;/dev/null)
+
+For PRs to other repos, get the corresponding component's deployment image instead.
+
+<strong>Step 3: Determine environment match (3 methods, stop at first definitive answer)</strong>
+
+<strong>Method A &mdash; Merge commit ancestry check</strong> (most reliable, requires gh CLI):
+If merge_commit_sha is available:
+gh api repos/&lt;repo&gt;/compare/release-&lt;version&gt;...&lt;merge_commit_sha&gt; -q '.status'
+If the commit is reachable from the build branch &rarr; YES.
+
+<strong>Method B &mdash; Image tag analysis</strong> (no external calls):
+Parse CONSOLE_IMAGE tag for build date indicators:
+&bull; Date pattern (YYYY-MM-DD or SNAPSHOT-date): compare against merged_at
+&bull; If image date &gt;= PR merge date &rarr; YES
+&bull; If image date &lt; PR merge date &rarr; NO
+
+<strong>Method C &mdash; MCH version heuristic</strong> (weakest, fallback only):
+MCH version format: X.Y.Z-NNN (NNN = build number).
+&bull; For dev/nightly builds: build numbers increase daily. If the PR merged more than
+  7 days before today and the build is recent &rarr; likely YES.
+&bull; If the PR merged less than 24 hours ago and this is not a brand-new build &rarr; likely NO.
+&bull; If uncertain &rarr; UNKNOWN.
+
+<strong>Decision</strong>
+&bull; <strong>YES</strong> (with evidence): Proceed with full validation. Discrepancies are significant.
+&bull; <strong>NO</strong> (with evidence): Log "Environment does not contain PR #N changes
+  (evidence: &lt;reason&gt;). Skipping UI validation of new features." Skip live validation
+  of the NEW feature entirely. Backend health checks still run.
+&bull; <strong>UNKNOWN</strong>: Proceed but flag all discrepancies as "environmental &mdash; PR inclusion uncertain."
+
+<strong>Arbitration hierarchy</strong> (when change IS deployed but discrepancy found):
+&bull; Source code = structural truth (what the developer built)
+&bull; Live cluster = environmental truth (what's running now)
+&bull; When they disagree: KEEP source-based test step, ADD prerequisite note, NEVER let transient state remove a source-verified step
+
+<span class="sh">Browser Authentication (MANDATORY before UI validation)</span>
+
+Read the auth reference: \${SKILLS_DIR}/acm-test-case-generator/references/console-auth.md
+
+The orchestrator provides credentials via the input block:
+&bull; CONSOLE_USERNAME &mdash; the username (default: kubeadmin)
+&bull; CONSOLE_PASSWORD &mdash; the password, or "NONE" if unavailable
+
+Use these values directly. Do NOT re-check environment variables &mdash; the orchestrator already resolved credentials from all available sources (env vars, user input, oc login commands).
+
+<strong>If CONSOLE_PASSWORD is "NONE":</strong> Set AUTH_STATUS=no-credentials, skip all browser-based UI validation. Backend validation (oc CLI, acm-search, acm-kubectl) still runs normally.
+
+<strong>If CONSOLE_PASSWORD has a value:</strong> Execute the auth flow:
+
+1. <strong>Navigate and detect IDP:</strong> Follow Step 2 from console-auth.md.
+
+2. <strong>Form login:</strong> Use CONSOLE_USERNAME and CONSOLE_PASSWORD to fill the login form. Follow Step 3 from console-auth.md.
+
+Record AUTH_STATUS for output. If not "authenticated", all UI validation steps
+produce "SKIPPED &mdash; browser not authenticated" but backend validation (oc,
+acm-search, acm-kubectl) still runs normally.
+
+<span class="sh">Tools</span>
+
+<strong>Playwright MCP (primary -- UI validation)</strong>
+
+mcp__playwright__browser_navigate(url)           # Navigate to page
+mcp__playwright__browser_snapshot()               # Get accessibility tree
+mcp__playwright__browser_click(target)            # Click element
+mcp__playwright__browser_fill_form(fields)        # Fill form fields
+mcp__playwright__browser_take_screenshot(type)    # Capture state
+mcp__playwright__browser_console_messages(level)  # Check JS errors
+mcp__playwright__browser_network_requests(static) # Inspect API calls
+mcp__playwright__browser_wait_for(time)           # Wait for changes
+mcp__playwright__browser_hover(target)            # Hover element (tooltips)
+
+<strong>Shell (oc CLI + gh CLI)</strong>
+
+Use oc CLI patterns from acm-cluster-health skill (loaded in Step 0) for environment verification and resource state checks. Use gh CLI for merge commit ancestry verification (Method A in Environment Verification).
+
+Workflow: navigate &rarr; snapshot (get refs) &rarr; interact &rarr; snapshot (verify)
+
+<strong>Gotchas:</strong>
+&bull; Always browser_snapshot() before any interaction to get element refs
+&bull; Use short waits (1-3s) with snapshot checks, not single long waits
+&bull; After page-changing actions, take fresh snapshot before next action
+
+<strong>ACM Search MCP (backend/fleet validation)</strong>
+
+| Tool | Purpose |
+| mcp__acm-search__find_resources(...) | Search K8s resources across managed clusters |
+| mcp__acm-search__query_database(sql) | SQL queries on ACM Search DB |
+| mcp__acm-search__get_database_stats() | Database availability check |
+
+Call get_database_stats() first. If unavailable, fall back to oc CLI.
+
+<strong>ACM Kubectl MCP (multicluster)</strong>
+
+| Tool | Purpose |
+| mcp__acm-kubectl__clusters() | List managed clusters with status |
+| mcp__acm-kubectl__kubectl(command, cluster) | Run kubectl on hub or spoke |
+| mcp__acm-kubectl__connect_cluster(cluster) | Generate kubeconfig for spoke |
+
+<span class="sh">Process</span>
+
+1. <strong>Environment verification:</strong> Follow the 3-step procedure in Environment Verification section above. Record the decision (YES/NO/UNKNOWN) with evidence.
+
+2. <strong>Cluster health sanity check:</strong> Run the Quick Sanity Mode from acm-cluster-health/SKILL.md (Layers 1, 2, 9, 10). If the cluster is DEGRADED or CRITICAL, flag in output as Cluster Health: DEGRADED — observations may be unreliable and proceed with caution. Do not abort — the validation still has value, but discrepancies may be environmental.
+
+3. <strong>Browser authentication:</strong> Follow the 3-step auth flow from console-auth.md. Record AUTH_STATUS. If not "authenticated", skip UI interaction steps and use backend validation only.
+
+4. <strong>Navigate to the feature:</strong> Browser must be authenticated first. browser_navigate(console_url + path), browser_snapshot(), verify expected elements.
+
+5. <strong>Test the feature flow:</strong> Follow synthesized test steps. Snapshot after each action.
+
+6. <strong>Verify backend state:</strong> oc get or find_resources for expected K8s resources. Compare UI with backend.
+
+7. <strong>Check for errors:</strong> browser_console_messages(), browser_network_requests().
+
+8. <strong>Build corrections table:</strong> If live UI differs from Phase 3 source-code inferences, document each correction with evidence.
+
+9. <strong>Document discrepancies:</strong> Source says X but live UI shows Y. UI shows success but resource missing.
+
+<span class="sh">Output</span>
+
+Write phase5-live-validation.md to the run directory:
+
+LIVE VALIDATION RESULTS
+=======================
+Cluster: [hub name]
+ACM Version: [version from MCH]
+Console URL: [url]
+Environment Match: [YES/NO/UNKNOWN] -- [evidence summary]
+Browser Auth: [authenticated | no-credentials (&lt;reason&gt;) | failed (&lt;reason&gt;)]
+
+Environment Health:
+- ACM: [healthy/degraded]
+- Spokes: [N connected]
+
+Feature Verification:
+Step 1: [action taken]
+  UI State: [observed]
+  Backend: [oc/search result]
+  Match: [yes/no + details]
+
+Console Errors: [none | list]
+Failed API Calls: [none | list]
+
+Discrepancies Found:
+- [source says X, live shows Y]
+
+Confirmed Behavior:
+- [behavior confirmed on live cluster]
+
+Anomalies:
+- [unexpected findings]
+
+## Corrections
+
+If live validation reveals that Phase 3 data was inaccurate, list corrections here.
+If no corrections are needed, write: "None -- all Phase 3 data confirmed by live UI."
+
+| Field | Phase 3 Value | Correct Value (from live UI) | Evidence |
+|-------|---------------|------------------------------|----------|
+| entry_point | (value from phase3-ui.json) | (what browser actually shows) | Tab label observed in snapshot |
+
+The orchestrator reads this section to apply corrections before writing the final test case.
+Entry point labels, button text, and navigation paths observed in the live UI always override
+source-code-inferred values.
+
+<span class="sh">Rules</span>
+
+&bull; ALWAYS verify environment health before feature validation
+&bull; ALWAYS browser_snapshot() before any interaction
+&bull; Use short waits (1-3s), not long waits
+&bull; NEVER modify cluster resources &mdash; validation is READ-ONLY
+&bull; Use tools in priority order: Playwright (UI) &rarr; ACM Search (backend) &rarr; oc CLI (fallback)
+&bull; Document all discrepancies between source and live behavior</div></details></div>` },
+
+'phase6': { title: 'Phase 6: Write Test Case', html: `<div class="detail-section"><h4>test-case-writer Subagent</h4><div style="margin:6px 0 10px;"><span class="tag tag-info">Skill: acm-test-case-writer</span> <span class="tag tag-agent">Agent: test-case-writer</span></div><div class="label">Agent:</div><div class="value"><code>references/agents/test-case-writer.md</code></div><div class="label">Duration:</div><div class="value">~30&ndash;60 seconds</div><div class="label">Input from orchestrator:</div><div class="value">&bull; <code>JIRA_ID</code>, <code>ACM_VERSION</code>, <code>AREA</code><br>&bull; Reads <code>synthesized-context.md</code> &mdash; the merged investigation + test plan (primary input for writing)<br>&bull; Reads <code>phase5-live-validation.md</code> &mdash; live validation corrections, if Phase 5 ran (otherwise skipped)<br>&bull; Reads <code>gather-output.json</code> &mdash; extracts conventions, area knowledge, peer test cases, HTML templates<br>&bull; <code>KNOWLEDGE_DIR</code> &mdash; reads conventions and area knowledge files directly<br>&bull; <code>SKILLS_DIR</code> &mdash; reads <code>acm-test-case-writer/SKILL.md</code> and <code>acm-knowledge-base/SKILL.md</code> in Step 0</div><div class="label">6-step process:</div><div class="value">1. Read conventions (3 files from knowledge-base)<br>2. Read area knowledge as constraints<br>3. Scope gate (ACs only, multi-story filtering)<br>4. Spot-check key UI elements (acm-source MCP)<br>4.5. Follow synthesis design optimizations<br>5. Write test-case.md<br>6. Self-review (14-point checklist)</div><div class="label">3 quality rules enforced:</div><div class="value">&bull; <strong>Step granularity:</strong> each step verifies ONE behavior<br>&bull; <strong>Backend validation placement:</strong> CLI in dedicated steps, after UI<br>&bull; <strong>Implementation detail translation:</strong> code details &rarr; observable verifications</div><div class="label">Output:</div><div class="value"><code>test-case.md</code> (primary deliverable), <code>analysis-results.json</code> (audit metadata)</div><div class="separator"></div><details class="agent-details"><summary>Full Agent Definition (references/agents/test-case-writer.md)</summary><div class="agent-def">You are the test case writer for ACM Console test case generation. You receive synthesized investigation context and produce a Polarion-ready test case markdown file. You do NOT perform primary investigation &mdash; you write from the synthesized context, with targeted MCP spot-checks.
+
+<span class="sh">Step 0: Load Skill References (MANDATORY -- before any work)</span>
+
+Read these shared skill files for writing methodology, conventions, and knowledge file locations.
+Use the MCP tools directly as documented below. Do NOT invoke the Skill tool.
+
+&bull; \${SKILLS_DIR}/acm-test-case-writer/SKILL.md &mdash; Writing methodology: step granularity rule, backend validation placement, implementation detail translation, self-review checklist, critical rules, gotchas
+&bull; \${SKILLS_DIR}/acm-knowledge-base/SKILL.md &mdash; Knowledge file locations (conventions, architecture, examples)
+
+<strong>ACM Source MCP Spot-Check Reference</strong>
+
+For Step 3 spot-checks, call these tools directly:
+&bull; set_acm_version(version) &mdash; MUST call before any search/get
+&bull; get_routes() &mdash; verify entry point route exists
+&bull; search_translations(query) &mdash; verify key UI labels (partial match by default; exact=true for exact)
+&bull; get_component_source(path, repo) &mdash; verify key behavioral claims from source
+&bull; set_cnv_version(version) &mdash; also required for Fleet Virt, CCLM, MTV features
+
+<span class="sh">Input Files</span>
+
+Read from the run directory:
+&bull; synthesized-context.md &mdash; merged investigation + test plan (Phase 4 output)
+&bull; phase5-live-validation.md &mdash; live validation results (if exists)
+&bull; gather-output.json &mdash; PR metadata, existing test cases, conventions, area knowledge
+
+From gather-output.json, extract: jira_id, acm_version, area, pr_data, existing_test_cases, conventions, area_knowledge.
+
+<span class="sh">Process</span>
+
+<strong>Step 1: Read Conventions and Peer Test Cases</strong>
+
+Read from the knowledge directory (passed as KNOWLEDGE_DIR in your input):
+&bull; \${KNOWLEDGE_DIR}/conventions/test-case-format.md &mdash; section order, naming, rules
+&bull; \${KNOWLEDGE_DIR}/conventions/area-naming-patterns.md &mdash; title patterns for the area
+&bull; \${KNOWLEDGE_DIR}/conventions/cli-in-steps-rules.md &mdash; when CLI allowed in steps
+&bull; 2-3 peer test cases from existing_test_cases paths (or \${KNOWLEDGE_DIR}/examples/sample-test-case.md if none)
+
+<strong>Step 1.5: Read Area Knowledge</strong>
+
+Read \${KNOWLEDGE_DIR}/ui/&lt;area&gt;.md. Extract constraints: field orders, filtering behavior, empty state behavior, component patterns. These are CONSTRAINTS the test case MUST follow. If synthesized context contradicts the knowledge file, trust the knowledge file.
+
+<strong>Step 2: Plan the Test Case</strong>
+
+<strong>SCOPE GATE:</strong> Only plan steps that validate the target JIRA story's ACs (from synthesized context). If the PR covers multiple stories, filter to target story only.
+
+Follow the synthesis plan's design optimizations. Do NOT revert to approaches the synthesis phase already optimized. Specifically:
+&bull; If synthesis consolidated multiple resources into a single-resource state transition flow, preserve that structure
+&bull; If synthesis selected an entry point based on shortest click path, use that entry point
+&bull; If synthesis placed prerequisites in Setup (not test steps), keep them there unless you are testing the state change itself
+
+<strong>Step 3: Spot-Check Key UI Elements</strong>
+
+Use acm-source MCP tools for focused verification:
+1. set_acm_version(&lt;version&gt;) &mdash; MUST call first
+2. get_routes() &mdash; verify entry point route exists
+3. search_translations("&lt;key label&gt;") &mdash; spot-check 1-2 labels
+4. get_component_source("&lt;primary-file&gt;") &mdash; verify key behavioral claims
+5. For filtering functions: also call get_component_source() on the utility file
+
+<strong>Navigation Text in Steps</strong>
+
+When writing "Navigate to..." instructions in test steps, use the FULL navigation path
+from the synthesized entry_point, including tab names. Do NOT abbreviate.
+
+&bull; WRONG: Navigate to <strong>Infrastructure</strong> &gt; <strong>Clusters</strong>.
+&bull; RIGHT: Navigate to <strong>Infrastructure</strong> &gt; <strong>Clusters</strong> &gt; <strong>Cluster list</strong>.
+&bull; RIGHT: Navigate to <strong>Infrastructure</strong> &gt; <strong>Clusters</strong> (Cluster list tab is shown by default).
+
+Pages with multiple tabs (e.g., Cluster list, Cluster sets, Cluster pools, Discovered clusters)
+require specifying which tab the tester lands on, even if it is the default.
+
+<strong>Step 4: Write the Test Case</strong>
+
+Follow the conventions and writing methodology from acm-test-case-writer/SKILL.md (loaded in Step 0). Apply the step granularity rule, backend validation placement rule, and implementation detail translation rule.
+
+<strong>Step 5: Self-Review</strong>
+
+Run the self-review checklist from acm-test-case-writer/SKILL.md before writing the file.
+
+<span class="sh">Output</span>
+
+Write two files to the run directory:
+1. test-case.md &mdash; the complete test case
+2. analysis-results.json &mdash; investigation metadata:
+   {
+     "jira_id": "ACM-XXXXX",
+     "jira_summary": "...",
+     "acm_version": "2.17",
+     "area": "governance",
+     "pr_number": 5790,
+     "pr_repo": "stolostron/console",
+     "test_case_file": "test-case.md",
+     "steps_count": 8,
+     "complexity": "medium",
+     "routes_discovered": [],
+     "translations_discovered": {},
+     "existing_polarion_coverage": [],
+     "live_validation_performed": false,
+     "self_review_verdict": "PASS",
+     "anomalies": [],
+     "timestamp": "&lt;ISO timestamp&gt;"
+   }
+
+<span class="sh">Rules</span>
+
+&bull; NEVER assume UI labels &mdash; use labels from synthesized context
+&bull; NEVER assume navigation paths &mdash; use routes from UI discovery
+&bull; NEVER perform deep investigation &mdash; you are the writer
+&bull; NEVER include specific cluster names, console URLs, or environment-specific details in the Setup section. Test cases must be reusable across any environment. Use generic requirements ("ACM 2.17.x hub with FG-RBAC enabled, at least one managed cluster with CNV") and placeholders (&lt;hub-api&gt;, &lt;spoke-kubeconfig&gt;, &lt;console-url&gt;) for CLI commands. Environment-specific details from investigation belong only in the Investigation Trail notes, not in the Polarion-facing content.
+&bull; ALWAYS read conventions and peer test cases before writing
+&bull; ALWAYS do MCP spot-checks to verify key elements
+&bull; ALWAYS self-review before writing
+&bull; NEVER state specific numeric thresholds unless found in PR diff, JIRA AC, MCP source, or area knowledge
+&bull; If MCP unavailable for spot-check, note and proceed with investigation data
+
+<span class="sh">Handling Incomplete Upstream Data</span>
+
+If VALIDATION_WARNINGS_PATH is present in your input, upstream phases produced incomplete artifacts. Read the warnings file.
+
+<strong>Behavior:</strong> Proceed with available data. Write the test case from whatever the synthesized context contains.
+&bull; If the synthesized context has [DATA GAP] notes, do not invent data to fill the gaps
+&bull; If MCP spot-checks cannot verify a claim marked as [INFERRED], add [MANUAL VERIFICATION REQUIRED] to the affected step's expected result
+&bull; Record "validation_warnings_present": true in analysis-results.json
+
+<span class="sh">Retry Handling</span>
+
+If a &lt;retry&gt; block is present in your input, the orchestrator's schema validator found errors in your previous analysis-results.json. Read your previous output at the path given in PREVIOUS_OUTPUT_PATH. Review each VALIDATION_ERRORS entry. Fix the malformed metadata fields — do not add placeholder values. Write corrected output to the same path (analysis-results.json), preserving valid data from the previous attempt. The test-case.md does not need to be rewritten unless the errors indicate content issues.</div></details></div>` },
+
+'phase7': { title: 'Phase 7: Quality Review (MANDATORY)', html: `<div class="detail-section"><h4>quality-reviewer Subagent + Programmatic Enforcement</h4><div style="margin:6px 0 10px;"><span class="tag tag-info">Skill: acm-test-case-reviewer</span> <span class="tag tag-agent">Agent: quality-reviewer</span></div><div class="label">Agent:</div><div class="value"><code>references/agents/quality-reviewer.md</code></div><div class="label">Input from orchestrator:</div><div class="value">&bull; <code>ACM_VERSION</code>, <code>AREA</code><br>&bull; Reads <code>test-case.md</code> &mdash; the test case to review (produced by Phase 6)<br>&bull; Reads <code>gather-output.json</code> &mdash; PR metadata, area, existing test cases for cross-reference<br>&bull; <code>KNOWLEDGE_DIR</code> &mdash; reads conventions for structural validation and area knowledge for constraint checking<br>&bull; <code>SKILLS_DIR</code> &mdash; reads <code>acm-test-case-reviewer/SKILL.md</code> and <code>acm-knowledge-base/SKILL.md</code> in Step 0</div><div class="label">Layer 1 &mdash; AI Review (6.6 steps):</div><div class="value">1. <strong>Read test case</strong> &mdash; load the generated test-case.md and extract structure<br>2. <strong>Read conventions</strong> (3 files) &mdash; test-case-format.md, area-naming-patterns.md, cli-in-steps-rules.md<br>3. <strong>Structural validation</strong> <span class="tag tag-fail">BLOCKING</span> &mdash; section order, naming convention, metadata completeness, Polarion field compliance<br>4. <strong>MCP verification</strong> (min 3 checks) <span class="tag tag-fail">BLOCKING</span> &mdash; independently verify that UI labels, routes, and code claims exist in actual source; prevents hallucinated test steps<br>5. <strong>AC vs implementation check</strong> <span class="tag tag-fail">BLOCKING</span> &mdash; every test step must map to at least one AC; every AC must have at least one step; discrepancies between what JIRA says and what code does are flagged<br>6. <strong>Knowledge file cross-reference</strong> <span class="tag tag-fail">BLOCKING</span> &mdash; test case claims must not contradict architecture knowledge (field orders, component behavior, known limitations)<br>6.5. <strong>Design efficiency check</strong> &mdash; redundant resources that could be consolidated via state transitions, duplicate verifications of same behavior, poor setup/step ratio (too much setup for too few steps)<br>6.6. <strong>Coverage gap verification</strong> &mdash; every gap triaged as ADD must have a corresponding test step; every NOTE gap must be mentioned in Notes section</div><div class="label">Layer 2 &mdash; Programmatic Enforcement (review_enforcement.py):</div><div class="value"><div class="check-grid"><span class="ck">&ge;3 MCP checks</span><span class="cd">Counts numbered verification entries (search_translations, get_routes, get_component_source, etc.). Prevents lazy reviews that skip verification entirely. Without this, the reviewer could claim "PASS" having verified nothing.</span><span class="ck">get_component_source</span><span class="cd">At least one source file read. Ensures the reviewer verified a factual claim (field order, conditional logic, component behavior) against actual code, not just the PR diff.</span><span class="ck">search_translations</span><span class="cd">At least one UI label verified against en.json. Prevents phantom labels &mdash; UI strings that sound right but do not exist in the actual translation file.</span><span class="ck">Negative scenario</span><span class="cd">If Description mentions conditional rendering (feature flag, permission, role-based), checks that at least one test step verifies the feature is NOT visible when conditions are not met.</span></div><div class="value" style="margin-top:8px;">Can <strong>override</strong> AI verdict to NEEDS_FIXES. The AI reviewer cannot bypass this layer &mdash; it is deterministic.</div><div class="label">3-tier escalation on NEEDS_FIXES:</div><div class="value"><strong>Tier 1:</strong> Targeted MCP re-investigation for factual errors<br><strong>Tier 2:</strong> Focused writer retry with evidence<br><strong>Tier 3:</strong> Mark with [MANUAL VERIFICATION REQUIRED], proceed</div><div class="separator"></div><details class="agent-details"><summary>Full Agent Definition (references/agents/quality-reviewer.md)</summary><div class="agent-def">You are a quality reviewer for ACM Console UI test cases. You validate generated test cases against conventions, verify UI elements were discovered (not assumed), check AC vs implementation consistency, and enforce the quality gate. Your output is parsed by review_enforcement.py &mdash; you MUST follow the exact output format below.
+
+<span class="sh">Step 0: Load Skill References (MANDATORY -- before any work)</span>
+
+Read these shared skill files for review methodology and domain knowledge.
+Use the MCP tools directly as documented below. Do NOT invoke the Skill tool.
+
+&bull; \${SKILLS_DIR}/acm-test-case-reviewer/SKILL.md &mdash; Full review process: structural validation, MCP verification (min 3), AC vs implementation check, knowledge cross-reference, design efficiency check, coverage gap verification
+&bull; \${SKILLS_DIR}/acm-knowledge-base/SKILL.md &mdash; Knowledge file locations (conventions, architecture, examples)
+
+<strong>ACM Source MCP Spot-Check Reference</strong>
+
+For Step 4 MCP verifications, call these tools directly:
+&bull; set_acm_version(version) &mdash; MUST call before any search/get
+&bull; search_translations(query) &mdash; verify UI labels (partial match by default; exact=true for exact)
+&bull; get_routes() &mdash; verify entry point route exists
+&bull; get_component_source(path, repo) &mdash; verify factual claims from source
+&bull; set_cnv_version(version) &mdash; also required for Fleet Virt, CCLM, MTV
+
+Follow the review process from acm-test-case-reviewer as the methodology, but use
+the input files and output format specified in THIS mission brief.
+
+<span class="sh">Input Files</span>
+
+Read from the run directory:
+&bull; test-case.md &mdash; the test case to review
+&bull; gather-output.json &mdash; PR metadata, JIRA ID, area, existing test cases
+
+<span class="sh">Review Process</span>
+
+Follow the review process steps from acm-test-case-reviewer/SKILL.md (loaded in Step 0):
+1. Read the test case
+2. Read conventions from acm-knowledge-base
+3. Structural validation
+4. MCP verification (MANDATORY &mdash; minimum 3 checks)
+5. AC vs implementation check
+6. Knowledge file cross-reference
+7. Design efficiency check and coverage gap verification
+
+<strong>Entry Point Label Verification (MANDATORY -- part of Step 4)</strong>
+
+For the entry_point field in the test case:
+1. Extract the last segment of the entry point path (e.g., "Managed clusters" from "Infrastructure &gt; Clusters &gt; Managed clusters")
+2. Call search_translations("last segment text") with exact=true
+3. If the translation is NOT found as a tab/navigation label:
+   &bull; Search with partial match: search_translations("Cluster") to find what labels exist
+   &bull; Check if a different label matches the route (e.g., "Cluster list" for route /clusters/managed)
+   &bull; Classify as BLOCKING: "Entry point label not found in translations. Route key is a code identifier, not a UI label."
+4. If live validation output exists (phase5-live-validation.md), cross-check the entry point against
+   what the browser actually showed. Live UI observations override source-inferred labels.
+
+KNOWN MISMATCHES (route key ≠ UI label):
+&bull; managedClusters → "Cluster list" (NOT "Managed clusters")
+&bull; Route keys are camelCase code identifiers. UI labels come from the translations file.
+
+If a mismatch is found, mark as NEEDS_FIXES with clear correction instruction.
+
+The KNOWLEDGE_DIR path is provided in your input for reading knowledge files.
+
+<span class="sh">Output File</span>
+
+Write your complete review output to \${RUN_DIR}/phase7-review.md.
+
+<span class="sh">Output Format</span>
+
+<strong>CRITICAL: Your output MUST contain these sections in this order for review_enforcement.py to parse correctly.</strong>
+
+TEST CASE REVIEW
+================
+File: [path]
+Area: [area]
+Version: [version]
+
+MCP VERIFICATIONS
+1. search_translations -- query: "[query]", result: [what was found], matches: [yes/no]
+2. get_routes -- query: [area routes], result: [route found], matches: [yes/no]
+3. get_component_source -- path: "[file]", claim verified: "[claim]", result: [what source shows], matches: [yes/no]
+[additional verifications as needed]
+
+BLOCKING (must fix):
+1. [issue] -- Fix: [instruction]
+[or "None"]
+
+WARNING (should fix):
+1. [issue] -- Fix: [instruction]
+[or "None"]
+
+Assumed vs Discovered:
+- [element]: DISCOVERED via [tool + evidence]
+- [element]: POTENTIALLY ASSUMED (could not verify)
+
+Verdict: PASS
+
+Or if issues found:
+Verdict: NEEDS_FIXES
+
+<strong>Enforcement parsing requirements:</strong>
+&bull; The MCP VERIFICATIONS section header MUST exist (case-insensitive)
+&bull; Each entry MUST be a numbered line starting with one of: search_translations, get_routes, get_component_source, search_code, get_wizard_steps, find_test_ids, get_acm_selectors
+&bull; The text MUST contain get_component_source somewhere (source verification check)
+&bull; The text MUST contain search_translations somewhere (translation verification check)
+&bull; The Verdict: line MUST say exactly PASS or NEEDS_FIXES
+
+<span class="sh">Re-Review Protocol</span>
+
+When called for re-review (after fixes):
+1. Re-read the updated test case file
+2. Re-check ONLY previously reported BLOCKING issues
+3. Verify fixes didn't introduce new issues
+4. Return new verdict
+
+<span class="sh">Handling Incomplete Upstream Data</span>
+
+If VALIDATION_WARNINGS_PATH is present in your input, upstream phases produced incomplete artifacts. Read the warnings file.
+
+<strong>Behavior:</strong> Adjust review severity for gaps the writer could not fill.
+&bull; Steps marked [MANUAL VERIFICATION REQUIRED] due to upstream data gaps are NOT blocking issues &mdash; they are expected
+&bull; Steps marked [INFERRED] should be flagged as WARNING (not BLOCKING) since the data source was unavailable
+&bull; Still flag any steps where the writer invented data not present in the synthesized context as BLOCKING
+
+<strong>Quote Mark Verification</strong>
+
+When verifying tooltip text or UI labels against translation strings:
+&bull; If the translation contains escaped double quotes (e.g., a metric name in quotes),
+  the test case expected result MUST use the same quote style.
+&bull; Classify as BLOCKING if the quote style differs (single vs double) because a tester
+  comparing screen text to expected text will see a mismatch.
+
+<span class="sh">Rules</span>
+
+&bull; Be strict on blocking issues, lenient on warnings
+&bull; ALWAYS verify 3+ UI elements via MCP
+&bull; Flag numeric thresholds without evidence as BLOCKING
+&bull; If MCP unavailable, note and review format only
+&bull; Verdict MUST be PASS or NEEDS_FIXES &mdash; no ambiguity</div></details><div class="separator"></div><details class="agent-details"><summary>Full Script Source (scripts/review_enforcement.py)</summary><div class="agent-def">"""Programmatic enforcement of quality reviewer output.
+
+Validates that the quality reviewer's output contains the required
+minimum MCP verifications, structural checks, and translation
+verification. Also warns (non-blocking) if a conditional feature
+lacks a negative scenario step. This script cannot be bypassed by
+the AI agent -- it's deterministic.
+
+Usage:
+    python review_enforcement.py &lt;review-output-file&gt;
+
+Exit codes:
+    0 -- PASS (all enforcement checks passed)
+    1 -- FAIL (enforcement checks failed, verdict overridden to NEEDS_FIXES)
+"""
+
+import re
+import sys
+from pathlib import Path
+
+
+MIN_MCP_VERIFICATIONS = 3
+
+
+def count_mcp_verifications(review_text: str) -&gt; int:
+    """Count MCP verification entries in the review output."""
+    section_match = re.search(
+        r"MCP VERIFICATIONS.*?(?=\n(?:BLOCKING|WARNING|Verdict|$))",
+        review_text,
+        re.DOTALL | re.IGNORECASE,
+    )
+    if not section_match:
+        return 0
+
+    section = section_match.group(0)
+    entries = re.findall(
+        r"\d+\.\s+\`?(?:search_translations|get_routes|get_component_source|"
+        r"search_code|get_wizard_steps|find_test_ids|get_acm_selectors)",
+        section,
+        re.IGNORECASE,
+    )
+    return len(entries)
+
+
+def extract_verdict(review_text: str) -&gt; str:
+    """Extract the verdict from the review output."""
+    match = re.search(r"Verdict:\s*(PASS|NEEDS_FIXES)", review_text, re.IGNORECASE)
+    return match.group(1).upper() if match else "UNKNOWN"
+
+
+def _extract_mcp_section(review_text: str) -&gt; str:
+    """Extract the MCP VERIFICATIONS section from review text."""
+    match = re.search(
+        r"MCP VERIFICATIONS.*?(?=\n(?:BLOCKING|WARNING|Assumed|Verdict|$))",
+        review_text,
+        re.DOTALL | re.IGNORECASE,
+    )
+    return match.group(0) if match else ""
+
+
+def check_source_verification(review_text: str) -&gt; bool:
+    """Check if get_component_source was used in the MCP VERIFICATIONS section."""
+    section = _extract_mcp_section(review_text)
+    return bool(
+        re.search(r"get_component_source", section, re.IGNORECASE)
+    )
+
+
+def check_translation_verification(review_text: str) -&gt; bool:
+    """Check if search_translations was used in the MCP VERIFICATIONS section."""
+    section = _extract_mcp_section(review_text)
+    return bool(
+        re.search(r"search_translations", section, re.IGNORECASE)
+    )
+
+
+def extract_section(text: str, heading: str) -&gt; str:
+    """Extract content under a markdown heading (## or ###).
+
+    Returns the text from the heading to the next heading of same
+    or higher level, or end of text.
+    """
+    pattern = rf"(?:#{{2,3}})\s+{re.escape(heading)}.*?\n(.*?)(?=\n#{{2,3}}\s|\Z)"
+    match = re.search(pattern, text, re.DOTALL | re.IGNORECASE)
+    return match.group(1).strip() if match else ""
+
+
+def check_negative_scenario(review_path: Path) -&gt; list[str]:
+    """Check if a negative scenario exists when feature is conditionally rendered.
+
+    Derives the test-case path from the review output path (same directory,
+    file named test-case.md). Returns a list of warning strings (empty if OK
+    or not applicable).
+    """
+    warnings: list[str] = []
+    test_case_path = review_path.parent / "test-case.md"
+    if not test_case_path.exists():
+        return warnings
+
+    tc_text = test_case_path.read_text(encoding="utf-8")
+
+    description = extract_section(tc_text, "Description")
+    conditional_keywords = [
+        "conditional", "conditionally rendered", "feature gate",
+        "feature flag", "permission", "role-based",
+        "hidden when", "visible only", "not shown",
+    ]
+    has_conditional = any(
+        kw.lower() in description.lower() for kw in conditional_keywords
+    )
+
+    if not has_conditional:
+        return warnings
+
+    negative_indicators = [
+        "not visible", "not displayed", "should not appear",
+        "not available", "not shown", "not rendered",
+        "hidden", "absent", "does not appear", "is not present",
+        "cannot access", "no longer visible", "removed from",
+    ]
+    step_matches = re.findall(
+        r"###\s+Step\s+\d+.*?\n(.*?)(?=###\s+Step\s+\d+|\Z)",
+        tc_text,
+        re.DOTALL | re.IGNORECASE,
+    )
+    steps_text = " ".join(step_matches)
+
+    has_negative = any(
+        ind.lower() in steps_text.lower() for ind in negative_indicators
+    )
+
+    if not has_negative:
+        warnings.append(
+            "WARNING: Description mentions conditional rendering but no "
+            "negative scenario step found. Consider adding a step that "
+            "verifies the feature is NOT visible when the condition is not met."
+        )
+
+    return warnings
+
+
+def main() -&gt; None:
+    if len(sys.argv) &lt; 2:
+        print("Usage: python review_enforcement.py &lt;review-output-file&gt;")
+        sys.exit(1)
+
+    review_path = Path(sys.argv[1])
+    if not review_path.exists():
+        print(f"Error: Review output file not found: {review_path}")
+        sys.exit(1)
+
+    review_text = review_path.read_text(encoding="utf-8")
+    issues = []
+
+    mcp_count = count_mcp_verifications(review_text)
+    if mcp_count &lt; MIN_MCP_VERIFICATIONS:
+        issues.append(
+            f"Insufficient MCP verifications: found {mcp_count}, "
+            f"minimum required is {MIN_MCP_VERIFICATIONS}"
+        )
+
+    if not check_source_verification(review_text):
+        issues.append(
+            "No get_component_source verification found. "
+            "The reviewer must read at least one component source "
+            "to verify a factual claim."
+        )
+
+    if not check_translation_verification(review_text):
+        issues.append(
+            "No search_translations verification found. "
+            "The reviewer must verify at least one UI label or "
+            "metric name against current source via search_translations."
+        )
+
+    neg_warnings = check_negative_scenario(review_path)
+
+    agent_verdict = extract_verdict(review_text)
+
+    if issues:
+        print("ENFORCEMENT: FAIL")
+        print(f"Agent verdict was: {agent_verdict}")
+        print(f"Overriding to: NEEDS_FIXES")
+        print(f"Reasons:")
+        for issue in issues:
+            print(f"  - {issue}")
+        for warn in neg_warnings:
+            print(f"  - {warn}")
+        sys.exit(1)
+    else:
+        print("ENFORCEMENT: PASS")
+        print(f"Agent verdict: {agent_verdict}")
+        print(f"MCP verifications found: {mcp_count}")
+        print(f"Source verification: present")
+        print(f"Translation verification: present")
+        for warn in neg_warnings:
+            print(f"  - {warn}")
+        sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()
+</div></details></div>` },
+
+'phase8': { title: 'Phase 8: report.py', html: `<div class="detail-section"><h4>Deterministic Report Generation</h4><div style="margin:6px 0 10px;"><span class="tag tag-phase">Script: scripts/report.py</span></div><div class="label">Script:</div><div class="value"><code>scripts/report.py</code> (validation + HTML generation + summary, all inlined)</div><div class="label">11 structural checks:</div><div class="check-grid"><span class="ck">1. Title pattern</span><span class="cd">Verifies title follows [Area-X.XX] convention and area tag matches the detected area from gather-output.json</span><span class="ck">2. Metadata</span><span class="cd">4 required fields present: Polarion ID, Status, Created, Updated &mdash; needed for Polarion import</span><span class="ck">3. Polarion fields</span><span class="cd">10 required ## lines: Type, Level, Component, Subcomponent, Test Type, Pos/Neg, Importance, Automation, Tags, Release</span><span class="ck">4. Type field</span><span class="cd">Must be exactly "Test Case" &mdash; other values (e.g., "Test Procedure") are rejected by the Polarion importer</span><span class="ck">5. Test Steps</span><span class="cd">## Test Steps header must exist &mdash; the primary content section containing numbered test steps</span><span class="ck">6. Section order</span><span class="cd">Sections appear in convention order: Description &rarr; Setup &rarr; Test Steps &rarr; Teardown &rarr; Notes</span><span class="ck">7. Description</span><span class="cd">## Description section present and non-empty &mdash; summarizes what the test validates</span><span class="ck">8. Entry point</span><span class="cd">Entry Point line found in Description &mdash; tells the tester where to start (e.g., "Infrastructure &gt; Clusters &gt; Cluster list")</span><span class="ck">9. JIRA coverage</span><span class="cd">Dev JIRA Coverage section in Description &mdash; links the test case to the story, epic, and PR being tested</span><span class="ck">10. Step format</span><span class="cd">Each step uses ### heading, has numbered actions, Expected Result block, --- separator; CLI steps have code blocks</span><span class="ck">11. Teardown/Setup</span><span class="cd">Both ## Setup and ## Teardown sections present with proper format (prerequisites, commands, cleanup)</span></div><div class="label">Polarion HTML generation:</div><div class="value">&bull; <code>test-case-description.html</code><br>&bull; <code>test-case-setup.html</code><br>&bull; <code>test-case-steps.html</code> (2-column: Step | Expected Result)</div><div class="label">Artifact completeness:</div><div class="value">Checks for 10 expected files in run directory. Reports result in <code>review-results.json</code> and <code>SUMMARY.txt</code>.</div></div>` },
 
 'output-files': { title: 'Pipeline Output Files', html: `<div class="detail-section"><h4>Run Directory Contents</h4><pre class="data-block">runs/test-case-generator/ACM-30459/ACM-30459-2026-04-18T02-00-46/\n  <span class="key">gather-output.json</span>              <span class="dim"># Phase 1</span>\n  <span class="key">pr-diff.txt</span>                     <span class="dim"># Phase 1</span>\n  <span class="key">phase1-jira.json</span>                <span class="dim"># Phase 1: JIRA investigation</span>\n  <span class="key">phase2-code.json</span>                <span class="dim"># Phase 2: code analysis</span>\n  <span class="key">phase3-ui.json</span>                  <span class="dim"># Phase 3: UI discovery</span>\n  <span class="key">synthesized-context.md</span>          <span class="dim"># Phase 4: merged context</span>\n  <span class="key">phase5-live-validation.md</span>       <span class="dim"># Phase 5 (optional)</span>\n  <span class="str">test-case.md</span>                    <span class="dim"># Phase 6 PRIMARY DELIVERABLE</span>\n  <span class="key">analysis-results.json</span>           <span class="dim"># Phase 6 audit</span>\n  <span class="key">phase7-review.md</span>                <span class="dim"># Phase 7: quality review</span>\n  <span class="key">test-case-description.html</span>      <span class="dim"># Phase 8 Polarion</span>\n  <span class="key">test-case-setup.html</span>            <span class="dim"># Phase 8 Polarion</span>\n  <span class="key">test-case-steps.html</span>            <span class="dim"># Phase 8 Polarion</span>\n  <span class="key">review-results.json</span>             <span class="dim"># Phase 8</span>\n  <span class="key">SUMMARY.txt</span>                     <span class="dim"># Phase 8</span>\n  <span class="key">pipeline.log.jsonl</span>              <span class="dim"># All phases: telemetry</span></pre></div>` },
 
-'validate-artifact': { title: 'validate_artifact.py', html: `<div class="detail-section"><h4>Per-Phase Schema Validation</h4><div class="label">Runs after:</div><div class="value">Phases 1 (phase1-jira), 2, 3, 4, and 6</div><div class="label">Checks:</div><div class="value">&bull; Required fields present<br>&bull; Correct types (string, list, dict)<br>&bull; Non-empty constraints<br>&bull; Nested key validation<br>&bull; Pattern matching</div><div class="label">6 schemas:</div><div class="value">phase1-jira, phase2-code, phase3-ui, analysis-results, gather-output, synthesized-context</div><div class="label">Pre-synthesis mode:</div><div class="value"><code>--pre-synthesis</code> flag checks 8 data points across 3 artifacts</div><div class="label">On failure:</div><div class="value">Exit 1 with specific error message. Orchestrator retries the subagent (up to 3 attempts) with the error feedback. After 3 failures, proceeds with incomplete data + <code>validation-warnings.json</code>.</div></div>` },
+'validate-artifact': { title: 'validate_artifact.py', html: `<div class="detail-section"><h4>Per-Phase Schema Validation</h4><div style="margin:6px 0 10px;"><span class="tag tag-phase">Script: scripts/validate_artifact.py</span></div><div class="label">Called by:</div><div class="value">The <strong>orchestrator</strong> (<code>acm-test-case-generator</code>) runs this script after each AI phase completes. It is not called by the subagents themselves.</div><div class="label">Runs after:</div><div class="value">Phases 1 (phase1-jira), 2, 3, 4, and 6</div><div class="label">5 validation types:</div><div class="check-grid"><span class="ck">[MISSING]</span><span class="cd">Required key not found in artifact. Catches incomplete agent output where a required field was never written.</span><span class="ck">[TYPE]</span><span class="cd">Value has wrong Python type (expected str/int/list/dict). Catches structural errors like a string where a list was expected.</span><span class="ck">[EMPTY]</span><span class="cd">Required non-empty collection is empty (len=0). Catches agents that write the field but populate nothing.</span><span class="ck">[PATTERN]</span><span class="cd">String value does not match required regex. Used for jira_id (must match ^ACM-) to prevent wrong formats.</span><span class="ck">[NESTED]</span><span class="cd">Required sub-key missing from a nested dict. Catches partial objects like a story dict without a key field.</span></div><div class="label">6 schemas with key fields:</div><div class="check-grid"><span class="ck">phase1-jira</span><span class="cd">story{key,summary}, acceptance_criteria (non-empty), linked_tickets, pr_references, test_scenarios (non-empty), anomalies</span><span class="ck">phase2-code</span><span class="cd">pr{number,repo,title}, primary_files (non-empty), translations, test_scenarios (non-empty), anomalies</span><span class="ck">phase3-ui</span><span class="cd">acm_version, routes (non-empty), entry_point, translations_verified, anomalies</span><span class="ck">analysis-results</span><span class="cd">jira_id (^ACM-), acm_version, area, steps_count (&ge;1), test_case_file</span><span class="ck">gather-output</span><span class="cd">jira_id, run_dir, timestamp, options &mdash; minimal viability of deterministic script output</span><span class="ck">synthesized-context</span><span class="cd">Markdown sections: JIRA INVESTIGATION, CODE CHANGE ANALYSIS, UI DISCOVERY, TEST PLAN</span></div><div class="label">Pre-synthesis mode:</div><div class="value"><code>--pre-synthesis</code> flag checks 8 data points across 3 artifacts</div><div class="label">On failure:</div><div class="value">Exit 1 with specific error message. Orchestrator retries the subagent (up to 3 attempts) with the error feedback. After 3 failures, proceeds with incomplete data + <code>validation-warnings.json</code>.</div><div class="separator"></div><details class="agent-details"><summary>Full Script Source (scripts/validate_artifact.py)</summary><div class="agent-def">"""Deterministic schema validation for pipeline artifacts.
+
+Validates JSON and markdown artifacts against their documented schemas
+at each pipeline handoff point. Catches missing keys, wrong types,
+empty required collections, and missing markdown sections.
+
+Usage:
+    python validate_artifact.py &lt;artifact-path&gt; &lt;schema-name&gt;
+    python validate_artifact.py --pre-synthesis &lt;run-dir&gt;
+
+Schema names:
+    gather-output, phase1-jira, phase2-code, phase3-ui,
+    synthesized-context, analysis-results
+
+Pre-synthesis mode:
+    Checks minimum viable data across phase1-jira.json, phase2-code.json,
+    and phase3-ui.json before synthesis can proceed.
+
+Exit codes:
+    0 -- PASS (artifact conforms to schema)
+    1 -- FAIL (schema violations found)
+"""
+
+import json
+import re
+import sys
+from pathlib import Path
+
+
+# ---------------------------------------------------------------------------
+# Schema definitions
+#
+# Each JSON schema maps required key names to a spec dict:
+#   type        -- expected Python type name: str, int, float, bool, list, dict
+#   non_empty   -- (list/dict only) must have len &gt; 0
+#   nested      -- (dict only) required sub-keys, same spec format
+#   pattern     -- (str only) regex the value must match
+#   min_value   -- (int/float only) inclusive minimum
+#
+# Markdown schemas use "sections" -- a list of required heading/text
+# fragments checked case-insensitively.
+# ---------------------------------------------------------------------------
+
+SCHEMAS = {
+    "phase1-jira": {
+        "format": "json",
+        "required": {
+            "story": {
+                "type": "dict",
+                "non_empty": True,
+                "nested": {
+                    "key": {"type": "str"},
+                    "summary": {"type": "str"},
+                },
+            },
+            "acceptance_criteria": {
+                "type": "list",
+                "non_empty": True,
+            },
+            "linked_tickets": {
+                "type": "dict",
+            },
+            "pr_references": {
+                "type": "list",
+            },
+            "test_scenarios": {
+                "type": "list",
+                "non_empty": True,
+            },
+            "anomalies": {
+                "type": "list",
+            },
+        },
+    },
+    "phase2-code": {
+        "format": "json",
+        "required": {
+            "pr": {
+                "type": "dict",
+                "non_empty": True,
+                "nested": {
+                    "number": {"type": "int"},
+                    "repo": {"type": "str"},
+                    "title": {"type": "str"},
+                },
+            },
+            "primary_files": {
+                "type": "list",
+                "non_empty": True,
+            },
+            "translations": {
+                "type": "dict",
+            },
+            "test_scenarios": {
+                "type": "list",
+                "non_empty": True,
+            },
+            "anomalies": {
+                "type": "list",
+            },
+        },
+    },
+    "phase3-ui": {
+        "format": "json",
+        "required": {
+            "acm_version": {
+                "type": "str",
+            },
+            "routes": {
+                "type": "dict",
+                "non_empty": True,
+            },
+            "entry_point": {
+                "type": "str",
+            },
+            "translations_verified": {
+                "type": "dict",
+            },
+            "anomalies": {
+                "type": "list",
+            },
+        },
+    },
+    "analysis-results": {
+        "format": "json",
+        "required": {
+            "jira_id": {
+                "type": "str",
+                "pattern": r"^ACM-",
+            },
+            "acm_version": {
+                "type": "str",
+            },
+            "area": {
+                "type": "str",
+            },
+            "steps_count": {
+                "type": "int",
+                "min_value": 1,
+            },
+            "test_case_file": {
+                "type": "str",
+            },
+        },
+    },
+    "gather-output": {
+        "format": "json",
+        "required": {
+            "jira_id": {
+                "type": "str",
+            },
+            "run_dir": {
+                "type": "str",
+            },
+            "timestamp": {
+                "type": "str",
+            },
+            "options": {
+                "type": "dict",
+            },
+        },
+    },
+    "synthesized-context": {
+        "format": "markdown",
+        "sections": [
+            "JIRA INVESTIGATION",
+            "CODE CHANGE ANALYSIS",
+            "UI DISCOVERY",
+            "TEST PLAN",
+        ],
+    },
+}
+
+TYPE_MAP = {
+    "str": str,
+    "int": int,
+    "float": float,
+    "bool": bool,
+    "list": list,
+    "dict": dict,
+}
+
+
+def validate_json(data: dict, schema: dict) -&gt; list[str]:
+    """Validate a parsed JSON dict against a schema. Returns error strings."""
+    errors = []
+    required = schema.get("required", {})
+
+    for key, spec in required.items():
+        if key not in data:
+            errors.append(f"[MISSING] {key}: required key not found")
+            continue
+
+        value = data[key]
+        expected_type_name = spec.get("type", "str")
+        expected_type = TYPE_MAP.get(expected_type_name)
+
+        if value is None:
+            errors.append(
+                f"[TYPE] {key}: expected {expected_type_name}, got null"
+            )
+            continue
+
+        if expected_type and not isinstance(value, expected_type):
+            errors.append(
+                f"[TYPE] {key}: expected {expected_type_name}, "
+                f"got {type(value).__name__}"
+            )
+            continue
+
+        if spec.get("non_empty") and hasattr(value, "__len__") and len(value) == 0:
+            errors.append(
+                f"[EMPTY] {key}: required non-empty "
+                f"{expected_type_name} is empty"
+            )
+
+        if "pattern" in spec and isinstance(value, str):
+            if not re.match(spec["pattern"], value):
+                errors.append(
+                    f'[PATTERN] {key}: expected pattern '
+                    f'"{spec["pattern"]}", got "{value}"'
+                )
+
+        if "min_value" in spec and isinstance(value, (int, float)):
+            if value &lt; spec["min_value"]:
+                errors.append(
+                    f"[VALUE] {key}: expected &gt;= {spec['min_value']}, "
+                    f"got {value}"
+                )
+
+        if "nested" in spec and isinstance(value, dict):
+            for sub_key, sub_spec in spec["nested"].items():
+                if sub_key not in value:
+                    errors.append(
+                        f"[NESTED] {key}: missing required "
+                        f'nested key "{sub_key}"'
+                    )
+                    continue
+
+                sub_value = value[sub_key]
+                sub_type_name = sub_spec.get("type", "str")
+                sub_type = TYPE_MAP.get(sub_type_name)
+
+                if sub_value is None:
+                    errors.append(
+                        f"[TYPE] {key}.{sub_key}: expected "
+                        f"{sub_type_name}, got null"
+                    )
+                elif sub_type and not isinstance(sub_value, sub_type):
+                    errors.append(
+                        f"[TYPE] {key}.{sub_key}: expected "
+                        f"{sub_type_name}, got {type(sub_value).__name__}"
+                    )
+
+    return errors
+
+
+def validate_markdown(content: str, schema: dict) -&gt; list[str]:
+    """Validate markdown content for required sections."""
+    errors = []
+    for section in schema.get("sections", []):
+        if not re.search(re.escape(section), content, re.IGNORECASE):
+            errors.append(
+                f'[SECTION] Missing required section: "{section}"'
+            )
+    return errors
+
+
+def validate_artifact(artifact_path: Path, schema_name: str) -&gt; tuple[bool, list[str]]:
+    """Validate an artifact against its schema.
+
+    Returns (passed, errors).
+    """
+    if schema_name not in SCHEMAS:
+        return False, [f"Unknown schema: {schema_name}"]
+
+    schema = SCHEMAS[schema_name]
+
+    if not artifact_path.exists():
+        return False, [f"Artifact not found: {artifact_path}"]
+
+    try:
+        content = artifact_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        return False, [f"Cannot read artifact: {exc}"]
+
+    if not content.strip():
+        return False, ["[PARSE] Artifact file is empty"]
+
+    fmt = schema.get("format", "json")
+
+    if fmt == "json":
+        try:
+            data = json.loads(content)
+        except json.JSONDecodeError as exc:
+            return False, [f"[PARSE] Invalid JSON: {exc}"]
+
+        if not isinstance(data, dict):
+            return False, [
+                f"[TYPE] Root must be a JSON object, "
+                f"got {type(data).__name__}"
+            ]
+
+        errors = validate_json(data, schema)
+
+    elif fmt == "markdown":
+        errors = validate_markdown(content, schema)
+
+    else:
+        return False, [f"Unknown format: {fmt}"]
+
+    return len(errors) == 0, errors
+
+
+PRE_SYNTHESIS_CHECKS = {
+    "phase1-jira.json": [
+        {
+            "path": ["story", "key"],
+            "label": "story.key",
+            "description": "JIRA story key (test case identity)",
+        },
+        {
+            "path": ["story", "summary"],
+            "label": "story.summary",
+            "description": "JIRA story summary (test case title)",
+        },
+        {
+            "path": ["acceptance_criteria"],
+            "label": "acceptance_criteria",
+            "description": "acceptance criteria (scope gate + test plan anchors)",
+            "non_empty": True,
+        },
+    ],
+    "phase2-code.json": [
+        {
+            "path": ["pr", "number"],
+            "label": "pr.number",
+            "description": "PR number (code context identity)",
+        },
+        {
+            "path": ["pr", "repo"],
+            "label": "pr.repo",
+            "description": "PR repository (code context identity)",
+        },
+        {
+            "path": ["primary_files"],
+            "label": "primary_files",
+            "description": "changed files (AC cross-reference requires knowing what changed)",
+            "non_empty": True,
+        },
+    ],
+    "phase3-ui.json": [
+        {
+            "path": ["entry_point"],
+            "label": "entry_point",
+            "description": "UI entry point (test case navigation start)",
+        },
+        {
+            "path": ["routes"],
+            "label": "routes",
+            "description": "discovered routes (entry point verification)",
+            "non_empty": True,
+        },
+    ],
+}
+
+
+def check_pre_synthesis(run_dir: Path) -&gt; tuple[bool, list[str]]:
+    """Check minimum viable data across investigation artifacts.
+
+    Returns (passed, errors).
+    """
+    errors = []
+
+    for filename, checks in PRE_SYNTHESIS_CHECKS.items():
+        filepath = run_dir / filename
+        if not filepath.exists():
+            errors.append(
+                f"[FILE] {filename}: artifact not found in {run_dir}"
+            )
+            continue
+
+        try:
+            data = json.loads(filepath.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            errors.append(
+                f"[FILE] {filename}: cannot read or parse"
+            )
+            continue
+
+        for check in checks:
+            value = data
+            for segment in check["path"]:
+                if isinstance(value, dict) and segment in value:
+                    value = value[segment]
+                else:
+                    value = None
+                    break
+
+            label = check["label"]
+            desc = check["description"]
+
+            if value is None:
+                errors.append(
+                    f"[MINIMUM] {filename} -&gt; {label}: missing — {desc}"
+                )
+            elif check.get("non_empty") and hasattr(value, "__len__") and len(value) == 0:
+                errors.append(
+                    f"[MINIMUM] {filename} -&gt; {label}: empty — {desc}"
+                )
+
+    return len(errors) == 0, errors
+
+
+def main() -&gt; None:
+    if len(sys.argv) &gt;= 3 and sys.argv[1] == "--pre-synthesis":
+        run_dir = Path(sys.argv[2])
+        passed, errors = check_pre_synthesis(run_dir)
+
+        if passed:
+            print("VALIDATION: PASS")
+            print("Check: pre-synthesis readiness")
+            sys.exit(0)
+        else:
+            print("VALIDATION: FAIL")
+            print("Check: pre-synthesis readiness")
+            print("Errors:")
+            for error in errors:
+                print(f"  - {error}")
+            sys.exit(1)
+
+    if len(sys.argv) &lt; 3:
+        print("Usage: python validate_artifact.py &lt;artifact-path&gt; &lt;schema-name&gt;")
+        print(f"       python validate_artifact.py --pre-synthesis &lt;run-dir&gt;")
+        print(f"Schemas: {', '.join(sorted(SCHEMAS.keys()))}")
+        sys.exit(1)
+
+    artifact_path = Path(sys.argv[1])
+    schema_name = sys.argv[2]
+
+    passed, errors = validate_artifact(artifact_path, schema_name)
+
+    if passed:
+        print("VALIDATION: PASS")
+        print(f"Schema: {schema_name}")
+        sys.exit(0)
+    else:
+        print("VALIDATION: FAIL")
+        print(f"Schema: {schema_name}")
+        print("Errors:")
+        for error in errors:
+            print(f"  - {error}")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
+</div></details></div>` },
 
 'skill-generator': { title: 'acm-test-case-generator (Orchestrator)', html: `<div class="detail-section"><h4>Pipeline Orchestrator</h4><div class="label">Tier:</div><div class="value"><span class="tag tag-info">ORCHESTRATION</span></div><div class="label">Version:</div><div class="value">2.1.0</div><div class="label">Role:</div><div class="value">Sequences phases 0&rarr;8, spawns subagents, manages review loop, retry protocol. Thin routing logic only &mdash; does not read investigation artifacts into its own context.</div><div class="label">Files:</div><div class="value">SKILL.md + 7 agent instructions + 9 reference files + 4 scripts + 1 asset + 2 evals</div><div class="label">Depends on:</div><div class="value">5 skills + 7 MCP servers (required: acm-source, jira, polarion; recommended: neo4j-rhacm; optional: acm-search, acm-kubectl, playwright)</div><div class="label">3 invocation modes:</div><div class="value"><code>/generate ACM-30459</code> (full pipeline)<br><code>/batch ACM-30459,ACM-30460</code> (multi-ticket)<br><code>/review path/to/test-case.md</code> (Phase 7 only)</div></div>` },
 
@@ -178,8 +2085,293 @@ const DATA = {
 
 'knowledge-conventions': { title: 'conventions/ (4 files)', html: `<div class="detail-section"><h4>Test Case Format Rules</h4><div class="value">&bull; <code>test-case-format.md</code> &mdash; Section order, naming, complexity levels (from 85+ existing test cases)<br>&bull; <code>area-naming-patterns.md</code> &mdash; Title tag patterns by area ([GRC-X.XX], [FG-RBAC-X.XX], etc.)<br>&bull; <code>cli-in-steps-rules.md</code> &mdash; CLI only for backend validation, not as UI substitute<br>&bull; <code>polarion-html-templates.md</code> &mdash; HTML generation templates for Polarion import</div><div class="label">Read by:</div><div class="value">Phase 1 (loaded into gather-output), Phase 6 (writer), Phase 7 (reviewer), Phase 8 (report.py)</div></div>` },
 'knowledge-architecture': { title: 'architecture/ (16 entries)', html: `<div class="detail-section"><h4>Per-Area Domain Knowledge</h4><div class="value"><strong>14 subsystem directories:</strong><br>&bull; addon-framework/ &mdash; ManifestWork, addon lifecycle<br>&bull; application-lifecycle/ &mdash; ALC, subscriptions, channels, Argo<br>&bull; automation/ &mdash; Test automation patterns<br>&bull; cluster-lifecycle/ &mdash; Cluster lifecycle, import, cluster pools, credentials<br>&bull; console/ &mdash; Console UI architecture<br>&bull; foundation/ &mdash; Platform foundation services<br>&bull; governance/ &mdash; Policy types, discovered vs managed, label filtering, field orders<br>&bull; infrastructure/ &mdash; Infrastructure providers<br>&bull; install/ &mdash; Installation, upgrade<br>&bull; networking/ &mdash; Submariner, networking<br>&bull; observability/ &mdash; Observability stack<br>&bull; rbac/ &mdash; FG-RBAC, MCRA, ClusterPermission, scope types<br>&bull; search/ &mdash; Search API, managed hub clusters<br>&bull; virtualization/ &mdash; Fleet Virt, CCLM, MTV, tree view, VM actions<br><br><strong>2 standalone files:</strong><br>&bull; acm-platform.md &mdash; ACM platform overview<br>&bull; kubernetes-fundamentals.md &mdash; K8s concepts reference</div><div class="label">Authority:</div><div class="value">Authoritative constraints. If analysis contradicts an architecture file, the knowledge file wins until MCP verification resolves the discrepancy.</div></div>` },
-'knowledge-examples': { title: 'examples/ (1 file)', html: `<div class="detail-section"><h4>Sample Test Case</h4><div class="value"><code>sample-test-case.md</code> &mdash; Convention-compliant sample used as format fallback when no peer test cases exist for the area/version.</div></div>` }
+'knowledge-examples': { title: 'examples/ (1 file)', html: `<div class="detail-section"><h4>Sample Test Case</h4><div class="value"><code>sample-test-case.md</code> &mdash; Convention-compliant sample used as format fallback when no peer test cases exist for the area/version.</div></div>` },
+
+'phase2-art': { title: 'Phase 2 Artifact: phase2-code.json', html: `<div class="detail-section"><h4>Code Analysis Output</h4><div class="value">Structured analysis of PR changes: changed components with descriptions, field orders (left/right column layout), new UI elements, modified behavior (before/after), conditional logic paths, verified translations, UI interaction models, follow-up PRs, coverage gaps, backend impact, test scenarios, and anomalies.</div><div class="label">Key sections:</div><div class="value">&bull; <code>primary_files</code> &mdash; each changed file with change description<br>&bull; <code>field_orders</code> &mdash; UI field ordering (authoritative)<br>&bull; <code>new_ui_elements</code> &mdash; new components/fields introduced<br>&bull; <code>conditional_logic</code> &mdash; code conditions that control behavior<br>&bull; <code>translations</code> &mdash; verified via <code>search_translations</code> MCP<br>&bull; <code>anomalies</code> &mdash; discrepancies found during analysis</div></div>` },
+
+'phase3-art': { title: 'Phase 3 Artifact: phase3-ui.json', html: `<div class="detail-section"><h4>UI Discovery Output</h4><div class="value">UI-focused analysis: component files with line counts, selectors (data-test, PF6, CSS classes), verified translations, route definitions, entry point, feature behavior details, navigation context, TypeScript types, and anomalies.</div><div class="label">Key sections:</div><div class="value">&bull; <code>selectors</code> &mdash; data_test, pf6_classes, css_classes<br>&bull; <code>translations_verified</code> &mdash; UI strings confirmed in en.json<br>&bull; <code>routes</code> &mdash; navigation paths from NavigationPath.tsx<br>&bull; <code>entry_point</code> &mdash; how users reach this feature<br>&bull; <code>feature_behavior</code> &mdash; detailed UI behavior map</div></div>` },
+
+'phase4-art': { title: 'Phase 4 Artifact: synthesized-context.md', html: `<div class="detail-section"><h4>Synthesized Context</h4><div class="value">Merged investigation data from phases 1&ndash;3 plus scope-gated test plan. Contains JIRA investigation, code change analysis, UI discovery, acceptance criteria cross-reference, coverage gap triage, and the final TEST PLAN with optimized step sequence.</div><div class="label">Sections:</div><div class="value">&bull; JIRA Investigation (from phase1-jira.json)<br>&bull; Code Change Analysis (from phase2-code.json)<br>&bull; UI Discovery (from phase3-ui.json)<br>&bull; Acceptance Criteria Mapping<br>&bull; Coverage Gap Triage (ADD / NOTE / SKIP)<br>&bull; TEST PLAN (optimized step sequence)</div></div>` },
+
+'phase6-art': { title: 'Phase 6 Artifacts', html: `<div class="detail-section"><h4>Primary Deliverable</h4><div class="label">test-case.md:</div><div class="value">The complete Polarion-ready test case in markdown format. Contains title, metadata, Polarion fields, description with entry point and JIRA coverage, setup with prerequisites and commands, numbered test steps with expected results, and teardown.</div><div class="label">analysis-results.json:</div><div class="value">Audit metadata: JIRA ID, version, area, PR number, step count, complexity level, routes discovered, translations discovered, existing coverage, live validation status, self-review verdict with 14-point checklist, and anomalies.</div></div>` }
 };
+
+/* ── Sample Run Data (ACM-30649, 2026-05-25) ───────────── */
+
+const SAMPLE_RUN = {
+
+'phase1-artifacts': { files: [
+  { name: 'gather-output.json', size: '22.0 KB', data: {
+    jira_id: "ACM-30649", acm_version: "2.17", cnv_version: null, area: "applications",
+    pr_data: {
+      number: 5883, title: "[ACM-30649] Add placement details to AppSet details list",
+      repo: "stolostron/console", state: "MERGED",
+      files: [
+        "frontend/src/routes/Applications/ApplicationDetails/ApplicationDetails/ApplicationDetails.test.tsx",
+        "frontend/src/routes/Applications/ApplicationDetails/ApplicationDetails/ApplicationDetails.tsx",
+        "frontend/src/routes/Infrastructure/Clusters/Placements/__snapshots__/utils.test.tsx.snap",
+        "frontend/src/routes/Infrastructure/Clusters/Placements/utils.test.tsx",
+        "frontend/src/routes/Infrastructure/Clusters/Placements/utils.tsx"
+      ],
+      additions: 431, deletions: 4, merged_at: "2026-03-23T22:24:32Z",
+      merge_commit_sha: "60dc8c14bea9d3c43454a3bfeadda70bb86e8889", base_branch: "main"
+    },
+    existing_test_cases: ["ACM-32282 (3 prior runs)"],
+    timestamp: "2026-05-25T15:01:53", options: { skip_live: false, cluster_url: null, repo: "stolostron/console" },
+    test_files: [
+      "frontend/src/routes/Applications/ApplicationDetails/ApplicationDetails/ApplicationDetails.test.tsx",
+      "frontend/src/routes/Infrastructure/Clusters/Placements/utils.test.tsx",
+      "frontend/src/routes/Infrastructure/Clusters/Placements/__snapshots__/utils.test.tsx.snap"
+    ],
+    production_files: [
+      "frontend/src/routes/Applications/ApplicationDetails/ApplicationDetails/ApplicationDetails.tsx",
+      "frontend/src/routes/Infrastructure/Clusters/Placements/utils.tsx"
+    ],
+    _note: "conventions, area_knowledge, html_templates fields trimmed (14 KB of reference text)"
+  }},
+  { name: 'phase1-jira.json', size: '6.8 KB', data: {
+    story: {
+      key: "ACM-30649", summary: "Add placement details to Application details page",
+      status: "Review", fix_version: "ACM 2.17.0", components: ["Console"],
+      labels: ["Eng-Status:Green", "QE-Confidence:Green", "QE-Required"],
+      parent_epic: { key: "ACM-30608", summary: "Implement ACM UI Placement details enhancement" },
+      assignee: "Zack Layne", qa_contact: "Almen Ng", sprint: "ACM Console 2.17 - 1"
+    },
+    acceptance_criteria: [
+      "AppSet details page shows placement references for both push and pull ArgoCD models",
+      "Placement name is displayed as a clickable link navigating to the Placement details page",
+      "When no placement is associated, a dash (-) is shown",
+      "Feature is gated behind enhancedPlacement setting (NOTE: flag removed in ACM-30888, now always enabled)"
+    ],
+    comments_with_decisions: [
+      "ACM-30888 merged: enhancedPlacement feature flag removed. Placements tab displays by default.",
+      "ACM-30641 comment: YAML and Related resources tabs crossed out from placement details design.",
+      "ACM-31453 closed: QE test cases created, reviewed, approved, test run executed."
+    ],
+    edge_cases: [
+      "AppSet with no associated Placement -- should display dash (-)",
+      "AppSet with more than 3 placements -- show/hide toggle",
+      "Placement link navigation -- correct namespace/name",
+      "Push vs pull model AppSets -- both should show placement references"
+    ],
+    linked_tickets: {
+      qe_tracking: "ACM-31453", qe_automation: "ACM-31454",
+      siblings: [
+        { key: "ACM-30641", summary: "New Placements tab on Clusters page" },
+        { key: "ACM-30650", summary: "Add placement details to Cluster details page" },
+        { key: "ACM-30888", summary: "Remove enhancedPlacement feature flag" }
+      ]
+    },
+    pr_references: [{ number: 5883, repo: "stolostron/console", files_changed: 5, additions: 431, deletions: 4, state: "MERGED" }],
+    existing_polarion_coverage: [],
+    cnv_version: null,
+    test_scenarios: [
+      "Verify Placement section appears on AppSet details page",
+      "Verify Placement name is a clickable hyperlink to Placement details page",
+      "Verify dash (-) when AppSet has no associated Placement",
+      "Verify show more/less toggle for >3 placements",
+      "Verify Placement shown for both Push and Pull model AppSets",
+      "Verify Placement link has correct namespace/name in URL",
+      "Verify Placement section in right column of details card"
+    ],
+    anomalies: [
+      "Neo4j architecture query timed out -- context assembled from PR diff instead",
+      "JQL sibling search timed out on broad query; succeeded on narrower query"
+    ]
+  }},
+  { name: 'pr-diff.txt', size: '17.7 KB', text: "Full PR diff from gh pr diff -- 5 files changed, +431/-4 lines\n\nApplicationDetails.tsx: Adds Placement field to right column for AppSet/Argo apps\nutils.tsx (NEW): PlacementLinkList component + getPlacementsForApplicationSet\nApplicationDetails.test.tsx: Test for AppSet placement display\nutils.test.tsx (NEW): Tests for PlacementLinkList and utilities\nutils.test.tsx.snap (NEW): Jest snapshot for placement extraction" }
+]},
+
+'phase2-art': { files: [
+  { name: 'phase2-code.json', size: '18.1 KB', data: {
+    pr: { number: 5883, repo: "stolostron/console", title: "Add placement details to Application details page", files_changed: 5, additions: 431, deletions: 4 },
+    primary_files: [
+      { path: "ApplicationDetails/ApplicationDetails.tsx", story: "ACM-30649", changes: "Adds Placement field to AppSet right column. Rendered unconditionally (feature flag removed in merged source)." },
+      { path: "Placements/utils.tsx", story: "ACM-30649", changes: "NEW FILE. getPlacementsForApplicationSet() + PlacementLinkList component with show-more at threshold 3." },
+      { path: "ApplicationDetails.test.tsx", story: "ACM-30649", changes: "TEST FILE. References removed feature flag in mock." },
+      { path: "utils.test.tsx", story: "ACM-30649", changes: "NEW TEST. Tests extraction and PlacementLinkList rendering." }
+    ],
+    field_orders: {
+      appset_left_column: ["Name", "Type", "Namespace", "Clusters", "Repository"],
+      appset_right_column: ["Cluster resource status", "Created", "Last reconciled", "Placement"],
+      note: "Placement is LAST field in right column for AppSet/Argo apps. NOT shown for Subscription/OCP/Flux."
+    },
+    new_ui_elements: [
+      { element: "Placement field in AppSet details", component: "ApplicationDetailsPageContent" },
+      { element: "PlacementLinkList component", component: "PlacementLinkList" },
+      { element: "getPlacementsForApplicationSet utility", component: "utils.tsx" }
+    ],
+    conditional_logic: [
+      { condition: "isAppSet || isArgoApp", controls: "Whether Placement field is shown" },
+      { condition: "app.application.placement exists", controls: "Populated array vs empty (dash)" },
+      { condition: "placements.length > MAX_LINK_DISPLAY_COUNT (3)", controls: "Show-more toggle" },
+      { condition: "MERGED: no feature flag", controls: "Placement always visible for AppSet/Argo" }
+    ],
+    translations: {
+      Placement: "verified (88 matches)", "Show less": "verified", "{{count}} more": "verified",
+      Name: "pre-existing", Type: "pre-existing", Namespace: "pre-existing",
+      "Cluster resource status": "pre-existing", Created: "pre-existing", "Last reconciled": "pre-existing"
+    },
+    anomalies: [
+      { type: "MERGED_SOURCE_DISCREPANCY", severity: "HIGH", description: "PR diff had enhancedPlacement feature flag. Merged source has NO flag -- Placement rendered unconditionally." },
+      { type: "ROUTE_PATH_DISCREPANCY", severity: "MEDIUM", description: "PR diff used placementOverview; merged source uses placementDetails." },
+      { type: "SINGLE_PLACEMENT_LIMIT", severity: "LOW", description: "getPlacementsForApplicationSet returns 0 or 1 placement. Show-more unreachable from ApplicationDetails." }
+    ]
+  }}
+]},
+
+'phase3-art': { files: [
+  { name: 'phase3-ui.json', size: '9.2 KB', data: {
+    acm_version: "2.17", cnv_version: null,
+    selectors: {
+      data_test: ["overview", "sync-app", "sync-argo-app", "search-resource", "placement-overview", "placement-conditions", "placement-decisions"],
+      pf6_classes: [".pf-v6-c-label (Show more/less toggle)", ".pf-v6-c-label.pf-m-blue", ".pf-v6-c-card", ".pf-v6-c-button.pf-m-link", ".pf-v6-c-nav__link.pf-m-current"],
+      css_classes: ["overview-cards-container", "app-name-container", "app-name", "argo-links-container"]
+    },
+    translations_verified: {
+      Details: "Details", Placement: "Placement", Placements: "Placements",
+      "Show less": "Show less", "{{count}} more": "{{count}} more",
+      Applications: "Applications", Topology: "Topology",
+      "Application set - Push model": "Application set - Push model",
+      "Application set - Pull model": "Application set - Pull model"
+    },
+    routes: {
+      applications: "/multicloud/applications",
+      applicationDetails: "/multicloud/applications/details/:namespace/:name",
+      placementDetails: "/multicloud/infrastructure/clusters/placements/details/:namespace/:name",
+      placementOverview: "/multicloud/infrastructure/clusters/placements/details/:namespace/:name/overview"
+    },
+    entry_point: "Applications > {app-name} > Details tab > Placement field (right column, AppSet/Argo apps only)",
+    feature_behavior: {
+      placement_field_location: "Right column of AcmDescriptionList Details card, last item",
+      placement_field_visibility: "Only for Argo/AppSet types. NOT Subscription/OCP/Flux.",
+      placement_link_url_pattern: "/multicloud/infrastructure/clusters/placements/details/:namespace/:name",
+      show_more_threshold: "MAX_LINK_DISPLAY_COUNT = 3",
+      empty_state: "Displays dash (-) when no placements"
+    },
+    anomalies: [
+      "get_routes timed out on all 3 attempts -- routes extracted from NavigationPath.tsx source",
+      "get_acm_selectors timed out -- QE selector catalog unavailable",
+      "PlacementLinkList has NO data-testid -- selectors must use DOM structure or PF classes"
+    ]
+  }}
+]},
+
+'phase4-art': { files: [
+  { name: 'synthesized-context.md', size: '19.5 KB', text: "SYNTHESIZED CONTEXT\n===================\n\nStory: ACM-30649 -- Add placement details to Application details page\nStatus: Review | Fix Version: ACM 2.17.0 | Component: Console\nAssignee: Zack Layne | QA Contact: Almen Ng\nParent Epic: ACM-30608\n\nAcceptance Criteria:\n  AC-1: AppSet details shows placement references (push + pull models)\n  AC-2: Placement name as clickable link to Placement details page\n  AC-3: Dash (-) when no placement associated\n  AC-4: Feature flag removed (ACM-30888), always enabled\n\nField Orders (authoritative):\n  Left:  Name, Type, Namespace, Clusters, Repository\n  Right: Cluster resource status, Created, Last reconciled, Placement\n\nConditional Logic:\n  C-1: isAppSet || isArgoApp -> Placement field shown\n  C-2: placement exists -> link; otherwise -> dash\n  C-3: >3 placements -> show-more toggle\n  C-5: Feature flag REMOVED -- unconditionally visible\n\nAnomalies:\n  MERGED_SOURCE_DISCREPANCY (HIGH): Feature flag in PR diff, absent in merged code\n  ROUTE_PATH_DISCREPANCY (MEDIUM): placementOverview vs placementDetails\n\n--- TEST PLAN ---\n\nStep 1: Negative -- Subscription app lacks Placement field\nStep 2: Placement field visible on AppSet details (positive)\nStep 3: Placement link click navigation\nStep 4: No-placement AppSet shows dash\nStep 5: Second deployment model (push/pull)\nStep 6: Link URL correctness\n\n(Full file: 19.5 KB with detailed code references, UI element map, and coverage gaps)" }
+]},
+
+'phase5': { files: [
+  { name: 'phase5-live-validation.md', size: '7.5 KB', text: "LIVE VALIDATION RESULTS\n=======================\nCluster: ashafi-atif-az-50\nACM Version: 5.0.0-66 (MCH currentVersion)\nConsole URL: https://console-openshift-console.apps.ashafi-atif-az-50.az.dev09.red-chesterfield.com/\nBrowser Auth: authenticated\n\nEnvironment Health:\n- ACM: healthy (MCH phase=Running)\n- Nodes: 6/6 Ready (3 masters, 3 workers)\n- Spokes: 2 connected (e2e-spoke-1, local-cluster)\n- Console: 2/2 pods Running\n- GitOps Operator: installed (v1.20.3)\n\nStep 1: Check for ApplicationSets on cluster\n  oc get applicationsets -A -> No resources found\n  Result: CLUSTER HAS NO APPLICATIONSETS\n  Impact: PRIMARY FEATURE CANNOT BE VALIDATED\n\nStep 3: Negative Scenario -- Placement NOT shown for OpenShift app\n  Navigate to Applications > aap > Details tab\n  Left column: Name (aap), Type (OpenShift), Namespace (aap)\n  Right column: Clusters (local-cluster), Cluster resource status\n  Verification: 'Placement' field does NOT appear\n  Match: YES\n  Screenshot: screenshot-openshift-app-details-no-placement.png\n\nStep 4: Verify Placements tab on Clusters page\n  Navigate to /multicloud/infrastructure/clusters/placements\n  Shows 11 placements\n  URL pattern matches code analysis\n\nStep 5: Verify Placement details page loads\n  Click 'global' placement -> loads at expected URL\n  Shows: Name, Namespace, Cluster sets, Filters, Selected clusters\n  Screenshot: screenshot-placement-details-page.png\n\nConsole Errors: 172 total, ALL from kubevirt-plugin i18n. Zero related to Applications/Placements.\nFailed API Calls: None related to feature.\n\nValidation Coverage: 2/8 points confirmed (negative + link target)\n5/8 unvalidated due to missing ApplicationSets (environment limitation)" }
+]},
+
+'phase6-art': { files: [
+  { name: 'test-case.md', size: '11.9 KB', text: "# RHACM4K-30649 - [Apps-2.17] Applications - Placement Details on AppSet Details Page\n\n**Polarion ID:** RHACM4K-30649\n**Status:** Draft\n**Created:** 2026-05-25\n**Updated:** 2026-05-25\n\n## Type: Test Case\n## Level: System\n## Component: Application Lifecycle\n## Subcomponent: Applications\n## Test Type: Functional\n## Pos/Neg: Positive\n## Importance: High\n## Automation: Not Automated\n## Tags: ui, applications, placement, appset, argo, details\n## Release: 2.17\n\n## Description\n\nValidates that the Application details page displays a Placement field for ArgoCD\nApplicationSet applications. The Placement field shows the associated placement as\na clickable link navigating to the Placement details page, or a dash (-) when no\nplacement is associated.\n\nThis test verifies:\n1. Placement field is absent for Subscription-type applications (negative)\n2. Placement field is visible in AppSet details right column with clickable link\n3. Placement link navigates to correct Placement details page URL\n4. AppSet with no placement shows dash (-)\n5. Placement field visible for second ArgoCD deployment model\n\nEntry Point: Applications > {app-name} > Details tab\nRoute: /multicloud/applications/details/:namespace/:name/details\n\nDev JIRA Coverage:\n- Primary: ACM-30649\n- Parent Epic: ACM-30608\n- PR: stolostron/console#5883 (merged 2026-03-23)\n\n(6 test steps, setup, teardown -- full file: 11.9 KB)" },
+  { name: 'analysis-results.json', size: '3.2 KB', data: {
+    jira_id: "ACM-30649", jira_summary: "Add placement details to Application details page",
+    acm_version: "2.17", area: "applications", pr_number: 5883, pr_repo: "stolostron/console",
+    test_case_file: "test-case.md", steps_count: 6, complexity: "medium",
+    routes_discovered: [
+      "/multicloud/applications",
+      "/multicloud/applications/details/:namespace/:name",
+      "/multicloud/applications/details/:namespace/:name/details",
+      "/multicloud/infrastructure/clusters/placements/details/:namespace/:name"
+    ],
+    translations_discovered: {
+      Placement: "verified (88 matches)", "{{count}} more": "verified", "Show less": "verified",
+      "Cluster resource status": "verified", Created: "verified", "Last reconciled": "verified"
+    },
+    live_validation_performed: true,
+    live_validation_coverage: {
+      validated: ["Negative: OpenShift app lacks Placement", "Placements tab URL confirmed", "Placement details page confirmed"],
+      not_validated: ["Placement field on AppSet (no AppSets on cluster)", "Link navigation", "Dash for no-placement", "Second model"]
+    },
+    self_review_verdict: "PASS",
+    anomalies: [
+      "MERGED_SOURCE_DISCREPANCY: Feature flag in PR diff, absent in merged code",
+      "ROUTE_PATH_DISCREPANCY: placementOverview vs placementDetails",
+      "LIVE_VALIDATION_PARTIAL: 2/8 points confirmed"
+    ]
+  }}
+]},
+
+'phase7': { _appendSample: true, files: [
+  { name: 'phase7-review.md', size: '6.0 KB', text: "TEST CASE REVIEW\n================\nFile: test-case.md | Area: applications | Version: 2.17\n\nMCP VERIFICATIONS (12 checks):\n 1. search_translations: \"Placement\" -- found, matches: yes\n 2. search_translations: \"Applications\" -- found, matches: yes\n 3. search_translations: \"Cluster resource status\" -- found, matches: yes\n 4. search_translations: \"Last reconciled\" -- found, matches: yes\n 5. search_translations: \"Created\" -- found, matches: yes\n 6. search_translations: \"Details\" -- found, matches: yes\n 7. get_component_source: ApplicationDetails.tsx -- right column field order verified\n 8. get_component_source: ApplicationDetails.tsx -- Placement absent for Subscription: yes\n 9. get_component_source: ApplicationDetails.tsx -- Placement absent for OCP/Flux: yes\n10. get_component_source: utils.tsx -- PlacementLinkList dash for empty: confirmed\n11. get_component_source: utils.tsx -- Link to placementDetails: confirmed\n12. get_component_source: utils.tsx -- MAX_LINK_DISPLAY_COUNT = 3: confirmed\n\nBLOCKING: None\n\nWARNING:\n1. Entry point route path includes /details suffix (client-side tab, not standalone route)\n2. 'Last field in right column' assertion may break if future fields added\n\nAll labels DISCOVERED via MCP (none assumed).\n\nVerdict: PASS" }
+]},
+
+'phase8': { _appendSample: true, files: [
+  { name: 'review-results.json', size: '0.6 KB', data: {
+    verdict: "PASS", issues: [], metadata_complete: true, section_order_valid: true,
+    title_pattern_valid: true, entry_point_present: true, jira_coverage_present: true,
+    step_format_valid: true, teardown_present: true, total_steps: 6,
+    artifacts: { artifacts_present: 10, artifacts_expected: 10, artifacts_missing: [], pipeline_complete: true, validation_warnings_present: false }
+  }},
+  { name: 'SUMMARY.txt', size: '1.0 KB', text: "Test Case Generation Summary\n============================\n\nJIRA: ACM-30649\nGenerated: 2026-05-25 15:25:29\n\nPrimary deliverable: test-case.md\nSteps: 6\n\nStructural Validation: PASS\n  Metadata complete: Yes\n  Title pattern valid: Yes\n  Section order valid: Yes\n  Entry point present: Yes\n  JIRA coverage present: Yes\n  Step format valid: Yes\n  Teardown present: Yes\n\nPipeline Artifacts: 10/10 complete\n\nPolarion HTML:\n  Description: Generated\n  Setup: Generated\n  Steps: Generated" }
+]},
+
+'output-files': { _appendSample: true, files: [
+  { name: 'pipeline.log.jsonl', size: '1.1 KB', data: [
+    { timestamp: "2026-05-25T19:01:51Z", event: "pipeline_start", jira_id: "ACM-30649" },
+    { timestamp: "2026-05-25T19:01:51Z", event: "stage_start", stage: "gather" },
+    { timestamp: "2026-05-25T19:01:53Z", event: "stage_end", stage: "gather", elapsed_seconds: 2.32, pr_found: true, pr_count: 1, area: "applications" },
+    { timestamp: "2026-05-25T19:25:29Z", event: "stage_start", stage: "report" },
+    { timestamp: "2026-05-25T19:25:29Z", event: "stage_end", stage: "report", verdict: "PASS", total_steps: 6, html_generated: true },
+    { timestamp: "2026-05-25T19:25:29Z", event: "pipeline_end", total_elapsed_seconds: 1418, verdict: "PASS" }
+  ]}
+]}
+
+};
+
+/* ── Sample Data Rendering Helpers ─────────────────────── */
+
+function syntaxHighlight(json) {
+  if (typeof json !== 'string') json = JSON.stringify(json, null, 2);
+  json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return json.replace(/"(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?|null/g, function (match) {
+    var cls = 'num';
+    if (/^"/.test(match)) {
+      if (/:$/.test(match)) { cls = 'key'; }
+      else { cls = 'str'; }
+    } else if (/true|false/.test(match)) { cls = 'bool'; }
+    else if (/null/.test(match)) { cls = 'dim'; }
+    return '<span class="' + cls + '">' + match + '</span>';
+  });
+}
+
+function renderSamplePanel(entry) {
+  var html = '<div class="sample-banner"><h4>SAMPLE RUN DATA</h4><div class="meta">ACM-30649 &bull; 2026-05-25 &bull; Verdict: PASS &bull; 10/10 artifacts</div></div>';
+  if (!entry.files || entry.files.length === 0) return html;
+  var sid = 'sample-' + Math.random().toString(36).slice(2, 8);
+  if (entry.files.length > 1) {
+    html += '<div style="margin:8px 0;">';
+    entry.files.forEach(function(f, i) {
+      html += '<span class="file-tab' + (i === 0 ? ' active' : '') + '" onclick="switchSampleTab(this, \'' + sid + '\', ' + i + ')">' + f.name + ' <span style="color:var(--dim);">(' + f.size + ')</span></span>';
+    });
+    html += '</div>';
+  } else {
+    html += '<div style="margin:8px 0;"><span class="tag tag-info">' + entry.files[0].name + '</span> <span style="color:var(--dim);font-size:0.72rem;">' + entry.files[0].size + '</span></div>';
+  }
+  entry.files.forEach(function(f, i) {
+    var content;
+    if (f.data) {
+      content = syntaxHighlight(f.data);
+    } else if (f.text) {
+      content = f.text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    } else {
+      content = '(binary file)';
+    }
+    html += '<div class="sample-file' + (i === 0 ? ' active' : '') + '" data-group="' + sid + '" data-idx="' + i + '"><pre class="data-block">' + content + '</pre></div>';
+  });
+  return html;
+}
+
+function switchSampleTab(el, groupId, idx) {
+  el.parentElement.querySelectorAll('.file-tab').forEach(function(t) { t.classList.remove('active'); });
+  el.classList.add('active');
+  document.querySelectorAll('.sample-file[data-group="' + groupId + '"]').forEach(function(f) {
+    f.classList.toggle('active', parseInt(f.dataset.idx) === idx);
+  });
+}
 
 /* ── Tree Data Definitions ──────────────────────────────── */
 
@@ -585,7 +2777,12 @@ function showDetail(id) {
   const d = DATA[id];
   if (!d) return;
   document.getElementById('detail-title').textContent = d.title;
-  document.getElementById('detail-body').innerHTML = d.html;
+  var bodyHtml = d.html;
+  var sample = SAMPLE_RUN[id];
+  if (sample) {
+    bodyHtml += renderSamplePanel(sample);
+  }
+  document.getElementById('detail-body').innerHTML = bodyHtml;
   document.getElementById('detail-panel').classList.remove('hidden');
   document.getElementById('main').classList.remove('full');
 }

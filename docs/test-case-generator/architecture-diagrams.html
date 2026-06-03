@@ -620,7 +620,274 @@ Write phase2-code.json to the run directory:
 
 <span class="sh">Retry Handling</span>
 
-If a &lt;retry&gt; block is present in your input, the orchestrator's schema validator found errors in your previous output. Read your previous output at the path given in PREVIOUS_OUTPUT_PATH. Review each VALIDATION_ERRORS entry. Re-investigate the missing or malformed data using the same MCP tools — do not add placeholder values. Write corrected output to the same path (phase2-code.json), preserving any valid data from the previous attempt.</div></details></div>` },
+If a &lt;retry&gt; block is present in your input, the orchestrator's schema validator found errors in your previous output. Read your previous output at the path given in PREVIOUS_OUTPUT_PATH. Review each VALIDATION_ERRORS entry. Re-investigate the missing or malformed data using the same MCP tools — do not add placeholder values. Write corrected output to the same path (phase2-code.json), preserving any valid data from the previous attempt.</div></details><div class="separator"></div><details class="agent-details"><summary>Sample Output: phase2-code.json (ACM-30649, 18.1 KB)</summary><div class="agent-def">{
+  "pr": {
+    "number": 5883,
+    "repo": "stolostron/console",
+    "title": "Add placement details to Application details page",
+    "files_changed": 5,
+    "additions": 431,
+    "deletions": 4
+  },
+  "primary_files": [
+    {
+      "path": "frontend/src/routes/Applications/ApplicationDetails/ApplicationDetails/ApplicationDetails.tsx",
+      "story": "ACM-30649",
+      "changes": "Adds Placement field to AppSet application details right-column. PR diff shows settingsState/enhancedPlacement feature flag gating, but MERGED source (release-2.17) has NO feature flag -- Placement is rendered unconditionally for all AppSet apps (Argo and AppSet, not subscription). Also restructures leftItems/rightItems split: Repository now ends leftItems; rightItems starts with Cluster resource status. Imports getPlacementsForApplicationSet and PlacementLinkList from Placements/utils."
+    },
+    {
+      "path": "frontend/src/routes/Infrastructure/Clusters/Placements/utils.tsx",
+      "story": "ACM-30649",
+      "changes": "NEW FILE. Adds two exported functions: (1) getPlacementsForApplicationSet(app) -- extracts placement from app.application.placement, returns array of one or empty array. (2) PlacementLinkList component -- renders clickable placement links navigating to NavigationPath.placementDetails, with show-more/show-less toggle (threshold: 3 items via MAX_LINK_DISPLAY_COUNT constant). Uses PF Label for toggle button. Also contains getPlacementsForCluster (used by Clusters page, not ApplicationDetails) and ClusterLinkList, ClusterSetLinkList (sibling components not related to this story)."
+    },
+    {
+      "path": "frontend/src/routes/Applications/ApplicationDetails/ApplicationDetails/ApplicationDetails.test.tsx",
+      "story": "ACM-30649",
+      "changes": "TEST FILE. Adds test 'should display AppSet app info that includes Placement'. Uses settingsState with enhancedPlacement='enabled' -- NOTE: this test references the feature flag that was REMOVED from production code in the merged source. Mock data uses placement with name 'appset-helm-placement' in namespace 'openshift-gitops'."
+    },
+    {
+      "path": "frontend/src/routes/Infrastructure/Clusters/Placements/utils.test.tsx",
+      "story": "ACM-30649",
+      "changes": "NEW TEST FILE. Tests getPlacementsForApplicationSet extraction and PlacementLinkList rendering. Tests show-more button interaction with 4 placements (threshold is 3). Uses snapshot testing for getPlacementsForApplicationSet output."
+    },
+    {
+      "path": "frontend/src/routes/Infrastructure/Clusters/Placements/__snapshots__/utils.test.tsx.snap",
+      "story": "ACM-30649",
+      "changes": "NEW SNAPSHOT FILE. Jest snapshot for getPlacementsForApplicationSet output showing full Placement object with spec, status, conditions, decisionGroups."
+    }
+  ],
+  "field_orders": {
+    "appset_left_column": [
+      "Name",
+      "Type",
+      "Namespace",
+      "Clusters",
+      "Repository"
+    ],
+    "appset_right_column": [
+      "Cluster resource status",
+      "Created",
+      "Last reconciled",
+      "Placement"
+    ],
+    "note": "Placement is the LAST field in the right column for AppSet/Argo apps. It does NOT appear for subscription apps or OCP/Flux apps."
+  },
+  "filter_functions": [],
+  "new_ui_elements": [
+    {
+      "element": "Placement field in AppSet details",
+      "description": "New description list field labeled 'Placement' showing linked placement name(s). Each placement name is a clickable Link navigating to NavigationPath.placementDetails (/multicloud/infrastructure/clusters/placements/details/:namespace/:name). Rendered unconditionally for AppSet apps (both push and pull model) on the merged release-2.17 branch. The PR diff showed feature-flag gating (settings.enhancedPlacement === 'enabled') but that was removed before merge or in a follow-up.",
+      "component": "ApplicationDetailsPageContent"
+    },
+    {
+      "element": "PlacementLinkList component",
+      "description": "Reusable component rendering a vertical list of placement Links. Shows up to 3 placements by default (MAX_LINK_DISPLAY_COUNT=3). When more than 3 exist, renders a PF Label (blue, compact, outline variant) as show-more toggle showing '{{count}} more'. Clicking toggles between full list and collapsed (3-item) view. When zero placements, renders a dash '-'. Links navigate to placementDetails route.",
+      "component": "PlacementLinkList"
+    },
+    {
+      "element": "getPlacementsForApplicationSet utility",
+      "description": "Extracts Placement object from ApplicationDataType. Returns [app.application.placement] if placement exists, otherwise empty array. Only handles single placement per AppSet (returns array of 0 or 1).",
+      "component": "utils.tsx"
+    }
+  ],
+  "modified_behavior": [
+    {
+      "before": "AppSet details right column contained: Cluster resource status, Created, Last reconciled (3 fields). Repository was the last item in the left column before a shared rightItems array.",
+      "after": "AppSet details right column now contains: Cluster resource status, Created, Last reconciled, Placement (4 fields). leftItems and rightItems are explicitly separated with 'rightItems = [' assignment. Placement field is added at the end of rightItems.",
+      "component": "ApplicationDetailsPageContent"
+    },
+    {
+      "before": "No Placement information shown on ApplicationDetails page for any app type.",
+      "after": "Placement name shown as clickable link for AppSet apps (Argo single-app and ApplicationSet). Clicking navigates to /multicloud/infrastructure/clusters/placements/details/:namespace/:name. Subscription, OCP, and Flux apps do NOT show Placement.",
+      "component": "ApplicationDetailsPageContent"
+    }
+  ],
+  "conditional_logic": [
+    {
+      "condition": "App is AppSet (isAppSet=true) or Argo app (isArgoApp=true) but NOT subscription, OCP, or Flux",
+      "controls": "Whether the Placement field is shown. Only the AppSet/Argo code path includes the Placement field. Subscription apps, OCP apps, and Flux apps never show it."
+    },
+    {
+      "condition": "app.application.placement exists (truthy check)",
+      "controls": "Whether getPlacementsForApplicationSet returns a populated array. If placement is undefined/null, returns empty array, and PlacementLinkList renders a dash '-'."
+    },
+    {
+      "condition": "placementsForCluster.length &gt; MAX_LINK_DISPLAY_COUNT (3)",
+      "controls": "Whether the show-more/show-less toggle button is rendered. With 3 or fewer placements, all are shown and no toggle appears."
+    },
+    {
+      "condition": "showMore state (boolean toggle)",
+      "controls": "Whether full list or truncated (first 3) placements are displayed. Default is false (collapsed)."
+    },
+    {
+      "condition": "MERGED SOURCE DISCREPANCY: PR diff had 'settings.enhancedPlacement === enabled'",
+      "controls": "The PR diff conditionally rendered Placement only when enhancedPlacement setting was enabled. The merged release-2.17 source has NO such feature flag -- Placement is always shown for AppSet/Argo apps. Test code still references settingsState with enhancedPlacement='enabled'. Trust merged source."
+    }
+  ],
+  "translations": {
+    "Placement": "Placement (verified in translations, 88 matches for 'Placement' term)",
+    "Show less": "Show less (verified exact match in translations)",
+    "{{count}} more": "{{count}} more (verified in translations, uses i18n interpolation)",
+    "Name": "Name (pre-existing)",
+    "Type": "Type (pre-existing)",
+    "Namespace": "Namespace (pre-existing)",
+    "Clusters": "Clusters (pre-existing)",
+    "Repository": "Repository (pre-existing)",
+    "Cluster resource status": "Cluster resource status (pre-existing)",
+    "Created": "Created (pre-existing)",
+    "Last reconciled": "Last reconciled (pre-existing)"
+  },
+  "ui_interaction_models": [
+    {
+      "element": "Placement name link",
+      "pf_component": "Link (react-router-dom-v5-compat)",
+      "interaction": "Click navigates to /multicloud/infrastructure/clusters/placements/details/:namespace/:name"
+    },
+    {
+      "element": "Show more / Show less toggle",
+      "pf_component": "Label (@patternfly/react-core) - blue, compact, outline variant",
+      "interaction": "Click toggles between showing 3 placements and showing all. Label text changes between '{{count}} more' and 'Show less'."
+    }
+  ],
+  "follow_up_prs": [
+    {
+      "number": "unknown",
+      "title": "Feature flag removal for enhancedPlacement",
+      "merged_at": "unknown",
+      "relevance": "The merged release-2.17 source of ApplicationDetails.tsx does NOT contain settingsState, settings, or enhancedPlacement references that the PR diff introduced. A follow-up PR (or the merge process itself) removed the feature flag gating, making Placement unconditionally visible for AppSet apps. The gh CLI search returned no follow-up PRs on this file path, suggesting the removal may have been part of a broader change or rebase.",
+      "impact": "Tests should NOT depend on enhancedPlacement feature flag. The Placement field is always visible for AppSet/Argo apps in the shipped code."
+    },
+    {
+      "number": "route_change",
+      "title": "NavigationPath discrepancy: placementOverview vs placementDetails",
+      "merged_at": "N/A",
+      "relevance": "The PR diff uses NavigationPath.placementOverview in PlacementLinkList, but the merged release-2.17 source uses NavigationPath.placementDetails. Both routes exist: placementDetails = /multicloud/infrastructure/clusters/placements/details/:namespace/:name, placementOverview = /multicloud/infrastructure/clusters/placements/details/:namespace/:name/overview. The merged code navigates to placementDetails (parent), which likely redirects to placementOverview. Test should use the final route.",
+      "impact": "Placement links navigate to placementDetails, not placementOverview. Tests should verify navigation to the placementDetails URL pattern."
+    }
+  ],
+  "coverage_gaps": [
+    {
+      "description": "JIRA ACs are vague ('AppSet details show placement references') -- no acceptance criteria for specific scenarios",
+      "code_reference": "JIRA ACM-30649 acceptance_criteria field",
+      "user_impact": "Cannot validate if all code behaviors match intended product requirements. All gaps below are derived from code behavior vs the single AC."
+    },
+    {
+      "description": "No AC for zero-placement state (dash rendering)",
+      "code_reference": "utils.tsx:PlacementLinkList - empty array path returns dash '-'",
+      "user_impact": "When an AppSet has no placement (e.g., deleted or misconfigured), user sees '-' in the Placement field. No AC specifies this behavior."
+    },
+    {
+      "description": "No AC for show-more/show-less behavior with &gt;3 placements",
+      "code_reference": "utils.tsx:PlacementLinkList - MAX_LINK_DISPLAY_COUNT=3, toggle logic",
+      "user_impact": "If an AppSet somehow references &gt;3 placements, user sees truncated list with expand toggle. In practice, getPlacementsForApplicationSet returns at most 1 placement, so this code path may be unreachable from this specific integration point."
+    },
+    {
+      "description": "No AC for placement link navigation destination",
+      "code_reference": "utils.tsx:PlacementLinkList - NavigationPath.placementDetails",
+      "user_impact": "Clicking placement name navigates to placement details page. No AC specifies where the link should go."
+    },
+    {
+      "description": "No AC distinguishing push vs pull model AppSet behavior",
+      "code_reference": "ApplicationDetails.tsx:ApplicationDetailsPageContent - isAppSet branch handles both",
+      "user_impact": "Both push and pull model AppSets show Placement. AC says 'both push/pull models' in the value statement but not in formal ACs."
+    },
+    {
+      "description": "No AC for subscription apps NOT showing Placement",
+      "code_reference": "ApplicationDetails.tsx - subscription code path has no Placement field",
+      "user_impact": "Subscription (legacy) apps do not show Placement. This is correct behavior but not documented in ACs."
+    }
+  ],
+  "backend_impact": [
+    {
+      "description": "No new API calls introduced. The Placement data is already loaded as part of applicationData.application.placement (pre-existing data flow). The PR only adds UI rendering of data that was already fetched.",
+      "resource": "Placement (cluster.open-cluster-management.io/v1beta1)",
+      "operation": "READ (pre-existing, no change)"
+    }
+  ],
+  "test_scenarios": [
+    {
+      "id": "TS-01",
+      "scenario": "Verify Placement field appears in AppSet details page",
+      "derived_from": "ApplicationDetails.tsx - rightItems includes Placement for AppSet/Argo apps",
+      "details": "Navigate to an AppSet application details page. Verify 'Placement' label is visible in the right column of the Details description list. Verify placement name is shown as a clickable link."
+    },
+    {
+      "id": "TS-02",
+      "scenario": "Verify Placement link navigates to placement details page",
+      "derived_from": "utils.tsx:PlacementLinkList - Link to NavigationPath.placementDetails",
+      "details": "Click the placement name link. Verify navigation to /multicloud/infrastructure/clusters/placements/details/:namespace/:name. Verify the placement details page loads with correct name and namespace."
+    },
+    {
+      "id": "TS-03",
+      "scenario": "Verify Placement field shows dash when no placement exists",
+      "derived_from": "utils.tsx:PlacementLinkList - empty array returns '-'",
+      "details": "If an AppSet has no placement associated, verify the Placement field shows '-' instead of a link."
+    },
+    {
+      "id": "TS-04",
+      "scenario": "Verify Placement field position in right column (field order)",
+      "derived_from": "ApplicationDetails.tsx - rightItems array order",
+      "details": "Verify field order in right column: Cluster resource status, Created, Last reconciled, Placement. Placement should be the last field."
+    },
+    {
+      "id": "TS-05",
+      "scenario": "Verify Placement NOT shown for Subscription apps",
+      "derived_from": "ApplicationDetails.tsx - subscription code path has no Placement",
+      "details": "Navigate to a subscription-type application details page. Verify 'Placement' label does NOT appear in the details."
+    },
+    {
+      "id": "TS-06",
+      "scenario": "Verify Placement NOT shown for OCP/Flux apps",
+      "derived_from": "ApplicationDetails.tsx - OCP/Flux code path has no Placement",
+      "details": "Navigate to an OCP or Flux application details page. Verify 'Placement' label does NOT appear."
+    },
+    {
+      "id": "TS-07",
+      "scenario": "Verify Placement shown for both push and pull model AppSets",
+      "derived_from": "ApplicationDetails.tsx - same rightItems for both isAppSet paths, value statement mentions both",
+      "details": "Create or navigate to a push-model AppSet and a pull-model AppSet. Verify both show the Placement field with correct placement link."
+    },
+    {
+      "id": "TS-08",
+      "scenario": "Verify show-more toggle for &gt;3 placements (PlacementLinkList component)",
+      "derived_from": "utils.tsx:PlacementLinkList - MAX_LINK_DISPLAY_COUNT=3",
+      "details": "NOTE: getPlacementsForApplicationSet returns at most 1 placement, so this scenario may be unreachable from ApplicationDetails. However, PlacementLinkList is reusable and used elsewhere (Clusters page). If testing the component directly: provide 4+ placements, verify only 3 shown initially, verify '1 more' label appears, click to expand, verify all shown, verify 'Show less' appears, click to collapse."
+    },
+    {
+      "id": "TS-09",
+      "scenario": "Verify placement name displayed with correct format",
+      "derived_from": "utils.tsx:PlacementLinkList - name rendering with comma separator",
+      "details": "When multiple placements are shown, each name except the last should have a trailing comma. Single placement should have no trailing comma."
+    }
+  ],
+  "anomalies": [
+    {
+      "type": "MERGED_SOURCE_DISCREPANCY",
+      "severity": "HIGH",
+      "description": "PR #5883 diff adds settingsState import and settings.enhancedPlacement === 'enabled' feature flag gating for the Placement field. The merged release-2.17 source has NO settingsState reference in ApplicationDetails.tsx -- Placement is rendered unconditionally. The feature flag was either removed before final merge or stripped in a follow-up PR. The test file still references settingsState with enhancedPlacement='enabled'. Trust the merged source: Placement is always visible for AppSet/Argo apps.",
+      "impact": "Test cases must NOT set up enhancedPlacement feature flag. The field is always present."
+    },
+    {
+      "type": "ROUTE_PATH_DISCREPANCY",
+      "severity": "MEDIUM",
+      "description": "PR diff uses NavigationPath.placementOverview in PlacementLinkList Link component. Merged release-2.17 source uses NavigationPath.placementDetails. Both routes exist (placementDetails is parent, placementOverview is child). The merged code navigates to the parent route which likely auto-redirects to overview.",
+      "impact": "Test navigation assertions should check for placementDetails URL pattern (/multicloud/infrastructure/clusters/placements/details/:namespace/:name), not placementOverview."
+    },
+    {
+      "type": "SINGLE_PLACEMENT_LIMIT",
+      "severity": "LOW",
+      "description": "getPlacementsForApplicationSet always returns 0 or 1 placement (wraps single app.application.placement in array). The PlacementLinkList component supports arbitrary counts with show-more at &gt;3. From ApplicationDetails, the show-more code path is unreachable. The component is shared with Clusters page where multiple placements are possible.",
+      "impact": "Test scenarios for show-more toggle are only relevant when testing PlacementLinkList in isolation or from the Clusters page, not from ApplicationDetails."
+    },
+    {
+      "type": "TEST_MOCK_DATA_WARNING",
+      "severity": "INFO",
+      "description": "Test files (ApplicationDetails.test.tsx, utils.test.tsx) contain mock Placement objects with specific names ('appset-helm-placement', 'layne-testing-placement'). These are MOCK DATA and do not represent production placement names. Test assertions using these names are only valid in test context.",
+      "impact": "No production impact. Test case authors should use real cluster data, not mock names."
+    }
+  ]
+}
+</div></details></div>` },
 
 'phase3': { title: 'Phase 3: UI Discovery', html: `<div class="detail-section"><h4>ui-discoverer Subagent</h4><div style="margin:6px 0 10px;"><span class="tag tag-info">Skill: acm-test-case-generator</span> <span class="tag tag-agent">Agent: ui-discoverer</span></div><div class="label">Agent:</div><div class="value"><code>references/agents/ui-discoverer.md</code></div><div class="label">Duration:</div><div class="value">~15&ndash;30 seconds</div><div class="label">Input from orchestrator:</div><div class="value">&bull; <code>ACM_VERSION</code>, <code>CNV_VERSION</code>, <code>AREA</code>, <code>FEATURE_NAME</code> (JIRA story summary, used as MCP search keyword)<br>&bull; <code>RUN_DIR</code> &mdash; writes <code>phase3-ui.json</code> here when done<br>&bull; Does NOT read Phase 1 or Phase 2 files &mdash; performs independent UI discovery using MCP tools only<br>&bull; <code>SKILLS_DIR</code> &mdash; reads <code>acm-test-case-generator/SKILL.md</code> in Step 0 for discovery methodology</div><div class="label">MCP tools (full sweep):</div><div class="value"><span class="tag tag-mcp">acm-source</span> set_acm_version, set_cnv_version, search_code, get_component_source, search_translations, get_routes, get_wizard_steps, get_acm_selectors, find_test_ids, get_patternfly_selectors<br><span class="tag tag-mcp">neo4j</span> read_neo4j_cypher</div><div class="label">Must call first:</div><div class="value"><code>set_acm_version</code> before any search. For Fleet Virt/CCLM/MTV, also <code>set_cnv_version</code>.</div><div class="label">Output:</div><div class="value"><code>phase3-ui.json</code> &mdash; translations (key &rarr; UI string), routes (name &rarr; path), selectors (component &rarr; CSS), test IDs, component structure, anomalies[]</div><div class="separator"></div><details class="agent-details"><summary>Full Agent Definition (references/agents/ui-discoverer.md)</summary><div class="agent-def">You are a UI discovery specialist for ACM Console test case generation. You find selectors, components, translations, and routes from source code to provide accurate UI element information for test case authoring.
 
@@ -731,7 +998,181 @@ Write phase3-ui.json to the run directory:
 
 <span class="sh">Retry Handling</span>
 
-If a &lt;retry&gt; block is present in your input, the orchestrator's schema validator found errors in your previous output. Read your previous output at the path given in PREVIOUS_OUTPUT_PATH. Review each VALIDATION_ERRORS entry. Re-investigate the missing or malformed data using the same MCP tools — do not add placeholder values. Write corrected output to the same path (phase3-ui.json), preserving any valid data from the previous attempt.</div></details></div>` },
+If a &lt;retry&gt; block is present in your input, the orchestrator's schema validator found errors in your previous output. Read your previous output at the path given in PREVIOUS_OUTPUT_PATH. Review each VALIDATION_ERRORS entry. Re-investigate the missing or malformed data using the same MCP tools — do not add placeholder values. Write corrected output to the same path (phase3-ui.json), preserving any valid data from the previous attempt.</div></details><div class="separator"></div><details class="agent-details"><summary>Sample Output: phase3-ui.json (ACM-30649, 9.2 KB)</summary><div class="agent-def">{
+  "acm_version": "2.17",
+  "cnv_version": null,
+  "component_files": [
+    {
+      "path": "frontend/src/routes/Applications/ApplicationDetails/ApplicationDetails/ApplicationDetails.tsx",
+      "repo": "acm",
+      "description": "Application details page content component - renders the Placement field in the right column for AppSet/Argo apps using PlacementLinkList",
+      "lines": 763
+    },
+    {
+      "path": "frontend/src/routes/Infrastructure/Clusters/Placements/utils.tsx",
+      "repo": "acm",
+      "description": "Shared placement utilities - contains PlacementLinkList component and getPlacementsForApplicationSet function",
+      "lines": 165
+    },
+    {
+      "path": "frontend/src/routes/Applications/ApplicationDetails/ApplicationDetails.tsx",
+      "repo": "acm",
+      "description": "Application details page shell - manages state, navigation tabs (Topology/Details), breadcrumb, and actions dropdown",
+      "lines": 586
+    },
+    {
+      "path": "frontend/src/ui-components/AcmDescriptionList/AcmDescriptionList.tsx",
+      "repo": "acm",
+      "description": "AcmDescriptionList component - expandable card with left/right column layout using PF DescriptionList",
+      "lines": 69
+    },
+    {
+      "path": "frontend/src/NavigationPath.tsx",
+      "repo": "acm",
+      "description": "All ACM Console navigation path definitions",
+      "lines": 318
+    },
+    {
+      "path": "frontend/src/routes/Infrastructure/Clusters/Placements/utils.test.tsx",
+      "repo": "acm",
+      "description": "Unit tests for PlacementLinkList, ClusterLinkList, ClusterSetLinkList - shows show-more/show-less behavior with MAX_LINK_DISPLAY_COUNT=3",
+      "lines": 387
+    }
+  ],
+  "selectors": {
+    "data_test": [
+      "overview (AcmDescriptionList id on application details page content)",
+      "sync-app (Sync button for subscription apps)",
+      "sync-argo-app (Sync button for Argo/AppSet apps)",
+      "search-resource (Search resource link)",
+      "app-search-argo-apps-link (Search all related applications link)",
+      "set-time-window-link (Set time window link for subscriptions)",
+      "\${appName}-actions (Actions dropdown, dynamic per app name)",
+      "placement-overview (Placement details overview page)",
+      "placement-conditions (Placement conditions section)",
+      "placement-decisions (Placement decisions section)",
+      "placement-filters (Placement filters section)",
+      "placement-used-in (Placement used-in section)"
+    ],
+    "data_ouia": [],
+    "aria_label": [],
+    "pf6_classes": [
+      ".pf-v6-c-label (PF Label component - used for Show more/Show less toggle)",
+      ".pf-v6-c-label__content (Label content)",
+      ".pf-v6-c-label.pf-m-blue (Blue label variant - used for the show more/less button)",
+      ".pf-v6-c-card (PF Card component)",
+      ".pf-v6-c-card__body (Card body)",
+      ".pf-v6-c-button (PF Button component)",
+      ".pf-v6-c-button.pf-m-link (Link variant button - used for Sync buttons)",
+      ".pf-v6-c-nav (PF Nav component - secondary nav for Topology/Details tabs)",
+      ".pf-v6-c-nav__link (Nav link)",
+      ".pf-v6-c-nav__link.pf-m-current (Active nav link)"
+    ],
+    "css_classes": [
+      "overview-cards-container (wrapper for the AcmDescriptionList Details card)",
+      "app-name-container (wrapper for app name display)",
+      "app-name (app name text)",
+      "argo-links-container (card wrapper for Search resource and Search related apps links)",
+      "sub-card-container (subscription card body container)",
+      "sub-card-content (subscription card content rows)",
+      "help-icon (tooltip question circle icon next to field labels)",
+      "syncInProgress (class added to sync button when sync is in progress)"
+    ]
+  },
+  "translations_verified": {
+    "Details": "Details",
+    "Name": "Name",
+    "Type": "Type",
+    "Namespace": "Namespace",
+    "Clusters": "Clusters",
+    "Repository": "Repository",
+    "Cluster resource status": "Cluster resource status",
+    "Created": "Created",
+    "Last reconciled": "Last reconciled",
+    "Placement": "Placement (used as the description list key label for placement links)",
+    "Placements": "Placements",
+    "Show less": "Show less",
+    "{{count}} more": "{{count}} more (used as Show more label, e.g. '1 more')",
+    "Show more": "Show more",
+    "Topology": "Topology",
+    "Applications": "Applications",
+    "Sync": "Sync",
+    "actions": "Actions",
+    "Search resource": "Search resource",
+    "Search all related applications": "Search all related applications",
+    "ArgoCD": "ArgoCD",
+    "Argo": "Argo",
+    "Application set - Push model": "Application set - Push model",
+    "Application set - Pull model": "Application set - Pull model",
+    "Subscription": "Subscription"
+  },
+  "routes": {
+    "applications": "/multicloud/applications",
+    "applicationDetails": "/multicloud/applications/details/:namespace/:name",
+    "applicationOverview": "/multicloud/applications/details/:namespace/:name/details",
+    "applicationTopology": "/multicloud/applications/details/:namespace/:name/topology",
+    "placements": "/multicloud/infrastructure/clusters/placements",
+    "placementDetails": "/multicloud/infrastructure/clusters/placements/details/:namespace/:name",
+    "placementOverview": "/multicloud/infrastructure/clusters/placements/details/:namespace/:name/overview",
+    "clusterDetails": "/multicloud/infrastructure/clusters/details/:namespace/:name",
+    "clusterSetDetails": "/multicloud/infrastructure/clusters/sets/details/:id"
+  },
+  "entry_point": "Applications &gt; {app-name} &gt; Details tab &gt; Placement field (right column, AppSet/Argo apps only)",
+  "wizard_steps": [],
+  "existing_qe_selectors": [
+    "NOTE: get_acm_selectors timed out repeatedly - QE selector catalog unavailable during this discovery"
+  ],
+  "typescript_types": [
+    {
+      "name": "ApplicationDataType",
+      "file": "frontend/src/routes/Applications/ApplicationDetails/ApplicationDetails.tsx",
+      "definition": "{ refreshTime: number; application: any; appData: any; topology: any; statuses?: any }"
+    },
+    {
+      "name": "ListItems",
+      "file": "frontend/src/ui-components/AcmDescriptionList/AcmDescriptionList.tsx",
+      "definition": "{ key: string; keyAction?: React.ReactNode; value?: string | number | React.ReactNode | undefined }"
+    },
+    {
+      "name": "PlacementLinkList props",
+      "file": "frontend/src/routes/Infrastructure/Clusters/Placements/utils.tsx",
+      "definition": "{ placementsForCluster: Placement[] }"
+    },
+    {
+      "name": "ApplicationDetailsContext",
+      "file": "frontend/src/routes/Applications/ApplicationDetails/ApplicationDetails.tsx",
+      "definition": "{ applicationData?: ApplicationDataType; channelControl: { allChannels: string[]; activeChannel: string | undefined; setActiveChannel: (channel: string) =&gt; void }; toolbarControl: ToolbarControl; refreshResources?: () =&gt; void }"
+    }
+  ],
+  "feature_behavior": {
+    "placement_field_location": "Right column of the AcmDescriptionList 'Details' card, last item in rightItems array",
+    "placement_field_visibility": "Only visible for Argo app and ApplicationSet types (isArgoApp || isAppSet). NOT shown for Subscription, OCP, or Flux app types.",
+    "placement_data_source": "getPlacementsForApplicationSet(applicationData) extracts application.placement from ApplicationDataType. Returns array with single placement if it exists, empty array otherwise.",
+    "placement_link_behavior": "Each placement name is rendered as a &lt;Link&gt; navigating to NavigationPath.placementDetails with namespace and name params",
+    "placement_link_url_pattern": "/multicloud/infrastructure/clusters/placements/details/:namespace/:name",
+    "show_more_threshold": "MAX_LINK_DISPLAY_COUNT = 3. If more than 3 placements, shows first 3 plus a blue outline Label with '{{count}} more' text.",
+    "show_more_toggle": "Clicking the blue Label toggles between showing all placements (with 'Show less' text) and showing first 3 (with '{{count}} more' text)",
+    "empty_state": "When placementsForCluster is empty array, displays '-' (dash)",
+    "comma_separation": "Placement names are comma-separated (comma appended to all except last displayed name)"
+  },
+  "navigation_context": {
+    "breadcrumb": ["Applications", "{app-name}"],
+    "secondary_nav_tabs": [
+      {"key": "apps-details-topology", "label": "Topology"},
+      {"key": "apps-details-details", "label": "Details"}
+    ],
+    "placement_field_is_on": "Details tab (applicationOverview route)",
+    "page_id": "overview (AcmPageContent id)"
+  },
+  "anomalies": [
+    "get_routes tool timed out on all 3 attempts - routes extracted manually from NavigationPath.tsx source code",
+    "get_acm_selectors tool timed out on all 3 attempts - QE selector catalog unavailable for cross-referencing",
+    "PlacementLinkList component in utils.tsx has NO data-testid, data-test, or aria-label attributes - selectors must rely on DOM structure, link text, or PF classes",
+    "The Placement field is ONLY in rightItems for AppSet/Argo apps (line ~280 of ApplicationDetails.tsx). Subscription apps do NOT show placement in the details card",
+    "For AppSets, getPlacementsForApplicationSet typically returns a single-element array (the one placement). The show-more/show-less behavior is more relevant for ClusterLinkList/ClusterSetLinkList in cluster overview contexts"
+  ]
+}
+</div></details></div>` },
 
 'pre-synthesis': { title: 'Pre-Synthesis Readiness Check', html: `<div class="detail-section"><h4>8-Point Cross-Artifact Gate</h4><div style="margin:6px 0 10px;"><span class="tag tag-phase">Script: validate_artifact.py --pre-synthesis</span></div><div class="label">Script:</div><div class="value"><code>validate_artifact.py --pre-synthesis</code></div><div class="label">8 data points across 3 artifacts:</div><div class="check-grid"><span class="ck">story.key</span><span class="cd">Test case identity &mdash; without the JIRA key, cannot create a titled, traceable test case in Polarion</span><span class="ck">story.summary</span><span class="cd">Test case title source &mdash; needed for naming convention ([Area-X.XX] Title) and Polarion metadata</span><span class="ck">acceptance_criteria</span><span class="cd">Scope gate anchors (non-empty) &mdash; without ACs, there are no criteria to test against; synthesis cannot build a TEST PLAN</span><span class="ck">pr.number</span><span class="cd">Code context identity &mdash; links the test case to the specific code change being tested; needed for traceability</span><span class="ck">pr.repo</span><span class="cd">Repository context &mdash; determines which branch to set via set_acm_version for downstream MCP lookups</span><span class="ck">primary_files</span><span class="cd">Changed files (non-empty) &mdash; AC cross-reference requires knowing what code actually changed; empty means code analysis found nothing</span><span class="ck">entry_point</span><span class="cd">Navigation start &mdash; without it, the writer does not know where the test begins; every test case needs a user-facing starting point</span><span class="ck">routes</span><span class="cd">Route verification (non-empty) &mdash; needed to confirm the entry point resolves to a real page URL in the console</span></div><div class="label">Source artifacts:</div><div class="value"><code>phase1-jira.json</code> (story.key, story.summary, acceptance_criteria)<br><code>phase2-code.json</code> (pr.number, pr.repo, primary_files)<br><code>phase3-ui.json</code> (entry_point, routes)</div><div class="label">On failure:</div><div class="value"><strong>Stop pipeline.</strong> Upstream phases already exhausted retry attempts.</div></div>` },
 
@@ -926,7 +1367,324 @@ If VALIDATION_WARNINGS_PATH is present in your input, one or more upstream phase
 
 <span class="sh">Retry Handling</span>
 
-If a &lt;retry&gt; block is present in your input, the orchestrator's schema validator found errors in your previous output. Read your previous output at the path given in PREVIOUS_OUTPUT_PATH. Review each VALIDATION_ERRORS entry. Re-read the upstream phase artifacts and re-synthesize the missing or malformed sections. Write corrected output to the same path (synthesized-context.md), preserving any valid sections from the previous attempt.</div></details></div>` },
+If a &lt;retry&gt; block is present in your input, the orchestrator's schema validator found errors in your previous output. Read your previous output at the path given in PREVIOUS_OUTPUT_PATH. Review each VALIDATION_ERRORS entry. Re-read the upstream phase artifacts and re-synthesize the missing or malformed sections. Write corrected output to the same path (synthesized-context.md), preserving any valid sections from the previous attempt.</div></details><div class="separator"></div><details class="agent-details"><summary>Sample Output: synthesized-context.md (ACM-30649, 19.5 KB)</summary><div class="agent-def">SYNTHESIZED CONTEXT
+===================
+
+CLUSTER_URL: https://console-openshift-console.apps.ashafi-atif-az-50.az.dev09.red-chesterfield.com/
+
+--- JIRA INVESTIGATION (source: phase1-jira.json) ---
+
+Story: ACM-30649 — Add placement details to Application details page
+Status: Review | Fix Version: ACM 2.17.0 | Component: Console
+Assignee: Zack Layne | QA Contact: Almen Ng
+Sprint: ACM Console 2.17 - 1
+Parent Epic: ACM-30608 — Implement ACM UI Placement details enhancement
+
+Acceptance Criteria:
+  AC-1: AppSet details page shows placement references for both push and pull ArgoCD models
+  AC-2: Placement name is displayed as a clickable link navigating to the Placement details page
+  AC-3: When no placement is associated, a dash (-) is shown
+  AC-4: Feature is gated behind enhancedPlacement setting (NOTE: feature flag was removed in ACM-30888, now always enabled)
+
+Key Decisions from Comments:
+  - ACM-30888 merged: enhancedPlacement feature flag removed. Placements tab displays by default without setting the feature flag.
+  - ACM-30641 comment: YAML and Related resources tabs crossed out from placement details page design.
+  - ACM-31453 closed: QE test cases created, reviewed, approved, test run executed.
+
+Linked Tickets:
+  - ACM-30641 (sibling/dependency): New Placements tab on Clusters page — ACM-30649 depends on this for the placement details page that links navigate to.
+  - ACM-30650 (sibling): Add placement details to Cluster details page — same pattern, different page.
+  - ACM-30651 (sibling): Add placement details to Policy details page — same pattern, different page.
+  - ACM-30652 (sibling): Add placement details to PolicySet details page — same pattern, different page.
+  - ACM-30888 (sibling): Remove enhancedPlacement feature flag — flag removed, always enabled.
+  - ACM-31453 (QE tracking): Test cases created in Polarion.
+  - ACM-31454 (QE automation): Automation tracking.
+
+PR: stolostron/console#5883 (MERGED 2026-03-23) — 5 files changed, +431 / -4
+
+Edge Cases from JIRA:
+  - AppSet with no associated Placement — should display dash (-)
+  - AppSet with more than 3 placements — show/hide toggle
+  - Placement link navigation to correct namespace/name
+  - Push vs pull model AppSets — both should show placement references
+  - Placement with special characters in name or namespace
+
+--- CODE CHANGE ANALYSIS (source: phase2-code.json) ---
+
+Primary Files Changed:
+  1. ApplicationDetails.tsx — Adds Placement field to AppSet right column. Uses PlacementLinkList. Placement rendered unconditionally for AppSet/Argo apps (feature flag removed in merged source).
+  2. Placements/utils.tsx (NEW) — getPlacementsForApplicationSet() returns [placement] or []. PlacementLinkList renders links with show-more/less toggle at threshold 3.
+  3. ApplicationDetails.test.tsx — Test for AppSet placement display (still references removed feature flag in mock).
+  4. utils.test.tsx (NEW) — Tests for getPlacementsForApplicationSet and PlacementLinkList.
+  5. utils.test.tsx.snap (NEW) — Snapshot for placement object extraction.
+
+Field Orders (authoritative):
+  AppSet Left Column: Name, Type, Namespace, Clusters, Repository
+  AppSet Right Column: Cluster resource status, Created, Last reconciled, Placement
+  Note: Placement is LAST field in right column. Does NOT appear for Subscription/OCP/Flux apps.
+
+New UI Elements:
+  1. Placement field in AppSet details — description list field labeled "Placement" in right column
+  2. PlacementLinkList component — renders placement links as clickable &lt;Link&gt; elements, show-more at &gt;3
+  3. getPlacementsForApplicationSet — extracts single placement from ApplicationDataType, returns 0 or 1 element array
+
+Conditional Logic:
+  C-1: App is AppSet (isAppSet=true) or Argo (isArgoApp=true) → Placement field shown
+  C-2: app.application.placement exists → populated array; otherwise empty → dash
+  C-3: placementsForCluster.length &gt; 3 → show-more toggle rendered
+  C-4: showMore toggle state → full list vs truncated (first 3)
+  C-5: Feature flag REMOVED — Placement unconditionally visible for AppSet/Argo apps in merged code
+
+Translations (verified):
+  "Placement", "Show less", "{{count}} more", "Name", "Type", "Namespace",
+  "Clusters", "Repository", "Cluster resource status", "Created", "Last reconciled"
+
+UI Interaction Models:
+  1. Placement name link → Click navigates to /multicloud/infrastructure/clusters/placements/details/:namespace/:name
+  2. Show more/less toggle → PF Label (blue, compact, outline), click toggles expanded/collapsed
+
+Anomalies:
+  MERGED_SOURCE_DISCREPANCY (HIGH): PR diff had enhancedPlacement feature flag gating. Merged release-2.17 source has NO feature flag — Placement rendered unconditionally. Tests must NOT set up enhancedPlacement flag.
+  ROUTE_PATH_DISCREPANCY (MEDIUM): PR diff used NavigationPath.placementOverview; merged source uses NavigationPath.placementDetails. Test should verify navigation to placementDetails URL (/multicloud/infrastructure/clusters/placements/details/:namespace/:name).
+  SINGLE_PLACEMENT_LIMIT (LOW): getPlacementsForApplicationSet returns 0 or 1 placement. Show-more toggle unreachable from ApplicationDetails context. Component shared with Clusters page.
+
+--- UI DISCOVERY (source: phase3-ui.json) ---
+
+ACM Version: 2.17
+
+Entry Point: Applications &gt; {app-name} &gt; Details tab &gt; Placement field (right column, AppSet/Argo apps only)
+
+Routes (authoritative):
+  applications: /multicloud/applications
+  applicationDetails: /multicloud/applications/details/:namespace/:name
+  applicationOverview: /multicloud/applications/details/:namespace/:name/details
+  applicationTopology: /multicloud/applications/details/:namespace/:name/topology
+  placements: /multicloud/infrastructure/clusters/placements
+  placementDetails: /multicloud/infrastructure/clusters/placements/details/:namespace/:name
+  placementOverview: /multicloud/infrastructure/clusters/placements/details/:namespace/:name/overview
+
+Selectors:
+  data-test: overview, sync-app, sync-argo-app, search-resource, app-search-argo-apps-link,
+             set-time-window-link, \${appName}-actions, placement-overview, placement-conditions,
+             placement-decisions, placement-filters, placement-used-in
+  PF6 classes: .pf-v6-c-label, .pf-v6-c-label__content, .pf-v6-c-label.pf-m-blue,
+               .pf-v6-c-card, .pf-v6-c-card__body, .pf-v6-c-button, .pf-v6-c-button.pf-m-link,
+               .pf-v6-c-nav, .pf-v6-c-nav__link, .pf-v6-c-nav__link.pf-m-current
+  CSS classes: overview-cards-container, app-name-container, app-name, argo-links-container
+
+  WARNING: PlacementLinkList has NO data-testid, data-test, or aria-label. Selectors must rely on DOM structure, link text, or PF classes.
+
+Navigation Context:
+  Breadcrumb: Applications &gt; {app-name}
+  Secondary Nav Tabs: Topology, Details
+  Placement field on: Details tab (applicationOverview route)
+  Page ID: overview (AcmPageContent id)
+
+Feature Behavior Summary:
+  - Placement field: right column, last item in rightItems, AcmDescriptionList "Details" card
+  - Visibility: AppSet and Argo apps only. NOT Subscription, OCP, Flux.
+  - Data source: getPlacementsForApplicationSet extracts application.placement
+  - Link behavior: &lt;Link&gt; to NavigationPath.placementDetails with namespace/name
+  - URL pattern: /multicloud/infrastructure/clusters/placements/details/:namespace/:name
+  - Show-more threshold: MAX_LINK_DISPLAY_COUNT = 3
+  - Empty state: dash "-"
+  - Comma separation between multiple placement names
+
+TypeScript Types:
+  - ApplicationDataType: { refreshTime, application, appData, topology, statuses? }
+  - PlacementLinkList props: { placementsForCluster: Placement[] }
+  - ListItems: { key, keyAction?, value? }
+
+--- CONFLICT RESOLUTION ---
+
+1. Feature Flag: JIRA AC-4 mentions enhancedPlacement gating. CODE CHANGE confirms flag REMOVED in merged source. RESOLUTION: Placement is always visible for AppSet/Argo apps. Test must NOT depend on feature flag setup. Note discrepancy.
+
+2. Navigation Route: JIRA mentions NavigationPath.placementOverview. CODE CHANGE shows PR diff used placementOverview but merged source uses placementDetails. UI DISCOVERY confirms placementDetails route. RESOLUTION: Trust UI DISCOVERY — test navigates to /multicloud/infrastructure/clusters/placements/details/:namespace/:name (placementDetails).
+
+3. Show-more Relevance: JIRA edge case mentions &gt;3 placements. CODE CHANGE confirms getPlacementsForApplicationSet returns 0 or 1 placement — show-more is unreachable from ApplicationDetails. RESOLUTION: Show-more toggle test is out of scope for this story's AppSet context (component is shared, but from ApplicationDetails only 0 or 1 placement is possible). Note in test plan.
+
+--- AC vs IMPLEMENTATION CROSS-REFERENCE ---
+
+AC-1 (Push and pull models show placement references):
+  CODE: isAppSet and isArgoApp branches both include Placement in rightItems. No model-specific logic.
+  STATUS: AGREE. Both models show Placement identically.
+
+AC-2 (Placement name is clickable link to Placement details page):
+  CODE: PlacementLinkList renders &lt;Link&gt; to NavigationPath.placementDetails with namespace/name.
+  STATUS: AGREE. Link navigates to /multicloud/infrastructure/clusters/placements/details/:namespace/:name.
+  NOTE: JIRA says "Placement details page" and original PR used placementOverview. Merged source uses placementDetails (parent route). Trust merged source.
+
+AC-3 (Dash when no placement associated):
+  CODE: PlacementLinkList returns '-' when placementsForCluster is empty array.
+  STATUS: AGREE.
+
+AC-4 (Feature gated behind enhancedPlacement):
+  CODE: Feature flag REMOVED in merged source. Placement unconditionally rendered.
+  STATUS: AC-IMPLEMENTATION DISCREPANCY. AC says feature-flag gated; implementation shows always enabled. ACM-30888 removed the flag. Test validates against IMPLEMENTATION (always visible). Note: "JIRA AC-4 references enhancedPlacement feature flag, but ACM-30888 removed the flag before release. Merged release-2.17 source renders Placement unconditionally for AppSet/Argo apps."
+
+--- COVERAGE GAP TRIAGE ---
+
+GAP-1: No AC for zero-placement state (dash rendering)
+  Code: PlacementLinkList empty array → '-'
+  Triage: ADD TO TEST PLAN — user-visible behavior, covers AC-3 which does specify dash
+  Action: Covered by planned step verifying dash for no-placement AppSet
+
+GAP-2: No AC for show-more/show-less behavior with &gt;3 placements
+  Code: PlacementLinkList MAX_LINK_DISPLAY_COUNT=3, toggle logic
+  Triage: NOTE ONLY — getPlacementsForApplicationSet returns 0 or 1 placement, making this code path unreachable from ApplicationDetails. Component-level concern for Clusters page (ACM-30641 scope).
+  Action: Note in test plan. Not a test step.
+
+GAP-3: No AC for placement link navigation destination
+  Code: NavigationPath.placementDetails
+  Triage: ADD TO TEST PLAN — user-visible navigation, covered by AC-2 intent
+  Action: Covered by planned step verifying link click navigates to placement details
+
+GAP-4: No AC distinguishing push vs pull model behavior
+  Code: Both isAppSet paths include Placement
+  Triage: ADD TO TEST PLAN — AC-1 mentions both models but no formal AC. Both models must be verified.
+  Action: Test uses both push and pull model AppSets
+
+GAP-5: No AC for Subscription apps NOT showing Placement
+  Code: Subscription code path has no Placement field
+  Triage: ADD TO TEST PLAN — negative scenario for conditional rendering. Validates that Placement is AppSet/Argo-only.
+  Action: Add negative step verifying Placement absent on Subscription app
+
+GAP-6: No AC for OCP/Flux apps NOT showing Placement
+  Code: OCP/Flux code paths have no Placement field
+  Triage: NOTE ONLY — OCP and Flux apps are uncommon in typical ACM environments. Subscription negative covers the conditional rendering principle.
+  Action: Note in test plan
+
+Coverage Gap Summary:
+  Total: 6 gaps found, 3 added to test plan (GAP-1, GAP-3, GAP-4), 2 noted (GAP-2, GAP-6), 1 implicitly covered by AC (GAP-5 → negative scenario)
+
+--- SCOPE GATING ---
+
+In scope (ACM-30649):
+  - Placement field visibility on AppSet details page (AC-1)
+  - Placement link rendering and navigation (AC-2)
+  - Empty placement state (AC-3)
+  - Negative: Subscription apps do not show Placement
+
+Out of scope (sibling stories):
+  - Placement field on Cluster details page → ACM-30650
+  - Placement field on Policy details page → ACM-30651
+  - Placement field on PolicySet details page → ACM-30652
+  - Placements tab on Clusters page → ACM-30641
+  - Show-more/less toggle for &gt;3 placements from Clusters page → ACM-30641
+
+--- TEST PLAN ---
+
+Scenarios: 5
+Estimated Steps: 8
+Complexity: Medium
+
+Setup (Prerequisites):
+  - ACM 2.17.x hub cluster with console access
+  - At least one managed cluster in AVAILABLE state
+  - OpenShift GitOps operator installed (for ArgoCD ApplicationSets)
+  - oc CLI access to the hub cluster
+  - One ArgoCD ApplicationSet (push or pull model) deployed with an associated Placement resource
+  - One Subscription-type application deployed (for negative scenario)
+  - Console access via browser
+
+Entry Point:
+  Side panel: Applications → click application name → Details tab
+  Route: /multicloud/applications/details/:namespace/:name/details
+  Shortest path: 3 clicks from console landing (Applications in side nav → app row → Details tab)
+
+Per-Step Plan:
+
+  Step 1: Negative Scenario — Verify Placement NOT shown for Subscription app
+    Navigate: Applications &gt; {subscription-app} &gt; Details tab
+    Verify: "Placement" label does NOT appear in the details description list
+    Maps to: AC-1 (inverse — Placement is AppSet-only), GAP-5
+    Rationale: Placed first per Pass 5 (negative before positive, no extra setup needed)
+
+  Step 2: Verify Placement field visible on AppSet details page
+    Navigate: Applications &gt; {appset-app} &gt; Details tab
+    Verify: "Placement" label appears in the right column of the Details card
+    Verify: Placement is the last field in the right column (after Cluster resource status, Created, Last reconciled)
+    Verify: Placement name is displayed as a clickable link (not plain text)
+    Maps to: AC-1, AC-2, field order from code analysis
+
+  Step 3: Verify Placement link navigates to Placement details page
+    Action: Click the placement name link
+    Verify: Browser navigates to /multicloud/infrastructure/clusters/placements/details/{namespace}/{name}
+    Verify: Placement details page loads with correct placement name and namespace
+    Maps to: AC-2, GAP-3
+
+  Step 4: Navigate back and verify no-placement AppSet shows dash
+    Action: Use oc CLI to create or navigate to an AppSet that has no associated Placement resource
+    Navigate: Applications &gt; {no-placement-appset} &gt; Details tab
+    Verify: "Placement" label is present but value shows "-" (dash)
+    Maps to: AC-3, GAP-1
+
+  Step 5: Verify Placement field for second deployment model
+    If Step 2 used a push-model AppSet, navigate to a pull-model AppSet (or vice versa)
+    Navigate: Applications &gt; {other-model-appset} &gt; Details tab
+    Verify: "Placement" label appears with clickable placement link
+    Maps to: AC-1 (both push and pull models), GAP-4, cross-entity verification
+
+  Step 6: Verify placement link URL correctness for second AppSet
+    Action: Click the placement name link on the second AppSet
+    Verify: URL contains correct namespace and placement name for this AppSet's placement
+    Verify: Placement details page loads correctly
+    Maps to: AC-2, cross-entity verification
+
+CLI Checkpoints:
+  - Before Step 4: \`oc get applicationsets -A\` to identify an AppSet without placement, or create one
+  - Before Step 5: \`oc get applicationsets -A\` to identify AppSets of different models (push vs pull)
+
+Teardown:
+  - If a no-placement AppSet was created for Step 4, delete it: \`oc delete applicationset {name} -n {namespace}\`
+  - No other cleanup needed (test is read-only except potential AppSet creation)
+
+Negative Scenarios:
+  - Step 1: Subscription app does not show Placement (conditional rendering negative)
+  - Step 4: AppSet without placement shows dash (empty state negative)
+
+Notes:
+  - Show-more/show-less toggle for &gt;3 placements: NOT testable from ApplicationDetails page because getPlacementsForApplicationSet returns 0 or 1 placement. This behavior is relevant for the Clusters page (ACM-30641 scope) where ClusterLinkList can have multiple placements.
+  - OCP and Flux apps also do not show Placement, but Subscription negative scenario (Step 1) sufficiently validates the conditional rendering pattern.
+  - Feature flag discrepancy: JIRA AC-4 references enhancedPlacement feature flag, but ACM-30888 removed the flag before release. Merged release-2.17 source renders Placement unconditionally for AppSet/Argo apps. No feature flag setup needed in prerequisites.
+  - Route discrepancy: Original PR used NavigationPath.placementOverview; merged source uses NavigationPath.placementDetails. Placement link navigates to /multicloud/infrastructure/clusters/placements/details/:namespace/:name.
+  - Sibling stories (ACM-30650, ACM-30651, ACM-30652) apply the same placement link pattern to Cluster, Policy, and PolicySet details pages. Those are separate test cases.
+
+--- TEST DESIGN NOTES ---
+
+Optimizations Applied:
+  Pass 1 (State Transition Consolidation): Consolidated no-placement verification into the same flow rather than requiring a separate entity setup upfront. Step 4 transitions from placement-present to no-placement AppSet.
+  Pass 2 (Resource Minimization): Reduced from 4 planned AppSets (push with placement, pull with placement, push without placement, subscription) to 3: one AppSet with placement (push or pull), one AppSet without placement, one subscription app. Second model verified with existing cluster AppSet.
+  Pass 3 (Step Flow Sequencing): Ordered as negative (read-only) → positive visibility → link navigation → empty state → cross-entity. Each step builds on previous navigation context.
+  Pass 4 (Deduplication): Merged "field order verification" into Step 2 (combined with visibility check). Merged "link URL correctness" into Steps 3 and 6.
+  Pass 5 (Negative Scenario Placement): Subscription negative placed first (Step 1) — no special setup needed, avoids extra navigation cycles.
+
+Resource Count: 3 (reduced from 4 in raw plan)
+  1. One AppSet with associated Placement (push or pull model)
+  2. One AppSet without associated Placement (or one where placement can be removed)
+  3. One Subscription-type application
+
+Consolidations:
+  - Placement visibility + field order → single step (Step 2)
+  - Link navigation + URL correctness → single step per entity (Steps 3, 6)
+
+--- MINIMUM SCENARIO CHECKLIST ---
+
+  [x] Positive visibility: Step 2 — Placement field visible with link for AppSet
+  [x] Negative visibility: Step 1 — Placement NOT shown for Subscription app; Step 4 — dash for no-placement
+  [x] Data correctness: Steps 3, 6 — placement link URL contains correct namespace/name
+  [x] Interactive element: Steps 3, 6 — click placement link, verify navigation
+  [x] Cross-entity: Steps 5, 6 — verify on second AppSet (different deployment model)
+
+--- SELF-VERIFICATION ---
+
+  [x] Can resources be collapsed further? No — 3 resources is minimum for subscription negative + two AppSet models.
+  [x] Entry point relies on JIRA hierarchy? No — entry point is console side panel &gt; Applications, not epic structure.
+  [x] Prerequisites missing? No — hub cluster, managed cluster, GitOps operator, AppSets, subscription app all declared.
+  [x] Steps mix observation with interaction? No — each step has clear action/navigation and verification separated.
+  [x] Conditional rendering without negative scenario? No — Step 1 covers Subscription negative, Step 4 covers no-placement empty state.
+  [x] Prerequisites generic (no specific cluster names/URLs)? Yes — uses placeholders and requirements, not specific environment details.
+</div></details></div>` },
 
 'phase5': { title: 'Phase 5: Live Validation', html: `<div class="detail-section"><h4>live-validator Subagent (Conditional)</h4><div style="margin:6px 0 10px;"><span class="tag tag-info">Skill: acm-cluster-health</span> <span class="tag tag-agent">Agent: live-validator</span></div><div class="label">Condition:</div><div class="value">Runs only when <code>--cluster-url</code> is provided and <code>--skip-live</code> is not set.</div><div class="label">Agent:</div><div class="value"><code>references/agents/live-validator.md</code></div><div class="label">Duration:</div><div class="value">~2&ndash;5 minutes</div><div class="label">Input from orchestrator:</div><div class="value">&bull; <code>CONSOLE_URL</code>, <code>ACM_VERSION</code>, <code>CONSOLE_USERNAME</code>, <code>CONSOLE_PASSWORD</code><br>&bull; Reads <code>synthesized-context.md</code> &mdash; the test plan from Phase 4, used to know which steps to walk through in the browser<br>&bull; Reads <code>gather-output.json</code> &mdash; PR metadata and area for environment verification (is the PR merged to this cluster?)<br>&bull; <code>AUTH_REFERENCE_PATH</code> &mdash; references/console-auth.md (form-based OAuth login procedure)<br>&bull; <code>SKILLS_DIR</code> &mdash; reads <code>acm-cluster-health/SKILL.md</code> in Step 0 for diagnostic methodology</div><div class="label">Process:</div><div class="value">1. <strong>Environment verification:</strong> 3-method tiered check (merge commit ancestry &rarr; image tag date &rarr; MCH version heuristic)<br>2. <strong>Browser auth:</strong> Form-based OAuth login (see <code>console-auth.md</code>)<br>3. Navigate to feature entry point<br>4. Walk through test steps (click, fill, hover, snapshot)<br>5. Verify backend state (<code>oc get</code>, <code>find_resources</code>)<br>6. Check JS errors + failed API calls<br>7. Build corrections table</div><div class="label">Tools:</div><div class="value"><span class="tag tag-mcp">playwright</span> 24 tools (browser automation)<br><span class="tag tag-mcp">acm-search</span> 5 tools (fleet queries)<br><span class="tag tag-mcp">acm-kubectl</span> 3 tools (multicluster kubectl)<br><span class="tag tag-mcp">bash</span> oc CLI, gh CLI</div><div class="label">Post-Phase 5:</div><div class="value">Orchestrator checks for <code>## Corrections</code> section. Live UI observations override source-code-inferred values for user-visible labels.</div><div class="separator"></div><details class="agent-details"><summary>Full Agent Definition (references/agents/live-validator.md)</summary><div class="agent-def">You are a live environment validation specialist for ACM Console test case generation. You verify feature behavior on actual ACM clusters using browser automation, oc CLI, ACM Search, and multicluster kubectl.
 

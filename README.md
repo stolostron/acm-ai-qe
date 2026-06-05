@@ -34,8 +34,8 @@ The onboarding skill detects your environment, walks you through MCP server setu
 
 | Skill | What It Does | Try It |
 |-------|-------------|--------|
-| **Test Case Generator** | Generates Polarion-ready test cases from JIRA tickets. 9-phase pipeline: JIRA investigation, PR analysis, UI discovery, synthesis, optional live validation, writing, and mandatory quality review. | `"Generate a test case for ACM-30459"` |
-| **Z-Stream Analyzer** | Classifies Jenkins pipeline test failures as PRODUCT_BUG, AUTOMATION_BUG, INFRASTRUCTURE, or NO_BUG. 4-stage pipeline with data gathering, cluster diagnostics, 12-layer AI classification, and report generation. | `"Analyze this run: <JENKINS_URL>"` |
+| **Test Case Generator** | Generates Polarion-ready test cases from JIRA tickets. 6-phase subagent pipeline: JIRA investigation, PR analysis, UI discovery, synthesis, writing, and mandatory quality review. | `"Generate a test case for ACM-30459"` |
+| **Z-Stream Analyzer** | Classifies Jenkins pipeline test failures as PRODUCT_BUG, AUTOMATION_BUG, INFRASTRUCTURE, or NO_BUG. 5-stage pipeline: Environment Oracle, data gathering, cluster diagnostics, 12-layer AI classification, and report generation. | `"Analyze this run: <JENKINS_URL>"` |
 | **Hub Health Check** | Diagnoses ACM hub cluster health using a 6-phase pipeline with 4 depth modes. Checks operators, pods, addons, subsystems, dependency chains, and known failure patterns. | `"How's my hub health?"` (after `oc login`) |
 | **Bug Hunter** | Proactively hunts for bugs in ACM feature implementations using test cases as a starting point. 10-dimension investigation with adversarial subagents. | `"Hunt bugs using RHACM4K-61733"` |
 | **Bug Fix Verifier** | Verifies whether a known bug fix has landed on a target environment. Checks branch reachability, build dates, code presence, and UI behavior. | `"Verify ACM-29818 is fixed on this cluster"` |

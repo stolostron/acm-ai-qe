@@ -170,6 +170,10 @@ ai_systems_v2/
 │   └── investigation/         # acm-bug-hunter, acm-bug-fix-verifier
 ├── commands/                  # Root-level slash commands
 │   └── pre-push.md            # /pre-push quality gate
+├── scripts/                   # Build and validation scripts
+│   ├── lint.sh                # Validate SKILL.md frontmatter, check for credentials
+│   ├── test-skill-paths.sh    # Verify all relative path references resolve
+│   └── validate-readmes.sh    # Check skills/README.md matches disk layout
 ├── .claude-plugin/            # Claude Code plugin manifest
 ├── .claude/
 │   ├── skills/                # Personal skills (grill-me, youtube-digest)
@@ -187,6 +191,8 @@ ai_systems_v2/
 │   └── team-members.md        # Console QE squad roster
 ├── AGENTS.md                  # Agent reference (tool-agnostic, for external AI tools)
 ├── CLAUDE.md                  # This file — Claude Code agent instructions
+├── CONTRIBUTING.md            # How to contribute new skills
+├── Makefile                   # install-claude, lint, validate, test targets
 ├── context.md                 # Ubiquitous language glossary + repo design summary — read this first
 └── README.md                  # User-facing setup and onboarding guide
 ```
@@ -196,8 +202,8 @@ ai_systems_v2/
 ```bash
 # Z-stream analysis (from app directory)
 cd apps/z-stream-analysis/
-python -m pytest tests/unit/ tests/regression/ -q    # 759 tests, no external deps
-python -m pytest tests/ -q --timeout=300             # 804 tests (requires Jenkins VPN)
+python -m pytest tests/unit/ tests/regression/ -q    # 758 tests, no external deps
+python -m pytest tests/ -q --timeout=300             # 803 tests (requires Jenkins VPN)
 
 # Hub health (from app directory)
 cd apps/acm-hub-health/
@@ -205,7 +211,7 @@ python -m pytest tests/regression/ -q                # 22 tests, no external dep
 
 # Test case generator (from app directory)
 cd apps/test-case-generator/
-python -m pytest tests/unit/ tests/integration/ -q   # 119 tests, no external deps
+python -m pytest tests/unit/ tests/integration/ -q   # 117 tests, no external deps
 
 # Portable skill eval harness (from repo root)
 python skills/test-case-gen/acm-test-case-generator/evals/run_evals.py

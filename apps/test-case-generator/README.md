@@ -131,7 +131,7 @@ The entire pipeline is orchestrated by [Claude Code Skills](https://docs.anthrop
 | **Review** | `/review path/to/test-case.md` | Standalone quality review: loads an existing test case and runs the quality-reviewer agent against it. Returns PASS or NEEDS_FIXES with specific issues. |
 | **Batch** | `/batch ACM-1,ACM-2,ACM-3` | Multi-ticket generation: runs `/generate` sequentially for each JIRA ID. Continues on failure. Produces a summary table with status, step count, and output path per ticket. |
 
-Skills are defined in `.claude/skills/` with supporting files for phase gate enforcement (`phase-gates.md`) and the Phase 2 synthesis template (`synthesis-template.md`).
+App-level skills are defined in `.claude/skills/` (within this app directory) with supporting files for phase gate enforcement (`phase-gates.md`) and the Phase 2 synthesis template (`synthesis-template.md`).
 
 ## Concepts
 
@@ -148,7 +148,7 @@ The pipeline has **8 steps**: 2 deterministic stages + 6 AI phases. The tagline 
 <details>
 <summary><b>Portable Skill Mapping</b></summary>
 
-The portable skill pack (`.claude/skills/acm-test-case-generator/`) uses a 9-phase model (Phases 0-8) that merges data gathering with JIRA investigation and runs the remaining investigation agents sequentially. The app consolidates investigation into 1 parallel phase for speed:
+The portable skill pack (`skills/test-case-gen/acm-test-case-generator/`) uses a 9-phase model (Phases 0-8) that merges data gathering with JIRA investigation and runs the remaining investigation agents sequentially. The app consolidates investigation into 1 parallel phase for speed:
 
 | Portable Skill | App Pipeline | Difference |
 |---------------|-------------|------------|

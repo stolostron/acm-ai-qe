@@ -1,10 +1,10 @@
 # Skill Architecture
 
-How all 19 portable ACM skills fit together. For skill authoring standards, see [skill-authoring-guide.md](skill-authoring-guide.md).
+How all 17 portable ACM skills fit together. Skills are organized by domain under `skills/<category>/`. For skill authoring standards, see [skill-authoring-guide.md](skill-authoring-guide.md).
 
 ## Skill Inventory
 
-### Shared Capability Skills (3)
+### Shared Capability Skills — `skills/shared/` (4)
 
 These are vanilla tools with no app-specific logic. Any skill or workflow can use them.
 
@@ -16,7 +16,7 @@ These are vanilla tools with no app-specific logic. Any skill or workflow can us
 
 MCP tools (acm-source, jira, polarion, neo4j-rhacm) are called directly by subagents -- no wrapper skill needed.
 
-### Test Case Generator Skills (4)
+### Test Case Generator Skills — `skills/test-case-gen/` (4)
 
 | Skill | Purpose | Uses Shared Skills / MCPs |
 |-------|---------|--------------------------|
@@ -27,7 +27,7 @@ MCP tools (acm-source, jira, polarion, neo4j-rhacm) are called directly by subag
 
 Skill selection / description disambiguation for this workflow: [test-case-generator/SKILL-DISAMBIGUATION-REPORT.md](test-case-generator/SKILL-DISAMBIGUATION-REPORT.md).
 
-### Hub Health Skills (3)
+### Hub Health Skills — `skills/hub-health/` (3)
 
 | Skill | Purpose | Uses Shared Skills / MCPs |
 |-------|---------|--------------------------|
@@ -35,7 +35,7 @@ Skill selection / description disambiguation for this workflow: [test-case-gener
 | `acm-cluster-remediation` | Cluster mutation execution with structured approval gates | acm-cluster-health, acm-hub-health-check |
 | `acm-knowledge-learner` | Discover unknown components and build knowledge from live cluster | (neo4j-rhacm, acm-source MCPs) |
 
-### Z-Stream Analysis Skills (5)
+### Z-Stream Analysis Skills — `skills/z-stream/` (5)
 
 | Skill | Purpose | Uses Shared Skills / MCPs |
 |-------|---------|--------------------------|
@@ -45,14 +45,14 @@ Skill selection / description disambiguation for this workflow: [test-case-gener
 | `acm-data-enricher` | Data enrichment (selector verification, timeline analysis, knowledge gaps) | (acm-source, jira MCPs) |
 | `acm-jenkins-client` | Jenkins CI MCP interface | None |
 
-### Bug Investigation Skills (2)
+### Bug Investigation Skills — `skills/investigation/` (2)
 
 | Skill | Purpose | Uses Shared Skills / MCPs |
 |-------|---------|--------------------------|
 | `acm-bug-hunter` | Orchestrator: 10-dimension implementation audit using test cases as starting points | acm-qe-code-analyzer, acm-knowledge-base (+ jira, acm-source, polarion, neo4j-rhacm MCPs) |
 | `acm-bug-fix-verifier` | Orchestrator: 7-phase pipeline to verify bug fixes landed in target environments | acm-qe-code-analyzer (+ jira, neo4j-rhacm, acm-source, playwright, acm-search, acm-kubectl MCPs) |
 
-### Utility Skills (1)
+### Utility Skills — in `skills/shared/` (1)
 
 | Skill | Purpose | MCP Required |
 |-------|---------|-------------|
@@ -147,7 +147,7 @@ claude
 
 The 3 shared skills are designed for reuse by any ACM-related workflow. To build a new application:
 
-1. Create a new orchestrator skill: `.claude/skills/acm-new-workflow/SKILL.md`
+1. Create a new orchestrator skill: `skills/<category>/acm-new-workflow/SKILL.md`
 2. Reference shared skills by name in the description and body
 3. Write your pipeline phases -- shared skills provide the capabilities
 4. Add app-specific skills if needed (e.g., `acm-new-validator/`)

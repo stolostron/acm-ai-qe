@@ -37,7 +37,7 @@ The fix is **not** only shorter prose — it is **explicit TRIGGER / DO NOT TRIG
 
 ### 2.2 Pipeline phase map (orchestrator)
 
-Phases are defined in [`.claude/skills/acm-test-case-generator/SKILL.md`](../../.claude/skills/acm-test-case-generator/SKILL.md). Summary for disambiguation copy:
+Phases are defined in [`skills/test-case-gen/acm-test-case-generator/SKILL.md`](../../skills/test-case-gen/acm-test-case-generator/SKILL.md). Summary for disambiguation copy:
 
 | Phase | Name | Subagent instruction file (not separate SKILL) |
 |-------|------|---------------------------------------------------|
@@ -283,11 +283,11 @@ Per [agentskills.io — optimizing descriptions](https://agentskills.io/skill-cr
 
 | File | Action |
 |------|--------|
-| [`.claude/skills/acm-test-case-generator/SKILL.md`](../../.claude/skills/acm-test-case-generator/SKILL.md) | Replace `description:` under frontmatter |
-| [`.claude/skills/acm-test-case-writer/SKILL.md`](../../.claude/skills/acm-test-case-writer/SKILL.md) | Replace `description:` |
-| [`.claude/skills/acm-test-case-reviewer/SKILL.md`](../../.claude/skills/acm-test-case-reviewer/SKILL.md) | Replace `description:` |
-| [`.claude/skills/acm-qe-code-analyzer/SKILL.md`](../../.claude/skills/acm-qe-code-analyzer/SKILL.md) | Replace `description:` |
-| [`.claude/skills/acm-knowledge-base/SKILL.md`](../../.claude/skills/acm-knowledge-base/SKILL.md) | Replace `description:` |
+| [`skills/test-case-gen/acm-test-case-generator/SKILL.md`](../../skills/test-case-gen/acm-test-case-generator/SKILL.md) | Replace `description:` under frontmatter |
+| [`skills/test-case-gen/acm-test-case-writer/SKILL.md`](../../skills/test-case-gen/acm-test-case-writer/SKILL.md) | Replace `description:` |
+| [`skills/test-case-gen/acm-test-case-reviewer/SKILL.md`](../../skills/test-case-gen/acm-test-case-reviewer/SKILL.md) | Replace `description:` |
+| [`skills/test-case-gen/acm-qe-code-analyzer/SKILL.md`](../../skills/test-case-gen/acm-qe-code-analyzer/SKILL.md) | Replace `description:` |
+| [`skills/shared/acm-knowledge-base/SKILL.md`](../../skills/shared/acm-knowledge-base/SKILL.md) | Replace `description:` |
 | [`docs/skill-architecture.md`](../skill-architecture.md) | Optional: add pointer to this report under Test Case Generator section |
 
 ---

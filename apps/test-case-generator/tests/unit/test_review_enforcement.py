@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-SCRIPT_PATH = Path(__file__).resolve().parents[4] / ".claude" / "skills" / "acm-test-case-generator" / "scripts" / "review_enforcement.py"
+SCRIPT_PATH = Path(__file__).resolve().parents[4] / "skills" / "test-case-gen" / "acm-test-case-generator" / "scripts" / "review_enforcement.py"
 
 spec = importlib.util.spec_from_file_location("review_enforcement", SCRIPT_PATH)
 enforcement = importlib.util.module_from_spec(spec)

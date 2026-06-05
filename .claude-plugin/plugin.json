@@ -1,0 +1,11 @@
+{
+  "name": "acm-ai-qe",
+  "displayName": "ACM AI QE",
+  "version": "1.0.0",
+  "description": "AI-powered QE tools for ACM — test case generation, hub health diagnostics, z-stream failure analysis, and bug hunting.",
+  "author": { "name": "ACM Console QE" },
+  "repository": "https://github.com/stolostron/acm-ai-qe",
+  "license": "Apache-2.0",
+  "keywords": ["acm", "qe", "test-case", "polarion", "hub-health", "z-stream"],
+  "files": ["skills/", "commands/", ".claude/knowledge/", "CLAUDE.md"]
+}

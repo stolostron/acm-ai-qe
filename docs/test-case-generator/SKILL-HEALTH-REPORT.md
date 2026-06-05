@@ -1,7 +1,7 @@
 # Test Case Generator — Portable Skill Health Report
 
 **Date:** 2026-05-19
-**Scope:** All 6 portable skills under `.claude/skills/` that participate in test case generation
+**Scope:** All 6 portable skills under `skills/test-case-gen/` and `skills/shared/` that participate in test case generation
 **Purpose:** Comprehensive issue list with fix instructions for Claude Code to execute
 
 ## Skills in Scope
@@ -15,14 +15,14 @@
 | 5 | `acm-knowledge-base` | 1.0.0 | Domain knowledge repository |
 | 6 | `acm-cluster-health` | 1.0.0 | Cluster diagnostic methodology |
 
-All skills live under `/Users/ashafi/Documents/work/ai/ai_systems_v2/.claude/skills/`.
+Test-case-gen skills live under `/Users/ashafi/Documents/work/ai/ai_systems_v2/skills/test-case-gen/`. Shared skills live under `/Users/ashafi/Documents/work/ai/ai_systems_v2/skills/shared/`.
 The unified knowledge DB lives at `/Users/ashafi/Documents/work/ai/ai_systems_v2/.claude/knowledge/`.
 
 ---
 
-## Critical Rule: `.claude/` is Self-Contained
+## Critical Rule: Portable Skills are Self-Contained
 
-**Everything under `.claude/` must be self-contained.** Portable skills read from `.claude/knowledge/` and `.claude/skills/` only. No dependency on `apps/test-case-generator/knowledge/`, no dependency on external workspaces, no dependency on anything outside the `.claude/` tree. The app directory (`apps/test-case-generator/`) is a separate concern — it may maintain its own copies or symlinks, but the portable skill pack must not reference it.
+**Portable skills must be self-contained.** They read from `.claude/knowledge/` and `skills/` only. No dependency on `apps/test-case-generator/knowledge/`, no dependency on external workspaces, no dependency on anything outside the `skills/` and `.claude/knowledge/` trees. The app directory (`apps/test-case-generator/`) is a separate concern — it may maintain its own copies or symlinks, but the portable skill pack must not reference it.
 
 ---
 
@@ -30,7 +30,7 @@ The unified knowledge DB lives at `/Users/ashafi/Documents/work/ai/ai_systems_v2
 
 ### Problem
 
-The portable `gather.py` at `.claude/skills/acm-test-case-generator/scripts/gather.py` resolves knowledge via `KNOWLEDGE_DIR` which points to `.claude/knowledge/`. The script then looks for area architecture files at `architecture/{area}.md` (e.g., `architecture/governance.md`).
+The portable `gather.py` at `skills/test-case-gen/acm-test-case-generator/scripts/gather.py` resolves knowledge via `KNOWLEDGE_DIR` which points to `.claude/knowledge/`. The script then looks for area architecture files at `architecture/{area}.md` (e.g., `architecture/governance.md`).
 
 But `.claude/knowledge/` has a different layout:
 - **Area knowledge** lives under `ui/{area}.md` (e.g., `ui/governance.md`)
@@ -41,7 +41,7 @@ Result: `read_area_knowledge()` in `gather.py` silently returns `None` for area 
 
 ### Files to fix
 
-- `.claude/skills/acm-test-case-generator/scripts/gather.py` — the `read_area_knowledge()` function
+- `skills/test-case-gen/acm-test-case-generator/scripts/gather.py` — the `read_area_knowledge()` function
 
 ### Fix
 
@@ -66,7 +66,7 @@ The same 14 knowledge files (9 architecture + 4 conventions + 1 example) exist i
 | Location | Role |
 |----------|------|
 | `.claude/knowledge/` (unified DB) | Canonical source for portable skills |
-| `.claude/skills/acm-knowledge-base/references/` | Embedded copy in the knowledge-base skill |
+| `skills/shared/acm-knowledge-base/references/` | Embedded copy in the knowledge-base skill |
 | `apps/test-case-generator/knowledge/` | App-local copy |
 
 Two convention files (`cli-in-steps-rules.md` and `polarion-html-templates.md`) already diverge between copies. The skill pack copy of `cli-in-steps-rules.md` has a "When CLI Backend Validation Is NOT Needed" section that the app copy lacks. The app copy of `polarion-html-templates.md` has description section templates, nested-bold rules, and numbered-list rules that the skill pack copy lacks.
@@ -77,14 +77,14 @@ Two convention files (`cli-in-steps-rules.md` and `polarion-html-templates.md`) 
 
 **Step 1:** The `acm-knowledge-base` skill's `references/` directory should NOT contain copies of knowledge files. Instead, the SKILL.md should instruct agents to read directly from `${CLAUDE_SKILL_DIR}/../../knowledge/` (which resolves to `.claude/knowledge/`). Update the SKILL.md file paths from `references/architecture/{area}.md` to `../../knowledge/ui/{area}.md` and from `references/conventions/{file}` to `../../knowledge/conventions/{file}`.
 
-**Step 2:** After updating the SKILL.md paths, delete the duplicated files under `.claude/skills/acm-knowledge-base/references/architecture/`, `.claude/skills/acm-knowledge-base/references/conventions/`, and `.claude/skills/acm-knowledge-base/references/examples/`. Keep the `references/` directory if the skill has other non-duplicated reference files, otherwise remove it.
+**Step 2:** After updating the SKILL.md paths, delete the duplicated files under `skills/shared/acm-knowledge-base/references/architecture/`, `skills/shared/acm-knowledge-base/references/conventions/`, and `skills/shared/acm-knowledge-base/references/examples/`. Keep the `references/` directory if the skill has other non-duplicated reference files, otherwise remove it.
 
 **Step 3:** Before deleting, merge any content that exists only in the skill pack copies INTO the canonical `.claude/knowledge/` files:
 - Merge the "When CLI Backend Validation Is NOT Needed" section from the skill pack `cli-in-steps-rules.md` into `.claude/knowledge/conventions/cli-in-steps-rules.md`
 - Merge the description section templates, nested-bold rules, and numbered-list rules from the app `polarion-html-templates.md` into `.claude/knowledge/conventions/polarion-html-templates.md`
 - Update `.claude/knowledge/ui/applications.md` if the skill/app copy has any unique content (check first)
 
-**Step 4:** Update all agent instruction files under `.claude/skills/acm-test-case-generator/references/agents/` that reference knowledge paths to use the canonical `KNOWLEDGE_DIR` resolution (`${CLAUDE_SKILL_DIR}/../../knowledge/`).
+**Step 4:** Update all agent instruction files under `skills/test-case-gen/acm-test-case-generator/references/agents/` that reference knowledge paths to use the canonical `KNOWLEDGE_DIR` resolution (`${CLAUDE_SKILL_DIR}/../../knowledge/`).
 
 **Step 5:** The app directory (`apps/test-case-generator/knowledge/`) is out of scope for this fix. It can maintain its own copies or symlink to `.claude/knowledge/`. Do not modify app files.
 
@@ -100,7 +100,7 @@ Additionally, the writer SKILL.md Step 4.5 says "Follow Synthesis Design Optimiz
 
 ### Fix
 
-Create `.claude/skills/acm-test-case-writer/references/` with two files:
+Create `skills/test-case-gen/acm-test-case-writer/references/` with two files:
 
 **`references/writing-process.md`** — Extract from the SKILL.md body:
 - The 6-step writing process (Steps 1–6) with full detail
@@ -142,7 +142,7 @@ The MCP verification output format in the SKILL.md uses `[tool]: [query] -> [res
 
 ### Fix
 
-Update `.claude/skills/acm-test-case-reviewer/SKILL.md`:
+Update `skills/test-case-gen/acm-test-case-reviewer/SKILL.md`:
 
 1. Add entry-point label verification to Step 4 MCP checks (known route-key vs UI-label mismatches)
 2. Add `set_cnv_version` instruction for Fleet Virt/CCLM/MTV area reviews in Step 4
@@ -156,7 +156,7 @@ Update `.claude/skills/acm-test-case-reviewer/SKILL.md`:
    ```
 6. Fix the programmatic enforcement paragraph: the SKILL says "calling skill runs `report.py`" but should say `review_enforcement.py` for Phase 7 enforcement and `report.py` for Phase 8 structural validation — these are separate scripts
 
-Also update `.claude/skills/acm-test-case-reviewer/references/review-checklist.md` to include Steps 6.5 (design efficiency) and 6.6 (coverage gap verification), and reference it from the SKILL.md.
+Also update `skills/test-case-gen/acm-test-case-reviewer/references/review-checklist.md` to include Steps 6.5 (design efficiency) and 6.6 (coverage gap verification), and reference it from the SKILL.md.
 
 ---
 
@@ -185,7 +185,7 @@ Also, `07-SKILL-ARCHITECTURE.md` says the code analyzer has "no separate referen
 
 ### Problem
 
-The MCP verification counting function `count_mcp_verifications()` in `.claude/skills/acm-test-case-generator/scripts/review_enforcement.py` uses a regex that only counts numbered lines starting with specific tool names (`search_translations`, `get_routes`, `get_component_source`, etc.). Variations in formatting (backticks around tool names, bullet lists instead of numbered lists, different wording) cause under-counting, which triggers false NEEDS_FIXES verdicts.
+The MCP verification counting function `count_mcp_verifications()` in `skills/test-case-gen/acm-test-case-generator/scripts/review_enforcement.py` uses a regex that only counts numbered lines starting with specific tool names (`search_translations`, `get_routes`, `get_component_source`, etc.). Variations in formatting (backticks around tool names, bullet lists instead of numbered lists, different wording) cause under-counting, which triggers false NEEDS_FIXES verdicts.
 
 Additionally, `check_source_verification()` and `check_translation_verification()` search the **entire** review text, not just the `MCP VERIFICATIONS` section. A mention of `get_component_source` in a BLOCKING issue description could satisfy the check without a real MCP call (false PASS).
 
@@ -205,9 +205,9 @@ The `acm-cluster-health` skill provides a 12-layer diagnostic model and 14 trap 
 
 ### Fix
 
-1. Update `.claude/skills/acm-test-case-generator/references/agents/live-validator.md` to add an explicit step: "Before feature validation, invoke `acm-cluster-health` skill for a quick sanity check. Read `${SKILLS_DIR}/acm-cluster-health/SKILL.md` and run a Layer 9 (Operators) + Layer 10 (Cross-Cluster) check. If the cluster is DEGRADED or CRITICAL at these layers, flag in output as `Cluster Health: DEGRADED — observations may be unreliable` and proceed with caution."
+1. Update `skills/test-case-gen/acm-test-case-generator/references/agents/live-validator.md` to add an explicit step: "Before feature validation, invoke `acm-cluster-health` skill for a quick sanity check. Read `${SKILLS_DIR}/acm-cluster-health/SKILL.md` and run a Layer 9 (Operators) + Layer 10 (Cross-Cluster) check. If the cluster is DEGRADED or CRITICAL at these layers, flag in output as `Cluster Health: DEGRADED — observations may be unreliable` and proceed with caution."
 
-2. Update `.claude/skills/acm-cluster-health/SKILL.md` to add a "Quick Sanity Mode" section: a lightweight subset of the 12-layer model (Layers 1, 2, 9, 10 only) designed for callers that need a fast go/no-go assessment without a full diagnostic. This mode checks: nodes ready (L1), cluster operators degraded (L2), ACM operator pods running (L9), managed clusters connected (L10). Output: HEALTHY / DEGRADED / CRITICAL with one-line evidence per layer.
+2. Update `skills/shared/acm-cluster-health/SKILL.md` to add a "Quick Sanity Mode" section: a lightweight subset of the 12-layer model (Layers 1, 2, 9, 10 only) designed for callers that need a fast go/no-go assessment without a full diagnostic. This mode checks: nodes ready (L1), cluster operators degraded (L2), ACM operator pods running (L9), managed clusters connected (L10). Output: HEALTHY / DEGRADED / CRITICAL with one-line evidence per layer.
 
 ---
 
@@ -257,11 +257,11 @@ Update `.claude/knowledge/examples/sample-test-case.md` Step 5:
 
 ### Problem
 
-`.claude/skills/acm-test-case-generator/evals/evals.json` contains 35 skill disambiguation queries with expected skill assignments, but there is no harness to run them. They are documentation-only.
+`skills/test-case-gen/acm-test-case-generator/evals/evals.json` contains 35 skill disambiguation queries with expected skill assignments, but there is no harness to run them. They are documentation-only.
 
 ### Fix
 
-Create `.claude/skills/acm-test-case-generator/evals/run_evals.py` — a Python script (stdlib-only) that:
+Create `skills/test-case-gen/acm-test-case-generator/evals/run_evals.py` — a Python script (stdlib-only) that:
 
 1. Loads `evals.json`
 2. For each query, applies the disambiguation rules from the 5 SKILL.md description fields (keyword matching, TRIGGER/DO NOT TRIGGER patterns)
@@ -274,7 +274,7 @@ The eval runner should be deterministic (rule-based keyword matching, not LLM-ba
 Add to `AGENTS.md` test commands:
 ```bash
 cd ai_systems_v2
-python .claude/skills/acm-test-case-generator/evals/run_evals.py
+python skills/test-case-gen/acm-test-case-generator/evals/run_evals.py
 ```
 
 ---
@@ -398,31 +398,31 @@ Issues 10 and 11 (evals + integration tests) should be done last since they vali
 
 | File | Issues |
 |------|--------|
-| `.claude/skills/acm-test-case-generator/scripts/gather.py` | 1 |
-| `.claude/skills/acm-knowledge-base/SKILL.md` | 2 |
-| `.claude/skills/acm-knowledge-base/references/` (delete duplicates) | 2 |
+| `skills/test-case-gen/acm-test-case-generator/scripts/gather.py` | 1 |
+| `skills/shared/acm-knowledge-base/SKILL.md` | 2 |
+| `skills/shared/acm-knowledge-base/references/` (delete duplicates) | 2 |
 | `.claude/knowledge/conventions/cli-in-steps-rules.md` | 2, 14 |
 | `.claude/knowledge/conventions/polarion-html-templates.md` | 2, 14 |
 | `.claude/knowledge/examples/sample-test-case.md` | 9 |
 | `.claude/knowledge/ui/fleet-virt.md` | 15 |
 | `.claude/knowledge/ui/governance.md` | 15 |
-| `.claude/skills/acm-test-case-writer/SKILL.md` | 3 |
-| `.claude/skills/acm-test-case-writer/references/writing-process.md` (new) | 3 |
-| `.claude/skills/acm-test-case-writer/references/coverage-gap-handling.md` (new) | 3 |
-| `.claude/skills/acm-test-case-reviewer/SKILL.md` | 4, 12 |
-| `.claude/skills/acm-test-case-reviewer/references/review-checklist.md` | 4 |
-| `.claude/skills/acm-qe-code-analyzer/SKILL.md` | 5 |
-| `.claude/skills/acm-test-case-generator/scripts/review_enforcement.py` | 6 |
-| `.claude/skills/acm-test-case-generator/references/agents/live-validator.md` | 7 |
-| `.claude/skills/acm-cluster-health/SKILL.md` | 7 |
-| `.claude/skills/acm-test-case-generator/SKILL.md` | 8 |
-| `.claude/skills/acm-test-case-generator/references/pipeline-detail.md` | 8 |
-| `.claude/skills/acm-test-case-generator/references/phase0-inputs.md` (new) | 8 |
-| `.claude/skills/acm-test-case-generator/references/validation-protocol.md` (new) | 8 |
-| `.claude/skills/acm-test-case-generator/references/run-directory.md` (new) | 8 |
-| `.claude/skills/acm-test-case-generator/references/agents/quality-reviewer.md` | 12 |
+| `skills/test-case-gen/acm-test-case-writer/SKILL.md` | 3 |
+| `skills/test-case-gen/acm-test-case-writer/references/writing-process.md` (new) | 3 |
+| `skills/test-case-gen/acm-test-case-writer/references/coverage-gap-handling.md` (new) | 3 |
+| `skills/test-case-gen/acm-test-case-reviewer/SKILL.md` | 4, 12 |
+| `skills/test-case-gen/acm-test-case-reviewer/references/review-checklist.md` | 4 |
+| `skills/test-case-gen/acm-qe-code-analyzer/SKILL.md` | 5 |
+| `skills/test-case-gen/acm-test-case-generator/scripts/review_enforcement.py` | 6 |
+| `skills/test-case-gen/acm-test-case-generator/references/agents/live-validator.md` | 7 |
+| `skills/shared/acm-cluster-health/SKILL.md` | 7 |
+| `skills/test-case-gen/acm-test-case-generator/SKILL.md` | 8 |
+| `skills/test-case-gen/acm-test-case-generator/references/pipeline-detail.md` | 8 |
+| `skills/test-case-gen/acm-test-case-generator/references/phase0-inputs.md` (new) | 8 |
+| `skills/test-case-gen/acm-test-case-generator/references/validation-protocol.md` (new) | 8 |
+| `skills/test-case-gen/acm-test-case-generator/references/run-directory.md` (new) | 8 |
+| `skills/test-case-gen/acm-test-case-generator/references/agents/quality-reviewer.md` | 12 |
 | `docs/test-case-generator/07-SKILL-ARCHITECTURE.md` | 13 |
-| `.claude/skills/acm-test-case-generator/evals/run_evals.py` (new) | 10 |
+| `skills/test-case-gen/acm-test-case-generator/evals/run_evals.py` (new) | 10 |
 | `apps/test-case-generator/tests/integration/test_pipeline_stages.py` (new) | 11 |
 | `apps/test-case-generator/tests/integration/fixtures/` (new dir) | 11 |
 
@@ -440,7 +440,7 @@ cd apps/test-case-generator && python -m pytest tests/unit/ -q
 python -m pytest tests/integration/ -q
 
 # Eval harness (new — should achieve >= 90% accuracy)
-python .claude/skills/acm-test-case-generator/evals/run_evals.py
+python skills/test-case-gen/acm-test-case-generator/evals/run_evals.py
 
 # Verify no broken knowledge paths
 python -c "

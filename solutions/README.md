@@ -13,7 +13,7 @@ When the agent encounters an error during work, it searches `solutions/` by extr
 >
 > | Layer | Analogy | Who initiates |
 > |-------|---------|---------------|
-> | **Skills** (`.claude/skills/`) | Toolkit | Called by workflows or on demand |
+> | **Skills** (`skills/`) | Toolkit | Called by workflows or on demand |
 > | **Workflows** (`workflows/`) | Named processes | Human says "start" |
 > | **Solutions** (`solutions/`) | Error notebook | Agent self-consults when stuck |
 >

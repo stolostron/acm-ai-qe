@@ -650,7 +650,7 @@ flowchart TD
 | Phase 1–6 | AI (Skills) | Investigation, analysis, synthesis, writing | Evidence-based, MCP-verified |
 | Phase 7 | AI + Deterministic | Review (AI) + enforcement (Python) | Two-layer quality gate |
 
-**Portable skill scripts:** The portable skill pack (`.claude/skills/acm-test-case-generator/scripts/`) contains standalone versions of `gather.py`, `report.py`, `review_enforcement.py`, and `validate_artifact.py` with zero external dependencies — all `src/` imports are inlined. Referenced via `${CLAUDE_SKILL_DIR}/scripts/` for portability.
+**Portable skill scripts:** The portable skill pack (`skills/test-case-gen/acm-test-case-generator/scripts/`) contains standalone versions of `gather.py`, `report.py`, `review_enforcement.py`, and `validate_artifact.py` with zero external dependencies — all `src/` imports are inlined. Referenced via `${CLAUDE_SKILL_DIR}/scripts/` for portability.
 
 ---
 
@@ -775,7 +775,7 @@ cd apps/test-case-generator/
 python -m pytest tests/unit/ tests/integration/ -q
 
 # Portable skill eval harness (from repo root)
-python .claude/skills/acm-test-case-generator/evals/run_evals.py
+python skills/test-case-gen/acm-test-case-generator/evals/run_evals.py
 ```
 
 Additional test files:

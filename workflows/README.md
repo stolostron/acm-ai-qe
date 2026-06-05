@@ -5,7 +5,7 @@ Workflows are **user-triggered or scheduled** multi-phase processes. The user kn
 **Key trait:** The human (or scheduler) initiates. The agent follows the defined phases in order.
 
 > Compare with [Solutions](../solutions/README.md): solutions are **agent-discovered** -- the agent searches `solutions/` when it encounters a specific problem during work and needs a known fix.
-> Compare with [Skills](../.claude/skills/README.md): skills are atomic, step-by-step checklists called by workflows or on demand.
+> Compare with [Skills](../skills/README.md): skills are atomic, step-by-step checklists called by workflows or on demand.
 
 | Workflow | Description | Trigger |
 |----------|-------------|---------|

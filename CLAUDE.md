@@ -16,20 +16,19 @@ AI-powered diagnostic and remediation agent for ACM hub clusters. Read-only diag
 
 Generates Polarion-ready test cases for ACM Console features from JIRA tickets. 6-phase subagent pipeline with mandatory quality review gate. 6 specialized agents, 7 MCP integrations, 9 console areas supported. 3 skills: `/generate` (full pipeline), `/review` (quality review), `/batch` (multi-ticket). Portable skill pack with standalone scripts for repo-root execution.
 
-## Skills (`.claude/skills/`)
+## Skills (`skills/`)
 
-17 portable skills in a flat layout under `.claude/skills/`. Each skill has a `SKILL.md` entry point with YAML frontmatter, kebab-case folder name, and stdlib-only scripts. Shared skills expose raw capabilities; orchestrators compose them into multi-phase pipelines.
+17 portable skills organized by domain under `skills/<category>/`. Each skill has a `SKILL.md` entry point with YAML frontmatter, kebab-case folder name, and stdlib-only scripts. Shared skills expose raw capabilities; orchestrators compose them into multi-phase pipelines. 2 personal skills (`grill-me`, `youtube-digest`) remain in `.claude/skills/`.
 
-**By domain:**
+**By category:**
 
-| Domain | Skills | Key orchestrators |
-|--------|--------|-------------------|
-| Shared | `acm-knowledge-base`, `acm-cluster-health`, `acm-jenkins-client` | — (tools, no workflow) |
-| Test Case Gen | `acm-test-case-generator`, `acm-qe-code-analyzer`, `acm-test-case-writer`, `acm-test-case-reviewer` | `/generate`, `/review`, `/batch` |
-| Hub Health | `acm-hub-health-check`, `acm-cluster-remediation`, `acm-knowledge-learner` | `/acm-hub-health-check` |
-| Z-Stream | `acm-z-stream-analyzer`, `acm-failure-classifier`, `acm-cluster-investigator`, `acm-data-enricher` | `/analyze`, `/gather`, `/quick` |
-| Bug Investigation | `acm-bug-hunter`, `acm-bug-fix-verifier` | `/acm-bug-hunter` |
-| Utility | `onboard` | `/onboard` |
+| Category | Path | Skills | Key orchestrators |
+|----------|------|--------|-------------------|
+| Shared | `skills/shared/` | `acm-knowledge-base`, `acm-cluster-health`, `acm-jenkins-client`, `onboard` | `/onboard` |
+| Test Case Gen | `skills/test-case-gen/` | `acm-test-case-generator`, `acm-qe-code-analyzer`, `acm-test-case-writer`, `acm-test-case-reviewer` | `/generate`, `/review`, `/batch` |
+| Hub Health | `skills/hub-health/` | `acm-hub-health-check`, `acm-cluster-remediation`, `acm-knowledge-learner` | `/acm-hub-health-check` |
+| Z-Stream | `skills/z-stream/` | `acm-z-stream-analyzer`, `acm-failure-classifier`, `acm-cluster-investigator`, `acm-data-enricher` | `/analyze`, `/gather`, `/quick` |
+| Investigation | `skills/investigation/` | `acm-bug-hunter`, `acm-bug-fix-verifier` | `/acm-bug-hunter` |
 
 **Conventions:** SKILL.md is the single entry point (no README). Progressive disclosure: frontmatter (~100 tokens) → body (<500 lines) → `references/` (on-demand). Orchestrators delegate to sibling skills via relative paths. See `docs/skill-architecture.md` for the full inventory, blast radius map, and `docs/skill-authoring-guide.md` for authoring standards.
 
@@ -163,10 +162,18 @@ ai_systems_v2/
 │   ├── polarion/              # Our code: Polarion wrapper
 │   ├── jenkins-acm-tools.py   # Our code: ACM-specific Jenkins analysis tools
 │   └── .external/             # Cloned at setup time (gitignored)
+├── skills/                    # 17 portable skills organized by category
+│   ├── shared/                # acm-knowledge-base, acm-cluster-health, acm-jenkins-client, onboard
+│   ├── test-case-gen/         # acm-test-case-generator, acm-qe-code-analyzer, acm-test-case-writer, acm-test-case-reviewer
+│   ├── hub-health/            # acm-hub-health-check, acm-cluster-remediation, acm-knowledge-learner
+│   ├── z-stream/              # acm-z-stream-analyzer, acm-failure-classifier, acm-cluster-investigator, acm-data-enricher
+│   └── investigation/         # acm-bug-hunter, acm-bug-fix-verifier
+├── commands/                  # Root-level slash commands
+│   └── pre-push.md            # /pre-push quality gate
+├── .claude-plugin/            # Claude Code plugin manifest
 ├── .claude/
-│   ├── skills/                # 17 portable skills (usable from repo root via root .mcp.json)
+│   ├── skills/                # Personal skills (grill-me, youtube-digest)
 │   ├── knowledge/             # Shared knowledge database for skills (3 domains: tc-gen, z-stream, hub-health)
-│   ├── commands/pre-push.md   # /pre-push quality gate slash command
 │   ├── statusline.sh          # Status line script (model, branch, context %)
 │   └── settings.json          # Root-level Claude Code settings
 ├── docs/
@@ -189,8 +196,8 @@ ai_systems_v2/
 ```bash
 # Z-stream analysis (from app directory)
 cd apps/z-stream-analysis/
-python -m pytest tests/unit/ tests/regression/ -q    # 753 tests, no external deps
-python -m pytest tests/ -q --timeout=300             # 798 tests (requires Jenkins VPN)
+python -m pytest tests/unit/ tests/regression/ -q    # 759 tests, no external deps
+python -m pytest tests/ -q --timeout=300             # 804 tests (requires Jenkins VPN)
 
 # Hub health (from app directory)
 cd apps/acm-hub-health/
@@ -201,5 +208,5 @@ cd apps/test-case-generator/
 python -m pytest tests/unit/ tests/integration/ -q   # 119 tests, no external deps
 
 # Portable skill eval harness (from repo root)
-python .claude/skills/acm-test-case-generator/evals/run_evals.py
+python skills/test-case-gen/acm-test-case-generator/evals/run_evals.py
 ```

@@ -1,6 +1,6 @@
 # ACM Bug Hunter -- Implementation Specification
 
-## For: Claude Code implementation in `ai_systems_v2/.claude/skills/acm-bug-hunter/`
+## For: Claude Code implementation in `ai_systems_v2/skills/investigation/acm-bug-hunter/`
 
 This document is the complete specification for building the `acm-bug-hunter` skill. It contains every decision made during the design phase, including architectural choices, confidence mechanisms, iteration limits, safety protocols, and integration with existing skills. Implement exactly as specified unless a technical constraint requires deviation -- in which case, document the deviation and rationale.
 
@@ -509,7 +509,7 @@ When no live cluster is connected:
 
 ## 8. Existing Skill Dependencies and Updates Required
 
-### Skills this skill reuses from `ai_systems_v2/.claude/skills/`:
+### Skills this skill reuses from `ai_systems_v2/skills/`:
 
 | Skill | Role in Bug Hunter | Update Needed? |
 |-------|-------------------|----------------|
@@ -548,7 +548,7 @@ When no live cluster is connected:
 ## 9. File Structure
 
 ```
-ai_systems_v2/.claude/skills/acm-bug-hunter/
+ai_systems_v2/skills/investigation/acm-bug-hunter/
   SKILL.md                    # Main skill file (orchestrator logic)
   references/
     analysis-dimensions.md    # 10-dimension model with question templates,

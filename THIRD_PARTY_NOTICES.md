@@ -63,10 +63,10 @@ Concepts and patterns referenced in our design (no code copied):
 
 | Concept | Source | Used In | Reference |
 |---------|--------|---------|-----------|
-| Confidence-aware "Confession" pattern | [mikeyobrien/ralph-orchestrator](https://github.com/mikeyobrien/ralph-orchestrator/issues/74) | acm-bug-hunter skill | `.claude/skills/acm-bug-hunter/references/confidence-mechanism.md` |
+| Confidence-aware "Confession" pattern | [mikeyobrien/ralph-orchestrator](https://github.com/mikeyobrien/ralph-orchestrator/issues/74) | acm-bug-hunter skill | `skills/investigation/acm-bug-hunter/references/confidence-mechanism.md` |
 | AI confessions research | [OpenAI alignment research](https://alignment.openai.com/confessions/) | acm-bug-hunter skill | Same reference file |
-| Portable skill architecture | Anthropic: "The Complete Guide to Building Skills for Claude" (2026) | All 19 skills | `docs/skill-authoring-guide.md` |
-| Portable skill architecture | Anthropic: "Why We Stopped Building Agents and Started Building Skills Instead" (Barry Zhang & Mahesh Murag, 2026) | All 19 skills | `docs/skill-authoring-guide.md` |
+| Portable skill architecture | Anthropic: "The Complete Guide to Building Skills for Claude" (2026) | All 17 portable skills | `docs/skill-authoring-guide.md` |
+| Portable skill architecture | Anthropic: "Why We Stopped Building Agents and Started Building Skills Instead" (Barry Zhang & Mahesh Murag, 2026) | All 17 portable skills | `docs/skill-authoring-guide.md` |
 
 ---
 
@@ -101,7 +101,7 @@ The following components are original work by the ACM AI QE team (Red Hat):
 - `mcp/jenkins-acm-tools.py` — 4 ACM pipeline analysis tools
 - `mcp/acm-search-proxy.py` — Resilient proxy for ACM Search MCP
 - `apps/` — All three applications (z-stream-analysis, acm-hub-health, test-case-generator)
-- `.claude/skills/` — All 19 portable skills
+- `skills/` — All 17 portable skills (organized by category under `skills/<category>/`)
 - `.claude/knowledge/` — ACM domain knowledge database
 
 ---

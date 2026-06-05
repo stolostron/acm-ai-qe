@@ -1,6 +1,6 @@
 """Regression tests for Z-Stream Analysis skill conversion.
 
-Validates that the portable skill pack (.claude/skills/) faithfully represents
+Validates that the portable skill pack (skills/) faithfully represents
 the authoritative app agents (.claude/agents/) and produces valid output.
 
 Layers covered:
@@ -18,24 +18,26 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
-SKILLS_DIR = REPO_ROOT / ".claude" / "skills"
+SKILLS_DIR = REPO_ROOT / "skills"
 APP_DIR = REPO_ROOT / "apps" / "z-stream-analysis"
 KNOWLEDGE_APP = APP_DIR / "knowledge"
-KNOWLEDGE_SKILL = SKILLS_DIR / "acm-z-stream-analyzer" / "references" / "knowledge"
+KNOWLEDGE_SKILL = SKILLS_DIR / "z-stream" / "acm-z-stream-analyzer" / "references" / "knowledge"
 SCHEMA_FILE = APP_DIR / "src" / "schemas" / "analysis_results_schema.json"
 
-ZSTREAM_SKILLS = [
-    "acm-z-stream-analyzer",
-    "acm-failure-classifier",
-    "acm-cluster-investigator",
-    "acm-data-enricher",
-    "acm-hub-health-check",
-    "acm-cluster-health",
-    "acm-jenkins-client",
-    "acm-knowledge-base",
-    "acm-knowledge-learner",
-    "acm-cluster-remediation",
-]
+SKILL_CATEGORY = {
+    "acm-z-stream-analyzer": "z-stream",
+    "acm-failure-classifier": "z-stream",
+    "acm-cluster-investigator": "z-stream",
+    "acm-data-enricher": "z-stream",
+    "acm-hub-health-check": "hub-health",
+    "acm-cluster-health": "shared",
+    "acm-jenkins-client": "shared",
+    "acm-knowledge-base": "shared",
+    "acm-knowledge-learner": "hub-health",
+    "acm-cluster-remediation": "hub-health",
+}
+
+ZSTREAM_SKILLS = list(SKILL_CATEGORY.keys())
 
 VALID_CLASSIFICATIONS = {
     "PRODUCT_BUG", "AUTOMATION_BUG", "INFRASTRUCTURE",
@@ -43,8 +45,12 @@ VALID_CLASSIFICATIONS = {
 }
 
 
+def _skill_dir(skill_name):
+    return SKILLS_DIR / SKILL_CATEGORY[skill_name] / skill_name
+
+
 def _read_skill(skill_name):
-    path = SKILLS_DIR / skill_name / "SKILL.md"
+    path = _skill_dir(skill_name) / "SKILL.md"
     return path.read_text() if path.exists() else ""
 
 
@@ -63,7 +69,7 @@ class TestSkillStructure:
 
     @pytest.mark.parametrize("skill", ZSTREAM_SKILLS)
     def test_skill_md_exists(self, skill):
-        assert (SKILLS_DIR / skill / "SKILL.md").exists(), f"{skill}/SKILL.md missing"
+        assert (_skill_dir(skill) / "SKILL.md").exists(), f"{skill}/SKILL.md missing"
 
     @pytest.mark.parametrize("skill", ZSTREAM_SKILLS)
     def test_frontmatter_has_required_fields(self, skill):
@@ -77,9 +83,10 @@ class TestSkillStructure:
         text = _read_skill(skill)
         referenced = re.findall(r"acm-[\w-]+(?= skill)", text)
         for ref in referenced:
-            assert (SKILLS_DIR / ref).is_dir(), (
-                f"{skill} references '{ref} skill' but {ref}/ doesn't exist"
-            )
+            if ref in SKILL_CATEGORY:
+                assert _skill_dir(ref).is_dir(), (
+                    f"{skill} references '{ref} skill' but {ref}/ doesn't exist"
+                )
 
     def test_knowledge_files_identical(self):
         if not KNOWLEDGE_APP.exists() or not KNOWLEDGE_SKILL.exists():
@@ -108,7 +115,7 @@ class TestSkillSchemaCompliance:
         assert schema_enums == VALID_CLASSIFICATIONS
 
     def test_output_schema_md_has_required_top_level_fields(self):
-        path = (SKILLS_DIR / "acm-failure-classifier" / "references" / "output-schema.md")
+        path = (_skill_dir("acm-failure-classifier") / "references" / "output-schema.md")
         text = path.read_text()
         required = ["per_test_analysis", "summary", "investigation_phases_completed",
                      "mcp_queries_executed", "jira_correlation"]
@@ -116,14 +123,14 @@ class TestSkillSchemaCompliance:
             assert field in text, f"output-schema.md missing required field: {field}"
 
     def test_mcp_queries_documented_as_array(self):
-        path = (SKILLS_DIR / "acm-failure-classifier" / "references" / "output-schema.md")
+        path = (_skill_dir("acm-failure-classifier") / "references" / "output-schema.md")
         text = path.read_text()
         assert '"tool"' in text and '"query"' in text and '"success"' in text, (
             "mcp_queries_executed should document array items with tool/query/success fields"
         )
 
     def test_jira_correlation_has_search_performed(self):
-        path = (SKILLS_DIR / "acm-failure-classifier" / "references" / "output-schema.md")
+        path = (_skill_dir("acm-failure-classifier") / "references" / "output-schema.md")
         text = path.read_text()
         assert "search_performed" in text, (
             "jira_correlation must document 'search_performed' field (schema requires it)"
@@ -134,7 +141,7 @@ class TestFailureClassifierContent:
     """Layer 4a-4h: Content completeness for acm-failure-classifier."""
 
     def _read_ref(self, filename):
-        path = SKILLS_DIR / "acm-failure-classifier" / "references" / filename
+        path = _skill_dir("acm-failure-classifier") / "references" / filename
         return path.read_text() if path.exists() else ""
 
     def test_all_five_phases_mentioned(self):
@@ -164,7 +171,7 @@ class TestFailureClassifierContent:
             assert keyword in text, f"phase-b-investigation.md missing B3b keyword: {keyword}"
 
     def test_counterfactual_templates_count(self):
-        path = SKILLS_DIR / "acm-cluster-investigator" / "references" / "symptom-layer-map.md"
+        path = _skill_dir("acm-cluster-investigator") / "references" / "symptom-layer-map.md"
         text = path.read_text()
         section = text.split("Counterfactual Verification")[1] if "Counterfactual Verification" in text else ""
         rows = re.findall(r"^\|[^|]+\|[^|]+\|[^|]+\|$", section, re.MULTILINE)
@@ -238,11 +245,11 @@ class TestHubHealthCheckContent:
     """Layer 4k-4l: Content completeness for acm-hub-health-check."""
 
     def test_diagnostic_output_schema_exists(self):
-        path = SKILLS_DIR / "acm-hub-health-check" / "references" / "diagnostic-output-schema.md"
+        path = _skill_dir("acm-hub-health-check") / "references" / "diagnostic-output-schema.md"
         assert path.exists(), "diagnostic-output-schema.md missing"
 
     def test_health_score_formula_documented(self):
-        path = SKILLS_DIR / "acm-hub-health-check" / "references" / "diagnostic-output-schema.md"
+        path = _skill_dir("acm-hub-health-check") / "references" / "diagnostic-output-schema.md"
         text = path.read_text()
         assert "penalty" in text.lower(), "Missing health score penalty documentation"
         for category in ["Operator health", "Infrastructure guards", "Subsystem health",
@@ -250,13 +257,13 @@ class TestHubHealthCheckContent:
             assert category in text, f"Missing penalty category: {category}"
 
     def test_health_depth_values_documented(self):
-        path = SKILLS_DIR / "acm-hub-health-check" / "references" / "diagnostic-output-schema.md"
+        path = _skill_dir("acm-hub-health-check") / "references" / "diagnostic-output-schema.md"
         text = path.read_text()
         for value in ["pod_level", "connectivity_verified", "data_verified", "full"]:
             assert value in text, f"Missing health_depth value: {value}"
 
     def test_counter_signals_documented(self):
-        path = SKILLS_DIR / "acm-hub-health-check" / "references" / "diagnostic-output-schema.md"
+        path = _skill_dir("acm-hub-health-check") / "references" / "diagnostic-output-schema.md"
         text = path.read_text()
         assert "counter_signals" in text, "Missing counter_signals section"
         assert "potential_false_infrastructure" in text, "Missing potential_false_infrastructure"
@@ -278,7 +285,7 @@ class TestDataEnricherContent:
     """Content completeness for acm-data-enricher."""
 
     def _read_ref(self):
-        path = SKILLS_DIR / "acm-data-enricher" / "references" / "enrichment-tasks.md"
+        path = _skill_dir("acm-data-enricher") / "references" / "enrichment-tasks.md"
         return path.read_text() if path.exists() else ""
 
     def test_console_search_json_schema_present(self):
@@ -324,10 +331,11 @@ class TestCrossSkillDependencyChain:
         text = _read_skill("acm-z-stream-analyzer")
         referenced = set(re.findall(r"acm-[\w]+-[\w-]+", text))
         for ref in referenced:
-            assert (SKILLS_DIR / ref).is_dir(), f"Referenced skill '{ref}' doesn't exist"
+            if ref in SKILL_CATEGORY:
+                assert _skill_dir(ref).is_dir(), f"Referenced skill '{ref}' doesn't exist"
 
     def test_failure_classifier_references_exist(self):
-        refs_dir = SKILLS_DIR / "acm-failure-classifier" / "references"
+        refs_dir = _skill_dir("acm-failure-classifier") / "references"
         expected_files = [
             "phase-a-grouping.md", "phase-b-investigation.md",
             "phase-d-validation.md", "phase-e-jira.md",
@@ -337,13 +345,13 @@ class TestCrossSkillDependencyChain:
             assert (refs_dir / f).exists(), f"acm-failure-classifier missing reference: {f}"
 
     def test_investigator_references_exist(self):
-        refs_dir = SKILLS_DIR / "acm-cluster-investigator" / "references"
+        refs_dir = _skill_dir("acm-cluster-investigator") / "references"
         expected_files = ["symptom-layer-map.md", "group-verification.md"]
         for f in expected_files:
             assert (refs_dir / f).exists(), f"acm-cluster-investigator missing reference: {f}"
 
     def test_hub_health_references_exist(self):
-        refs_dir = SKILLS_DIR / "acm-hub-health-check" / "references"
+        refs_dir = _skill_dir("acm-hub-health-check") / "references"
         expected_files = [
             "depth-router.md", "report-template.md", "diagnostic-output-schema.md",
         ]
@@ -351,7 +359,7 @@ class TestCrossSkillDependencyChain:
             assert (refs_dir / f).exists(), f"acm-hub-health-check missing reference: {f}"
 
     def test_enricher_references_exist(self):
-        refs_dir = SKILLS_DIR / "acm-data-enricher" / "references"
+        refs_dir = _skill_dir("acm-data-enricher") / "references"
         assert (refs_dir / "enrichment-tasks.md").exists()
 
 
@@ -359,7 +367,7 @@ class TestDiagnosticTraps:
     """Layer 3h: Diagnostic trap coverage."""
 
     def test_14_traps_in_cluster_health_skill(self):
-        skill_dir = SKILLS_DIR / "acm-cluster-health"
+        skill_dir = _skill_dir("acm-cluster-health")
         all_text = ""
         for f in skill_dir.rglob("*.md"):
             all_text += f.read_text()

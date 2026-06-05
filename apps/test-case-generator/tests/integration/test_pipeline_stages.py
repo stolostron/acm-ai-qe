@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 
 FIXTURES = Path(__file__).parent / "fixtures"
-SCRIPTS = Path(__file__).resolve().parents[4] / ".claude" / "skills" / "acm-test-case-generator" / "scripts"
+SCRIPTS = Path(__file__).resolve().parents[4] / "skills" / "test-case-gen" / "acm-test-case-generator" / "scripts"
 
 
 def _load_module(name: str, path: Path):

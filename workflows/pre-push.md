@@ -16,4 +16,4 @@ Verify code quality before pushing to remote.
 
 ## References
 
-- Command: [`.claude/commands/pre-push.md`](../.claude/commands/pre-push.md)
+- Command: [`commands/pre-push.md`](../commands/pre-push.md)

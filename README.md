@@ -28,7 +28,7 @@ The onboarding skill detects your environment, walks you through MCP server setu
 
 ## Skills
 
-17 portable skills available from the repo root -- just launch `claude` and ask in natural language.
+17 portable skills organized by domain under `skills/` -- just launch `claude` and ask in natural language.
 
 ### Primary Workflows
 
@@ -103,10 +103,17 @@ You ──> Claude Code ──> Skill ──> Pipeline
 
 ```
 ai_systems_v2/
+├── skills/                    # 17 portable skills organized by category
+│   ├── shared/                # acm-knowledge-base, acm-cluster-health, acm-jenkins-client, onboard
+│   ├── test-case-gen/         # acm-test-case-generator, acm-qe-code-analyzer, acm-test-case-writer, acm-test-case-reviewer
+│   ├── hub-health/            # acm-hub-health-check, acm-cluster-remediation, acm-knowledge-learner
+│   ├── z-stream/              # acm-z-stream-analyzer, acm-failure-classifier, acm-cluster-investigator, acm-data-enricher
+│   └── investigation/         # acm-bug-hunter, acm-bug-fix-verifier
+├── commands/                  # Root-level slash commands
+│   └── pre-push.md            # /pre-push quality gate
 ├── .claude/
-│   ├── skills/                # 17 portable skills (usable from repo root)
+│   ├── skills/                # Personal skills (grill-me, youtube-digest)
 │   ├── knowledge/             # Shared knowledge database (11 categories, 14 subsystems)
-│   ├── commands/pre-push.md   # /pre-push quality gate
 │   ├── settings.json          # Root-level Claude Code settings
 │   └── statusline.sh          # Status line (model, branch, context %)
 ├── apps/

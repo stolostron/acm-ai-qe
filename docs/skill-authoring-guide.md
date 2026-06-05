@@ -113,7 +113,7 @@ Move detailed tables, decision trees, and verbose examples to `references/*.md`.
 
 ## Portable Skill Principles (This Repo)
 
-1. **Composability via sibling paths**: Reference other skills as `../skill-name/SKILL.md`. Never use absolute paths (`~/.cursor/`, `~/.claude/`, `/Users/`).
+1. **Composability via sibling paths**: Within the same category, reference other skills as `../skill-name/SKILL.md`. For cross-category references, use `../../<category>/skill-name/SKILL.md`. Never use absolute paths (`~/.cursor/`, `~/.claude/`, `/Users/`).
 2. **No cross-environment references**: Skills here must work for anyone who clones the repo. No machine-specific paths.
 3. **MCP fallback patterns**: When a skill uses an MCP that may not be available, document the fallback (e.g., "If jenkins MCP is unavailable, use REST per references/jenkins-without-mcp.md").
 4. **Scripts are stdlib-only**: Python scripts in `scripts/` use only the standard library. No pip dependencies. This ensures they run on any machine with Python 3.

@@ -1,6 +1,6 @@
 # ACM Console Test Case Generator Overview
 
-Generates Polarion-ready test cases for ACM Console UI features from JIRA tickets. The pipeline uses 7 specialized Claude Code subagents (Phases 1-7), 7 MCP integrations, a deterministic Python script for report generation, and mandatory quality gating before output. Runs as a portable skill pack from `.claude/skills/acm-test-case-generator/`.
+Generates Polarion-ready test cases for ACM Console UI features from JIRA tickets. The pipeline uses 7 specialized Claude Code subagents (Phases 1-7), 7 MCP integrations, a deterministic Python script for report generation, and mandatory quality gating before output. Runs as a portable skill pack from `skills/test-case-gen/acm-test-case-generator/`.
 
 ## Architecture
 
@@ -149,7 +149,7 @@ All 9 areas have architecture knowledge files providing domain context for subag
 ## Skill Pack Structure
 
 ```
-.claude/skills/acm-test-case-generator/
+skills/test-case-gen/acm-test-case-generator/
 ├── SKILL.md                         # Orchestrator: sequences phases 0-8
 ├── scripts/
 │   ├── gather.py                    # Phase 1: deterministic data gathering (run by data-gatherer agent)

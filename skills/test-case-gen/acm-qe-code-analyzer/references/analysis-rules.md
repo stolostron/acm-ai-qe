@@ -8,7 +8,7 @@
 
 3. **Multi-story PRs.** When a PR references multiple JIRA stories, identify which files belong to which story. Tag each changed file with its story. Focus analysis on the target story's files. Note other story changes separately.
 
-4. **Cross-reference with area knowledge.** If `${SKILLS_DIR}/../../.claude/knowledge/ui/<area>.md` contains field order, filtering behavior, or component structure information, verify that your analysis is consistent. If you find a conflict between your diff analysis and the knowledge file, flag it explicitly.
+4. **Cross-reference with area knowledge.** If `${SKILLS_DIR}/../.claude/knowledge/ui/<area>.md` contains field order, filtering behavior, or component structure information, verify that your analysis is consistent. If you find a conflict between your diff analysis and the knowledge file, flag it explicitly.
 
 5. **MCP source is authoritative.** If the MCP source (via `get_component_source`) differs from the PR diff (different function implementation, different import path), trust the MCP source -- it reflects the actual merged/release code. The PR diff may show a draft version that was changed before merge.
 

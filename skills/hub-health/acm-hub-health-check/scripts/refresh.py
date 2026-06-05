@@ -35,7 +35,7 @@ except ImportError:
     sys.exit(1)
 
 _SKILL_DIR = Path(__file__).resolve().parent.parent
-KNOWLEDGE_DIR = _SKILL_DIR.parent.parent / "knowledge" / "hub-health"
+KNOWLEDGE_DIR = _SKILL_DIR.parent.parent.parent / ".claude" / "knowledge" / "hub-health"
 LEARNED_DIR = KNOWLEDGE_DIR / "learned"
 
 # --- File headers (preserved on write, since yaml.dump strips comments) ---

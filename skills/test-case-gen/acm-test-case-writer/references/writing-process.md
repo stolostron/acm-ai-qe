@@ -3,13 +3,13 @@
 ## Step 1: Read Conventions
 
 Before writing, read these files from the knowledge database:
-- `${SKILLS_DIR}/../../.claude/knowledge/conventions/test-case-format.md` -- section order, naming, complexity levels
-- `${SKILLS_DIR}/../../.claude/knowledge/conventions/area-naming-patterns.md` -- title tag patterns by area
-- `${SKILLS_DIR}/../../.claude/knowledge/conventions/cli-in-steps-rules.md` -- when CLI is allowed in test steps
+- `${SKILLS_DIR}/../.claude/knowledge/conventions/test-case-format.md` -- section order, naming, complexity levels
+- `${SKILLS_DIR}/../.claude/knowledge/conventions/area-naming-patterns.md` -- title tag patterns by area
+- `${SKILLS_DIR}/../.claude/knowledge/conventions/cli-in-steps-rules.md` -- when CLI is allowed in test steps
 
 ## Step 2: Read Area Knowledge as Constraints
 
-Read `${SKILLS_DIR}/../../.claude/knowledge/ui/<area>.md`. Extract:
+Read `${SKILLS_DIR}/../.claude/knowledge/ui/<area>.md`. Extract:
 - **Field order** in description lists or tables
 - **Filtering behavior** (which labels/items are filtered, which function does it)
 - **Empty state behavior** (shows "-" vs hidden vs "No items")

@@ -33,9 +33,9 @@ Read the full test case markdown file.
 ### Step 2: Read Conventions
 
 Read from the knowledge database:
-- `${SKILLS_DIR}/../../.claude/knowledge/conventions/test-case-format.md`
-- `${SKILLS_DIR}/../../.claude/knowledge/conventions/area-naming-patterns.md`
-- `${SKILLS_DIR}/../../.claude/knowledge/conventions/cli-in-steps-rules.md`
+- `${SKILLS_DIR}/../.claude/knowledge/conventions/test-case-format.md`
+- `${SKILLS_DIR}/../.claude/knowledge/conventions/area-naming-patterns.md`
+- `${SKILLS_DIR}/../.claude/knowledge/conventions/cli-in-steps-rules.md`
 
 ### Step 3: Structural Validation
 
@@ -93,7 +93,7 @@ If fewer than 3 verifications are performed, the verdict MUST be NEEDS_FIXES.
 
 ### Step 6: Knowledge File Cross-Reference
 
-Read `${SKILLS_DIR}/../../.claude/knowledge/ui/<area>.md`. Verify:
+Read `${SKILLS_DIR}/../.claude/knowledge/ui/<area>.md`. Verify:
 - Field order claims match the knowledge file
 - Filtering behavior claims match the knowledge file
 - Component names and CRDs are consistent

@@ -38,15 +38,15 @@ This ensures missing context is always visible. If the test case has errors, the
 ## Prerequisites
 
 - acm-source MCP server available for spot-check verification
-- Knowledge database available at `${SKILLS_DIR}/../../.claude/knowledge/`
+- Knowledge database available at `${SKILLS_DIR}/../.claude/knowledge/`
 
 ## Process
 
 Read `${CLAUDE_SKILL_DIR}/references/writing-process.md` for the full 6-step writing process, quality rules (step granularity, backend validation placement, implementation detail translation), self-review checklist, and gotchas.
 
 Key steps:
-1. Read conventions from `${SKILLS_DIR}/../../.claude/knowledge/conventions/`
-2. Read area knowledge from `${SKILLS_DIR}/../../.claude/knowledge/ui/<area>.md`
+1. Read conventions from `${SKILLS_DIR}/../.claude/knowledge/conventions/`
+2. Read area knowledge from `${SKILLS_DIR}/../.claude/knowledge/ui/<area>.md`
 3. Scope gate: only write steps that validate the target story's Acceptance Criteria
 4. Spot-check key UI elements via acm-source MCP
 4.5. Follow synthesis design optimizations and apply coverage gap triage — read `${CLAUDE_SKILL_DIR}/references/coverage-gap-handling.md`

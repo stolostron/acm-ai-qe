@@ -67,7 +67,7 @@ nav a:hover { color: var(--accent); border-color: var(--accent); }
 
 <div class="example-banner">
   <h3>How Z-Stream Analysis Works</h3>
-  <p>Z-stream analysis classifies Jenkins pipeline test failures as <strong>PRODUCT_BUG</strong>, <strong>AUTOMATION_BUG</strong>, <strong>INFRASTRUCTURE</strong>, or <strong>NO_BUG</strong> through a 4-stage pipeline. Stage 1 gathers factual data from Jenkins, the cluster, and source repos. Stage 1.5 runs a comprehensive AI-driven cluster diagnostic. Stage 2 investigates each failure using a 12-layer diagnostic model with 5 MCP servers and classifies based on root cause. Stage 3 generates reports.</p>
+  <p>Z-stream analysis classifies Jenkins pipeline test failures as <strong>PRODUCT_BUG</strong>, <strong>AUTOMATION_BUG</strong>, <strong>INFRASTRUCTURE</strong>, or <strong>NO_BUG</strong> through a 5-stage pipeline. Stage 0 (Environment Oracle) detects the target environment. Stage 1 gathers factual data from Jenkins, the cluster, and source repos. Stage 1.5 runs a comprehensive AI-driven cluster diagnostic. Stage 2 investigates each failure using a 12-layer diagnostic model with 5 MCP servers and classifies based on root cause. Stage 3 generates reports.</p>
   <p style="margin-top:8px;font-size:0.88rem">All data in this document comes from a real run against build <code>#3913</code>, tracing test <code>RHACM4K-2576</code> from input to final classification. Click any box in the diagrams below to see what was collected or produced at that point. The diagrams are ordered by pipeline stage &mdash; start with Diagram 1 for the full pipeline overview, then drill into each stage.</p>
 </div>
 

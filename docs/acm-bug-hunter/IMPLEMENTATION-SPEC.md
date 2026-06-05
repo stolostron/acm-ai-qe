@@ -601,17 +601,17 @@ metadata:
 
 ---
 
-## 12. Reference Implementation (Cursor IDE -- already built and validated)
+## 12. Reference Implementation
 
-A working implementation exists in Cursor IDE at `~/.cursor/skills/acm-bug-hunter/`. The Claude Code implementation should be **functionally identical** to these files, adapted only for Claude Code's skill format (frontmatter, tool access patterns). Read these files as your primary reference:
+The implementation lives at `skills/investigation/acm-bug-hunter/`:
 
 | File | Path |
 |------|------|
-| SKILL.md (orchestrator) | `~/.cursor/skills/acm-bug-hunter/SKILL.md` |
-| 10-dimension model | `~/.cursor/skills/acm-bug-hunter/references/analysis-dimensions.md` |
-| Confidence mechanism | `~/.cursor/skills/acm-bug-hunter/references/confidence-mechanism.md` |
-| Safety protocol | `~/.cursor/skills/acm-bug-hunter/references/safety-protocol.md` |
-| Report template | `~/.cursor/skills/acm-bug-hunter/references/report-template.md` |
+| SKILL.md (orchestrator) | `skills/investigation/acm-bug-hunter/SKILL.md` |
+| 10-dimension model | `skills/investigation/acm-bug-hunter/references/analysis-dimensions.md` |
+| Confidence mechanism | `skills/investigation/acm-bug-hunter/references/confidence-mechanism.md` |
+| Safety protocol | `skills/investigation/acm-bug-hunter/references/safety-protocol.md` |
+| Report template | `skills/investigation/acm-bug-hunter/references/report-template.md` |
 
 ---
 
@@ -653,12 +653,12 @@ Key gaps:
 
 In order of implementation:
 
-1. **Update `acm-qe-code-analyzer`** to accept a repo parameter (backward compatible). See the Cursor IDE version at `~/.cursor/agents/code-change-analyzer.md` for the repo-agnostic pattern.
-2. **Create `acm-bug-hunter/SKILL.md`** -- use `~/.cursor/skills/acm-bug-hunter/SKILL.md` as the reference
-3. **Create `acm-bug-hunter/references/analysis-dimensions.md`** -- use `~/.cursor/skills/acm-bug-hunter/references/analysis-dimensions.md` as the reference
-4. **Create `acm-bug-hunter/references/confidence-mechanism.md`** -- use `~/.cursor/skills/acm-bug-hunter/references/confidence-mechanism.md` as the reference
-5. **Create `acm-bug-hunter/references/safety-protocol.md`** -- use `~/.cursor/skills/acm-bug-hunter/references/safety-protocol.md` as the reference
-6. **Create `acm-bug-hunter/references/report-template.md`** -- use `~/.cursor/skills/acm-bug-hunter/references/report-template.md` as the reference
+1. **Update `acm-qe-code-analyzer`** to accept a repo parameter (backward compatible)
+2. **Create `acm-bug-hunter/SKILL.md`** -- see `skills/investigation/acm-bug-hunter/SKILL.md`
+3. **Create `acm-bug-hunter/references/analysis-dimensions.md`** -- see `skills/investigation/acm-bug-hunter/references/analysis-dimensions.md`
+4. **Create `acm-bug-hunter/references/confidence-mechanism.md`** -- see `skills/investigation/acm-bug-hunter/references/confidence-mechanism.md`
+5. **Create `acm-bug-hunter/references/safety-protocol.md`** -- see `skills/investigation/acm-bug-hunter/references/safety-protocol.md`
+6. **Create `acm-bug-hunter/references/report-template.md`** -- see `skills/investigation/acm-bug-hunter/references/report-template.md`
 7. **Test with RHACM4K-64019** (GPU Count Column) to validate -- compare results against Test Run 1 above
 8. **Test with RHACM4K-61866** (Delete RA) to validate -- compare results against Test Run 2 above
 

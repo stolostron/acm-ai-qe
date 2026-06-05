@@ -39,7 +39,7 @@ Skill selection / description disambiguation for this workflow: [test-case-gener
 
 | Skill | Purpose | Uses Shared Skills / MCPs |
 |-------|---------|--------------------------|
-| `acm-z-stream-analyzer` | Orchestrator: 4-stage pipeline (gather, diagnose, classify, report) | All 3 shared + MCP tools + 4 below |
+| `acm-z-stream-analyzer` | Orchestrator: 5-stage pipeline (oracle, gather, diagnose, classify, report) | All 3 shared + MCP tools + 4 below |
 | `acm-failure-classifier` | 5-phase classification engine (A through E) with 7 classification types | acm-cluster-health (+ acm-source, neo4j-rhacm, jira, polarion MCPs) |
 | `acm-cluster-investigator` | Per-group 12-layer root cause investigation | acm-cluster-health (+ acm-source, neo4j-rhacm, jira, polarion MCPs) |
 | `acm-data-enricher` | Data enrichment (selector verification, timeline analysis, knowledge gaps) | (acm-source, jira MCPs) |

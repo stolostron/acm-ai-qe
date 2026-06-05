@@ -1,6 +1,6 @@
 # Z-Stream Analysis: Skill Architecture
 
-How the portable skill pack enables the Z-Stream failure analysis pipeline. 10 skills decompose a 4-stage pipeline into reusable, independently testable components — from Jenkins data collection through 12-layer diagnostic investigation to final classification reports. MCP tools (jira, acm-source, polarion, neo4j-rhacm) are called directly by subagents — no wrapper skill needed.
+How the portable skill pack enables the Z-Stream failure analysis pipeline. 10 skills decompose a 5-stage pipeline into reusable, independently testable components — from Jenkins data collection through 12-layer diagnostic investigation to final classification reports. MCP tools (jira, acm-source, polarion, neo4j-rhacm) are called directly by subagents — no wrapper skill needed.
 
 ## Skill Inventory
 
@@ -84,7 +84,7 @@ Deterministic scripts (gather.py, report.py) handle data collection and report g
 **Files:** SKILL.md + 67 reference files (including full knowledge database)
 **Depends on:** All 13 other skills
 
-The entry point. Receives a Jenkins URL and orchestrates the 4-stage pipeline with visible stage-by-stage progress:
+The entry point. Receives a Jenkins URL and orchestrates the 5-stage pipeline with visible stage-by-stage progress:
 
 ```
 Stage 1: Gathering pipeline data from Jenkins...

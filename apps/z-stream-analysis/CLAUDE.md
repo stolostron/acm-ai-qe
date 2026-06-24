@@ -240,14 +240,14 @@ Two-layer structured logging captures every operation across all pipeline stages
 ## Tests
 
 ```bash
-# Fast — unit + regression (756 tests, no external deps):
+# Fast — unit + regression (759 tests, no external deps):
 python -m pytest tests/unit/ tests/regression/ -q
 
-# Full suite (801 tests, requires Jenkins VPN for integration):
+# Full suite (804 tests, requires Jenkins VPN for integration):
 python -m pytest tests/ -q --timeout=300
 ```
 
-Test structure: `tests/unit/` (625 tests across 20 service/script files), `tests/regression/` (131 cross-module consistency + schema coverage + skill conversion tests), `tests/integration/` (45 tests requiring Jenkins VPN), `tests/fixtures/` (synthetic analysis-results.json).
+Test structure: `tests/unit/` (631 tests across 20 service/script files), `tests/regression/` (128 cross-module consistency + schema coverage + skill conversion tests), `tests/integration/` (45 tests requiring Jenkins VPN), `tests/fixtures/` (synthetic analysis-results.json).
 
 ## Knowledge Database (`knowledge/`)
 
@@ -288,7 +288,7 @@ z-stream-analysis/
 │   ├── architecture/      # Per-subsystem docs (12 areas, 37 files)
 │   ├── diagnostics/       # Classification methodology + 12-layer model (5 files)
 │   └── *.yaml             # Structured data files (14 files)
-├── tests/                 # Unit (625), regression (131), integration (45)
+├── tests/                 # Unit (631), regression (128), integration (45)
 ├── .claude/agents/        # analysis.md, cluster-diagnostic.md, investigation-agent.md, data-collector.md
 ├── .claude/hooks/         # agent_trace.py (trace logging)
 └── docs/                  # Detailed documentation (10 files)

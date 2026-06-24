@@ -602,3 +602,112 @@ gaps:
     explanation: Template referenced by test does not exist on cluster
   source: knowledge_database
   evidence: Automation tests failed searching for template button text
+- date: '2026-06-01'
+  trigger: unmatched_error
+  feature_area: Virtualization
+  gap_type: missing_failure_path
+  proposed_entry:
+    id: virt-catalog-page-removed
+    description: VM catalog page replaced with /vm-wizard in CNV-87466 (2026-05-20)
+    category: configuration
+    symptoms:
+    - (?i)Expected to find content.*Customize and create VirtualMachine.*h1
+    classification: AUTOMATION_BUG
+    confidence: 0.95
+    explanation: kubevirt-plugin commit afcf2f258 removed /catalog route and all i18n strings including "Customize and create
+      VirtualMachine". Tests must navigate to /vm-wizard.
+  source: knowledge/architecture/virtualization/failure-signatures.md
+  evidence: 3 tests failed looking for removed h1 title in createVMFromInstanceType helper
+- date: '2026-06-01'
+  trigger: unmatched_error
+  feature_area: Virtualization
+  gap_type: missing_failure_path
+  proposed_entry:
+    id: pf6-aria-role-mismatch
+    description: PF6 Select uses role="option" not PF5 role="menuitemcheckbox"
+    category: configuration
+    symptoms:
+    - (?i)Expected to find element.*role.*menuitemcheckbox
+    classification: AUTOMATION_BUG
+    confidence: 0.9
+    explanation: PF6 Select/SelectOption renders role="option" not role="menuitemcheckbox". kubevirt-plugin CheckboxSelect.tsx
+      uses PF6 Select.
+  source: knowledge/architecture/virtualization/failure-signatures.md
+  evidence: 1 test failed expecting PF5 ARIA role in status filter menu
+- date: '2026-06-01'
+  trigger: unmatched_error
+  feature_area: Virtualization
+  gap_type: missing_failure_path
+  proposed_entry:
+    id: resource-row-selector-missing
+    description: data-test-rows="resource-row" does not exist in console or kubevirt-plugin source
+    category: configuration
+    symptoms:
+    - (?i)Expected to find element.*data-test-rows.*resource-row
+    classification: AUTOMATION_BUG
+    confidence: 0.8
+    explanation: data-test-rows attribute not found in stolostron/console or kubevirt-ui/kubevirt-plugin. Test uses a selector
+      that does not exist in product.
+  source: knowledge_database
+  evidence: 1 test failed with resource-row selector not found in bulk VM migration
+- date: '2026-06-17'
+  trigger: unmatched_error
+  feature_area: RBAC
+  gap_type: missing_failure_path
+  proposed_entry:
+    id: kubevirt-role-not-in-wizard-table
+    description: kubevirt.io roles not appearing in RoleAssignment wizard Roles table
+    category: data_flow
+    symptoms:
+    - (?i)Expected to find content.*kubevirt\.io.*within.*selector.*tr.*never did
+    - (?i)Expected to find content.*kubevirt\.io.*within.*pf-v6-c-wizard.*tr.*never did
+    classification: UNKNOWN
+    confidence: 0.75
+    explanation: Roles table renders ClusterRoles from vmClusterRolesState atom loaded via acm-roles addon
+  source: knowledge/architecture/rbac/failure-signatures.md
+  evidence: 10 RBAC tests failed with kubevirt.io:view role not found in wizard table rows
+- date: '2026-06-17'
+  trigger: unmatched_error
+  feature_area: RBAC
+  gap_type: missing_failure_path
+  proposed_entry:
+    id: common-projects-empty
+    description: Common projects list empty in RoleAssignment wizard scope step
+    category: data_flow
+    symptoms:
+    - (?i)Expected to find content.*default.*within.*selector.*tr.*never did
+    classification: UNKNOWN
+    confidence: 0.7
+    explanation: Common projects computed as namespace intersection across selected clusters
+  source: knowledge/architecture/rbac/failure-signatures.md
+  evidence: 4 RBAC tests failed with default namespace not found in common projects table
+- date: '2026-06-17'
+  trigger: unmatched_error
+  feature_area: RBAC
+  gap_type: missing_failure_path
+  proposed_entry:
+    id: mcra-not-active-timeout
+    description: MultiClusterRoleAssignment does not reach Active status within timeout
+    category: component_health
+    symptoms:
+    - (?i)Role assignment.*did not reach Active status within
+    classification: UNKNOWN
+    confidence: 0.7
+    explanation: MCRA controller processing timeout -- status stays Pending instead of Active
+  source: knowledge/architecture/rbac/failure-signatures.md
+  evidence: 3 RBAC tests failed with role assignment not reaching Active status
+- date: '2026-06-17'
+  trigger: unmatched_error
+  feature_area: RBAC
+  gap_type: missing_failure_path
+  proposed_entry:
+    id: create-button-not-enabled
+    description: Create role assignment button remains disabled in wizard
+    category: data_flow
+    symptoms:
+    - (?i)Create role assignment button did not become enabled
+    classification: UNKNOWN
+    confidence: 0.7
+    explanation: Wizard Create button disabled because form validation fails -- preceding step data not loaded
+  source: knowledge_database
+  evidence: 1 RBAC test failed with create button not enabled

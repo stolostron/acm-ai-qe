@@ -92,6 +92,53 @@ def _map_diagnosis_to_health(diag: dict) -> dict:
             for p in diag['console_plugin_status']
         ]
 
+    # Synthesize required fields from simplified diagnosis format when missing.
+    # Handles cases where Stage 1.5 ran inline without the full agent schema.
+    if 'cluster_connectivity' not in result:
+        verdict = diag.get('verdict', '').upper()
+        has_nodes = bool(diag.get('nodes'))
+        has_mch = bool(diag.get('mch'))
+        result['cluster_connectivity'] = verdict in ('HEALTHY', 'DEGRADED') or has_nodes or has_mch
+
+    if 'environment_health_score' not in result:
+        verdict = diag.get('verdict', '').upper()
+        verdict_scores = {'HEALTHY': 1.0, 'DEGRADED': 0.6, 'CRITICAL': 0.2}
+        if verdict in verdict_scores:
+            score = verdict_scores[verdict]
+            issues = diag.get('issues', [])
+            warning_count = sum(1 for i in issues if i.get('severity') == 'warning')
+            critical_count = sum(1 for i in issues if i.get('severity') in ('critical', 'error'))
+            score -= critical_count * 0.15 + warning_count * 0.05
+            result['environment_health_score'] = max(0.0, min(1.0, score))
+
+    if 'cluster_identity' not in result:
+        identity = {}
+        if diag.get('ocp_version'):
+            identity['ocp_version'] = diag['ocp_version']
+        if diag.get('acm_version'):
+            identity['acm_version'] = diag['acm_version']
+        mch = diag.get('mch', {})
+        if mch.get('phase'):
+            identity['mch_phase'] = mch['phase']
+        if mch.get('version'):
+            identity['mce_version'] = mch['version']
+        nodes = diag.get('nodes', {})
+        if nodes:
+            identity['node_count'] = nodes.get('total', 0)
+            identity['node_ready_count'] = nodes.get('ready', 0)
+        mc = diag.get('managed_clusters', {})
+        if mc:
+            identity['managed_cluster_count'] = mc.get('total', 0)
+            identity['managed_cluster_ready_count'] = mc.get('ready', 0)
+        if identity:
+            result['cluster_identity'] = identity
+
+    if 'critical_issue_count' not in result:
+        issues = diag.get('issues', [])
+        result['critical_issue_count'] = sum(
+            1 for i in issues if i.get('severity') in ('critical', 'error')
+        )
+
     return result
 
 

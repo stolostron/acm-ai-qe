@@ -421,8 +421,8 @@ See [03-STAGE3-REPORT-GENERATION.md](03-STAGE3-REPORT-GENERATION.md) for details
 
 | Property | Value |
 |----------|-------|
-| **File** | `src/services/environment_oracle_service.py` (1650 lines) |
-| **Purpose** | Feature context oracle via a 6-phase pipeline: identify feature areas, discover Polarion test case context, learn feature architecture from KG + docs, learn dependency architecture, synthesize collection plan, collect cluster state |
+| **File** | `src/services/environment_oracle_service.py` (1673 lines) |
+| **Purpose** | Feature context oracle via a 6-phase pipeline: identify feature areas, discover Polarion test case context, learn feature architecture from KG + docs, learn dependency architecture, synthesize collection plan, collect cluster state. Phase 5 skips CRD-type KG entries (validated by operator health). Phase 6 normalizes KG labels to K8s deployment names (spaces→hyphens) before matching. |
 | **Used by** | Stage 1, Step 5 (oracle output stored in `cluster_oracle` key of core-data.json) |
 
 **Key exports:** `EnvironmentOracleService`, `DependencyTarget`, `DependencyHealth`, `PolarionDiscovery`
@@ -439,6 +439,7 @@ See [03-STAGE3-REPORT-GENERATION.md](03-STAGE3-REPORT-GENERATION.md) for details
 | `_phase5_synthesize_collection_plan(identification, polarion_discovery, knowledge_context)` | Merge playbook prereqs + KG components + Polarion deps into dependency targets |
 | `_phase6_collect_cluster_state(targets, cluster_credentials, skip_cluster)` | Run read-only `oc get` commands against live cluster for each target |
 | `_load_polarion_token()` | Load Polarion PAT from `mcp/polarion/.env` (repo root or app root fallback) |
+| `_normalize_component_name(name)` | Convert KG human-readable labels to K8s deployment name format (lowercase, spaces→hyphens, collapse doubles) |
 
 **Dependency target types:** `operator`, `addon`, `crd`, `component`, `managed_clusters`
 

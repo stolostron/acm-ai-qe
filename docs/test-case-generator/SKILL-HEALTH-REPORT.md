@@ -370,6 +370,126 @@ Move the Gatekeeper mutation policies bullet from `fleet-virt.md` to `governance
 
 ---
 
+## Issue 16: Test case generator produces UI/integration tests only — no E2E functional outcome verification (HIGH)
+
+### Problem
+
+The test case generator pipeline produces test cases that validate the **data path** (UI form → YAML → API resource) but stop short of verifying the **functional outcome** the feature is designed to deliver. The generated steps test "does the UI set the right field?" but not "does the feature actually work end-to-end?"
+
+### Evidence: ACM-34028 (`preserveResourcesOnDeletion` toggle)
+
+The generated test case for ACM-34028 (run: `ACM-34028-2026-06-13T18-01-39`) contains 8 steps:
+
+| Step | What it tests | Test type |
+|------|---------------|-----------|
+| 1 | Checkbox default state (unchecked) | UI state |
+| 2 | Create AppSet with toggle ON, review step display | UI workflow |
+| 3 | CLI cross-check: `spec.syncPolicy.preserveResourcesOnDeletion: true` | Integration (UI → API) |
+| 4 | Pull model default state | UI state |
+| 5 | Edit pull model, enable toggle | UI workflow |
+| 6 | Re-edit, disable toggle (round-trip) | UI workflow |
+| 7 | YAML editor bidirectional binding | UI integration |
+| 8 | Section separation (AppSet sync policy vs per-app sync policy) | UI structure |
+
+**What's missing:** Not a single step tests the actual user-facing outcome — that deleting an ApplicationSet with `preserveResourcesOnDeletion: true` actually **preserves the child Application resources**. This is the entire reason the feature exists (born from production incident ACM-33654).
+
+A complete E2E step would be:
+
+1. Create AppSet with toggle ON → verify child apps are created on target cluster
+2. Delete the ApplicationSet
+3. Verify child Application resources **still exist** (preserved)
+4. Contrast: create a second AppSet with toggle OFF → delete it → verify child resources **are removed**
+
+This step takes ~60 seconds and closes the gap between "the UI sets the right field" and "the feature protects users as intended."
+
+### Why this matters
+
+- The PR description says "No backend work is needed — the Argo CD ApplicationSet controller already supports this field." The generator correctly scoped to the PR's code changes (UI only). But from a QE perspective, the test should verify the full user journey, not just the code delta.
+- If the Argo CD version shipped with ACM had a regression in `preserveResourcesOnDeletion` handling, the generated test case would pass green while the feature is completely broken from the user's perspective.
+- Features born from production incidents (like ACM-33654) deserve E2E outcome verification — the cost of missing a regression is high.
+
+### Root cause in the pipeline
+
+The test case generator's scoping logic (Phase 2: code analysis → Phase 6: writing) correctly identifies the **code change boundary** (what files/components were modified) and generates steps within that boundary. But it has no heuristic for:
+
+1. **Cross-component outcome testing** — when a UI change enables a backend behavior that was already implemented, the generator should consider whether the backend behavior warrants an E2E verification step
+2. **Feature intent analysis** — the JIRA story's value statement describes a user outcome ("safety net against accidental child Application deletion"), but the generator doesn't translate feature intent into outcome verification steps
+3. **Incident-driven features** — when a feature links to a bug/incident (ACM-33654), the test case should verify the incident scenario is resolved, not just that the UI toggle works
+
+### Proposed fix
+
+**Option A (writer skill enhancement):** Add a "Functional Outcome Verification" phase to the `acm-test-case-writer` skill. After writing UI/integration steps, the writer should ask: "Does this feature enable a backend behavior with a user-visible outcome? If yes, add an E2E step that verifies the outcome." This requires:
+- Extracting the feature's value statement from JIRA (already available in Phase 1 gather)
+- A heuristic: if the JIRA description contains outcome language ("prevents deletion", "enables access", "blocks unauthorized") AND the code change is UI-only, flag for E2E outcome step
+- Adding the E2E step as a clearly labeled final step (e.g., "Step N: Verify Functional Outcome — End-to-End")
+
+**Option B (reviewer skill enhancement):** Add a quality gate to the `acm-test-case-reviewer` that checks: "Does the test case verify the feature's stated user outcome, or only the UI mechanics?" If only UI mechanics, flag as a coverage gap with severity HIGH when the feature is incident-driven, MEDIUM otherwise.
+
+**Option C (both):** Writer generates the E2E step; reviewer validates it exists. This is the most complete approach.
+
+### Affected skills
+
+| Skill | Change needed |
+|-------|---------------|
+| `acm-test-case-writer` | Add E2E outcome verification heuristic (Option A) |
+| `acm-test-case-reviewer` | Add outcome coverage quality gate (Option B) |
+| `acm-test-case-generator` | Phase 4 synthesis should flag "UI-only change enabling backend behavior" as a coverage consideration |
+| `acm-qe-code-analyzer` | Output should include a `backend_behavior_enabled` field when the code change exposes an existing backend capability |
+
+### Live Verification Session (2026-06-18) — What the Refined Test Case Looks Like
+
+The generated 8-step test case was manually refined to 5 steps through human review. The refinements demonstrate what the generator SHOULD produce:
+
+**Steps dropped (framework behavior, not PR-specific):**
+- Pull model separate testing (same `ArgoWizard.tsx` component, same code path as push model — testing both is redundant)
+- Round-trip edit (enable → disable toggle) — tests the `react-form-wizard` framework's edit/save lifecycle, not this PR's code
+- YAML bidirectional binding — tests the framework's `WizCheckbox` path binding, not this PR's code
+- Negative contrast (toggle OFF behavior) — that's the pre-existing default, not new behavior
+
+**Steps kept:**
+1. Verify default checkbox state (unchecked) — new UI element
+2. Create push model with toggle ON, verify Review step — core feature
+3. CLI: backend field at correct spec level + child app exists with ownerReference — backend validation
+4. Section separation (General step vs Sync policy step) — new UI structure
+5. **Delete AppSet, verify deployed resources survive** — E2E functional outcome
+
+**Critical correction discovered during live testing:**
+
+The initial E2E step (Step 5) was written to verify that **child Application CRs** survive deletion. Live testing showed they do NOT survive — they are cascade-deleted via Kubernetes GC (ownerReference). This is **expected behavior per ArgoCD design**.
+
+What `preserveResourcesOnDeletion` actually does (from `argoproj/argo-cd/applicationset/utils/utils.go` lines 294-302):
+- When `true`: does NOT stamp the `resources-finalizer` on child Applications → when child Apps are GC-deleted, the deployed K8s resources (Deployments, Services, namespaces) are **orphaned and preserved**
+- When `false`: stamps the `resources-finalizer` → when child Apps are deleted, ArgoCD processes the finalizer and **cleans up deployed resources**
+
+The correct E2E verification is:
+```
+1. Create AppSet with toggle ON, wait for child apps to sync and deploy resources
+2. Delete the AppSet
+3. Verify child Application CRs are GONE (expected — ownerRef cascade)
+4. Verify deployed resources (namespace, Deployment, Service) STILL EXIST on target cluster
+```
+
+The first test attempt also failed because the Git repo branch was `master` not `main` — the child apps never synced, so there were no deployed resources to preserve. The generator should validate source repo accessibility or note the correct branch in setup prerequisites.
+
+**Desired generator behavior:** When generating the E2E outcome step, the generator must:
+1. Understand what "preserve" means in context (read the ArgoCD docs, not just the JIRA description)
+2. Verify what specifically should survive vs what is expected to be deleted
+3. Ensure the test environment actually deploys resources before attempting the deletion test (wait for sync, verify health)
+4. Include correct repo/branch details in setup prerequisites
+
+### Verified test case (Polarion RHACM4K-64825)
+
+The refined 5-step test case was verified on build `5.0.0-DOWNSTREAM-2026-06-15-23-36-22` (ACM 5.0.0-109, OpenShift GitOps 1.20.4). All 5 steps PASS. The Polarion HTML files are at:
+- `runs/test-case-generator/ACM-34028/ACM-34028-2026-06-13T18-01-39/test-case-description-v2.html`
+- `runs/test-case-generator/ACM-34028/ACM-34028-2026-06-13T18-01-39/test-case-setup-v2.html`
+- `runs/test-case-generator/ACM-34028/ACM-34028-2026-06-13T18-01-39/test-case-steps-v2.html`
+
+### Priority justification
+
+HIGH — this is a systematic gap, not a one-off. Every UI-only feature that exposes an existing backend behavior will produce test cases that stop at the integration boundary. The generator needs a heuristic to cross that boundary for features where the user outcome is the point. The ACM-34028 live verification session proved this: without the E2E step, the test case would pass while completely missing what the feature actually does (and an initial misunderstanding of the behavior would have produced a false-negative bug report).
+
+---
+
 ## Execution Order
 
 Recommended order to minimize conflicts:
@@ -378,17 +498,18 @@ Recommended order to minimize conflicts:
 2. **Issue 1** (`gather.py` area knowledge path fix — depends on Issue 2 being done)
 3. **Issue 9** (sample test case CLI rule violation)
 4. **Issue 15** (fleet-virt misplaced content)
-5. **Issue 3** (writer references/ directory)
-6. **Issue 4** (reviewer SKILL.md gaps)
-7. **Issue 5** (code analyzer follow-up PR detection)
-8. **Issue 8** (orchestrator progressive disclosure)
-9. **Issue 7** (cluster-health integration with live-validator)
-10. **Issue 6** (review_enforcement.py regex)
-11. **Issue 12** (phase7-review.md output)
-12. **Issue 13** (07-SKILL-ARCHITECTURE.md doc drift)
-13. **Issue 14** (handled by Issue 2)
-14. **Issue 10** (evals harness)
-15. **Issue 11** (integration tests)
+5. **Issue 16** (E2E functional outcome verification gap — affects writer, reviewer, code analyzer, orchestrator)
+6. **Issue 3** (writer references/ directory)
+7. **Issue 4** (reviewer SKILL.md gaps)
+8. **Issue 5** (code analyzer follow-up PR detection)
+9. **Issue 8** (orchestrator progressive disclosure)
+10. **Issue 7** (cluster-health integration with live-validator)
+11. **Issue 6** (review_enforcement.py regex)
+12. **Issue 12** (phase7-review.md output)
+13. **Issue 13** (07-SKILL-ARCHITECTURE.md doc drift)
+14. **Issue 14** (handled by Issue 2)
+15. **Issue 10** (evals harness)
+16. **Issue 11** (integration tests)
 
 Issues 10 and 11 (evals + integration tests) should be done last since they validate the fixes from Issues 1–9.
 
@@ -406,16 +527,16 @@ Issues 10 and 11 (evals + integration tests) should be done last since they vali
 | `.claude/knowledge/examples/sample-test-case.md` | 9 |
 | `.claude/knowledge/ui/fleet-virt.md` | 15 |
 | `.claude/knowledge/ui/governance.md` | 15 |
-| `.claude/skills/acm-test-case-writer/SKILL.md` | 3 |
+| `.claude/skills/acm-test-case-writer/SKILL.md` | 3, 16 |
 | `.claude/skills/acm-test-case-writer/references/writing-process.md` (new) | 3 |
 | `.claude/skills/acm-test-case-writer/references/coverage-gap-handling.md` (new) | 3 |
-| `.claude/skills/acm-test-case-reviewer/SKILL.md` | 4, 12 |
+| `.claude/skills/acm-test-case-reviewer/SKILL.md` | 4, 12, 16 |
 | `.claude/skills/acm-test-case-reviewer/references/review-checklist.md` | 4 |
-| `.claude/skills/acm-qe-code-analyzer/SKILL.md` | 5 |
+| `.claude/skills/acm-qe-code-analyzer/SKILL.md` | 5, 16 |
 | `.claude/skills/acm-test-case-generator/scripts/review_enforcement.py` | 6 |
 | `.claude/skills/acm-test-case-generator/references/agents/live-validator.md` | 7 |
 | `.claude/skills/acm-cluster-health/SKILL.md` | 7 |
-| `.claude/skills/acm-test-case-generator/SKILL.md` | 8 |
+| `.claude/skills/acm-test-case-generator/SKILL.md` | 8, 16 |
 | `.claude/skills/acm-test-case-generator/references/pipeline-detail.md` | 8 |
 | `.claude/skills/acm-test-case-generator/references/phase0-inputs.md` (new) | 8 |
 | `.claude/skills/acm-test-case-generator/references/validation-protocol.md` (new) | 8 |

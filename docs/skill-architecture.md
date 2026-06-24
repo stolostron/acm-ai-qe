@@ -1,6 +1,6 @@
 # Skill Architecture
 
-How all 19 portable ACM skills fit together. For skill authoring standards, see [skill-authoring-guide.md](skill-authoring-guide.md).
+How all 20 portable ACM skills fit together. For skill authoring standards, see [skill-authoring-guide.md](skill-authoring-guide.md).
 
 ## Skill Inventory
 
@@ -45,6 +45,12 @@ Skill selection / description disambiguation for this workflow: [test-case-gener
 | `acm-data-enricher` | Data enrichment (selector verification, timeline analysis, knowledge gaps) | (acm-source, jira MCPs) |
 | `acm-jenkins-client` | Jenkins CI MCP interface | None |
 
+### Test Case Validator Skills (1)
+
+| Skill | Purpose | Uses Shared Skills / MCPs |
+|-------|---------|--------------------------|
+| `acm-test-case-validator` | Orchestrator: 7-phase pipeline executing existing test cases against live clusters with per-step pass/fail evidence | acm-knowledge-base (+ playwright, polarion, acm-kubectl MCPs) |
+
 ### Bug Investigation Skills (2)
 
 | Skill | Purpose | Uses Shared Skills / MCPs |
@@ -52,11 +58,13 @@ Skill selection / description disambiguation for this workflow: [test-case-gener
 | `acm-bug-hunter` | Orchestrator: 10-dimension implementation audit using test cases as starting points | acm-qe-code-analyzer, acm-knowledge-base (+ jira, acm-source, polarion, neo4j-rhacm MCPs) |
 | `acm-bug-fix-verifier` | Orchestrator: 7-phase pipeline to verify bug fixes landed in target environments | acm-qe-code-analyzer (+ jira, neo4j-rhacm, acm-source, playwright, acm-search, acm-kubectl MCPs) |
 
-### Utility Skills (1)
+### Utility Skills (3)
 
 | Skill | Purpose | MCP Required |
 |-------|---------|-------------|
 | `onboard` | First-run MCP configuration wizard | Various |
+| `grill-me` | Structured decision interrogation with shared language sharpening | None |
+| `youtube-digest` | YouTube transcript extraction and structured digest generation | None |
 
 ---
 
@@ -109,6 +117,7 @@ When you modify a skill, here's what could be affected.
 | Skill | What Could Break | Risk |
 |---|---|---|
 | `acm-test-case-generator` | Entire TC-gen pipeline (9 phases, 7 agent files, 6 skills) | High |
+| `acm-test-case-validator` | Validation pipeline (7 phases, Playwright execution, verdict discipline) | High |
 | `acm-z-stream-analyzer` | Entire z-stream pipeline (4 stages, 3 agents, 5 skills) | High |
 | `acm-hub-health-check` | Full diagnostic pipeline (6 phases, remediation, learning) | High |
 | `acm-bug-hunter` | Bug hunt pipeline (6 phases, per-dimension subagents) | High |
@@ -169,6 +178,7 @@ Orchestrators are the highest-risk files. Before modifying one:
 ## Detailed Documentation
 
 - Test Case Generator workflow: [test-case-generator/](test-case-generator/)
+- Test Case Validator workflow: [test-case-validator/](test-case-validator/)
 - Hub Health workflow: [hub-health/](hub-health/)
 - MCP setup: [mcp-setup-guide.md](mcp-setup-guide.md)
 - Skill authoring standards: [skill-authoring-guide.md](skill-authoring-guide.md)

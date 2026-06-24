@@ -28,13 +28,14 @@ The onboarding skill detects your environment, walks you through MCP server setu
 
 ## Skills
 
-17 portable skills available from the repo root -- just launch `claude` and ask in natural language.
+20 portable skills available from the repo root -- just launch `claude` and ask in natural language.
 
 ### Primary Workflows
 
 | Skill | What It Does | Try It |
 |-------|-------------|--------|
 | **Test Case Generator** | Generates Polarion-ready test cases from JIRA tickets. 9-phase pipeline: JIRA investigation, PR analysis, UI discovery, synthesis, optional live validation, writing, and mandatory quality review. | `"Generate a test case for ACM-30459"` |
+| **Test Case Validator** | Executes existing test cases step-by-step against a live ACM cluster via Playwright + CLI. 7-phase pipeline with evidence capture, conditional teardown, and per-step pass/fail reporting. | `/acm-test-case-validator RHACM4K-64825 --cluster-url <URL> --password <pw>` |
 | **Z-Stream Analyzer** | Classifies Jenkins pipeline test failures as PRODUCT_BUG, AUTOMATION_BUG, INFRASTRUCTURE, or NO_BUG. 4-stage pipeline with data gathering, cluster diagnostics, 12-layer AI classification, and report generation. | `"Analyze this run: <JENKINS_URL>"` |
 | **Hub Health Check** | Diagnoses ACM hub cluster health using a 6-phase pipeline with 4 depth modes. Checks operators, pods, addons, subsystems, dependency chains, and known failure patterns. | `"How's my hub health?"` (after `oc login`) |
 | **Bug Hunter** | Proactively hunts for bugs in ACM feature implementations using test cases as a starting point. 10-dimension investigation with adversarial subagents. | `"Hunt bugs using RHACM4K-61733"` |
@@ -63,6 +64,8 @@ These are called by the primary workflows or used standalone for focused tasks.
 | Skill | Purpose |
 |-------|---------|
 | **Onboard** | Interactive setup -- detects environment, configures MCP servers, prompts for credentials. |
+| **Grill Me** | Structured decision interrogation -- stress-tests plans and designs through relentless questioning, sharpens domain language. |
+| **YouTube Digest** | Extracts YouTube transcripts and produces structured digests with key takeaways, timestamps, and topic timelines. |
 
 ## Apps
 
@@ -104,7 +107,7 @@ You ──> Claude Code ──> Skill ──> Pipeline
 ```
 ai_systems_v2/
 ├── .claude/
-│   ├── skills/                # 17 portable skills (usable from repo root)
+│   ├── skills/                # 20 portable skills (usable from repo root)
 │   ├── knowledge/             # Shared knowledge database (11 categories, 14 subsystems)
 │   ├── commands/pre-push.md   # /pre-push quality gate
 │   ├── settings.json          # Root-level Claude Code settings

@@ -168,6 +168,39 @@ Example: if testing a cluster-scoped action on cluster-A, add a step that perfor
    - The test case MUST validate against the IMPLEMENTATION (what users see)
    - Include a Note explaining the discrepancy with source code citation
 
+## Outcome-Intent Detection
+
+After cross-referencing ACs vs implementation, determine whether the feature requires end-to-end functional outcome verification beyond UI/integration testing.
+
+### Detection Heuristic
+
+Check two conditions:
+
+1. **UI-only code change:** The code analysis (phase2-code.json) shows changes ONLY to UI files (`.tsx`, `.ts` in frontend/console paths, CSS, translations). No backend controller, CRD, webhook, or operator changes in the PR diff.
+
+2. **Outcome language in JIRA:** The JIRA story description or acceptance criteria contains language describing a user-visible outcome that depends on backend behavior: prevents, enables, blocks, preserves, protects, ensures, deploys, migrates, provisions, removes, deletes, creates, restricts, grants, enforces, schedules, triggers, syncs, reconciles, propagates.
+
+If BOTH conditions are true, flag as `OUTCOME_VERIFICATION_NEEDED`. The UI change is an enabler for existing backend behavior — the test must verify the outcome, not just the toggle.
+
+### Escalation Signal
+
+If the JIRA links to a bug or incident (linked issues with relationship "is caused by", "fixes", "clones", or labels containing "customer-escalation", "production-incident"), escalate to `OUTCOME_VERIFICATION_REQUIRED`. Incident-driven features carry higher regression risk.
+
+### Output
+
+Add to the synthesized context:
+
+```
+Outcome Verification:
+- Status: OUTCOME_VERIFICATION_NEEDED | OUTCOME_VERIFICATION_REQUIRED | NOT_NEEDED
+- Feature outcome: [the stated user outcome from JIRA, e.g., "deleting the ApplicationSet preserves deployed resources"]
+- Backend behavior: [what backend mechanism delivers this outcome, e.g., "ArgoCD resources-finalizer is not stamped on child Applications"]
+- Incident-driven: yes | no
+- Suggested E2E check: [one-line description of what to verify, e.g., "delete AppSet, verify deployed K8s resources survive on target cluster"]
+```
+
+If the code change includes backend files OR the JIRA has no outcome language, set Status to `NOT_NEEDED` and omit the remaining fields.
+
 ## Coverage Gap Triage
 
 After cross-referencing ACs vs implementation, review the code analysis output for a `Coverage Gaps` section. For each gap, classify as:

@@ -51,6 +51,7 @@ Key steps:
 4. Spot-check key UI elements via acm-source MCP
 4.5. Follow synthesis design optimizations and apply coverage gap triage — read `${CLAUDE_SKILL_DIR}/references/coverage-gap-handling.md`
 5. Write the test case following conventions exactly
+5.5. If synthesized context includes `Outcome Verification` with status NEEDED or REQUIRED, generate an E2E outcome step — read `${CLAUDE_SKILL_DIR}/references/writing-process.md` Step 5.5
 6. Self-review against the 14-point checklist
 
 ## Critical Rules
@@ -60,5 +61,6 @@ Key steps:
 - NEVER state specific numeric thresholds unless found in PR diff, JIRA AC, MCP source, or area knowledge
 - NEVER fabricate filter rules -- extract exact conditions from source code via `get_component_source`
 - If investigation context is incomplete for a step, note it as "[NEEDS VERIFICATION]"
+- If synthesized context flags `OUTCOME_VERIFICATION_REQUIRED` (incident-driven feature), you MUST include an E2E functional outcome step or document in Notes why it is untestable
 - If a filtering function is referenced, read its source via MCP and extract exact conditions -- do NOT paraphrase from the PR diff
 - Always include a `## Test Steps` section header before the first `### Step N:`

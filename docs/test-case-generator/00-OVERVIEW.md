@@ -88,10 +88,10 @@ Generates Polarion-ready test cases for ACM Console UI features from JIRA ticket
 | Data Gatherer | 1 | jira, polarion, neo4j-rhacm, bash | Data collection + JIRA deep dive: ACs, comments, linked tickets, Polarion coverage |
 | Code Analyzer | 2 | acm-source, neo4j-rhacm, bash | PR diff analysis: changed components, UI elements, interaction models |
 | UI Discoverer | 3 | acm-source, neo4j-rhacm, playwright (conditional), bash | ACM Console source: selectors, translations, routes, wizard steps |
-| Synthesizer | 4 | — | Merge investigation outputs, scope gate, AC cross-reference, test plan |
+| Synthesizer | 4 | — | Merge investigation outputs, scope gate, AC cross-reference, outcome-intent detection, test plan |
 | Live Validator | 5 | playwright, acm-search, acm-kubectl, bash, gh CLI | Env verification + OAuth browser auth + oc CLI + fleet queries on real cluster |
 | Test Case Writer | 6 | acm-source | Write test case markdown from synthesized context |
-| Quality Reviewer | 7 | acm-source | Convention compliance, discovered vs assumed, AC vs implementation |
+| Quality Reviewer | 7 | acm-source | Convention compliance, discovered vs assumed, AC vs implementation, outcome coverage |
 
 ## MCP Servers
 

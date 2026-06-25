@@ -239,4 +239,12 @@ Coverage Gaps:
 
 Follow-Up PRs:
 - PR #NNNN: [title] (merged [date]) -- [relevance: rename/fix/refactor]
+
+Backend Behavior Enabled (UI-only PRs):
+- backend_behavior_enabled: true | false
+- backend_field: [API field being exposed, e.g., "spec.syncPolicy.preserveResourcesOnDeletion"]
+- backend_docs: [referenced documentation or linked JIRA describing the backend behavior]
+- notes: [what the backend does when this field is set]
 ```
+
+**`Backend Behavior Enabled` field:** Set `backend_behavior_enabled: true` when the PR adds UI controls (toggles, dropdowns, checkboxes, form fields) that map to existing backend/API fields NOT introduced by this PR. This signals to the synthesizer that the feature enables a backend behavior warranting E2E outcome verification. If the PR introduces both UI and backend changes, set to `false` — the backend is new, not pre-existing.

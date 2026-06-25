@@ -236,7 +236,7 @@ Analyzes PR diffs from `stolostron/console` or `kubevirt-ui/kubevirt-plugin` to 
 ```mermaid
 flowchart TD
     PR["PR Number + Repo"] --> S1
-    subgraph "10-Step Analysis"
+    subgraph "11-Step Analysis"
         S1["Step 1: gh pr view\n(metadata)"] --> S2["Step 2: gh pr diff\n(full diff)"]
         S2 --> S3["Step 3: Set ACM\nVersion"]
         S3 --> S4["Step 4: Analyze\nChanged Files"]
@@ -246,8 +246,9 @@ flowchart TD
         S7 --> S8["Step 8: Verify\nUI Strings"]
         S8 --> S9["Step 9: Map to\nTest Scenarios"]
         S9 --> S10["Step 10: Coverage\nGap Analysis"]
+        S10 --> S11["Step 11: Follow-up\nPR Detection"]
     end
-    S10 --> OUT["Changed components, UI elements,\nfiltering logic, test scenarios,\ncoverage gaps"]
+    S11 --> OUT["Changed components, UI elements,\nfiltering logic, test scenarios,\ncoverage gaps, follow-up PRs"]
 ```
 
 **Per-file analysis identifies:**
@@ -283,7 +284,7 @@ flowchart TD
 **Depends on:** acm-source MCP (MCP spot-checks), acm-knowledge-base (conventions)
 **Invocation:** `disable-model-invocation: true` — not auto-triggered by "review test case" prompts. Invoked by the generator's subagents via `Read` tool, or explicitly via `/acm-test-case-reviewer`.
 
-The mandatory quality gate. No test case is delivered without passing this review. Operates as a 3-tier escalation loop — targeted MCP re-investigation, focused retry with evidence, then placeholder and proceed. Never retries with the same context.
+The mandatory quality gate. No test case is delivered without passing this review. Two-layer enforcement: AI review (Steps 1-6.7 in SKILL.md) produces a structured verdict, then `review_enforcement.py` programmatically validates the review output (MCP verification count, source verification, translation verification). Operates as a 3-tier escalation loop — targeted MCP re-investigation, focused retry with evidence, then placeholder and proceed. Never retries with the same context.
 
 ```mermaid
 flowchart TD

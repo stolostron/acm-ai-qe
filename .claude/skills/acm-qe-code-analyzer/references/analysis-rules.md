@@ -15,3 +15,7 @@
 6. **Filter function extraction.** When the diff introduces or modifies a filtering function, call `get_component_source()` on the utility file that defines the function. Extract the EXACT conditions (string comparisons, `startsWith` calls, regex patterns). Do NOT paraphrase or summarize -- extract the literal code.
 
 7. **Verify UI strings.** For any new UI labels found in the diff, call `search_translations()` to get the exact translation key and English text. Test cases must use the exact strings users see.
+
+8. **Follow-up PR detection.** For each primary changed file, check for subsequent merged PRs via `gh pr list --search "path:<filepath>" --state merged --limit 5`. Filter to PRs merged after the target PR. Flag post-merge renames, fixes, and refactors that would make the test case stale. Include findings in the `follow_up_prs` output section.
+
+9. **Backend behavior enablement.** When the PR adds UI controls (toggles, dropdowns, checkboxes, form fields) that map to existing backend/API fields NOT introduced by this PR, set `backend_behavior_enabled: true` in the output. This signals that the feature is a UI enabler for pre-existing backend behavior, and E2E outcome verification may be warranted downstream.

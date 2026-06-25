@@ -14,7 +14,7 @@ AI-powered diagnostic and remediation agent for ACM hub clusters. Read-only diag
 
 ### Test Case Generator (`apps/test-case-generator/`) — Active
 
-Generates Polarion-ready test cases for ACM Console features from JIRA tickets. 6-phase subagent pipeline with mandatory quality review gate. 6 specialized agents, 7 MCP integrations, 9 console areas supported. 3 skills: `/generate` (full pipeline), `/review` (quality review), `/batch` (multi-ticket). Portable skill pack with standalone scripts for repo-root execution.
+Generates Polarion-ready test cases for ACM Console features from JIRA tickets. 9-phase subagent pipeline (Phases 0-8) with mandatory quality review gate. 7 specialized agents, 7 MCP integrations, 9 console areas supported. 3 skills: `/generate` (full pipeline), `/review` (quality review), `/batch` (multi-ticket). Portable skill pack with standalone scripts for repo-root execution.
 
 ## Skills (`.claude/skills/`)
 

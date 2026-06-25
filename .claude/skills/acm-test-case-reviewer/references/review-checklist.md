@@ -44,6 +44,13 @@
 - [ ] Gaps triaged as "NOTE ONLY" mentioned in Notes section (acceptable if missing)
 - [ ] Coverage gap count documented
 
+## Functional Outcome Coverage (BLOCKING if incident-driven, WARNING otherwise)
+
+- [ ] If JIRA description contains outcome language (prevents, preserves, enables, blocks, protects, enforces, deploys, migrates) AND code change is UI-only: does any test step verify the stated functional outcome beyond UI state?
+- [ ] If a "Verify Functional Outcome" step exists: does it verify the backend behavior (not just repeat a CLI cross-check of YAML fields)?
+- [ ] If the feature links to a bug/incident: is outcome verification present? (BLOCKING if absent for incident-driven features)
+- [ ] If outcome verification is absent but the feature has no backend behavior dependency: acceptable (note in review)
+
 ## Format Checks (WARNING if wrong)
 
 - [ ] Setup commands have `# Expected:` comments

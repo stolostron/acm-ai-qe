@@ -232,16 +232,17 @@ The synthesizer subagent merges all three investigation outputs (Phases 1-3) int
 1. **Concatenate** all three investigation outputs verbatim
 2. **Scope gate:** Extract target JIRA story's ACs and filter test scenarios to only those ACs
 3. **AC vs Implementation cross-reference:** Compare each AC bullet against code behavior, flag discrepancies
-4. **Write TEST PLAN:** Scenario count, step estimates, setup/teardown, CLI checkpoints
-5. **Resolve conflicts:** If agents disagree:
+4. **Outcome-intent detection:** If the code change is UI-only AND the JIRA description contains outcome language (prevents, enables, blocks, preserves, protects, ensures, deploys, migrates, provisions), flag as `OUTCOME_VERIFICATION_NEEDED`. Escalate to `OUTCOME_VERIFICATION_REQUIRED` if the JIRA links to a bug or incident.
+5. **Write TEST PLAN:** Scenario count, step estimates, setup/teardown, CLI checkpoints
+6. **Resolve conflicts:** If agents disagree:
    - UI elements: trust ui-discoverer (reads source directly)
    - Business requirements: trust data-gatherer (reads JIRA)
    - What changed: trust code-analyzer (reads diff)
-6. **Coverage gap triage:** If code-analyzer identified code behaviors not covered by any AC, triage each gap:
+7. **Coverage gap triage:** If code-analyzer identified code behaviors not covered by any AC, triage each gap:
    - `ADD TO TEST PLAN` — user-visible behavior worth testing, gets a test step
    - `NOTE ONLY` — real but minor, mentioned in Notes section
    - `SKIP` — internal implementation detail, not UI-testable
-7. **Optimize test design** (5 passes applied to the planned steps before writing):
+8. **Optimize test design** (5 passes applied to the planned steps before writing):
    - State transition consolidation (test state changes on one entity instead of creating multiple)
    - Resource minimization (only create resources that steps consume)
    - Step flow sequencing (observe → act → verify natural arc)
@@ -369,8 +370,9 @@ Produces the primary deliverable: a Polarion-ready test case markdown file.
 3. Scope gate: plan steps that map to target JIRA story's ACs only
 4. MCP spot-check: verify entry point route + key translations
 5. Write `test-case.md` following exact convention structure
-6. Write `analysis-results.json` with investigation metadata
-7. Self-review before finalizing
+6. If synthesized context flags `OUTCOME_VERIFICATION_NEEDED` or `OUTCOME_VERIFICATION_REQUIRED`, generate a functional outcome verification step titled "Verify Functional Outcome — [description]"
+7. Write `analysis-results.json` with investigation metadata
+8. Self-review before finalizing
 
 ### Output Files
 
@@ -425,6 +427,7 @@ See [05-QUALITY-GATES.md](05-QUALITY-GATES.md) for the full checklist.
 | Scope alignment | Blocking | Steps match target story, not broader PR |
 | Design efficiency | Warning | Resource optimization, entry point selection, step design anti-patterns |
 | Coverage gaps | Warning | Code behaviors triaged as ADD/NOTE are covered |
+| Outcome coverage | Blocking/Warning | UI-enabler features have E2E outcome step (BLOCKING if incident-driven) |
 
 ---
 

@@ -119,6 +119,20 @@ If the synthesized context (from the orchestrator) includes a "Coverage Gap Tria
 
 If no Coverage Gap Triage section exists, skip this step.
 
+### Step 6.7: Functional Outcome Coverage Check
+
+Determine whether the test case verifies the feature's stated user outcome, or only the UI mechanics and data-path integration.
+
+1. Read the JIRA story description from the investigation context. Extract the feature's value statement — what user-visible outcome does this feature deliver?
+2. Check if the code change is UI-only (no backend controller/CRD/webhook files in the PR diff).
+3. If the JIRA description contains outcome language (prevents, preserves, enables, blocks, protects, enforces, deploys, migrates, provisions, removes, syncs, propagates) AND the code change is UI-only:
+   - Check if any test step verifies the functional outcome (look for steps titled "Verify Functional Outcome" or steps that test beyond "field X is set in YAML")
+   - If no outcome step exists: flag severity depends on context
+4. If the JIRA links to a bug or incident (linked issues, "customer-escalation" label, or description references a production issue): flag as **BLOCKING** — incident-driven features require outcome verification
+5. Otherwise: flag as **WARNING** — "Test case validates UI mechanics and data path but does not verify the feature's stated outcome: '[outcome from JIRA]'. Consider adding an E2E verification step."
+
+If the code change includes backend files, or the JIRA has no outcome language, skip this check.
+
 ## Output Format
 
 ```

@@ -84,6 +84,40 @@ Examples:
 - `value ?? 0` → "When no data exists, the field shows '0' (not a dash or empty)"
 - `skip: !isInstalled` → "The column/feature is NOT present when [component] is not installed"
 
+## Step 5.5: Functional Outcome Verification (E2E)
+
+If the synthesized context includes an `Outcome Verification` section with status `OUTCOME_VERIFICATION_NEEDED` or `OUTCOME_VERIFICATION_REQUIRED`, generate a final test step that verifies the feature's stated functional outcome — not just the UI state.
+
+### When to Generate
+
+- `OUTCOME_VERIFICATION_REQUIRED`: MUST generate the E2E step. Skip only if the backend behavior is provably untestable from the test environment (document why in Notes).
+- `OUTCOME_VERIFICATION_NEEDED`: SHOULD generate the E2E step. Skip if the outcome is already implicitly covered by existing CLI backend validation steps (document the coverage in Notes).
+- `NOT_NEEDED`: Do not generate.
+
+### How to Write the E2E Step
+
+The step follows a 4-part structure:
+
+1. **Precondition setup** — Create the resource with the feature enabled (may reuse resources from earlier steps)
+2. **Trigger action** — Perform the action the feature is designed to handle (e.g., delete the parent resource, revoke access, disconnect the cluster)
+3. **Outcome verification** — Verify the stated user outcome occurred (e.g., child resources preserved, access blocked, failover completed)
+4. **Wait-for-ready** — If the backend behavior is asynchronous (controller reconciliation, ArgoCD sync, policy propagation), include explicit wait conditions before checking the outcome
+
+### Step Title Format
+
+```
+### Step N: Verify Functional Outcome — [outcome description]
+```
+
+The "Verify Functional Outcome" prefix marks this as an outcome verification step for the reviewer to identify. Do not append tags like `[E2E]` to the step title.
+
+### Pitfalls
+
+- **Understand the mechanism.** Read the JIRA description AND any linked documentation to understand what specifically the backend does. The JIRA value statement ("prevents accidental deletion") is marketing language — the test must verify the technical behavior ("deployed K8s resources are orphaned, not cleaned up by the finalizer").
+- **Verify what survives vs what is expected to be deleted.** Some resources are expected to be removed (e.g., Kubernetes garbage collection of owned objects). The E2E step must distinguish between expected deletions and unexpected ones.
+- **Environment readiness.** If the outcome depends on resources being synced/deployed/healthy before the trigger action, add explicit readiness checks. A test that triggers deletion before resources exist proves nothing.
+- **Prerequisite documentation.** Add any extra Setup prerequisites the E2E step needs (target cluster access, specific Git repo branch, addon installation) to the test case Setup section.
+
 ## Step 6: Self-Review Checklist
 
 Check before completing:

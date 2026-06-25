@@ -166,6 +166,15 @@ If the synthesized context includes a Coverage Gap Triage section:
 2. For each gap triaged as `NOTE ONLY`: verify it's mentioned in the Notes section
 3. Flag missing coverage as WARNING
 
+#### Step 4.9: Functional Outcome Coverage
+
+If the JIRA description contains outcome language (prevents, preserves, enables, blocks, protects, enforces, deploys, migrates, provisions) AND the code change is UI-only:
+
+1. Check if any test step verifies the functional outcome (look for steps titled "Verify Functional Outcome" or steps that test beyond "field X is set in YAML")
+2. If the JIRA links to a bug or incident: flag as **Blocking** if no outcome step exists
+3. Otherwise: flag as **Warning** — "Test validates UI mechanics but does not verify the feature's stated outcome"
+4. If the code change includes backend files or the JIRA has no outcome language: skip this check
+
 ---
 
 ### Error Handling and Graceful Degradation
@@ -388,3 +397,4 @@ A test case must pass all of these before delivery:
 | Step format | Checks H3 heading, actions, results | Validates `### Step N:` + `**Expected Result:**` |
 | Teardown | Checks cleanup coverage | Checks `--ignore-not-found` |
 | AC vs implementation | Compares JIRA ACs against test expectations | Not checked |
+| Outcome coverage | E2E step for UI-enabler features (BLOCKING if incident-driven) | Not checked |

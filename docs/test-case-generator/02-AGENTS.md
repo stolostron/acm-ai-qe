@@ -178,11 +178,12 @@ Merges all three investigation outputs (Phases 1-3) into a unified context docum
 3. Concatenate investigation findings
 4. Scope gate: filter to target JIRA story's ACs only
 5. AC vs implementation cross-reference
-6. Conflict resolution (ui-discoverer > data-gatherer > code-analyzer per domain)
-7. Coverage gap triage (ADD/NOTE/SKIP)
-8. Test design optimization (5 passes)
-9. Write test plan with step estimates
-10. Self-verification against synthesis template
+6. Outcome-intent detection: if UI-only code change AND JIRA outcome language, flag `OUTCOME_VERIFICATION_NEEDED` (escalate to `REQUIRED` if linked to bug/incident)
+7. Conflict resolution (ui-discoverer > data-gatherer > code-analyzer per domain)
+8. Coverage gap triage (ADD/NOTE/SKIP)
+9. Test design optimization (5 passes)
+10. Write test plan with step estimates
+11. Self-verification against synthesis template
 
 ### Output
 
@@ -268,6 +269,7 @@ Writes the Polarion-ready test case markdown from the synthesized investigation 
 - Finds component-specific parameterized routes, not just area-level routes
 - Never states numeric thresholds without evidence from PR diff, JIRA AC, MCP, or area knowledge
 - AC discrepancy notes: if synthesized context has discrepancies, includes Notes explaining each
+- If synthesized context flags `OUTCOME_VERIFICATION_NEEDED` or `REQUIRED`, generates a functional outcome verification step titled "Verify Functional Outcome — [description]"
 - Self-reviews before writing the file
 
 ### Output
@@ -308,6 +310,7 @@ Validates the generated test case against conventions, verifies UI elements were
 | 4.6 | Knowledge file cross-reference (field order, filtering, component names vs area knowledge) | Blocking |
 | 4.7 | Design efficiency (resource optimization, entry point selection, prerequisite completeness, step design) | Warning |
 | 4.8 | Coverage gap verification (gaps triaged as ADD have test steps, NOTE gaps mentioned) | Warning |
+| 4.9 | Functional outcome coverage (UI-enabler features have E2E outcome step) | Blocking/Warning |
 | 5 | Polarion HTML check (only on `/review`, not during `/generate`) | Warning |
 
 ### Verdict

@@ -2,6 +2,7 @@
   "anti_simulation": {
     "enforce_workspace_policy": true
   },
+  "skillListingBudgetFraction": 0.02,
   "statusLine": {
     "type": "command",
     "command": ".claude/statusline.sh"

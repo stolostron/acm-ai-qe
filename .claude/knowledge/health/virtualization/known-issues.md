@@ -142,6 +142,41 @@ Check MSA token expiry and Forklift controller logs.
 
 ---
 
+## 9. CCLM WaitingForReceiver Due to Sync Controller TLS Cert Mismatch
+
+**Versions:** ACM 5.0, CNV 4.23 | **Severity:** Critical (blocks all CCLM) | **Fix:** Certificate regeneration
+
+VM live migration stuck in `WaitForStateTransfer` / `WaitingForReceiver`. The spoke
+cluster's `virt-synchronization-controller` gRPC server cannot bind port 9185 because
+the server TLS certificate has a mismatched private key.
+
+**Root cause:** The `kubevirt-synchronization-controller-server-certs` secret on the
+spoke cluster has a TLS cert where the private key doesn't match the public key.
+This prevents the gRPC server from starting, so the hub's sync controller cannot
+establish the live migration data channel.
+
+**Signals:**
+- Spoke sync controller log: `"failed to load certificate: tls: private key does not match public key"`
+- Hub sync controller log: `"transport: Error while dialing: dial tcp <spoke-pod-ip>:9185: connect: connection refused"`
+- `/proc/net/tcp` on spoke sync pod shows NO LISTEN socket
+- VMIM status: `DecentralizedNotLiveMigratable`
+
+**Diagnostic:**
+```bash
+oc logs -n openshift-cnv -l kubevirt.io=virt-synchronization-controller --context=<spoke> | grep "failed to load"
+oc exec -n openshift-cnv <sync-pod> --context=<spoke> -- cat /proc/net/tcp  # check for LISTEN on 23E1 (9185 hex)
+```
+
+**Fix:**
+```bash
+oc delete secret kubevirt-synchronization-controller-server-certs -n openshift-cnv --context=<spoke>
+oc delete secret kubevirt-synchronization-controller-certs -n openshift-cnv --context=<spoke>
+oc delete pods -n openshift-cnv -l kubevirt.io=virt-synchronization-controller --context=<spoke>
+```
+KubeVirt's cert-manager regenerates the secrets automatically on pod restart.
+
+---
+
 ## Bug Pattern Distribution
 
 | Category | Count | Top Issues |
@@ -172,3 +207,4 @@ Check MSA token expiry and Forklift controller logs.
 | 6 | VM lifecycle issues | Partial | Various |
 | 7 | MSA rolebinding conflicts | Manual workaround | Normal |
 | 8 | Providers go to staging | Restart provider | Normal |
+| 9 | CCLM sync controller TLS cert mismatch | Manual workaround | Critical |

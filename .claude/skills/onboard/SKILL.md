@@ -47,18 +47,21 @@ AI Systems Suite — Interactive Setup
 
 This repo provides ACM QE capabilities as portable skills:
 
-  Skills (portable, in .claude/skills/):
-  ──────────────────────────────────────
+  Skills (19 portable, in .claude/skills/):
+  ──────────────────────────────────────────
   Shared capabilities:
-    acm-cluster-health        12-layer cluster health diagnostics
     acm-knowledge-base        ACM domain knowledge (area architecture, conventions)
+    acm-cluster-health        12-layer cluster health diagnostics
     acm-jenkins-client        Jenkins CI interface
 
   Test case generation:
     acm-test-case-generator   Orchestrator: generate test cases from JIRA tickets
-    acm-qe-code-analyzer         PR diff analysis for code changes
+    acm-qe-code-analyzer      PR diff analysis for code changes
     acm-test-case-writer      Test case markdown authoring
     acm-test-case-reviewer    Quality gate with MCP verification
+
+  Test case validation:
+    acm-test-case-validator   Orchestrator: execute test cases against live clusters
 
   Hub health diagnostics:
     acm-hub-health-check      Orchestrator: 6-phase cluster health diagnosis
@@ -70,7 +73,16 @@ This repo provides ACM QE capabilities as portable skills:
     acm-failure-classifier    5-phase classification engine (A through E)
     acm-cluster-investigator  Per-group 12-layer root cause investigation
     acm-data-enricher         Data enrichment (selectors, timeline, knowledge gaps)
-    acm-jenkins-client        Jenkins CI interface
+
+  Bug investigation:
+    acm-bug-hunter            Orchestrator: implementation audit from test cases
+    acm-bug-fix-verifier      Orchestrator: verify bug fixes in target environments
+
+  Playwright automation:
+    acm-playwright-automation Orchestrator: write Playwright E2E scripts for ACM Console
+
+  Utility:
+    onboard                   This setup wizard
 
   Apps (Claude Code specific, in apps/):
   ───────────────────────────────────────

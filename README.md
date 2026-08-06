@@ -12,8 +12,8 @@
 ## Get Started
 
 ```bash
-git clone https://github.com/stolostron/acm-ai-qe.git ai_systems_v2
-cd ai_systems_v2
+git clone https://github.com/stolostron/acm-ai-qe.git ai_systems
+cd ai_systems
 claude
 ```
 
@@ -28,7 +28,7 @@ The onboarding skill detects your environment, walks you through MCP server setu
 
 ## Skills
 
-20 portable skills available from the repo root -- just launch `claude` and ask in natural language.
+19 portable skills available from the repo root -- just launch `claude` and ask in natural language.
 
 ### Primary Workflows
 
@@ -40,6 +40,7 @@ The onboarding skill detects your environment, walks you through MCP server setu
 | **Hub Health Check** | Diagnoses ACM hub cluster health using a 6-phase pipeline with 4 depth modes. Checks operators, pods, addons, subsystems, dependency chains, and known failure patterns. | `"How's my hub health?"` (after `oc login`) |
 | **Bug Hunter** | Proactively hunts for bugs in ACM feature implementations using test cases as a starting point. 10-dimension investigation with adversarial subagents. | `"Hunt bugs using RHACM4K-61733"` |
 | **Bug Fix Verifier** | Verifies whether a known bug fix has landed on a target environment. Checks branch reachability, build dates, code presence, and UI behavior. | `"Verify ACM-29818 is fixed on this cluster"` |
+| **Playwright Automation** | Write Playwright E2E automation scripts for ACM Console -- 7-phase pipeline with requirements extraction, UI discovery, code generation, and test execution. | `/acm-playwright-automation RHACM4K-xxxxx` |
 
 ### Supporting Skills
 
@@ -64,8 +65,6 @@ These are called by the primary workflows or used standalone for focused tasks.
 | Skill | Purpose |
 |-------|---------|
 | **Onboard** | Interactive setup -- detects environment, configures MCP servers, prompts for credentials. |
-| **Grill Me** | Structured decision interrogation -- stress-tests plans and designs through relentless questioning, sharpens domain language. |
-| **YouTube Digest** | Extracts YouTube transcripts and produces structured digests with key takeaways, timestamps, and topic timelines. |
 
 ## Apps
 
@@ -105,9 +104,9 @@ You ──> Claude Code ──> Skill ──> Pipeline
 ## Project Layout
 
 ```
-ai_systems_v2/
+ai_systems/
 ├── .claude/
-│   ├── skills/                # 20 portable skills (usable from repo root)
+│   ├── skills/                # 19 portable skills (usable from repo root)
 │   ├── knowledge/             # Shared knowledge database (11 categories, 14 subsystems)
 │   ├── commands/pre-push.md   # /pre-push quality gate
 │   ├── settings.json          # Root-level Claude Code settings

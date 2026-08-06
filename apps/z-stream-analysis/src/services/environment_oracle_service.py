@@ -598,7 +598,7 @@ class EnvironmentOracleService:
         """Try to load Polarion token from .env file in mcp/polarion/."""
         # __file__ is src/services/environment_oracle_service.py
         # App root (z-stream-analysis/) is 3 parents up
-        # Repo root (ai_systems_v2/) is 5 parents up — where mcp/ lives
+        # Repo root (ai_systems/) is 5 parents up — where mcp/ lives
         app_root = Path(__file__).parent.parent.parent
         repo_root = app_root.parent.parent
         for env_path in [

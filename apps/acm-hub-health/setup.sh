@@ -36,7 +36,7 @@ if [ -d "$ACM_SOURCE_DIR" ]; then
   fi
 else
   echo "Warning: mcp/acm-source-mcp-server/ not found at repo root."
-  echo "Run 'bash mcp/setup.sh' from the ai_systems_v2 root, or copy the server manually."
+  echo "Run 'bash mcp/setup.sh' from the ai_systems repo root, or copy the server manually."
 fi
 echo ""
 

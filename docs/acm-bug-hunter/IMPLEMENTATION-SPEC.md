@@ -1,6 +1,6 @@
 # ACM Bug Hunter -- Implementation Specification
 
-## For: Claude Code implementation in `ai_systems_v2/.claude/skills/acm-bug-hunter/`
+## For: Claude Code implementation in `ai_systems/.claude/skills/acm-bug-hunter/`
 
 This document is the complete specification for building the `acm-bug-hunter` skill. It contains every decision made during the design phase, including architectural choices, confidence mechanisms, iteration limits, safety protocols, and integration with existing skills. Implement exactly as specified unless a technical constraint requires deviation -- in which case, document the deviation and rationale.
 
@@ -24,7 +24,6 @@ Both are valuable outcomes.
 
 | Existing Skill | Relationship |
 |----------------|--------------|
-| `grill-me` | Inspiration for the questioning methodology, but this skill asks itself and investigates autonomously instead of asking the user |
 | `acm-test-case-generator` | Opposite direction -- that skill builds test cases from JIRA tickets; this skill takes a finished test case and stress-tests the implementation it covers |
 | `acm-failure-classifier` | Analyzes *failed* test runs; this skill analyzes *passing or untested* cases to predict bugs proactively |
 | `acm-cluster-health` 12-layer model | The 10-dimension model here was NOT adapted from the 12-layer infrastructure model. The 12-layer model maps infrastructure failure domains (compute, network, storage). This skill's dimensions map implementation correctness categories derived from ACM's architecture. |
@@ -509,13 +508,12 @@ When no live cluster is connected:
 
 ## 8. Existing Skill Dependencies and Updates Required
 
-### Skills this skill reuses from `ai_systems_v2/.claude/skills/`:
+### Skills this skill reuses from `ai_systems/.claude/skills/`:
 
 | Skill | Role in Bug Hunter | Update Needed? |
 |-------|-------------------|----------------|
 | `acm-qe-code-analyzer` | Phase 1: PR diff analysis | YES -- must be made repo-agnostic (currently hardcoded to stolostron/console and kubevirt-plugin) |
 | `acm-knowledge-base` | Architecture references for question formulation | NO -- read-only reference, already generic |
-| `grill-me` | Inspiration only (separate skill, not invoked) | NO |
 
 ### `acm-qe-code-analyzer` Update
 
@@ -548,7 +546,7 @@ When no live cluster is connected:
 ## 9. File Structure
 
 ```
-ai_systems_v2/.claude/skills/acm-bug-hunter/
+ai_systems/.claude/skills/acm-bug-hunter/
   SKILL.md                    # Main skill file (orchestrator logic)
   references/
     analysis-dimensions.md    # 10-dimension model with question templates,
@@ -601,17 +599,17 @@ metadata:
 
 ---
 
-## 12. Reference Implementation (Cursor IDE -- already built and validated)
+## 12. Reference Implementation
 
-A working implementation exists in Cursor IDE at `~/.cursor/skills/acm-bug-hunter/`. The Claude Code implementation should be **functionally identical** to these files, adapted only for Claude Code's skill format (frontmatter, tool access patterns). Read these files as your primary reference:
+The skill is implemented in this repo at `.claude/skills/acm-bug-hunter/`. These files are the primary reference:
 
-| File | Path |
+| File | Path (repo-relative) |
 |------|------|
-| SKILL.md (orchestrator) | `~/.cursor/skills/acm-bug-hunter/SKILL.md` |
-| 10-dimension model | `~/.cursor/skills/acm-bug-hunter/references/analysis-dimensions.md` |
-| Confidence mechanism | `~/.cursor/skills/acm-bug-hunter/references/confidence-mechanism.md` |
-| Safety protocol | `~/.cursor/skills/acm-bug-hunter/references/safety-protocol.md` |
-| Report template | `~/.cursor/skills/acm-bug-hunter/references/report-template.md` |
+| SKILL.md (orchestrator) | `.claude/skills/acm-bug-hunter/SKILL.md` |
+| 10-dimension model | `.claude/skills/acm-bug-hunter/references/analysis-dimensions.md` |
+| Confidence mechanism | `.claude/skills/acm-bug-hunter/references/confidence-mechanism.md` |
+| Safety protocol | `.claude/skills/acm-bug-hunter/references/safety-protocol.md` |
+| Report template | `.claude/skills/acm-bug-hunter/references/report-template.md` |
 
 ---
 
@@ -653,12 +651,12 @@ Key gaps:
 
 In order of implementation:
 
-1. **Update `acm-qe-code-analyzer`** to accept a repo parameter (backward compatible). See the Cursor IDE version at `~/.cursor/agents/code-change-analyzer.md` for the repo-agnostic pattern.
-2. **Create `acm-bug-hunter/SKILL.md`** -- use `~/.cursor/skills/acm-bug-hunter/SKILL.md` as the reference
-3. **Create `acm-bug-hunter/references/analysis-dimensions.md`** -- use `~/.cursor/skills/acm-bug-hunter/references/analysis-dimensions.md` as the reference
-4. **Create `acm-bug-hunter/references/confidence-mechanism.md`** -- use `~/.cursor/skills/acm-bug-hunter/references/confidence-mechanism.md` as the reference
-5. **Create `acm-bug-hunter/references/safety-protocol.md`** -- use `~/.cursor/skills/acm-bug-hunter/references/safety-protocol.md` as the reference
-6. **Create `acm-bug-hunter/references/report-template.md`** -- use `~/.cursor/skills/acm-bug-hunter/references/report-template.md` as the reference
+1. **Update `acm-qe-code-analyzer`** to accept a repo parameter (backward compatible)
+2. **Create `acm-bug-hunter/SKILL.md`** -- reference: `.claude/skills/acm-bug-hunter/SKILL.md`
+3. **Create `acm-bug-hunter/references/analysis-dimensions.md`** -- reference: `.claude/skills/acm-bug-hunter/references/analysis-dimensions.md`
+4. **Create `acm-bug-hunter/references/confidence-mechanism.md`** -- reference: `.claude/skills/acm-bug-hunter/references/confidence-mechanism.md`
+5. **Create `acm-bug-hunter/references/safety-protocol.md`** -- reference: `.claude/skills/acm-bug-hunter/references/safety-protocol.md`
+6. **Create `acm-bug-hunter/references/report-template.md`** -- reference: `.claude/skills/acm-bug-hunter/references/report-template.md`
 7. **Test with RHACM4K-64019** (GPU Count Column) to validate -- compare results against Test Run 1 above
 8. **Test with RHACM4K-61866** (Delete RA) to validate -- compare results against Test Run 2 above
 
@@ -675,7 +673,7 @@ All decisions made during the design phase, for reference:
 | 3 | Subagent count | Full subagent ceremony for every applicable dimension. Robustness over efficiency. |
 | 4 | No-cluster behavior | Graceful degradation. Backend bugs can reach high confidence from source code. UI bugs capped at POTENTIAL_BUG. |
 | 5 | Iteration limits | Up to 6 questions per dimension (dynamic). Max 3 rounds per subagent. Fresh subagent allowed (also max 3 rounds). |
-| 6 | Phase 1 skill mapping | Must use ai_systems_v2 skills. acm-qe-code-analyzer needs repo-agnostic update. Skip UI Discovery for non-console areas. |
+| 6 | Phase 1 skill mapping | Must use ai_systems skills. acm-qe-code-analyzer needs repo-agnostic update. Skip UI Discovery for non-console areas. |
 | 7 | Output format | Markdown report only (V1). Future: JIRA filing, test case updates. |
 | 8 | Confidence mechanism | Hybrid: structured evidence inventory (authoritative) + self-assessed numeric score (secondary). "Confession" pattern from ralph-orchestrator. |
 | 9 | External research | NO external web search. Use stolostron/rhacm-docs (branch per ACM version) as primary source. Component repos as secondary. |

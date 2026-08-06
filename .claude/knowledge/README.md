@@ -95,16 +95,13 @@ All Claude Code skills resolve `KNOWLEDGE_DIR = ${CLAUDE_SKILL_DIR}/../../knowle
 **Cursor Playwright skill** reads: `automation/playwright/`, `ui/`, `architecture/`
 **Cursor Cypress skill** reads: `automation/cypress/`, `ui/`, `architecture/`
 
-Cursor skills reference this DB via absolute path: `/Users/ashafi/Documents/work/ai/ai_systems_v2/.claude/knowledge/automation/{framework}/{area}.md`
+Cursor skills reference this DB via absolute path: `<repo-root>/.claude/knowledge/automation/{framework}/{area}.md`
 
-## Local Mirror
+## Local Mirror (per-user, not in repo)
 
-An identical copy is maintained at `~/Documents/work/notes/knowledge/` via:
-- **Cursor stop hook** (`~/.cursor/hooks/sync-knowledge-db.sh`) — syncs at end of each agent session
-- **Manual/fswatch script** (`ai/tools/scripts/sync-knowledge-db.sh`) — real-time sync when run from terminal
-- **launchd plist** (`~/Library/LaunchAgents/com.ashafi.sync-knowledge-db.plist`) — auto-sync on login (requires Full Disk Access for rsync)
+Individual users may maintain a read-only mirror of this knowledge DB elsewhere on their machine (e.g., a notes workspace). This is optional and configured per-user via local hooks or sync scripts -- not part of this repo.
 
-Agents always write to this canonical location. The mirror is read-only and auto-synced.
+Agents always write to this canonical location (`<repo-root>/.claude/knowledge/`). Any mirror is read-only and auto-synced by user-local tooling.
 
 ## Contributing Knowledge
 

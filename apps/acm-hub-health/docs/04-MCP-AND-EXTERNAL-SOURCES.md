@@ -68,7 +68,7 @@ by `mcp/setup.sh` from the repo root.
 # Option A: App-level setup (from acm-hub-health/)
 bash setup.sh
 
-# Option B: Repo-level setup (from ai_systems_v2/)
+# Option B: Repo-level setup (from ai_systems/)
 # Select option 1 (ACM Hub Health Agent) when prompted
 bash mcp/setup.sh
 ```

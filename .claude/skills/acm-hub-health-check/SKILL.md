@@ -17,7 +17,7 @@ Diagnoses ACM hub cluster health using a 6-phase pipeline. Works at 4 depth leve
 
 KNOWLEDGE_DIR = `${CLAUDE_SKILL_DIR}/../../knowledge/`
 
-**Claude Code:** With the skill under `ai_systems_v2/.claude/skills/acm-hub-health-check/`, `../../knowledge` is `ai_systems_v2/.claude/knowledge/` in the clone.
+**Claude Code:** With the skill under `ai_systems/.claude/skills/acm-hub-health-check/`, `../../knowledge` is `ai_systems/.claude/knowledge/` in the clone.
 
 **Cursor (optional mirror only):** If you copy or symlink this skill under `~/.cursor/skills/` instead of loading it from the clone, also follow **`CURSOR-SYMLINK-INTEGRATION.md`** in this `.claude/skills/` folder so `../../knowledge` resolves. **Claude Code / repo-only use does not need this.**
 

@@ -17,7 +17,7 @@ Seven MCP servers provide external data access for the pipeline. Four are used d
 ## Setup
 
 ```bash
-cd ai_systems_v2/
+cd ai_systems/
 bash mcp/setup.sh
 # Select: 3) Test Case Generator
 ```

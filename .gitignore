@@ -98,6 +98,9 @@ __pycache__/
 *$py.class
 *.pyc
 
+# Python build artifacts
+*.egg-info/
+
 # Runtime credential protection  
 runtime-credentials-*
 session-auth-*
@@ -107,6 +110,9 @@ temp-auth-*
 build-credentials-*
 deployment-secrets-*
 ci-tokens-*
+
+# Generated images (diagrams, charts from pipeline runs)
+*.png
 
 # Backup protection
 *.backup

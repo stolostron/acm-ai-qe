@@ -1194,7 +1194,7 @@ class DataGatherer:
                         'Playbook prerequisites and failure paths still work.'
                     ),
                     'remediation': (
-                        'Run: bash mcp/setup.sh from the ai_systems_v2 repo root '
+                        'Run: bash mcp/setup.sh from the ai_systems repo root '
                         'to configure the Neo4j RHACM MCP server. Ensure the Neo4j '
                         'database is running and populated with RHACM component data.'
                     ),

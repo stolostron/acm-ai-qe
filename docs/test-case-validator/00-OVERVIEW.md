@@ -161,7 +161,7 @@ runs/test-case-validator/RHACM4K-64825/RHACM4K-64825-2026-06-23T14-48-40/
 
 ```bash
 # From repo root -- interactive (see live progress)
-cd ~/Documents/work/ai/ai_systems_v2_2
+cd /path/to/acm-ai-qe
 claude
 /acm-test-case-validator RHACM4K-64825 --cluster-url https://console.apps.hub.example.com --password <pw>
 

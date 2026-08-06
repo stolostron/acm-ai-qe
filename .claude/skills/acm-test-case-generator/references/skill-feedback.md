@@ -13,10 +13,10 @@ When a skill file produces incorrect guidance during pipeline execution, report 
 
 ## Where to Report
 
-File a GitHub issue on the repository configured as **`origin`** for your **`ai_systems_v2`** clone (see **`git remote -v`** from that directory). From the repo root:
+File a GitHub issue on the repository configured as **`origin`** for your **`ai_systems`** clone (see **`git remote -v`** from that directory). From the repo root:
 
 ```bash
-cd /path/to/ai_systems_v2
+cd /path/to/ai_systems
 gh issue create \
   --title "Skill feedback: <brief description>" \
   --label "skill-feedback" \

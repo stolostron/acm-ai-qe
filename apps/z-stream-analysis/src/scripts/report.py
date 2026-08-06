@@ -353,20 +353,23 @@ class ReportFormatter:
                 ])
                 
                 for i, item in enumerate(priority_order, 1):
-                    test_name = item.get('test', 'Unknown')
-                    priority = item.get('priority', 'MEDIUM')
-                    reason = item.get('reason', '')
-                    classification = item.get('classification', 'UNKNOWN')
-                    
-                    emoji = self.PRIORITY_EMOJI.get(priority, '⚪')
-                    lines.extend([
-                        f"### {i}. {test_name}",
-                        "",
-                        f"**Priority:** {emoji} {priority}",
-                        f"**Classification:** {classification.replace('_', ' ')}",
-                        f"**Reason:** {reason}",
-                        "",
-                    ])
+                    if isinstance(item, str):
+                        lines.extend([f"{i}. {item}", ""])
+                    else:
+                        test_name = item.get('test', 'Unknown')
+                        priority = item.get('priority', 'MEDIUM')
+                        reason = item.get('reason', '')
+                        classification = item.get('classification', 'UNKNOWN')
+
+                        emoji = self.PRIORITY_EMOJI.get(priority, '⚪')
+                        lines.extend([
+                            f"### {i}. {test_name}",
+                            "",
+                            f"**Priority:** {emoji} {priority}",
+                            f"**Classification:** {classification.replace('_', ' ')}",
+                            f"**Reason:** {reason}",
+                            "",
+                        ])
                 
                 lines.append("")
         
@@ -489,7 +492,10 @@ class ReportFormatter:
             ])
             
             # Error message
-            error_msg = error.get('message', '')
+            if isinstance(error, str):
+                error_msg = error
+            else:
+                error_msg = error.get('message', '')
             if error_msg:
                 error_display = error_msg[:200].replace('\n', ' ').replace('|', '\\|')
                 if len(error_msg) > 200:
@@ -587,25 +593,31 @@ class ReportFormatter:
         # Component diagnostics
         component_diags = cluster_inv.get('component_diagnostics', [])
         if component_diags:
-            unhealthy = [
-                c for c in component_diags
-                if c.get('deployment_status') not in ('Available', None)
-            ]
-            if unhealthy:
-                lines.extend([
-                    "### Unhealthy Components",
-                    "",
-                    "| Component | Subsystem | Status | Ready/Desired |",
-                    "|-----------|-----------|--------|---------------|",
-                ])
-                for c in unhealthy:
-                    lines.append(
-                        f"| {c.get('component_name', 'N/A')} | "
-                        f"{c.get('subsystem', 'N/A')} | "
-                        f"{c.get('deployment_status', 'N/A')} | "
-                        f"{c.get('ready_replicas', 0)}/{c.get('desired_replicas', 0)} |"
-                    )
+            if isinstance(component_diags, dict):
+                lines.extend(["### Component Diagnostics", ""])
+                for k, v in component_diags.items():
+                    lines.append(f"- **{k}:** {v}")
                 lines.extend(["", ""])
+            elif isinstance(component_diags, list):
+                unhealthy = [
+                    c for c in component_diags
+                    if isinstance(c, dict) and c.get('deployment_status') not in ('Available', None)
+                ]
+                if unhealthy:
+                    lines.extend([
+                        "### Unhealthy Components",
+                        "",
+                        "| Component | Subsystem | Status | Ready/Desired |",
+                        "|-----------|-----------|--------|---------------|",
+                    ])
+                    for c in unhealthy:
+                        lines.append(
+                            f"| {c.get('component_name', 'N/A')} | "
+                            f"{c.get('subsystem', 'N/A')} | "
+                            f"{c.get('deployment_status', 'N/A')} | "
+                            f"{c.get('ready_replicas', 0)}/{c.get('desired_replicas', 0)} |"
+                        )
+                    lines.extend(["", ""])
 
         # Backend failure signals
         backend_signals = cluster_inv.get('backend_failure_signals', [])
@@ -615,11 +627,14 @@ class ReportFormatter:
                 "",
             ])
             for signal in backend_signals:
-                lines.append(
-                    f"- **{signal.get('component', 'N/A')}**: "
-                    f"{signal.get('issue', 'N/A')} "
-                    f"(affects {signal.get('affected_feature_area', 'N/A')})"
-                )
+                if isinstance(signal, str):
+                    lines.append(f"- {signal}")
+                else:
+                    lines.append(
+                        f"- **{signal.get('component', 'N/A')}**: "
+                        f"{signal.get('issue', 'N/A')} "
+                        f"(affects {signal.get('affected_feature_area', 'N/A')})"
+                    )
             lines.extend(["", ""])
 
         return lines
@@ -656,61 +671,90 @@ class ReportFormatter:
             # Tier 0 health
             tier0 = cluster_inv_summary.get('tier_0_health', {})
             if tier0:
-                mch = tier0.get('mch_status', 'Unknown')
-                degraded = tier0.get('degraded_operators', [])
-                pressure = tier0.get('resource_pressure', {})
-                non_healthy = tier0.get('non_healthy_pods_count', 0)
+                if isinstance(tier0, str):
+                    lines.extend(["### Tier 0 Health Summary", "", f"- **Health:** {tier0}", ""])
+                elif isinstance(tier0, dict):
+                    mch = tier0.get('mch_status', 'Unknown')
+                    degraded = tier0.get('degraded_operators', [])
+                    pressure = tier0.get('resource_pressure', {})
+                    non_healthy = tier0.get('non_healthy_pods_count', 0)
 
-                lines.append("### Tier 0 Health Summary")
-                lines.append("")
-                lines.append(f"- **MCH Status:** {mch}")
-                if degraded:
-                    lines.append(f"- **Degraded Operators:** {', '.join(degraded)}")
-                active_pressure = [k for k, v in pressure.items() if v]
-                if active_pressure:
-                    lines.append(f"- **Resource Pressure:** {', '.join(active_pressure)}")
-                if non_healthy:
-                    lines.append(f"- **Non-Healthy Pods:** {non_healthy}")
-                lines.extend(["", ""])
+                    lines.append("### Tier 0 Health Summary")
+                    lines.append("")
+                    lines.append(f"- **MCH Status:** {mch}")
+                    if degraded:
+                        lines.append(f"- **Degraded Operators:** {', '.join(degraded)}")
+                    active_pressure = [k for k, v in pressure.items() if v]
+                    if active_pressure:
+                        lines.append(f"- **Resource Pressure:** {', '.join(active_pressure)}")
+                    if non_healthy:
+                        lines.append(f"- **Non-Healthy Pods:** {non_healthy}")
+                    lines.extend(["", ""])
 
             # Prerequisite summary
             prereq_summary = cluster_inv_summary.get('prerequisite_summary', [])
             if prereq_summary:
-                lines.extend([
-                    "### Prerequisites",
-                    "",
-                    "| Feature | Prerequisite | Status | Tests Affected |",
-                    "|---------|-------------|--------|----------------|",
-                ])
-                for p in prereq_summary:
-                    met = p.get('met')
-                    status = 'Met' if met is True else ('Unmet' if met is False else 'Unknown')
-                    lines.append(
-                        f"| {p.get('feature_area', 'N/A')} | "
-                        f"{p.get('prerequisite', 'N/A')} | "
-                        f"{status} | "
-                        f"{p.get('tests_affected', 0)} |"
-                    )
-                lines.extend(["", ""])
+                if isinstance(prereq_summary, str):
+                    lines.extend(["### Prerequisites", "", prereq_summary, ""])
+                elif isinstance(prereq_summary, list):
+                    all_dicts = all(isinstance(p, dict) for p in prereq_summary)
+                    if all_dicts:
+                        lines.extend([
+                            "### Prerequisites",
+                            "",
+                            "| Feature | Prerequisite | Status | Tests Affected |",
+                            "|---------|-------------|--------|----------------|",
+                        ])
+                        for p in prereq_summary:
+                            met = p.get('met')
+                            status = 'Met' if met is True else ('Unmet' if met is False else 'Unknown')
+                            lines.append(
+                                f"| {p.get('feature_area', 'N/A')} | "
+                                f"{p.get('prerequisite', 'N/A')} | "
+                                f"{status} | "
+                                f"{p.get('tests_affected', 0)} |"
+                            )
+                    else:
+                        lines.extend(["### Prerequisites", ""])
+                        for p in prereq_summary:
+                            if isinstance(p, str):
+                                lines.append(f"- {p}")
+                            elif isinstance(p, dict):
+                                met = p.get('met')
+                                status = 'Met' if met is True else ('Unmet' if met is False else 'Unknown')
+                                lines.append(f"- {p.get('feature_area', 'N/A')}: {p.get('prerequisite', 'N/A')} ({status})")
+                    lines.extend(["", ""])
 
             # Component health overview
             comp_health = cluster_inv_summary.get('component_health_overview', [])
             if comp_health:
-                lines.extend([
-                    "### Component Health",
-                    "",
-                    "| Feature | Component | Status | Restarts | Key Finding |",
-                    "|---------|-----------|--------|----------|-------------|",
-                ])
-                for c in comp_health:
-                    lines.append(
-                        f"| {c.get('feature_area', 'N/A')} | "
-                        f"{c.get('component', 'N/A')} | "
-                        f"{c.get('status', 'N/A')} | "
-                        f"{c.get('restart_count', 0)} | "
-                        f"{c.get('key_finding', 'N/A')} |"
-                    )
-                lines.extend(["", ""])
+                if isinstance(comp_health, str):
+                    lines.extend(["### Component Health", "", comp_health, ""])
+                elif isinstance(comp_health, list):
+                    all_dicts = all(isinstance(c, dict) for c in comp_health)
+                    if all_dicts:
+                        lines.extend([
+                            "### Component Health",
+                            "",
+                            "| Feature | Component | Status | Restarts | Key Finding |",
+                            "|---------|-----------|--------|----------|-------------|",
+                        ])
+                        for c in comp_health:
+                            lines.append(
+                                f"| {c.get('feature_area', 'N/A')} | "
+                                f"{c.get('component', 'N/A')} | "
+                                f"{c.get('status', 'N/A')} | "
+                                f"{c.get('restart_count', 0)} | "
+                                f"{c.get('key_finding', 'N/A')} |"
+                            )
+                    else:
+                        lines.extend(["### Component Health", ""])
+                        for c in comp_health:
+                            if isinstance(c, str):
+                                lines.append(f"- {c}")
+                            elif isinstance(c, dict):
+                                lines.append(f"- {c.get('feature_area', 'N/A')}: {c.get('component', 'N/A')} ({c.get('status', 'N/A')})")
+                    lines.extend(["", ""])
 
         # Playbook investigation results from per-test analysis
         per_test = self.analysis_results.get('per_test_analysis', [])
@@ -731,9 +775,9 @@ class ReportFormatter:
                 if len(test_name) > 50:
                     test_name = test_name[:47] + '...'
 
-                pb = t.get('playbook_investigation', {})
-                pa = t.get('prerequisite_analysis', {})
-                cid = t.get('cluster_investigation_detail', {})
+                pb = t.get('playbook_investigation') or {}
+                pa = t.get('prerequisite_analysis') or {}
+                cid = t.get('cluster_investigation_detail') or {}
 
                 path_id = pb.get('failure_path_id', (pa.get('matched_failure_mode') or {}).get('path_id', 'N/A'))
                 tier = cid.get('tier_reached', 'N/A')
@@ -927,9 +971,12 @@ class ReportFormatter:
                     "PRIORITY ACTIONS:",
                 ])
                 for i, item in enumerate(priority_order[:5], 1):
-                    test = item.get('test', 'Unknown')
-                    priority = item.get('priority', 'MEDIUM')
-                    lines.append(f"  {i}. [{priority}] {test[:40]}...")
+                    if isinstance(item, str):
+                        lines.append(f"  {i}. {item}")
+                    else:
+                        test = item.get('test', 'Unknown')
+                        priority = item.get('priority', 'MEDIUM')
+                        lines.append(f"  {i}. [{priority}] {test[:40]}...")
                 lines.append("")
         
         lines.extend([

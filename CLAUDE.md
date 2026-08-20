@@ -2,6 +2,18 @@
 
 Multi-app repository for ACM quality engineering tools, built on Claude Code.
 
+## Execution Preference: Skills First
+
+For any user-facing task in this repo, **enter through the portable skill in `.claude/skills/`, not the app pipeline in `apps/`.** The skills are the execution path; the apps are the backing implementation (tested deterministic Python, agents, knowledge) that the skills reuse.
+
+| User request | Execute this skill | Backing app (don't invoke for the request) |
+|--------------|--------------------|--------------------------------------------|
+| Jenkins pipeline / z-stream failure analysis | `acm-z-stream-analyzer` (with `acm-failure-classifier`, `acm-cluster-investigator`, `acm-data-enricher`) | `apps/z-stream-analysis/` agent pipeline |
+| Test case generation from a JIRA ticket | `acm-test-case-generator` (with `acm-test-case-writer`, `acm-test-case-reviewer`, `acm-qe-code-analyzer`) | `apps/test-case-generator/` agent pipeline |
+| ACM hub health diagnosis | `acm-hub-health-check` (with `acm-cluster-health`, `acm-cluster-remediation`, `acm-knowledge-learner`) | `apps/acm-hub-health/` agent pipeline |
+
+**Jenkins runs:** When a user provides a Jenkins URL or asks to analyze a run, invoke the **z-stream skill** — not the app. The skill orchestrates the AI stages (cluster diagnosis, enrichment, 12-layer classification) and reuses the app's tested deterministic scripts `gather.py` (Stage 1) and `report.py` (Stage 3) — those are called by the skill, not reimplemented. Use an app's own pipeline directly only for app development, debugging, or running its Python test suite.
+
 ## Applications
 
 ### Z-Stream Analysis (`apps/z-stream-analysis/`) — Active
@@ -92,15 +104,17 @@ Commit messages use conventional format: `type: concise description`
 - Do not amend published commits on shared branches
 - Before pushing, run `/pre-push` to verify tests pass, no credentials are staged, and no forbidden files are included
 
-## Running Z-Stream Analysis
+## Running Z-Stream Analysis (skill-first)
+
+Jenkins pipeline / z-stream failure analysis runs through the **`acm-z-stream-analyzer` skill**, not the app's agent pipeline (see Execution Preference above). The commands below invoke the skill:
 
 ```
-/analyze <JENKINS_URL>          # Full pipeline (5 stages)
+/analyze <JENKINS_URL>          # Full pipeline
 /gather <JENKINS_URL>           # Stage 1 only
 /quick <JENKINS_URL>            # Skip cluster diagnostic
 ```
 
-Or natural language: `Analyze this run: <JENKINS_URL>`. Claude Code runs each stage with visible progress updates — do NOT delegate the entire pipeline to a single agent. For manual pipeline commands, see `apps/z-stream-analysis/CLAUDE.md`.
+Or natural language: `Analyze this run: <JENKINS_URL>` → invoke the z-stream skill. Claude Code runs each stage with visible progress updates — do NOT delegate the entire pipeline to a single agent. The skill reuses the app's `gather.py` (Stage 1) and `report.py` (Stage 3). Run the app's raw pipeline commands directly only for app development or debugging (see `apps/z-stream-analysis/CLAUDE.md`).
 
 ## MCP Servers (`mcp/`)
 
@@ -206,8 +220,8 @@ ai_systems/
 ```bash
 # Z-stream analysis (from app directory)
 cd apps/z-stream-analysis/
-python -m pytest tests/unit/ tests/regression/ -q    # 759 tests, no external deps
-python -m pytest tests/ -q --timeout=300             # 804 tests (requires Jenkins VPN)
+python -m pytest tests/unit/ tests/regression/ -q    # 779 tests, no external deps
+python -m pytest tests/ -q --timeout=300             # 824 tests (requires Jenkins VPN)
 
 # Hub health (from app directory)
 cd apps/acm-hub-health/

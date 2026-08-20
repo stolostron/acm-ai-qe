@@ -36,7 +36,7 @@ The onboarding skill detects your environment, walks you through MCP server setu
 |-------|-------------|--------|
 | **Test Case Generator** | Generates Polarion-ready test cases from JIRA tickets. 9-phase pipeline: JIRA investigation, PR analysis, UI discovery, synthesis, optional live validation, writing, and mandatory quality review. | `"Generate a test case for ACM-30459"` |
 | **Test Case Validator** | Executes existing test cases step-by-step against a live ACM cluster via Playwright + CLI. 7-phase pipeline with evidence capture, conditional teardown, and per-step pass/fail reporting. | `/acm-test-case-validator RHACM4K-64825 --cluster-url <URL> --password <pw>` |
-| **Z-Stream Analyzer** | Classifies Jenkins pipeline test failures as PRODUCT_BUG, AUTOMATION_BUG, INFRASTRUCTURE, or NO_BUG. 4-stage pipeline with data gathering, cluster diagnostics, 12-layer AI classification, and report generation. | `"Analyze this run: <JENKINS_URL>"` |
+| **Z-Stream Analyzer** | Classifies Jenkins pipeline test failures into 7 types (PRODUCT_BUG, AUTOMATION_BUG, INFRASTRUCTURE, NO_BUG, MIXED, FLAKY, UNKNOWN). 5-stage pipeline: environment checks, data gathering, cluster diagnostics, 12-layer AI classification, and report generation. | `"Analyze this run: <JENKINS_URL>"` |
 | **Hub Health Check** | Diagnoses ACM hub cluster health using a 6-phase pipeline with 4 depth modes. Checks operators, pods, addons, subsystems, dependency chains, and known failure patterns. | `"How's my hub health?"` (after `oc login`) |
 | **Bug Hunter** | Proactively hunts for bugs in ACM feature implementations using test cases as a starting point. 10-dimension investigation with adversarial subagents. | `"Hunt bugs using RHACM4K-61733"` |
 | **Bug Fix Verifier** | Verifies whether a known bug fix has landed on a target environment. 9-phase pipeline: three-tier presence check (branch reachability, build date, code presence), PR code review, prerequisite gap analysis, environment health gate, and Playwright UI/backend verification -- yields FIXED / NOT FIXED / BLOCKED with a confidence level. | `"Verify ACM-29818 is fixed on this cluster"` |
@@ -68,7 +68,7 @@ These are called by the primary workflows or used standalone for focused tasks.
 
 ## Apps
 
-The primary workflows above are backed by full applications in `apps/` with their own agents, knowledge bases, tests, and slash commands.
+**Skills are the execution path.** When you ask in natural language (e.g. `"Analyze this run: <JENKINS_URL>"`), the **skill** runs — not the app. The applications in `apps/` are the backing implementation: tested deterministic Python, agents, knowledge bases, tests, and slash commands that the skills reuse (for example, the Z-Stream skill reuses the app's `gather.py` and `report.py`). Run an app's own pipeline directly only for app development, debugging, or its Python test suite.
 
 | App | Skills It Powers | Slash Commands |
 |-----|-----------------|----------------|
@@ -140,7 +140,7 @@ This repo integrates with MCP servers maintained by other teams (JIRA, Jenkins, 
 
 ```bash
 cd apps/z-stream-analysis
-python -m pytest tests/unit/ tests/regression/ -q    # 753 tests, no external deps
+python -m pytest tests/unit/ tests/regression/ -q    # 779 tests, no external deps
 ```
 
 See each app's `CLAUDE.md` for architecture details and development conventions. For skill authoring standards, see [`docs/skill-authoring-guide.md`](docs/skill-authoring-guide.md). For the skill inventory and blast radius map, see [`docs/skill-architecture.md`](docs/skill-architecture.md).

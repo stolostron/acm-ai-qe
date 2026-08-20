@@ -1,0 +1,14 @@
+{
+  "analysis_metadata": {
+    "build_result": "ABORTED"
+  },
+  "per_test_analysis": [],
+  "summary": {
+    "by_classification": {}
+  },
+  "investigation_phases_completed": [],
+  "pipeline_failure": {
+    "root_cause": "Build aborted before the test suite started (Jenkins agent lost connection).",
+    "recommendation": "Re-run the pipeline; if it re-aborts, check Jenkins agent availability."
+  }
+}

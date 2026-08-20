@@ -65,7 +65,7 @@ Read `references/phase-a-grouping.md` for full details.
 
 Read `references/phase-b-investigation.md` for full details.
 
-For each group (or individual test), use the acm-cluster-investigator skill to perform 12-layer investigation. The investigator:
+For each group (or individual test), spawn a subagent (model: opus) following `../acm-cluster-investigator/SKILL.md` to perform the 12-layer investigation. If subagent spawning is unavailable, run the investigation inline. The investigator:
 - Maps symptom to starting layer
 - Checks pre-computed data from cluster-diagnosis.json
 - Runs counterfactual verification for cluster-wide issues
@@ -84,9 +84,11 @@ For each group (or individual test), use the acm-cluster-investigator skill to p
 
 ### Phase C: Correlate
 
-**C1: Multi-Evidence Check** -- Verify each classification has 2+ evidence sources.
-**C2: Cascading Analysis** -- If one infrastructure issue explains multiple failures, document the cascade.
-**C3: Pattern Correlation** -- Look for systemic patterns (all CLC tests fail -> check hive; all search tests fail -> check search-postgres).
+Read `references/phase-c-correlation.md` for full details (component-dependency cascade detection, the bulk-selector rule, and the KG-unavailable fallback).
+
+**C1: Multi-Evidence Check** -- Verify each classification has 2+ evidence sources (see the combination rule in `../acm-z-stream-analyzer/references/evidence-requirements.md`).
+**C2: Cascading Analysis** -- Two DISTINCT cascades: (a) **component-dependency cascade** -- when multiple failing components share an upstream dependency (detected via the neo4j-rhacm common-dependency query, or the `${KNOWLEDGE_DIR}/baselines/dependency-chains.yaml` fallback), identify the root-cause component, mark the dependents as symptoms (not separate bugs), and collapse to a SINGLE PRODUCT_BUG for the root cause; (b) **infrastructure cascade** -- when one infrastructure issue explains multiple failures, document the cascade. See `references/phase-c-correlation.md`.
+**C3: Pattern Correlation** -- Look for systemic patterns (all CLC tests fail -> check hive; all search tests fail -> check search-postgres). If **80% of failures share the same confirmed-dead selector** (and `recent_selector_changes` does not hint a product removal), treat it as a bulk **AUTOMATION_BUG** with a single root cause.
 
 ### Phase D: Validate and Route
 
@@ -163,7 +165,7 @@ If an MCP is unavailable, degrade the investigation tier rather than aborting:
 | MCP | Used In | Fallback |
 |-----|---------|----------|
 | acm-source | Tier 1+ selector verification | Stay at Tier 0 (extracted context only). Note `console_search` results as "unverified" |
-| neo4j-rhacm | Tier 4 dependency analysis | Use `${KNOWLEDGE_DIR}/dependencies/` knowledge files instead |
+| neo4j-rhacm | Tier 4 dependency + Phase C2 cascade analysis | Use `${KNOWLEDGE_DIR}/baselines/dependency-chains.yaml` for dependency chains (Phase C2 cascade fallback) |
 | jira | Phase E bug correlation | Skip Phase E. Set `jira_correlation: "unavailable"` in output |
 | polarion | PR-6b expected behavior | Skip PR-6b. Rely on other pre-routing checks |
 

@@ -6,11 +6,13 @@ Every classification must satisfy ALL of these:
 
 ### 1. Minimum 2 Evidence Sources
 Single-source evidence is insufficient for any classification. Combine:
-- Tier 1 (definitive, weight 1.0): oc command output, MCP search result, cluster-diagnosis finding, console_search verification
-- Tier 2 (strong, weight 0.5): KG dependency analysis, JIRA correlation, knowledge DB pattern match, git timeline
+- Tier 1 (definitive, weight 1.0): oc command output, MCP search result, cluster-diagnosis finding, console_search verification, `recent_selector_changes` (selector rename detected in product git history, with intent assessment)
+- Tier 2 (strong, weight 0.5): KG dependency analysis, JIRA correlation, knowledge DB pattern match
 - Tier 3 (supportive, weight 0.25): timing correlation, similar past incidents
 
-Combined weight must be >= 1.8 for high confidence (0.85+).
+**Minimum evidence to classify:** at least 2 sources satisfying the combination rule -- **1 Tier 1 + 1 Tier 2, OR 2 Tier 1, OR 3 Tier 2**. Two Tier 3 sources do NOT meet the bar. This is the floor for ANY classification, separate from the confidence gate below.
+
+**High-confidence gate:** combined weight must be >= 1.8 for high confidence (0.85+). Worked examples: 1 Tier 1 + 1 Tier 2 = 1.5 -> moderate confidence (0.65-0.75); 2 Tier 1 = 2.0 -> high confidence; 3 Tier 2 = 1.5 -> moderate.
 
 ### 2. Ruled Out Alternatives
 For each classification, explicitly document why the OTHER classifications don't fit:

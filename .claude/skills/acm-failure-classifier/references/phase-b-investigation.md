@@ -2,11 +2,18 @@
 
 ## Investigation Dispatch
 
-For each group (or individual test) from Phase A4, dispatch to the acm-cluster-investigator skill with:
+For each group (or individual test) from Phase A4, spawn a subagent (model: opus) following `../../acm-cluster-investigator/SKILL.md`, passing:
 - Test failure data (name, error, selector, extracted_context)
 - cluster-diagnosis.json excerpt for the feature area
 - Paths (kubeconfig, knowledge directory, repos)
 - Feature area
+
+## Input Economy (cost)
+
+Prefer already-gathered context over re-fetching:
+- Read `test_file.content` (up to 200 lines, gathered in Stage 1) and `component_log_excerpts` from `core-data.json` / `cluster-diagnosis.json` before running `oc logs` or re-reading repo files.
+- Honor gather.py's `truncated` flag -- do not re-download a log that was intentionally capped; work from the excerpt unless a specific deeper line is required.
+- Deduplicate by selector and by file: investigate one representative of a provably linked group, then apply the 4-point verification to the rest instead of re-running the full investigation per test.
 
 ## B1: Extracted Context Analysis
 
@@ -39,11 +46,11 @@ When subscription/channel tests fail with timeouts, check Jenkins parameters for
 
 ## MCP Tool Trigger Matrix
 
-**Set correct versions first:** Before any MCP queries, call `set_acm_version()` with the ACM version from `cluster_landscape.mch_version`. For VM tests, call `detect_cnv_version()`.
+**Set the acm-source version first:** Before any **acm-source** MCP query (`search_code`, `get_acm_selectors`, `find_test_ids`, etc.), call `set_acm_version()` with the ACM version from `cluster_landscape.mch_version` (major.minor); for VM tests also call `detect_cnv_version()`. This is an acm-source prerequisite only -- JIRA, Neo4j, Polarion, and acm-search queries do not need it and proceed normally even when acm-source is unavailable. Record each call in `mcp_queries_executed[].tool` (canonical `mcp__<server>__<tool>` form, e.g. `mcp__acm-source__search_code`, `mcp__neo4j-rhacm__read_neo4j_cypher`) only when it actually runs.
 
 | Trigger Condition | MCP Tool | Query |
 |---|---|---|
-| Start of investigation | `set_acm_version` | Set to latest GA version |
+| Start of investigation | `set_acm_version` | Set to `cluster_landscape.mch_version` (major.minor) |
 | VM test failure | `detect_cnv_version` | Auto-sets kubevirt branch |
 | Selector not found | `get_acm_selectors` | `get_acm_selectors('catalog', '<component>')` |
 | Cross-repo search needed | `search_code` | `search_code('<selector>', 'acm')` |

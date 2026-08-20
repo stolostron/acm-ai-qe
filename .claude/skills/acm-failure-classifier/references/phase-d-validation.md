@@ -53,6 +53,14 @@ Test timed out AND subsystem is degraded/critical. Classification: **INFRASTRUCT
 ### Path B2: JIRA-Informed / Complex
 Tests that don't clearly match Path A or B1. Use full investigation results, JIRA correlation, and evidence chain. Can result in any classification.
 
+## D-V1: Evidence Check (minimum-evidence + high-confidence gate)
+
+Before routing, verify every classification clears the evidence bar (the tier weights and the discrete combination rule are the single source of truth in `../../acm-z-stream-analyzer/references/evidence-requirements.md`):
+
+- **Minimum evidence to classify (REQUIRED):** at least 2 evidence sources satisfying the combination rule (1 Tier 1 + 1 Tier 2, OR 2 Tier 1, OR 3 Tier 2). A raw count of 2 is insufficient if both are Tier 3.
+- **High-confidence gate:** combined weight >= 1.8 (Tier 1 = 1.0, Tier 2 = 0.5, Tier 3 = 0.25) for confidence 0.85+.
+- If either bar is unmet, do NOT finalize -- flag the test for re-investigation or lower its confidence accordingly.
+
 ## Counterfactual Validation (D-V5)
 
 Mandatory for ALL cluster-wide INFRASTRUCTURE classifications. 4-step process:
@@ -67,20 +75,44 @@ Mandatory for ALL cluster-wide INFRASTRUCTURE classifications. 4-step process:
 
 **STEP 4: Per-test evidence requirement** -- Every INFRASTRUCTURE classification from a cluster-wide issue MUST have at least one evidence source specific to THAT test (not just cluster-wide findings). Evidence that only references cluster-wide state (e.g., "tampered console image detected") without per-test verification is INSUFFICIENT. Lower confidence to <= 0.60.
 
-9 verification templates:
+9 verification templates (one per error type). The canonical table -- with the exact verification method and reclassification action for each -- is in `../../acm-cluster-investigator/references/symptom-layer-map.md` ("Counterfactual Verification Templates"), the single source of truth. The nine error types are: (1) selector not found, (2) button disabled, (3) timeout, (4) data assertion (X != Y), (5) blank page, (6) CSS visibility:hidden / opacity:0, (7) NetworkPolicy blocking, (8) operator at 0 replicas, (9) ResourceQuota exceeded.
 
-For each test classified INFRASTRUCTURE, ask: "Would this test PASS if the infrastructure issue were fixed?"
+For each test classified INFRASTRUCTURE, ask: "Would this test PASS if the infrastructure issue were fixed?" then apply the matching template above.
 
 ### D-V5c: Symmetric Validation for AUTOMATION_BUG (v4.0)
-Ask: "Does the backend confirm the test's expectation is correct?"
-- If backend says the expected value IS correct but product renders differently -> PRODUCT_BUG, not AUTOMATION_BUG
-- If backend says the expected value is OUTDATED -> AUTOMATION_BUG confirmed
 
-### D-V5e: Symmetric Validation for PRODUCT_BUG (v4.0)
-Ask: "Is the product behavior actually correct (and the test expectation is wrong)?"
-- Check recent product changes, feature redesigns, intentional behavior changes
-- If product intentionally changed -> AUTOMATION_BUG (test needs updating)
-- If product behavior is incorrect -> PRODUCT_BUG confirmed
+Ask for EVERY test classified AUTOMATION_BUG (a required check, NOT a hard gate):
+
+1. **"Does the backend confirm the test's expectation is correct?"** -- verify with read-only `oc auth can-i` / `oc get <resource>`. If the backend state matches what the test expects (the user DOES have permission, the resource DOES exist) but the product doesn't deliver it, reclassify as **PRODUCT_BUG** -- this is a layer discrepancy (lower layer healthy, higher layer defective; see the "Layer discrepancy" note in Counter-Bias Validation below and diagnostic-layers.md "Layer Discrepancy Detection").
+2. **"Is this a known product change the test hasn't caught up with?"** -- read the Polarion test case; does its setup/description still match current product behavior?
+   - Polarion shows X, product shows Y, and Y is a deliberate change -> keep **AUTOMATION_BUG** (test needs updating for the new behavior).
+   - Y is NOT a deliberate change -> reclassify as **PRODUCT_BUG**.
+
+This is the AUTOMATION_BUG-direction Polarion check, distinct from PR-6b (the PRODUCT_BUG-direction one).
+
+### D-V5e: Symmetric Validation for PRODUCT_BUG (v4.0) -- MANDATORY GATE
+
+No test may be classified **PRODUCT_BUG** without completing ALL 4 checks below. If any check cannot be completed, the classification **defaults to AUTOMATION_BUG with low confidence**.
+
+1. **"Is the product behavior actually correct, and the test wrong?"** -- you MUST use the ACM-Source MCP to verify product source:
+   - text assertion mismatch -> `search_translations()` / `search_code()` (old text removed, new text added);
+   - element not found -> `search_code()` to confirm the element exists in official source;
+   - button disabled -> `search_code()` for the component's permission/RBAC logic.
+   "Unclear" or "needs product-team verification" is NOT a valid PRODUCT_BUG justification -- investigate until you know. If the source shows the behavior is intentional, reclassify AUTOMATION_BUG.
+2. **"Is there evidence of an INTENTIONAL product change?"** -- if the test expected text A but the product shows a valid semantic change (e.g. 'Create' -> 'Configure'), this is AUTOMATION_BUG (stale assertion), owner = Automation Team.
+3. **"Is the behavior caused by infrastructure or environment?"** -- cross-reference the cluster oracle and `cluster-diagnosis.json` when the test depends on specific resources/operators. Environment setup gap -> AUTOMATION_BUG; runtime failure of a healthy-by-design component -> INFRASTRUCTURE.
+4. **"Does the investigation have sufficient depth?"** -- PRODUCT_BUG requires at least 3 investigation steps including at least one ACM-Source MCP verification. Fewer -> insufficiently supported; investigate further before assigning PRODUCT_BUG.
+
+### PRODUCT_BUG Hard Gate (v4.0 -- MANDATORY)
+
+Before ANY test is finalized as PRODUCT_BUG, verify ALL of these. If any cannot be completed, **default to AUTOMATION_BUG (low confidence)**:
+
+1. **Product source checked** -- at least one ACM-Source MCP call (`search_code` / `search_translations` / `get_acm_selectors`) verified the product behavior. "Unclear" is not acceptable.
+2. **Not an intentional change** -- if the UI/text changed deliberately (old value -> new value, new value semantically valid), classify AUTOMATION_BUG instead.
+3. **Environment prerequisites met** -- if the test depends on specific resources, operators, or data, cross-reference the cluster oracle / `cluster-diagnosis.json` to confirm they exist. Missing prerequisites -> AUTOMATION_BUG or INFRASTRUCTURE, not PRODUCT_BUG.
+4. **Minimum 3 investigation steps** -- PRODUCT_BUG carries the highest downstream cost (product-team triage), so it demands deeper evidence than any other classification.
+
+This gate complements the D-V5e counterfactual above: D-V5e asks whether the product is actually correct; this gate ensures the evidence bar is met before PRODUCT_BUG is assigned.
 
 ## D4b: Causal Link Verification
 

@@ -35,11 +35,11 @@ You receive:
 
 ### Step 1: Read Knowledge Files
 
-Before investigating, read (from acm-cluster-health or acm-z-stream-analyzer references):
-- diagnostic-layers.md -- 12-layer investigation methodology
-- architecture/<area>/architecture.md -- how the subsystem works
-- architecture/<area>/failure-signatures.md -- known failure patterns
-- diagnostic-traps.md -- where obvious diagnosis is wrong
+Before investigating, read the methodology and area context from the sibling skill references and the shared knowledge DB (`${KNOWLEDGE_DIR}`):
+- 12-layer investigation methodology -- `../acm-cluster-health/SKILL.md` and its `references/`
+- `${KNOWLEDGE_DIR}/architecture/<area>/architecture.md` -- how the subsystem works
+- `${KNOWLEDGE_DIR}/failures/<area>/failure-signatures.md` -- known failure patterns
+- `${KNOWLEDGE_DIR}/diagnostics/diagnostic-traps.md` -- where obvious diagnosis is wrong
 
 ### Step 2: Map Symptom to Starting Layer
 
@@ -114,9 +114,10 @@ Use acm-source MCP `search_code` for intended behavior. Use jira MCP `search_iss
 
 ## Evidence Requirements
 
-- Minimum 2 evidence sources per classification
+- Minimum 2 evidence sources per classification, satisfying the combination rule (1 Tier 1 + 1 Tier 2, OR 2 Tier 1, OR 3 Tier 2) -- see `../acm-z-stream-analyzer/references/evidence-requirements.md` for the single-source rule
 - Tier 1 (weight 1.0): oc output, MCP result, cluster-diagnosis finding
 - Tier 2 (weight 0.5): KG analysis, JIRA correlation, knowledge pattern match
+- Tier 3 (weight 0.25): timing correlation, similar past incidents
 - Combined weight >= 1.8 for high confidence (0.85+)
 
 ## Output Format

@@ -30,6 +30,20 @@ This skill orchestrates the following skills:
 | **polarion** (MCP) | Stage 2 | Test case expected behavior |
 | **acm-knowledge-base** | All stages | Shared area architecture context |
 
+## Subagent Spawns and Model Tiering (cost)
+
+The AI stages run as real subagent spawns, not inline work. Each spawn:
+
+1. **Follows a sibling skill by relative path** -- spawn a subagent instructed to follow the sibling `SKILL.md`: `../acm-jenkins-client/SKILL.md` for pre-flight, `../acm-cluster-health/SKILL.md` for Stage 1.5, `../acm-data-enricher/SKILL.md` for enrichment, `../acm-failure-classifier/SKILL.md` for Stage 2, `../acm-knowledge-base/SKILL.md` for area context. Relative paths keep the pack portable from the repo root.
+2. **Names a `model:` tier per spawn** (Agent tool parameter, not frontmatter):
+   - **opus** -- reasoning and gates: Stage 1.5 cluster diagnostic, Stage 2 classification (Phase B/D), per-group investigation.
+   - **sonnet** -- mechanical work: data enrichment (selector verification, page-object tracing, timeline dedup).
+3. **Uses a pointer prompt** -- pass the subagent only the run-directory path plus the pointer to its sibling `SKILL.md`. Read back only the routing JSON it writes to the run directory (`cluster-diagnosis.json`, enriched `core-data.json`, `analysis-results.json`), never its full transcript. This caps orchestrator context growth.
+
+**Environment note:** if `CLAUDE_CODE_SUBAGENT_MODEL` is set it overrides per-spawn `model:` tiers -- every spawn then runs on that single model, removing the savings from tiering. Unset it (or set it deliberately) before a cost-sensitive run.
+
+Record every MCP call in `analysis-results.json` under `mcp_queries_executed[].tool` using the canonical `mcp__<server>__<tool>` form (e.g. `mcp__acm-source__search_code`).
+
 ## Pipeline Stages
 
 Read `references/pipeline-stages.md` for full details.
@@ -66,7 +80,7 @@ KNOWLEDGE_DIR = ${CLAUDE_SKILL_DIR}/../../knowledge/
 Stage 1.5: Running comprehensive cluster diagnostic...
 ```
 
-Using the acm-cluster-health skill methodology, perform a comprehensive cluster health assessment. Read the `cluster.kubeconfig` from the run directory.
+Spawn a subagent (model: opus) that follows the `../acm-cluster-health/SKILL.md` methodology to assess cluster health across all 12 layers. It reads `cluster.kubeconfig` from the run directory. If subagent spawning is unavailable, run the same methodology inline.
 
 Follow the 6-phase diagnostic process:
 1. **Discover:** MCH namespace, version, operators, nodes, managed clusters, CSVs, webhooks
@@ -84,7 +98,7 @@ The `cluster-diagnosis.json` **must** include these fields (required by the HTML
 - `console_plugins` (array) — each with `name`, `service`, `namespace`
 - `critical_issue_count` (integer) — count of critical infrastructure issues
 
-See `.claude/agents/cluster-diagnostic.md` Step 6.2 for the full schema with examples.
+See `references/cluster-diagnosis-schema.md` for the full schema, the `environment_health_score` weighted-penalty formula, and field-by-field definitions.
 
 Show summary: "Verdict: HEALTHY/DEGRADED/CRITICAL -- N subsystems checked, M issues found."
 
@@ -92,15 +106,33 @@ Skip if `--skip-env` was used or cluster access is unavailable.
 
 ### Data Enrichment (AI, runs after Stage 1.5)
 
-Using the acm-data-enricher skill, enrich `core-data.json`:
+Spawn a subagent (model: sonnet) that follows `../acm-data-enricher/SKILL.md` to enrich `core-data.json`:
 - Task 1: Resolve page objects (trace imports) -- **requires repos/**
 - Task 2: Verify selector existence (via acm-source MCP) -- **no repos needed**
 - Task 3: Selector timeline analysis (git history + intent) -- **requires repos/**
 - Task 4: Feature knowledge gap filling (conditional) -- **no repos needed**
 
-**Always run data enrichment when there are failed tests.** When `--skip-repo` was used, the agent runs Tasks 2 and 4 only (Tasks 1 and 3 are skipped with documented markers). Only skip data enrichment entirely when there are zero failed tests.
+**Run data enrichment when there are failed tests to classify.** When `--skip-repo` was used, the agent runs Tasks 2 and 4 only (Tasks 1 and 3 are skipped with documented markers). Skip data enrichment (and Stage 2) entirely when there are zero failed tests or the build was `ABORTED` -- see **Empty / ABORTED Short-Circuit** below.
 
 No stage banner needed -- runs quietly before Stage 2.
+
+### Empty / ABORTED Short-Circuit
+
+Before enrichment and Stage 2, check `jenkins.build_result` and the failed-test count in `core-data.json`:
+
+- **ABORTED build:** write a minimal `analysis-results.json` and skip straight to Stage 3:
+  ```json
+  {
+    "analysis_metadata": {"build_result": "ABORTED"},
+    "per_test_analysis": [],
+    "summary": {"by_classification": {}},
+    "investigation_phases_completed": []
+  }
+  ```
+  Add an optional `"pipeline_failure": {"root_cause": "...", "recommendation": "..."}` when the abort cause is known. `report.py` renders a "Build Aborted" section from this artifact.
+- **Zero failed tests or `NOT_BUILT`:** there is nothing to classify. Do NOT write an empty `per_test_analysis` with a non-`ABORTED` `build_result` (`report.py` rejects that). Skip Stage 2 output and let Stage 3 render from `core-data.json`.
+
+See `../acm-failure-classifier/references/output-schema.md` and `../acm-failure-classifier/references/phase-a-grouping.md` (A-pre) for the exact contract.
 
 ### Stage 2: AI Analysis (AI)
 
@@ -108,7 +140,9 @@ No stage banner needed -- runs quietly before Stage 2.
 Stage 2: Analyzing <N> failed tests (12-layer diagnostic investigation)...
 ```
 
-Using the acm-failure-classifier skill, analyze all failed tests:
+Skip this stage when the **Empty / ABORTED Short-Circuit** above applied (no failed tests to classify).
+
+Spawn a subagent (model: opus) that follows `../acm-failure-classifier/SKILL.md` to analyze all failed tests:
 - Phase A: Ground and group (feature context, environment health, pattern matching, provably linked grouping)
 - Phase B: 12-layer investigation per group (dispatches to acm-cluster-investigator)
 - Phase C: Multi-evidence correlation
@@ -172,7 +206,7 @@ Do NOT abort the pipeline for a missing optional MCP. Report which MCPs were una
 
 Before Stage 1, verify:
 1. `gh` CLI authenticated (`gh auth status`)
-2. Jenkins accessible (via acm-jenkins-client or curl)
+2. Jenkins accessible -- check via `../acm-jenkins-client/SKILL.md` connectivity steps, or `curl` the build URL
 3. Neo4j container running (attempt auto-start via Podman if not)
 
 ## Safety

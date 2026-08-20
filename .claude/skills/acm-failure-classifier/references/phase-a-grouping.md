@@ -1,5 +1,14 @@
 # Phase A: Ground and Group
 
+## A-pre: Empty / ABORTED Short-Circuit
+
+Before grounding or grouping, check the build outcome and the failed-test count (from `core-data.json`: `jenkins.build_result` plus the failed-test list). This decides whether Phases A-E run at all.
+
+- **ABORTED build** (`build_result == "ABORTED"`): there are no test results to classify. Do NOT run A0-A4, Phase B, Phase C, Phase D, or Phase E. Write a minimal `analysis-results.json` with `analysis_metadata.build_result: "ABORTED"`, `per_test_analysis: []`, `summary.by_classification: {}`, `investigation_phases_completed: []`, and an optional `pipeline_failure: {root_cause, recommendation}` when the abort cause is known. `report.py` renders a "Build Aborted" section from this artifact and exits successfully.
+- **Zero failed tests, or `NOT_BUILT`** (a completed build with nothing to classify): there is nothing for the classifier to do. Do NOT write an empty `per_test_analysis` with a non-`ABORTED` `build_result` -- `report.py` raises on that (an empty `per_test_analysis` is valid ONLY when `build_result == "ABORTED"`). Skip Stage 2 output entirely and let Stage 3 render from `core-data.json`.
+
+See `output-schema.md` ("Empty / ABORTED short-circuit") for the exact minimal artifact shape. A build with real failed tests proceeds normally to A0 below.
+
 ## A0: Feature Grounding
 
 Read `feature_grounding` from core-data.json. For each detected feature area:

@@ -86,7 +86,7 @@ Output: `feature_knowledge.ai_enrichment` in core-data.json. New failure pattern
 | acm-source | Task 2 (selector verification) | Skip Task 2 entirely. Leave `console_search` empty — downstream classifier treats missing as "unverified" |
 | jira | Task 3 (commit intent disambiguation) | Skip JIRA lookups in Task 3. Classify commit intent from diff context alone |
 
-acm-source is the primary MCP for this skill. Without it, enrichment is limited to page object resolution (Task 1) and git history analysis (Task 3). The classifier still works with unenriched data at reduced accuracy.
+acm-source is the primary MCP for this skill. Without it, enrichment is limited to page object resolution (Task 1) and git history analysis (Task 3). Never abort on a missing optional MCP -- degrade the affected task and record which MCPs were unavailable in the enrichment output. The classifier still works with unenriched data at reduced accuracy.
 
 ## Gotchas
 

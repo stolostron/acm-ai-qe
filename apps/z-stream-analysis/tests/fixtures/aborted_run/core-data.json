@@ -1,0 +1,8 @@
+{
+  "jenkins": {
+    "build_result": "ABORTED",
+    "job_name": "clc-e2e-pipeline",
+    "build_number": 0,
+    "url": "https://jenkins.example/job/clc-e2e-pipeline/0/"
+  }
+}

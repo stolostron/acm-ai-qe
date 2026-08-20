@@ -1,5 +1,13 @@
 # Data Enrichment Tasks -- Detailed Reference
 
+## Input Economy (cost)
+
+This is mechanical enrichment -- run it as a sonnet-tier subagent. Keep input bounded:
+- Deduplicate before any MCP call or file read: by `root_cause_file` (Task 1), by `failing_selector` (Tasks 2-3). Never re-verify a selector or re-read a file already processed.
+- Prefer `test_file.content` already in `core-data.json` when it holds the needed import/selector lines. When it is marked `truncated` before the needed line, Task 1 may perform ONE targeted read of the already-cloned `root_cause_file` (cached per `root_cause_file`, never read twice) instead of working from an incomplete excerpt; still prefer the complete stored content whenever it suffices.
+- Read `core-data.json` once, update in memory, write once (see Constraints).
+- Record each MCP call in the output using the canonical `mcp__<server>__<tool>` form (e.g. `mcp__acm-source__search_code`, `mcp__acm-source__set_acm_version`).
+
 ## Task 1: Resolve Page Objects
 
 ### Process

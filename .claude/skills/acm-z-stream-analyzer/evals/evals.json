@@ -50,6 +50,19 @@
         "Each failure type follows its investigation path generically, not by matching known error strings"
       ],
       "category": "edge-case"
+    },
+    {
+      "id": 5,
+      "prompt": "Analyze a Jenkins run that was ABORTED (or has zero failed tests), and run it with optional MCP servers (neo4j-rhacm, acm-search) unavailable.",
+      "expected_output": "The pipeline degrades gracefully: it still produces a valid report for the empty/ABORTED build, and never aborts when an optional MCP is missing.",
+      "assertions": [
+        "When build_result is ABORTED, Stage 2 writes a minimal analysis-results.json with per_test_analysis [], summary.by_classification {}, investigation_phases_completed [], and analysis_metadata.build_result 'ABORTED'",
+        "Stage 3 renders a 'Build Aborted' section from the minimal analysis-results.json and report.py exits successfully",
+        "When there are zero failed tests or build_result is NOT_BUILT, Stage 2 output is skipped (writing an empty per_test_analysis with a non-ABORTED build_result would make report.py raise); with no analysis-results.json, Stage 3 renders from core-data.json",
+        "When neo4j-rhacm is unavailable, Phase C cascade detection falls back to dependency-chains.yaml instead of aborting",
+        "A missing optional MCP (jira, polarion, acm-search, acm-kubectl) degrades only that step and is recorded in the pipeline summary, never aborting the pipeline"
+      ],
+      "category": "degradation"
     }
   ]
 }

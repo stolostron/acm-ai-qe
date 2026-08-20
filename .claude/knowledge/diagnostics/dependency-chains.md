@@ -1,3 +1,15 @@
+---
+type: diagnostics
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - diagnostics/diagnostic-layers.md
+  - versions/acm-2x-to-5x-changes.md
+version_notes:
+  - "work-manager hub deployment removed in ACM 5.0; use cluster-manager-work-webhook"
+  - "multicluster-operators-hub-subscription replaced standalone subscription-controller"
+---
+
 # Dependency Chains
 
 12 critical paths where failures cascade across ACM subsystems. When diagnosing
@@ -85,7 +97,7 @@ If Status Sync can't reach hub, compliance appears stale.
 2. Check propagator: `oc get pods -n <mch-ns> -l app=grc-policy-propagator`
 3. Check framework addon: `oc get managedclusteraddon governance-policy-framework -n <cluster>`
 4. Check config-policy-controller: `oc get managedclusteraddon config-policy-controller -n <cluster>`
-5. Check work-manager (delivers ManifestWorks): `oc get pods -n open-cluster-management-hub -l app=work-manager`
+5. Check work delivery: `oc get pods -n open-cluster-management-hub -l app=cluster-manager-work-webhook` *(ACM 5.0: work-manager removed as standalone hub deployment; work delivery handled by cluster-manager-work-webhook + spoke work-agent)*
 
 ---
 
@@ -111,7 +123,7 @@ OLM (Subscription + CSV)
         All ACM component operators
               |- search-api, search-indexer
               |- grc-policy-propagator
-              |- subscription-controller
+              |- multicluster-operators-hub-subscription
               |- console
               |- observability-operator
               +- cluster-permission

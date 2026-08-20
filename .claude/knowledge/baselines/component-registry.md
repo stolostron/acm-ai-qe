@@ -1,3 +1,19 @@
+---
+type: baselines
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - architecture/acm-platform.md
+  - versions/acm-2x-to-5x-changes.md
+version_notes:
+  - "MCH namespace varies: open-cluster-management (ACM 2.x default), ocm (ACM 5.0 default)"
+  - "iam-policy-controller removed in ACM 5.0"
+  - "subscription-controller replaced by multicluster-operators-hub-subscription"
+  - "console-mce deployment renamed to console-mce-console; pod label app=console-mce unchanged"
+  - "hive-operator moved from hive to multicluster-engine namespace"
+  - "cluster-manager replaced registration-operator (3 replicas)"
+---
+
 # ACM Component Registry
 
 Reference guide for ACM hub components. Use this to understand what components
@@ -89,8 +105,8 @@ Handle cluster creation, import, and upgrade operations.
   - `managedcluster-import-controller` -- imports clusters, deploys klusterlet
   - `cluster-curator` -- orchestrates upgrades via curator pods
   - `cluster-manager` -- core cluster management
-  - `registration-operator` -- hub-side registration
-  - `placement-controller` (in `open-cluster-management-hub`) -- placement decisions
+  - `cluster-manager` (3 replicas, in `multicluster-engine`) -- core cluster management; replaces standalone `registration-operator` in ACM 5.0
+  - `placement-controller` (in `open-cluster-management-hub`) -- placement decisions (deployed as `cluster-manager-placement-controller`, 3 replicas)
 - **Hive** (in `hive` namespace):
   - `hive-controllers` (Deployment) -- provisions cloud infrastructure for
     new clusters. Runs with `--disabled-controllers clustersync,machinepool`
@@ -168,8 +184,8 @@ Policy engine that propagates and enforces policies across managed clusters.
   - `governance-policy-framework` -- core framework, runs sync controllers
   - `config-policy-controller` -- enforces ConfigurationPolicy
   - `cert-policy-controller` -- enforces CertificatePolicy
-  - `iam-policy-controller` -- enforces IAM policies
-- **Data flow**: Policy (hub) -> propagator -> work-manager -> spoke controllers
+  - `iam-policy-controller` -- enforces IAM policies (deprecated in ACM 2.16, removed in ACM 5.0)
+- **Data flow**: Policy (hub) -> propagator -> spoke controllers
   -> compliance status back to hub
 - **Common issues**:
   - Propagator down -> policies don't distribute
@@ -225,10 +241,13 @@ Manages application deployment across clusters via subscriptions or GitOps.
 
 - **Namespace**: MCH namespace (discover dynamically)
 - **MCH component**: `app-lifecycle` (enabled by default)
-- **Key pods**:
-  - `subscription-controller` (label: `app=subscription-controller`) -- reconciles subscriptions
-  - `channel-controller` (label: `app=channel-controller`) -- manages channels
-  - `multicluster-operators-subscription` -- core subscription operator
+- **Key pods** (in MCH namespace, `ocm`):
+  - `multicluster-operators-application` (1 replica) -- application CRD controller
+  - `multicluster-operators-channel` (1 replica) -- channel CR management
+  - `multicluster-operators-hub-subscription` (1 replica) -- hub-side subscription processing
+  - `multicluster-operators-standalone-subscription` (1 replica) -- standalone subscription processing
+  - `multicluster-operators-subscription-report` (1 replica) -- subscription status reporting
+  - Note: standalone `subscription-controller` and `channel-controller` deployments no longer exist in ACM 5.0
 - **Add-on**: `application-manager` on spokes
 - **Two deployment models**:
   1. Subscription: Channel (Git/Helm/Object) -> Subscription -> PlacementRule -> ManifestWork
@@ -251,8 +270,8 @@ The ACM web console, delivered as OpenShift dynamic plugins.
   - `acm-cli-downloads-*` -- CLI download server
   - `multicluster-integrations-*` -- integration layer
 - **Console plugins**: Check `oc get consoleplugins` for registered plugins.
-  Common plugins: `acm`, `mce`, `kubevirt-plugin`, `forklift-console-plugin`,
-  `gitops-plugin`, `monitoring-plugin`, `networking-console-plugin`
+  Plugins on ACM 5.0: `acm`, `mce`, `kubevirt-plugin`, `forklift-console-plugin`,
+  `gitops-plugin`, `monitoring-plugin`, `monitoring-console-plugin`, `networking-console-plugin`
 - **Auth**: Flows through OpenShift OAuth
 - **Impact**: Console is the UI for ALL features. If console pods are down, all
   UI functionality fails
@@ -374,7 +393,7 @@ PVCs used by various ACM components.
 | Namespace | What lives here |
 |-----------|----------------|
 | MCH namespace (varies: `open-cluster-management`, `ocm`, or custom) | Most ACM hub components, operators, MCH operator itself |
-| `open-cluster-management-hub` | Hub-specific controllers (placement, work-manager, registration) |
+| `open-cluster-management-hub` | Hub-specific controllers (placement, registration, work webhook, addon manager/webhook) |
 | `multicluster-engine` | MCE operator and components |
 | `open-cluster-management-observability` | Observability stack (Thanos, Grafana, ~30+ pods) |
 | `open-cluster-management-backup` | Cluster backup resources |

@@ -1,3 +1,13 @@
+---
+type: data-flow
+subsystem: infrastructure
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - architecture/infrastructure/architecture.md
+  - failures/infrastructure/failure-signatures.md
+---
+
 # Infrastructure -- Data Flow
 
 ## Flow 1: Certificate Rotation

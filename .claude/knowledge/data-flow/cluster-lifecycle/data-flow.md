@@ -1,3 +1,17 @@
+---
+type: data-flow
+subsystem: cluster-lifecycle
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - architecture/cluster-lifecycle/architecture.md
+  - failures/cluster-lifecycle/failure-signatures.md
+version_notes:
+  - "managedcluster-import-controller runs in multicluster-engine namespace (not MCH namespace)"
+  - "addon-manager runs in open-cluster-management-hub namespace"
+  - "cluster-curator-controller runs in multicluster-engine namespace"
+---
+
 # Cluster Lifecycle (CLC) -- Data Flow
 
 ## Overview of Flows
@@ -29,7 +43,7 @@ Infrastructure provisioned (VMs, networking, DNS, LB)
   v  (cluster bootstraps)
 OCP cluster boots, kubeadmin-password + kubeconfig Secrets created
   |
-  v  (hub: open-cluster-management)
+  v  (hub: multicluster-engine namespace)
 managedcluster-import-controller detects completed CD
   |
   v  (auto-import)
@@ -172,7 +186,7 @@ disconnected environments.
 ```
 User creates ManagedCluster CR on hub
   |
-  v  (hub: open-cluster-management)
+  v  (hub: multicluster-engine namespace)
 managedcluster-import-controller generates import manifests
   |
   v  (import-secret created in <cluster-ns>)
@@ -187,7 +201,7 @@ klusterlet registers with hub (bootstrap -> signed cert)
   v
 ManagedCluster becomes Available=True
   |
-  v  (hub: open-cluster-management)
+  v  (hub: open-cluster-management-hub namespace)
 addon-manager deploys addons (search-collector, governance, etc.)
 ```
 
@@ -216,7 +230,7 @@ Import controller creates:
 - Bootstrap kubeconfig secret for initial registration
 
 **Failure:** Import controller CrashLoopBackOff -> no import secrets
-generated. Check `oc get pods -n open-cluster-management -l app=managedcluster-import-controller`.
+generated. Check `oc get pods -n multicluster-engine -l app=managedcluster-import-controller-v2`.
 
 **Step 3: Klusterlet deployment**
 
@@ -263,7 +277,7 @@ recreated. Fix: suppress auto-import when HC is being deleted.
 ```
 User creates/updates ClusterCurator CR
   |
-  v  (hub: open-cluster-management)
+  v  (hub: multicluster-engine namespace)
 cluster-curator-controller creates upgrade Job in <cluster-ns>
   |
   v  (optional: AAP integration)
@@ -423,12 +437,14 @@ secret rather than a Kubernetes client that auto-refreshes).
 ### managedcluster-import-controller down
 - **Symptom:** Completed CDs not auto-imported. Manual imports pending.
 - **Scope:** All imports blocked.
-- **Detection:** `oc get pods -n open-cluster-management -l app=managedcluster-import-controller`
+- **Detection:** `oc get pods -n multicluster-engine -l app=managedcluster-import-controller-v2`
+  (ACM 5.0: runs in `multicluster-engine` namespace, not `open-cluster-management`)
 
 ### cluster-curator-controller down
 - **Symptom:** Upgrades not starting. ClusterCurator CRs stay pending.
 - **Scope:** All upgrades blocked.
-- **Detection:** `oc get pods -n open-cluster-management -l app=cluster-curator`
+- **Detection:** `oc get pods -n multicluster-engine -l name=cluster-curator-controller`
+  (ACM 5.0: runs in `multicluster-engine` namespace, not `open-cluster-management`)
 
 ### klusterlet disconnected on spoke
 - **Symptom:** ManagedCluster shows Available=Unknown. All addons stale.

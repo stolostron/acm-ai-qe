@@ -1,3 +1,13 @@
+---
+type: data-flow
+subsystem: console
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - architecture/console/architecture.md
+  - failures/console/failure-signatures.md
+---
+
 # Console Subsystem -- Data Flow
 
 ## End-to-End Request Flow

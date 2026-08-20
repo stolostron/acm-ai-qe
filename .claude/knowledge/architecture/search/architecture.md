@@ -1,3 +1,15 @@
+---
+type: architecture
+subsystem: search
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - data-flow/search/data-flow.md
+  - health/search/known-issues.md
+  - failures/search/failure-signatures.md
+  - ui/search.md
+---
+
 # Search Subsystem -- Architecture
 
 ## What Search Does

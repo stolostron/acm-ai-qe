@@ -1,3 +1,12 @@
+---
+type: automation
+subsystem: automation
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - automation/playwright/automation-ansible.md
+---
+
 # Ansible Automation Area Knowledge Base
 
 Domain knowledge for writing Ansible Automation automation tests.

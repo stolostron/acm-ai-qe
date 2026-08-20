@@ -1,3 +1,13 @@
+---
+type: data-flow
+subsystem: automation
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - architecture/automation/architecture.md
+  - failures/automation/failure-signatures.md
+---
+
 # Automation (ClusterCurator) -- Data Flow
 
 ## End-to-End Curation Flow

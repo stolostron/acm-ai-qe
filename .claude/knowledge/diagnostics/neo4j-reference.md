@@ -1,3 +1,11 @@
+---
+type: diagnostics
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - diagnostics/dependency-chains.md
+---
+
 # Neo4j Knowledge Graph Reference (neo4j-rhacm)
 
 Read-only Cypher query access to a Neo4j graph database containing 370

@@ -1,3 +1,13 @@
+---
+type: health
+subsystem: infrastructure
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - architecture/infrastructure/architecture.md
+  - health/infrastructure/known-issues.md
+---
+
 # Post-Upgrade Health Patterns
 
 After an ACM/MCE upgrade, certain behaviors are EXPECTED and resolve on their

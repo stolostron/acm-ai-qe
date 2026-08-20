@@ -1,3 +1,19 @@
+---
+type: architecture
+subsystem: application-lifecycle
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - data-flow/application-lifecycle/data-flow.md
+  - health/application-lifecycle/known-issues.md
+  - failures/application-lifecycle/failure-signatures.md
+  - versions/acm-2x-to-5x-changes.md
+version_notes:
+  - "subscription-controller renamed to multicluster-operators-hub-subscription in ACM 5.0"
+  - "Standalone subscription-controller and channel-controller deployments no longer exist"
+  - "MCH namespace changed from open-cluster-management to ocm"
+---
+
 # Application Lifecycle (ALC) -- Architecture
 
 ## What Application Lifecycle Does
@@ -42,23 +58,18 @@ definition; spoke ArgoCD reconciles locally.
 
 ## Hub-Side Components
 
-### subscription-controller
+### subscription-controller (logical, not standalone deployment)
 
-- **Pod label:** `app=subscription-controller`
-- **Namespace:** MCH namespace
+No standalone `subscription-controller` deployment exists on ACM 5.0. The
+subscription reconciliation logic runs within the `multicluster-operators-hub-subscription`
+and `multicluster-operators-standalone-subscription` deployments below.
+Changed in ACM 5.0; previously documented as standalone deployment in ACM 2.x.
 
-Reconciles Subscription resources on hub. Resolves channel content, evaluates
-placement decisions, generates ManifestWork for each target cluster. Handles
-both Git and Helm channel types.
+### channel-controller (logical, not standalone deployment)
 
-### channel-controller
-
-- **Pod label:** `app=channel-controller`
-- **Namespace:** MCH namespace
-
-Manages Channel resources. Validates channel connectivity (Git auth, Helm repo
-access, ObjectBucket credentials). Updates channel status with connectivity
-information.
+No standalone `channel-controller` deployment exists on ACM 5.0. Channel
+management runs within the `multicluster-operators-channel` deployment below.
+Changed in ACM 5.0; previously documented as standalone deployment in ACM 2.x.
 
 ### multicluster-operators-subscription
 
@@ -92,8 +103,9 @@ Standalone subscription processing.
 
 Subscription status reporting.
 
-### multicloud-operators-application
+### multicluster-operators-application
 
+- **Deployment name:** `multicluster-operators-application`
 - **Pod label:** `app=multicluster-operators-application`
 - **Namespace:** MCH namespace (ocm)
 

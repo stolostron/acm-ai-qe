@@ -1,3 +1,15 @@
+---
+type: health
+subsystem: application-lifecycle
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - architecture/application-lifecycle/architecture.md
+  - failures/application-lifecycle/failure-signatures.md
+version_notes:
+  - "All JIRA bugs in this file resolved before ACM 5.0 (historical context)"
+---
+
 # Application Lifecycle -- Known Issues
 
 Based on 102 ALC bugs from ACM 2.12-2.17.
@@ -7,6 +19,7 @@ Based on 102 ALC bugs from ACM 2.12-2.17.
 ## 1. Pull Model Apps Stuck "Refreshing" (ACM-22654)
 
 **Versions:** 2.15, 2.16 | **Severity:** Normal | **Fix:** Code change (PR#190)
+**JIRA Status:** Closed -- Fixed in ACM 2.15.0. Resolved in ACM 5.0.
 
 Pull model ArgoCD applications stuck in "Refreshing" state indefinitely.
 multicluster-operators-application controller has status aggregation bug --
@@ -25,6 +38,7 @@ errors.
 ## 2. Time Window Causes Application Manager Crash (ACM-25667)
 
 **Versions:** 2.15, 2.16 | **Severity:** Important | **Fix:** Code change
+**JIRA Status:** Closed -- Fixed in ACM 2.15.0. Resolved in ACM 5.0.
 
 Subscription with time window configuration causes application-manager pod
 to crash with nil pointer dereference during time parsing.
@@ -41,6 +55,7 @@ dereference` in application-manager logs. Pod enters CrashLoopBackOff.
 ## 3. GitOps Operator Detection Fails for Non-Default NS (ACM-18820)
 
 **Versions:** 2.14, 2.15 | **Severity:** Important | **Fix:** Code change (PR#4328)
+**JIRA Status:** Closed -- Fixed in ACM 2.14.0. Resolved in ACM 5.0.
 
 Console shows "GitOps operator required" error even when OpenShift GitOps
 operator is installed -- if installed in a namespace other than the default
@@ -58,6 +73,7 @@ and Succeeded.
 ## 4. AppSet Destination Namespace Overridden (ACM-25479)
 
 **Versions:** 2.15, 2.16 | **Severity:** Normal | **Fix:** Code change
+**JIRA Status:** Closed -- Fixed in ACM 2.15.0. Resolved in ACM 5.0.
 
 Pull model ApplicationSet controller overwrites user-specified destination
 namespace with its own value. Applications deployed to wrong namespace on spoke.
@@ -73,6 +89,7 @@ status shows correct cluster but wrong namespace.
 ## 5. 503 Service Unavailable via cluster-proxy (ACM-29934)
 
 **Versions:** 2.16, 2.17 | **Severity:** Critical | **Fix:** Code change
+**JIRA Status:** Closed -- Fixed in ACM 2.16.0. Resolved in ACM 5.0.
 
 Fetching OpenAPI schema via cluster-proxy returns 503 Service Unavailable.
 Breaks application resource discovery and validation against spoke APIs.

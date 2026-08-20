@@ -1,3 +1,13 @@
+---
+type: failures
+subsystem: search
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - architecture/search/architecture.md
+  - health/search/known-issues.md
+---
+
 # Search Failure Signatures
 
 Known failure patterns for Search-related test failures and their classifications.

@@ -1,3 +1,15 @@
+---
+type: automation
+subsystem: virtualization
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - ui/fleet-virt.md
+  - automation/playwright/fleet-virt.md
+version_notes:
+  - "Search pod diagnostic namespace parameterized for ACM 5.0 (use oc get mch -A to discover)"
+---
+
 # Fleet Virtualization Area Knowledge Base
 
 Domain knowledge for writing Fleet Virtualization (VM management) automation tests.
@@ -124,7 +136,7 @@ Fleet Virtualization uses `search-cluster-proxy` to discover resources on spoke 
 
 **Debugging tip:** If VMs don't appear in the Fleet Virt page, check:
 1. `oc get managedcluster` -- spoke status should be `True`
-2. `oc get pods -n open-cluster-management | grep search` -- search pods running
+2. `oc get pods -n <mch-ns> | grep search` -- search pods running *(MCH namespace is `ocm` in ACM 5.0; was `open-cluster-management` in ACM 2.x)*
 3. `search-cluster-proxy` pod logs for connectivity errors
 
 ---

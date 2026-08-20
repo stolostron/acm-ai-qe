@@ -1,3 +1,13 @@
+---
+type: health
+subsystem: automation
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - architecture/automation/architecture.md
+  - failures/automation/failure-signatures.md
+---
+
 # Automation (ClusterCurator) -- Known Issues
 
 Based on automation-related bugs from ACM 2.12-2.17 and cross-referenced

@@ -1,3 +1,16 @@
+---
+type: architecture
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - versions/acm-2x-to-5x-changes.md
+version_notes:
+  - "MCH namespace default changed from open-cluster-management to ocm in ACM 5.0"
+  - "multicluster-operators-hub-subscription replaced standalone subscription-controller"
+  - "Operator hierarchy and component tree reflect ACM 5.0 names"
+  - "work-manager ClusterManagementAddon still exists; hub deployment removed"
+---
+
 # ACM Platform Architecture
 
 How ACM is built and operates: operator hierarchy, install lifecycle,
@@ -22,7 +35,7 @@ OLM (Operator Lifecycle Manager)
                  |- foundation-controller
                  |- grc-policy-propagator
                  |- search-api / search-indexer
-                 |- subscription-controller
+                 |- multicluster-operators-hub-subscription
                  |- multicluster-observability-operator
                  |- console / acm-console
                  |- cluster-permission
@@ -163,7 +176,7 @@ the ACM plugin at runtime. If the ACM plugin fails to register or load:
 - All ACM UI tests fail with "element not found" errors
 - Classification: INFRASTRUCTURE (plugin not loaded), not AUTOMATION_BUG
 
-Registered plugins (typical): acm, mce, forklift, gitops, kubevirt, monitoring, networking
+Registered plugins (ACM 5.0 CR names): acm, mce, forklift-console-plugin, gitops-plugin, kubevirt-plugin, monitoring-plugin, monitoring-console-plugin, networking-console-plugin
 
 ---
 
@@ -301,9 +314,9 @@ Always discover it: `oc get mch -A -o jsonpath='{.items[0].metadata.namespace}'`
 
 | Namespace | Purpose | Pod Count (typical) |
 |---|---|---|
-| MCH namespace (varies) | MCH operator, console, search, grc, subscription, addon-manager, foundation | ~32 |
-| `multicluster-engine` | Backplane operator, mce-console, cluster-manager, import controller, foundation, placement, addon-manager, hypershift | ~33 |
-| `open-cluster-management-hub` | placement-controller, work-manager, registration, work controllers | ~18 |
+| MCH namespace (varies; `ocm` on ACM 5.0) | MCH operator, console, search, grc, ALC operators, observability operator, MCRA controller | ~25 |
+| `multicluster-engine` | MCE operator, console-mce-console, cluster-manager, import controller, hive-operator, cluster-proxy, hypershift, discovery, ocm-controller/proxyserver/webhook | ~21 |
+| `open-cluster-management-hub` | placement-controller, registration, work webhook, addon-manager, addon-webhook | ~6 deployments, ~18 pods |
 | `open-cluster-management-agent` | Klusterlet (on spokes and local-cluster) | - |
 | `open-cluster-management-agent-addon` | Addon agents (on spokes) | - |
 | `open-cluster-management-observability` | Observability stack (if enabled) | - |
@@ -382,7 +395,7 @@ Console (console chart, console plugins)
   |- Proxies requests to search, observability, etc.
   +- ConsolePlugin CR missing -> feature tab disappears
 
-Application Lifecycle (subscription-controller, channel-controller)
+Application Lifecycle (multicluster-operators-* family)
   |- Depends on klusterlet for ManifestWork delivery
   +- GitOps path depends on external OpenShift GitOps operator
 

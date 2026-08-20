@@ -1,3 +1,19 @@
+---
+type: architecture
+subsystem: rbac
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - data-flow/rbac/data-flow.md
+  - health/rbac/known-issues.md
+  - failures/rbac/failure-signatures.md
+  - ui/rbac.md
+  - versions/acm-2x-to-5x-changes.md
+version_notes:
+  - "MCH namespace (where MCRA controller runs) changed from open-cluster-management to ocm"
+  - "fine-grained-rbac MCH component disabled by default (same as ACM 2.16)"
+---
+
 # RBAC -- Architecture
 
 ## What RBAC Does
@@ -32,8 +48,8 @@ When enabled:
 
 | Component | Type | Namespace | Pod Label | Role |
 |-----------|------|-----------|-----------|------|
-| cluster-permission | Hub deployment | MCH namespace (ocm) | app=cluster-permission | Creates ClusterPermission resources on spokes based on MCRA |
-| rbac-query-proxy | Hub deployment | MCH namespace (ocm) | app=rbac-query-proxy | Proxies RBAC-filtered queries to the console |
+| multicluster-role-assignment-controller | Hub deployment | MCH namespace (ocm), 1 replica | app=multicluster-role-assignment-controller | MCRA operator; reconciles MultiClusterRoleAssignment CRDs into ClusterPermission resources |
+| cluster-permission | Hub deployment | `multicluster-engine`, 1 replica | app=cluster-permission | Creates ManifestWork from ClusterPermission resources to propagate RBAC to spokes. Note: in `multicluster-engine` namespace, not MCH namespace. |
 
 ---
 

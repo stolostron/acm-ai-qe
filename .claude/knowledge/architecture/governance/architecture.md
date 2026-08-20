@@ -1,3 +1,18 @@
+---
+type: architecture
+subsystem: governance
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - data-flow/governance/data-flow.md
+  - health/governance/known-issues.md
+  - failures/governance/failure-signatures.md
+  - versions/acm-2x-to-5x-changes.md
+version_notes:
+  - "iam-policy-controller deprecated in ACM 2.16, removed in ACM 5.0"
+  - "MCH namespace (where GRC pods run) changed from open-cluster-management to ocm"
+---
+
 # Governance (GRC) -- Architecture
 
 ## What Governance Does
@@ -21,7 +36,7 @@ on security/compliance policies across managed clusters. Handles:
 | config-policy-controller | Spoke addon | varies | app=config-policy-controller | Enforces configuration policies on spoke |
 | governance-policy-framework | Spoke addon | varies | app=governance-policy-framework | Framework for policy enforcement on spoke |
 | cert-policy-controller | Spoke addon | varies | app=cert-policy-controller | Certificate policy enforcement |
-| iam-policy-controller | Spoke addon | varies | app=iam-policy-controller | IAM policy enforcement |
+| iam-policy-controller | Spoke addon (REMOVED) | varies | app=iam-policy-controller | IAM policy enforcement. Deprecated in ACM 2.16, removed in ACM 5.0. Not present as ClusterManagementAddon on ACM 5.0 clusters. |
 
 ---
 
@@ -53,7 +68,7 @@ Internal sub-components:
 
 Manages governance addon lifecycle on managed clusters via addon framework.
 Deploys: governance-policy-framework, config-policy-controller,
-cert-policy-controller, iam-policy-controller.
+cert-policy-controller. (iam-policy-controller removed in ACM 5.0.)
 
 Configuration via ManagedClusterAddon annotations:
 - `policy-evaluation-concurrency` (default: 2)
@@ -120,7 +135,7 @@ Manages OLM operator lifecycle through policy:
 
 - ConfigurationPolicy -- enforce Kubernetes resource configuration
 - CertificatePolicy -- enforce certificate expiration/validity
-- IamPolicy -- enforce RBAC constraints
+- IamPolicy -- enforce RBAC constraints (deprecated in ACM 2.16, removed in ACM 5.0)
 - Custom policies via policy templates
 
 ---

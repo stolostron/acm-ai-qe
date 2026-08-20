@@ -1,3 +1,15 @@
+---
+type: failures
+subsystem: install
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - architecture/install/architecture.md
+  - versions/acm-2x-to-5x-changes.md
+version_notes:
+  - "CSV and namespace references updated for ACM 5.0 (ocm namespace, v5.0.0-xxx CSV format)"
+---
+
 # Install Failure Signatures
 
 Known failure patterns for Install (ACM/MCE installation) tests.
@@ -11,13 +23,13 @@ Known failure patterns for Install (ACM/MCE installation) tests.
 - **Pattern:** CSV never progresses beyond Pending; all downstream tests fail
 - **Classification:** INFRASTRUCTURE (90% confidence)
 - **Explanation:** OLM can't resolve dependencies -- CatalogSource may be unhealthy or image pull failed
-- **Diagnostic:** `oc get csv -n open-cluster-management -o wide`, `oc get catalogsource -n openshift-marketplace`
+- **Diagnostic:** `oc get csv -n ocm -o wide`, `oc get catalogsource -n openshift-marketplace` *(Changed in ACM 5.0; previously namespace was `open-cluster-management` in ACM 2.x.)*
 
 ### CSV InstallReady but Not Succeeded
 - **Error:** CSV phase stuck at `InstallReady` or `Installing`
 - **Pattern:** Operator deployment pods fail to start (image pull, resource limits)
 - **Classification:** INFRASTRUCTURE (85% confidence)
-- **Diagnostic:** `oc get csv -n open-cluster-management -o jsonpath='{.items[*].status.phase}'`
+- **Diagnostic:** `oc get csv -n ocm -o jsonpath='{.items[*].status.phase}'` *(Changed in ACM 5.0; previously namespace was `open-cluster-management` in ACM 2.x.)*
 
 ### CatalogSource Unhealthy
 - **Error:** PackageManifest not found or CatalogSource connection timeout
@@ -29,7 +41,7 @@ Known failure patterns for Install (ACM/MCE installation) tests.
 - **Error:** `ImagePullBackOff` or `ErrImagePull` on operator pods
 - **Pattern:** ACM_DS_TAG points to an image tag that doesn't exist in the registry
 - **Classification:** INFRASTRUCTURE (90% confidence)
-- **Diagnostic:** `oc get pods -n open-cluster-management -o wide | grep -E 'ImagePull|ErrImage'`
+- **Diagnostic:** `oc get pods -n ocm -o wide | grep -E 'ImagePull|ErrImage'` *(Changed in ACM 5.0; previously namespace was `open-cluster-management` in ACM 2.x.)*
 
 ### ROSA Cluster Not Ready
 - **Error:** Test setup fails connecting to ROSA cluster

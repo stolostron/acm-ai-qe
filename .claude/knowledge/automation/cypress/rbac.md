@@ -1,3 +1,13 @@
+---
+type: automation
+subsystem: rbac
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - ui/rbac.md
+  - automation/playwright/rbac.md
+---
+
 # RBAC Area Knowledge Base
 
 Domain knowledge for writing RBAC automation tests in `clc-ui-e2e` (Cypress) and `console-e2e` (Playwright).

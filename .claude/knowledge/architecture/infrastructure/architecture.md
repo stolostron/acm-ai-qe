@@ -1,3 +1,14 @@
+---
+type: architecture
+subsystem: infrastructure
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - data-flow/infrastructure/data-flow.md
+  - health/infrastructure/known-issues.md
+  - failures/infrastructure/failure-signatures.md
+---
+
 # Infrastructure -- Architecture
 
 ## What Infrastructure Covers

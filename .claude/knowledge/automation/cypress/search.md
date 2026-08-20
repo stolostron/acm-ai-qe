@@ -1,3 +1,13 @@
+---
+type: automation
+subsystem: search
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - ui/search.md
+  - automation/playwright/search.md
+---
+
 # Search Area Knowledge Base
 
 Domain knowledge for writing Search automation tests.

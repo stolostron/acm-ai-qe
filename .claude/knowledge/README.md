@@ -62,6 +62,10 @@ knowledge/
 │   └── cypress/           # Cypress E2E (clc-ui-e2e) area knowledge
 │       ├── clusters.md, rbac.md, fleet-virt.md, ...
 │
+├── versions/              # Shared: version compatibility and migration docs
+│   ├── version-matrix.md          # ACM/MCE/OCP/CNV/MTV version mappings
+│   └── acm-2x-to-5x-changes.md   # Breaking changes from ACM 2.x to 5.0
+│
 └── learned/               # DEPRECATED -- all agents write directly to target files
     └── .gitkeep
 ```

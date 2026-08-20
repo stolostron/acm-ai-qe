@@ -1,3 +1,11 @@
+---
+type: conventions
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - conventions/test-case-format.md
+---
+
 # Area Naming Patterns
 
 Title tag patterns by console area. Replace `X.XX` with ACM version from JIRA `fix_versions`.

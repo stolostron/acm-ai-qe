@@ -1,3 +1,13 @@
+---
+type: ui
+subsystem: infrastructure
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - automation/playwright/credentials.md
+  - automation/cypress/credentials.md
+---
+
 # Credentials Area Knowledge
 
 ## Overview

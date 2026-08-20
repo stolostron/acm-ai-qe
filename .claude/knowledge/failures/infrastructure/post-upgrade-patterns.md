@@ -1,3 +1,16 @@
+---
+type: failures
+subsystem: infrastructure
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - failures/infrastructure/failure-signatures.md
+  - health/infrastructure/post-upgrade-patterns.md
+  - versions/acm-2x-to-5x-changes.md
+version_notes:
+  - "CSV diagnostic namespace is ocm for ACM 5.0 (previously open-cluster-management)"
+---
+
 # Post-Upgrade Failure Patterns
 
 After an ACM upgrade, certain failures are expected and resolve over time.
@@ -20,7 +33,7 @@ These are INFRASTRUCTURE, not product bugs.
 - **Classification:** INFRASTRUCTURE (80% confidence)
 - **Explanation:** After upgrade, policy controllers restart and compliance status resets. The governance-policy-framework needs time to re-evaluate all policies on all clusters.
 - **Expected resolution:** 2-5 minutes after all policy controllers restart
-- **Diagnostic:** `oc get pods -n open-cluster-management -l app=grc-policy-propagator`
+- **Diagnostic:** `oc get pods -n ocm -l app=grc-policy-propagator` *(Changed in ACM 5.0; previously namespace was `open-cluster-management` in ACM 2.x.)*
 - **Observed in:** GRC upgrade pipelines
 
 ## CRD Availability
@@ -43,7 +56,7 @@ These are INFRASTRUCTURE, not product bugs.
 - **Pattern:** Operator install tests fail on version check
 - **Classification:** INFRASTRUCTURE (80% confidence)
 - **Explanation:** OLM may take several minutes to transition CSV to Succeeded after upgrade
-- **Diagnostic:** `oc get csv -n open-cluster-management`
+- **Diagnostic:** `oc get csv -n ocm` *(Changed in ACM 5.0; previously namespace was `open-cluster-management` in ACM 2.x.)*
 
 ## Search Re-Collection After Postgres Restart
 - **Error:** `expected results > 0` or search tests return empty results

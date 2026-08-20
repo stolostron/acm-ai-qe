@@ -1,3 +1,15 @@
+---
+type: failures
+subsystem: foundation
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - architecture/foundation/architecture.md
+  - versions/acm-2x-to-5x-changes.md
+version_notes:
+  - "Deployment names and namespaces reflect ACM 5.0 (cluster-manager replaces registration-operator)"
+---
+
 # Foundation Failure Signatures
 
 Known failure patterns for Foundation (ServerFoundation / addon-framework) tests.
@@ -63,7 +75,7 @@ Known failure patterns for Foundation (ServerFoundation / addon-framework) tests
 - **Error:** ManagedClusterAddon stays in Progressing indefinitely
 - **Pattern:** Addon controller is Running but never transitions addon to Available. Other addons on same cluster are fine.
 - **Classification:** PRODUCT_BUG (80% confidence)
-- **Diagnostic:** Check addon controller logs: `oc logs -n open-cluster-management -l app=addon-manager --tail=100`
+- **Diagnostic:** Check addon controller logs: `oc logs -n open-cluster-management-hub -l app=clustermanager-addon-manager-controller --tail=100` *(Changed in ACM 5.0; previously `open-cluster-management` namespace, `addon-manager` label in ACM 2.x.)*
 
 ### Work-Agent Not Processing ManifestWork
 - **Error:** ManifestWork stays in `Applied=False` on spoke

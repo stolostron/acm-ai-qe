@@ -1,3 +1,12 @@
+---
+type: architecture
+subsystem: virtualization
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - architecture/virtualization/architecture.md
+---
+
 # Virtualization -- Dev Build CI Integration
 
 ## Purpose

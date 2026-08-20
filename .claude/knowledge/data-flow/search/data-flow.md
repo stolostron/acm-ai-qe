@@ -1,3 +1,13 @@
+---
+type: data-flow
+subsystem: search
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - architecture/search/architecture.md
+  - failures/search/failure-signatures.md
+---
+
 # Search Subsystem -- Data Flow
 
 ## End-to-End Data Movement

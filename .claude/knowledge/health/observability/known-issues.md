@@ -1,3 +1,15 @@
+---
+type: health
+subsystem: observability
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - architecture/observability/architecture.md
+  - failures/observability/failure-signatures.md
+version_notes:
+  - "All JIRA bugs in this file resolved before ACM 5.0 (historical context)"
+---
+
 # Observability Subsystem -- Known Issues
 
 Based on 101 Observability bugs from ACM 2.12-2.17.
@@ -9,6 +21,7 @@ Based on 101 Observability bugs from ACM 2.12-2.17.
 **Versions:** ACM 2.15, 2.16
 **Severity:** Major
 **Fix:** Code change (obs-operator PR#2342)
+**JIRA Status:** Closed -- Back-ported to all releases (2.11-2.16). Resolved in ACM 5.0.
 
 The `hub-endpoint-observability-operator-sa` service account had `nodes/proxy`
 RBAC permissions, enabling Remote Code Execution on any node in the cluster.

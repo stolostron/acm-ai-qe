@@ -1,3 +1,15 @@
+---
+type: health
+subsystem: search
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - architecture/search/architecture.md
+  - failures/search/failure-signatures.md
+version_notes:
+  - "All JIRA bugs in this file resolved before ACM 5.0 (historical context)"
+---
+
 # Search Subsystem -- Known Issues
 
 ## 1. Search API RBAC -- Only Checks `list` Verb
@@ -19,7 +31,7 @@ Search-api RBAC check only verifies `list` verb, not `*` (wildcard). Users with
 **Versions:** ACM 2.15, 2.16
 **Severity:** High
 **Fix:** Ongoing code changes
-**JIRAs:** ACM-30228, ACM-24887
+**JIRAs:** ACM-30228 (Closed -- Fixed in ACM 2.16.0), ACM-24887 (Closed -- Fixed in MCE 2.10.0)
 
 Search bypasses ManagedClusterView permission check. RBAC filtering relies
 solely on hub-side permissions (MCRA/ClusterPermission scope) without
@@ -79,7 +91,8 @@ uninstallation. MCH deletion hangs.
 **Versions:** ACM 2.15, 2.16
 **Severity:** High
 **Fix:** Partially fixed in 2.16
-**JIRAs:** ACM-30228, ACM-30764, ACM-24887
+**JIRAs:** ACM-30228 (Closed -- Fixed in ACM 2.16.0), ACM-30764 (Closed -- Fixed in ACM 5.0.0), ACM-24887 (Closed -- Fixed in MCE 2.10.0)
+All three issues resolved in ACM 5.0.
 
 Multiple overlapping issues:
 1. Missing resource kinds from virt ClusterRoles (StorageClass, ClusterOperator)

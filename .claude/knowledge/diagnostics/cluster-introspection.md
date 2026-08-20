@@ -1,3 +1,12 @@
+---
+type: diagnostics
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - diagnostics/diagnostic-layers.md
+  - diagnostics/evidence-tiers.md
+---
+
 # Cluster Introspection Sources
 
 When the static knowledge doesn't cover a component, reverse-engineer its

@@ -1,3 +1,13 @@
+---
+type: data-flow
+subsystem: governance
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - architecture/governance/architecture.md
+  - failures/governance/failure-signatures.md
+---
+
 # Governance (GRC) -- Data Flow
 
 ## End-to-End Policy Lifecycle

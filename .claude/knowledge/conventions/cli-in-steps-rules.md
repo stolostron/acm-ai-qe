@@ -1,3 +1,11 @@
+---
+type: conventions
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - conventions/test-case-format.md
+---
+
 # CLI-in-Test-Steps Rules
 
 ## Default Rule

@@ -1,6 +1,18 @@
+---
+type: automation
+subsystem: virtualization
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - ui/fleet-virt.md
+  - automation/cypress/fleet-virt.md
+version_notes:
+  - "Search pod diagnostic namespace parameterized for ACM 5.0 (use oc get mch -A to discover)"
+---
+
 # Fleet Virtualization Area Knowledge Base
 
-> **Playwright as-built:** No `src/tests/fleet-virt/`, `fleet-virt-test.ts`, or `VmService` in `console-e2e` yet. Content below is domain + Cypress reference until Fleet Virt Playwright specs land.
+> **Playwright as-built (Aug 2026):** Full implementation exists: `src/tests/fleet-virt/` (11 specs), `src/fixtures/fleet-virt-test.ts`, page objects (`FleetVirtPage`, `VmDetailsPage`, `VmCreationPage`, `CclmWizardPage`, `PodDetailsPage`), components (`AdvancedSearchModal`, `SavedSearches`, `TreeView`, `StatusFilter`, `VmCloneModal`), and constants (`src/constants/fleet-virt.ts`).
 
 Domain knowledge for writing Fleet Virtualization (VM management) automation tests in `console-e2e` (Playwright).
 
@@ -37,34 +49,42 @@ Fleet Virtualization VM list page:
 
 ---
 
-## Console-e2e (Playwright) Implementation — TARGET DESIGN (NOT IN REPO)
-
-> **NONE of the files below exist in the repo yet.** They are the target implementation plan. Always verify with `ls`/`Glob` before importing. Create these files when Fleet Virt Playwright specs are being developed.
+## Console-e2e (Playwright) Implementation — IMPLEMENTED
 
 ### Constants Structure (target)
 
 Fleet Virt will have its own constants file (`src/constants/fleet-virt.ts`) as the **single authoritative source** for all Fleet Virt constants -- routes, selectors, page text, search labels, saved search text, and VM table selectors. There will be no separate `routes.ts` or `SELECTORS.fleetVirt` in `selectors.ts`.
 
-### Page Object and Component Inventory (target)
+### Page Object and Component Inventory
 
 | File | Purpose |
 |------|---------|
 | `src/pages/fleet-virt/FleetVirtPage.ts` | VM list page: goto, shouldLoad (retry+reload), searchVM, openAdvancedSearch, getVmRow, getNoVMsEmptyState |
 | `src/pages/fleet-virt/VmDetailsPage.ts` | VM details page: clickTab, getPageHeading, getActionsDropdown, getActionMenuItem, Console/Events/Snapshots/Configuration tab locators |
+| `src/pages/fleet-virt/VmCreationPage.ts` | VM creation wizard |
+| `src/pages/fleet-virt/CclmWizardPage.ts` | Cross-cluster live migration wizard page object |
+| `src/pages/fleet-virt/PodDetailsPage.ts` | Pod details page (linked from VM) |
 | `src/components/fleet-virt/AdvancedSearchModal.ts` | Side panel (NOT dialog): selectCluster, selectProject (uses toggle button), clickSearch, clickClearAll, close |
 | `src/components/fleet-virt/SavedSearches.ts` | Save/load/remove: saveSearch, openSavedSearches, triggerSavedSearch, removeSavedSearch, getSavedSearchItem |
+| `src/components/fleet-virt/TreeView.ts` | Hierarchical cluster > project > VM tree navigation |
+| `src/components/fleet-virt/StatusFilter.ts` | VM status filtering component |
+| `src/components/fleet-virt/VmCloneModal.ts` | VM clone modal dialog |
 
-### Fixture Wiring (target)
+### Fixture Wiring
 
-Fleet Virt tests will use `src/fixtures/fleet-virt-test.ts`:
+Fleet Virt tests use `src/fixtures/fleet-virt-test.ts`:
 
 ```typescript
 type FleetVirtFixtures = {
   oc: OcCliService;
   virtConfig: VirtConfig;
   fleetVirtPage: FleetVirtPage;
+  vmDetailsPage: VmDetailsPage;
   advancedSearchModal: AdvancedSearchModal;
   savedSearches: SavedSearches;
+  treeView: TreeView;
+  statusFilter: StatusFilter;
+  vmCloneModal: VmCloneModal;
 };
 ```
 
@@ -161,7 +181,7 @@ Fleet Virtualization uses `search-cluster-proxy` to discover resources on spoke 
 
 **Debugging tip:** If VMs don't appear in the Fleet Virt page, check:
 1. `oc get managedcluster` -- spoke status should be `True`
-2. `oc get pods -n open-cluster-management | grep search` -- search pods running
+2. `oc get pods -n <mch-ns> | grep search` -- search pods running *(MCH namespace is `ocm` in ACM 5.0; was `open-cluster-management` in ACM 2.x)*
 3. `search-cluster-proxy` pod logs for connectivity errors
 
 ---

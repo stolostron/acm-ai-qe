@@ -1,3 +1,13 @@
+---
+type: failures
+subsystem: infrastructure
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - architecture/infrastructure/architecture.md
+  - health/infrastructure/known-issues.md
+---
+
 # Infrastructure Failure Signatures
 
 Known failure patterns for infrastructure-level issues that affect multiple subsystems.

@@ -1,3 +1,13 @@
+---
+type: failures
+subsystem: cluster-lifecycle
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - architecture/cluster-lifecycle/architecture.md
+  - health/cluster-lifecycle/known-issues.md
+---
+
 # Cluster Lifecycle Failure Signatures
 
 Known failure patterns for CLC-related test failures.

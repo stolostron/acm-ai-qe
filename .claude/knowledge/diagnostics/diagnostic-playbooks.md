@@ -1,3 +1,14 @@
+---
+type: diagnostics
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - diagnostics/diagnostic-layers.md
+  - diagnostics/diagnostic-traps.md
+version_notes:
+  - "Diagnostic commands use MCH namespace ocm for ACM 5.0 (previously open-cluster-management)"
+---
+
 # Diagnostic Playbooks
 
 Per-subsystem investigation procedures for deep dives. Use these when you've
@@ -84,8 +95,8 @@ AVAILABLE=False.
 
 5. Check registration controller on hub
    ```
-   oc get pods -n open-cluster-management-hub -l app=registration-controller
-   oc logs -n open-cluster-management-hub -l app=registration-controller --tail=50
+   oc get pods -n open-cluster-management-hub -l app=clustermanager-registration-controller
+   oc logs -n open-cluster-management-hub -l app=clustermanager-registration-controller --tail=50
    ```
 
 6. If you have access to the spoke cluster, check klusterlet
@@ -242,12 +253,13 @@ governance UI showing errors.
    oc get managedclusteraddons -A | grep -E 'governance|config-policy|cert-policy'
    ```
 
-4. Check work-manager (responsible for distributing work to spokes)
+4. Check work delivery (ManifestWork distribution to spokes)
    ```
-   oc get pods -n open-cluster-management-hub -l app=work-manager
-   oc logs -n open-cluster-management-hub -l app=work-manager --tail=50
+   oc get pods -n open-cluster-management-hub -l app=cluster-manager-work-webhook
    ```
-   Backlog in work-manager delays compliance updates.
+   In ACM 5.0, work-manager is no longer a standalone deployment; work delivery
+   is handled by the klusterlet work-agent and cluster-manager-work-webhook.
+   If ManifestWork delivery is delayed, check klusterlet connectivity (Layer 10).
 
 5. If specific policies are stuck, check their status
    ```
@@ -431,10 +443,10 @@ webhook failures.
    ```
    Look at `.status.conditions`.
 
-3. Check addon-manager on hub (use the MCH namespace discovered in Phase 1)
+3. Check addon-manager on hub
    ```
-   oc get pods -n <mch-namespace> -l app=addon-manager
-   oc logs -n <mch-namespace> -l app=addon-manager --tail=50
+   oc get pods -n open-cluster-management-hub -l app=clustermanager-addon-manager-controller
+   oc logs -n open-cluster-management-hub -l app=clustermanager-addon-manager-controller --tail=50
    ```
 
 4. Check if the addon's ClusterManagementAddon exists

@@ -1,3 +1,17 @@
+---
+type: ui
+subsystem: cluster-lifecycle
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - automation/playwright/clusters.md
+  - automation/cypress/clusters.md
+  - versions/acm-2x-to-5x-changes.md
+version_notes:
+  - "hive-operator namespace changed from hive to multicluster-engine in ACM 5.0"
+  - "hive-clustersync is a StatefulSet (not Deployment)"
+---
+
 # Clusters Area Knowledge
 
 ## Overview
@@ -8,13 +22,13 @@ Cluster management in ACM Console covers the full lifecycle of managed clusters:
 
 | Component | Namespace | Role |
 |-----------|-----------|------|
-| `hive-operator` | hive | Manages Hive controllers |
+| `hive-operator` | multicluster-engine | Manages Hive controllers (deploys into `hive` namespace) |
 | `hive-controllers` | hive | Provisions infrastructure via cloud APIs |
-| `hive-clustersync` | hive | Syncs cluster state |
+| `hive-clustersync` | hive | Syncs SelectorSyncSet/SyncSet resources to Hive-provisioned clusters (StatefulSet, 1 replica) |
 | `managedcluster-import-controller-v2` | multicluster-engine | Handles import and klusterlet deployment |
-| `cluster-curator-controller` | ocm | Manages upgrade workflows |
-| `cluster-manager` | open-cluster-management-hub | Registration and work distribution |
-| `placement-controller` | open-cluster-management-hub | Evaluates Placement resources |
+| `cluster-curator-controller` | multicluster-engine | Manages upgrade workflows |
+| `cluster-manager` | multicluster-engine | Registration and work distribution |
+| `cluster-manager-placement-controller` | open-cluster-management-hub | Evaluates Placement resources |
 | klusterlet | open-cluster-management-agent (spoke) | Spoke agent for registration |
 
 ## CRDs / Resources

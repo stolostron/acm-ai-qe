@@ -1,3 +1,15 @@
+---
+type: diagnostics
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - diagnostics/diagnostic-layers.md
+  - diagnostics/evidence-tiers.md
+  - versions/acm-2x-to-5x-changes.md
+version_notes:
+  - "console-mce pod label is app=console-mce (unchanged despite deployment rename to console-mce-console)"
+---
+
 # Common Diagnostic Traps
 
 Patterns where the obvious diagnosis is WRONG. Read this before concluding
@@ -600,7 +612,7 @@ oc get consoleplugins -o yaml
 
 # Check the plugin backend pods
 oc get pods -n <mch-ns> -l app=console-chart-console-v2
-oc get pods -n multicluster-engine -l app=console-mce-console
+oc get pods -n multicluster-engine -l app=console-mce
 
 # Check if the plugin service endpoint has ready addresses
 oc get endpoints -n <ns> <service-name>

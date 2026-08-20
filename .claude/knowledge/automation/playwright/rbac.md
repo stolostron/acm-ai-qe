@@ -1,8 +1,20 @@
+---
+type: automation
+subsystem: rbac
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - ui/rbac.md
+  - automation/cypress/rbac.md
+version_notes:
+  - "RBAC pods run in MCH namespace (ocm in ACM 5.0, previously open-cluster-management)"
+---
+
 # FG-RBAC Area Knowledge Base
 
 Domain knowledge for writing Fine-Grained RBAC automation tests in `console-e2e` (Playwright).
 
-> **As-built (May 2026):** `presets.ts` has **2** RBAC users (`fg-rbac-admin`, `fg-rbac-view`). `rbac-test.ts` + `rbac-auth.setup.ts` exist. **`src/tests/fg-rbac/`**, **`fg-rbac-test.ts`**, **`McraService`**, and FG-RBAC page objects are **not in the repo yet** — sections below describing those files are **target design**. Verify with `ls`/`Glob` before importing.
+> **As-built (Aug 2026):** Full implementation exists: `src/tests/fg-rbac/` (25+ specs), `src/fixtures/fg-rbac-test.ts`, page objects (`UserDetailsPage`, `RoleAssignmentWizardPage`, `RolesListPage`, `RoleDetailsPage`), component (`RoleAssignmentsTable`), lib (`vm-test-setup.ts`, `role-assignment-actions.ts`), constants (`src/constants/fg-rbac.ts`), and templates.
 
 ---
 
@@ -100,9 +112,7 @@ Label for wizard reuse: `open-cluster-management.io/managed-by: console`
 
 ---
 
-## Console-e2e (Playwright) Implementation — TARGET DESIGN (NOT IN REPO)
-
-> **NONE of the files below exist in the repo yet** (`fg-rbac.ts`, `fg-rbac-test.ts`, `McraService`, FG-RBAC page objects). They are the target implementation plan. Always verify with `ls`/`Glob` before importing. Create these files when FG-RBAC Playwright specs are being developed.
+## Console-e2e (Playwright) Implementation — IMPLEMENTED
 
 ### Constants Structure (target)
 
@@ -127,7 +137,8 @@ Area-specific constants in `src/constants/fg-rbac.ts` are organized by UI locati
 |-------------|------|---------|
 | `UserDetailsPage` | `src/pages/fg-rbac/UserDetailsPage.ts` | User detail page (4 tabs, exposes locators for detail fields) |
 | `RoleAssignmentWizardPage` | `src/pages/fg-rbac/RoleAssignmentWizardPage.ts` | 7-step wizard modal with composite flows |
-| `RolesPage` | `src/pages/fg-rbac/RolesPage.ts` | Roles list and role detail navigation |
+| `RolesListPage` | `src/pages/fg-rbac/RolesListPage.ts` | Roles list page |
+| `RoleDetailsPage` | `src/pages/fg-rbac/RoleDetailsPage.ts` | Role detail page |
 | `RoleAssignmentsTable` | `src/components/fg-rbac/RoleAssignmentsTable.ts` | Standalone table component (role-name-based row access) |
 
 ### RoleAssignmentsTable: Why Standalone
@@ -151,17 +162,17 @@ type RbacFixtures = {
 // Context lifecycle (creation + teardown) managed here
 ```
 
-**`src/fixtures/fg-rbac-test.ts`** -- extends rbac-test with FG-RBAC + Fleet Virt specifics:
+**`src/fixtures/fg-rbac-test.ts`** -- extends rbac-test with FG-RBAC page objects:
 ```typescript
 type FgRbacFixtures = {
-  mcra: McraService;
   rbacConfig: RbacConfig;
   userDetailsPage: UserDetailsPage;
+  rolesListPage: RolesListPage;
+  roleDetailsPage: RoleDetailsPage;
   roleAssignmentWizardPage: RoleAssignmentWizardPage;
-  rolesPage: RolesPage;
-  asVirtUser: (role: string) => Promise<VirtUserSession>;
+  clusterSetDetailsPage: ClusterSetDetailsPage;
+  clusterDetailsPage: ClusterDetailsPage;
 };
-// asVirtUser calls base asUser(role), then attaches vmDetailsPage + fleetVirtPage
 ```
 
 New areas needing RBAC testing extend `rbac-test.ts` and add their own typed wrapper (e.g., `asGrcUser`) that calls `asUser` and attaches area page objects. Add users to `presets.ts` with `domains: ['your-domain']`.

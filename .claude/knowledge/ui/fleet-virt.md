@@ -1,3 +1,14 @@
+---
+type: ui
+subsystem: virtualization
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - automation/playwright/fleet-virt.md
+  - automation/cypress/fleet-virt.md
+  - architecture/virtualization/architecture.md
+---
+
 # Fleet Virtualization Area Knowledge
 
 ## Overview

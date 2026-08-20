@@ -1,3 +1,17 @@
+---
+type: architecture
+subsystem: observability
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - data-flow/observability/data-flow.md
+  - health/observability/known-issues.md
+  - failures/observability/failure-signatures.md
+version_notes:
+  - "Observability operator runs in MCH namespace (ocm in ACM 5.0)"
+  - "Observability stack namespace (open-cluster-management-observability) unchanged across versions"
+---
+
 # Observability Subsystem -- Architecture
 
 ## What Observability Does
@@ -41,7 +55,7 @@ storage configuration. Without the MCO CR, the operator sits idle.
 
 ### multicluster-observability-operator (hub)
 
-- **Namespace:** `open-cluster-management` (MCH namespace)
+- **Namespace:** `ocm` (MCH namespace; Changed in ACM 5.0; previously `open-cluster-management` in ACM 2.x)
 - **Pod label:** `app=multicluster-observability-operator`
 - **CR Kind:** `MultiClusterObservability` (`observability.open-cluster-management.io/v1beta2`)
 
@@ -104,7 +118,7 @@ caching. Splits long-range queries into smaller intervals.
 
 - **Namespace:** `open-cluster-management-observability`
 - **Pod label:** `app.kubernetes.io/name=thanos-store`
-- **Type:** StatefulSet (3 replicas default)
+- **Type:** Multiple StatefulSets, one per shard (e.g., `observability-thanos-store-shard-0`, `shard-1`, `shard-2`), each with 1 replica. Total shards depend on cluster scale (3 shards observed on ACM 5.0 test cluster).
 
 API gateway for object storage. Serves historical metric data from S3-compatible
 storage. Keeps a small local cache of remote block metadata. Local data is
@@ -176,6 +190,14 @@ API gateway for the observability stack. Routes requests to appropriate
 backend components.
 
 ---
+
+Additional hub-side components not listed above but present on ACM 5.0:
+- **metrics-collector-deployment** (Deployment, 1 replica) -- hub-side metrics collector
+- **uwl-metrics-collector-deployment** (Deployment, 1 replica) -- user workload metrics collector
+- **multicluster-observability-addon-manager** (Deployment, 1 replica) -- manages observability addon deployment to spokes
+- **minio** (Deployment, 1 replica) -- S3-compatible object store for dev/test environments (not present in production with external S3)
+- **observability-thanos-query-frontend-memcached** (StatefulSet, 3 replicas) -- memcached for query-frontend caching
+- **observability-thanos-store-memcached** (StatefulSet, 3 replicas) -- memcached for store caching
 
 ## Component Versions (ACM 2.17)
 

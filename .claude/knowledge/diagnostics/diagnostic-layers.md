@@ -1,3 +1,13 @@
+---
+type: diagnostics
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - diagnostics/diagnostic-traps.md
+  - diagnostics/evidence-tiers.md
+  - diagnostics/diagnostic-playbooks.md
+---
+
 # 12-Layer Diagnostic Model
 
 Systematic investigation framework for finding root causes in ACM clusters.

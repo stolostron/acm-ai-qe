@@ -1,3 +1,15 @@
+---
+type: data-flow
+subsystem: application-lifecycle
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - architecture/application-lifecycle/architecture.md
+  - failures/application-lifecycle/failure-signatures.md
+version_notes:
+  - "Component names updated for ACM 5.0 (multicluster-operators-hub-subscription replaces subscription-controller)"
+---
+
 # Application Lifecycle -- Data Flow
 
 ## Subscription Deployment Flow
@@ -184,12 +196,14 @@ Application stuck "Refreshing" due to controller issues (ACM-22654).
 ### channel-controller down
 - **Symptom:** Channel status not updated. New channels not validated.
 - **Scope:** New subscriptions may reference invalid channels.
-- **Detection:** `oc get pods -n <mch-ns> -l app=channel-controller`
+- **Detection:** `oc get pods -n <mch-ns> -l app=multicluster-operators-channel`
+  (ACM 5.0: deployment is `multicluster-operators-channel`, not a standalone `channel-controller`)
 
 ### subscription-controller down
 - **Symptom:** Subscriptions stuck, not reconciled. No ManifestWork generated.
 - **Scope:** All subscription-based applications.
-- **Detection:** `oc get pods -n <mch-ns> -l app=subscription-controller`
+- **Detection:** `oc get pods -n <mch-ns> -l app=multicluster-operators-hub-subscription`
+  (ACM 5.0: deployment is `multicluster-operators-hub-subscription`, not a standalone `subscription-controller`)
 
 ### application-manager addon missing on spoke
 - **Symptom:** No status from that spoke. Application health unknown.

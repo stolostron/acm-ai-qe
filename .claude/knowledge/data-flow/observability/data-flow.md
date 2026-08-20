@@ -1,3 +1,13 @@
+---
+type: data-flow
+subsystem: observability
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - architecture/observability/architecture.md
+  - failures/observability/failure-signatures.md
+---
+
 # Observability Subsystem -- Data Flow
 
 ## End-to-End Data Movement

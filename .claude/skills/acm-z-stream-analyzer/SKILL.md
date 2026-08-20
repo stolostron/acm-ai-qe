@@ -1,6 +1,6 @@
 ---
 name: acm-z-stream-analyzer
-description: Analyze Jenkins pipeline test failures and classify each as PRODUCT_BUG, AUTOMATION_BUG, INFRASTRUCTURE, or NO_BUG. Runs a 4-stage pipeline with data gathering, cluster diagnostics, AI classification, and report generation. Use when asked to analyze a Jenkins run, classify test failures, or investigate pipeline results.
+description: Analyze Jenkins pipeline test failures and classify each into 7 types (PRODUCT_BUG, AUTOMATION_BUG, INFRASTRUCTURE, NO_BUG, MIXED, FLAKY, UNKNOWN). Runs a 5-stage pipeline with environment checks, data gathering, cluster diagnostics, 12-layer AI classification, and report generation. Use when asked to analyze a Jenkins run, classify test failures, or investigate pipeline results.
 compatibility: "Required MCPs: acm-source, jira, polarion. Recommended: neo4j-rhacm, jenkins. Requires oc CLI and gh CLI. Run /onboard to configure all MCPs."
 metadata:
   author: acm-qe
@@ -9,7 +9,7 @@ metadata:
 
 # ACM Z-Stream Pipeline Failure Analyzer
 
-Analyzes Jenkins pipeline test failures using a 4-stage pipeline with AI-driven 12-layer diagnostic investigation. Produces per-test classifications with evidence chains.
+Analyzes Jenkins pipeline test failures using a 5-stage pipeline (environment checks, data gathering, cluster diagnostics, AI classification, report generation) with AI-driven 12-layer diagnostic investigation. Produces per-test classifications with evidence chains.
 
 **Standalone operation:** Works independently. Give it a Jenkins URL and it runs the full pipeline. If invoked without a URL, asks for one.
 

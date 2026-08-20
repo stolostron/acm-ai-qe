@@ -1,6 +1,6 @@
 ---
 name: acm-failure-classifier
-description: Classify Jenkins pipeline test failures as PRODUCT_BUG, AUTOMATION_BUG, INFRASTRUCTURE, or NO_BUG using a 5-phase AI investigation framework with 12-layer diagnostics, provably linked grouping, counterfactual validation, and multi-evidence requirements. Use when test failures need root-cause classification.
+description: Classify Jenkins pipeline test failures into 7 types (PRODUCT_BUG, AUTOMATION_BUG, INFRASTRUCTURE, NO_BUG, MIXED, FLAKY, UNKNOWN) using a 5-phase AI investigation framework with 12-layer diagnostics, provably linked grouping, counterfactual validation, and multi-evidence requirements. Use when test failures need root-cause classification.
 compatibility: "Uses acm-cluster-health (methodology). Requires MCP servers: acm-source (selector verification), neo4j-rhacm (dependencies), jira (bug correlation), polarion (test case context). Requires oc CLI for cluster access. Uses acm-cluster-investigator for per-group deep investigation."
 metadata:
   author: acm-qe

@@ -1,3 +1,17 @@
+---
+type: health
+subsystem: cluster-lifecycle
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - architecture/cluster-lifecycle/architecture.md
+  - health/cluster-lifecycle/known-issues.md
+  - versions/acm-2x-to-5x-changes.md
+version_notes:
+  - "registration-operator renamed to cluster-manager-registration-controller in ACM 5.0"
+  - "work-manager removed as standalone hub deployment; use cluster-manager-work-webhook"
+---
+
 # Managed Cluster Health Patterns (Hub-Side)
 
 How to diagnose managed cluster health from the hub without spoke access.
@@ -124,9 +138,9 @@ Look for: certificate expiry, RBAC errors, import failures.
 
 | Controller | Namespace | Impact If Down |
 |-----------|-----------|---------------|
-| registration-operator | open-cluster-management-hub | New clusters can't register |
+| cluster-manager-registration-controller | open-cluster-management-hub | New clusters can't register *(ACM 5.0; was `registration-operator` in ACM 2.x)* |
 | registration-controller | open-cluster-management-hub | CSR approval stops, leases not monitored |
-| work-manager | open-cluster-management-hub | ManifestWork delivery stops |
+| cluster-manager-work-webhook | open-cluster-management-hub | ManifestWork delivery stops *(ACM 5.0; `work-manager` removed as standalone hub deployment)* |
 | placement-controller | multicluster-engine | Placement decisions stop |
 | addon-manager | multicluster-engine | Addon deployment stops |
 | managedcluster-import-controller | multicluster-engine | New cluster imports fail |
@@ -134,7 +148,7 @@ Look for: certificate expiry, RBAC errors, import failures.
 ```bash
 # Quick check of all hub controllers
 oc get pods -n open-cluster-management-hub --no-headers
-oc get pods -n multicluster-engine | grep -E 'registration|work-manager|placement|addon-manager|import'
+oc get pods -n multicluster-engine | grep -E 'registration|placement|addon-manager|import'
 ```
 
 ---

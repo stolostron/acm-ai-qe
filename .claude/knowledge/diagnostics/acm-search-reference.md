@@ -1,3 +1,12 @@
+---
+type: diagnostics
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - architecture/search/architecture.md
+  - data-flow/search/data-flow.md
+---
+
 # ACM Search MCP Reference (acm-search)
 
 Read-only access to ACM's search PostgreSQL database -- the same database
@@ -9,9 +18,9 @@ cannot (since `oc` only queries the hub cluster).
 
 | Tool | Purpose | Phase |
 |------|---------|-------|
-| `find_resources` | Cross-cluster resource search with filtering, grouping, and health analysis | 3, 5, 6 |
-| `get_database_stats` | Database health: table count, row count, size, connections | 3 (prerequisite check) |
-| `query_database` | Raw read-only SQL for complex queries not possible via `find_resources` | 5, 6 |
+| `find_resources` | Cross-cluster resource search with filtering, grouping, counting, and health analysis | 3, 5, 6 |
+
+Single tool with advanced filtering and output modes. No raw SQL access.
 
 ## What It Provides (That `oc` Cannot)
 
@@ -24,9 +33,8 @@ cannot (since `oc` only queries the hub cluster).
 - **Cross-cluster pattern detection**: `groupBy="cluster"` shows which
   clusters share symptoms. Answers "is this a spoke-specific issue or
   fleet-wide?" in one query.
-- **Search data integrity verification**: `get_database_stats` confirms
-  the search database has data (row counts, table sizes) without
-  needing `oc exec ... psql`.
+- **Label-based filtering**: `labelSelector` finds resources matching
+  Kubernetes labels across all clusters without per-cluster access.
 
 ## What It Does NOT Replace
 
@@ -44,14 +52,19 @@ cannot (since `oc` only queries the hub cluster).
 ```
 kind:           Resource kind (Pod, Deployment, ManagedCluster, etc.)
 name:           Exact match or shell-style pattern (name="klusterlet-addon-*")
-namespace:      Single or comma-separated list
+namespace:      Single or comma-separated list, or wildcard (kube-*)
 cluster:        Single or comma-separated list
 labelSelector:  Kubernetes label selector ("app=nginx,env!=test")
+clusterSelector: Filter by cluster labels ("env=prod,cloud=AWS")
 status:         Status filter ("Running,CrashLoopBackOff")
+textSearch:     Full-text search across all resource fields
 ageNewerThan:   Duration filter ("1h", "2d")
+ageOlderThan:   Duration filter ("1h", "2d")
 outputMode:     list | count | summary | health
 groupBy:        status | namespace | cluster | kind | label:<key>
+sortBy:         name | created | namespace | cluster
 limit:          Max results for list mode (default: 50, max: 1000)
+countOnly:      Return only counts, no details (boolean)
 ```
 
 ## Common Query Patterns
@@ -65,62 +78,54 @@ limit:          Max results for list mode (default: 50, max: 1000)
 | Hub deployments health | `find_resources(kind="Deployment", namespace="<mch-ns>", outputMode="list")` |
 | Recent pod disruptions | `find_resources(kind="Pod", ageNewerThan="1h", outputMode="count", groupBy="cluster")` |
 | Managed cluster summary | `find_resources(kind="ManagedCluster", outputMode="list")` |
-| Search DB health | `get_database_stats()` |
+| Non-compliant policies | `find_resources(textSearch="NonCompliant", kind="Policy")` |
 | Spoke-side addon deploys | `find_resources(kind="Deployment", cluster="<cluster>", namespace="open-cluster-management-agent-addon", outputMode="list")` |
-| Recently created pods | `find_resources(kind="Pod", cluster="<cluster>", ageNewerThan="1h", outputMode="list")` |
 
-## Availability
+## Architecture
 
-The search MCP requires:
-- `oc` logged into an ACM hub with search enabled
-- The acm-search MCP server deployed on-cluster (`bash mcp/deploy-acm-search.sh`)
-- `mcp-remote` installed globally (`npm install -g mcp-remote`) as a
-  stdio-to-SSE bridge
-- A valid service account token (extracted automatically by the deploy script)
+**Source:** [stolostron/search-mcp-server](https://github.com/stolostron/search-mcp-server) (Go, Helm)
 
-The MCP server runs as a pod on the ACM hub cluster in the `acm-search`
-namespace, accessed via SSE over an OpenShift route. `mcp-remote` bridges
-stdio (what Claude Code expects) to SSE (what the on-cluster server
-speaks). The `--transport sse-only` flag and `NODE_TLS_REJECT_UNAUTHORIZED=0`
-env var are set in `.mcp.json` to handle self-signed certs.
+The MCP server runs as a pod on the ACM hub cluster (deployed into the
+MCH namespace, e.g. `ocm`). It connects directly to the ACM Search
+PostgreSQL database within the same namespace and exposes an HTTP
+endpoint via an OpenShift route. Auth uses OCP bearer tokens validated
+via K8s TokenReview API.
 
-### Deployment
+**Transport:** Streamable HTTP at `/mcp`, bridged via `mcp-remote` for
+TLS handling (self-signed OCP routes).
 
-```bash
-oc login <hub-api-url>
-bash mcp/deploy-acm-search.sh    # deploys pod, extracts route+token, updates .mcp.json
-claude                            # session reads fresh .mcp.json
-```
+## Connectivity (Cursor)
 
-The deploy script auto-discovers the ACM namespace, deploys pre-built
-container images, extracts the SSE route URL and service account token,
-and updates all `.mcp.json` files (root + per-app).
+**Auto-connect wrapper**: `~/Documents/work/ai/tools/mcp/acm-search-mcp-connect.sh`
 
-### Cluster rotation
+The wrapper script is the MCP `command` in `mcp.json`. Every time the
+MCP is toggled on, it:
+1. Reads cluster credentials from `~/Documents/work/notes/notes.md` (lines 1-3)
+2. Logs into the cluster automatically
+3. Deploys the Helm chart if not already present
+4. Creates a 1-year ServiceAccount token
+5. Connects via `mcp-remote`
 
-When the hub cluster changes, re-run the deploy script before starting
-a new Claude Code session:
+**Cluster rotation:** Update `notes/notes.md` lines 1-3 with new cluster
+info, then toggle acm-search off/on in Cursor Settings.
 
-```bash
-oc login <new-hub>
-bash mcp/deploy-acm-search.sh
-claude
-```
+**Standalone deploy script:** `~/Documents/work/ai/tools/mcp/deploy-acm-search.sh`
+(for manual use or `--uninstall`).
 
 ### Detecting unavailability
 
 The MCP is unavailable when:
-- `.mcp.json` has `"command": "echo"` (stub -- never deployed)
-- MCP tool calls return connection errors or timeouts
-- `get_database_stats()` fails or returns 0 rows
+- Cursor shows "Error" status for acm-search
+- Tool calls return connection errors or timeouts
+- The cluster in `notes/notes.md` was torn down
+
+### Recovery
+
+Toggle acm-search off/on in Cursor Settings. The wrapper handles
+login, deploy, and token creation automatically.
 
 ### Fallback
 
-If the MCP is not configured or the server fails to connect, skip
-all `acm-search` usage and rely on `oc` commands. The agent works
-without it, just with reduced spoke-side visibility.
-
-If the MCP is broken mid-session, tell the user:
-> acm-search is unavailable. To enable fleet-wide queries, run from
-> your terminal: `oc login <hub> && bash mcp/deploy-acm-search.sh`,
-> then restart Claude Code. Continuing with oc CLI fallback.
+If the MCP cannot connect after toggling, skip `acm-search` usage and
+rely on `oc` commands. The agent works without it, just with reduced
+spoke-side visibility.

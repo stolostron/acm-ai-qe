@@ -43,7 +43,7 @@ The data-gatherer subagent runs `scripts/gather.py` internally for deterministic
 |------|--------|------|-------------|
 | 1 | Search for PR by JIRA ID | `gh search prs` | `pr_data.number` |
 | 2 | Fetch PR metadata | `gh pr view --json` | `pr_data` (title, files, additions, deletions) |
-| 3 | Download full PR diff | `gh pr diff` | `pr-diff.txt` file |
+| 3 | Download PR diff (capped ~40KB) | `gh pr diff` | `pr-diff.txt` file |
 | 4 | Auto-detect area from file paths | Python (path patterns) | `area` |
 | 5 | Find existing peer test cases | Filesystem glob | `existing_test_cases` |
 | 6 | Load conventions | Read `knowledge/conventions/test-case-format.md` | `conventions` |
@@ -366,9 +366,9 @@ Produces the primary deliverable: a Polarion-ready test case markdown file.
 ### Process
 
 1. Read conventions (`test-case-format.md`, `area-naming-patterns.md`, `cli-in-steps-rules.md`)
-2. Read 2-3 peer test cases for format reference
+2. Read one convention-compliant peer test case for format reference
 3. Scope gate: plan steps that map to target JIRA story's ACs only
-4. MCP spot-check: verify entry point route + key translations
+4. MCP spot-check: verify key translations and behavioral claims via `search_translations` + `get_component_source` (entry-point route read from `phase3-ui.json`, verified in Phase 3 -- no live `get_routes()`)
 5. Write `test-case.md` following exact convention structure
 6. If synthesized context flags `OUTCOME_VERIFICATION_NEEDED` or `OUTCOME_VERIFICATION_REQUIRED`, generate a functional outcome verification step titled "Verify Functional Outcome — [description]"
 7. Write `analysis-results.json` with investigation metadata

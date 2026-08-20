@@ -1,3 +1,15 @@
+---
+type: health
+subsystem: cluster-lifecycle
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - architecture/cluster-lifecycle/architecture.md
+  - failures/cluster-lifecycle/failure-signatures.md
+version_notes:
+  - "All JIRA bugs in this file resolved before ACM 5.0 (historical context)"
+---
+
 # Cluster Lifecycle (CLC) -- Known Issues
 
 Based on 233 CLC bugs from ACM 2.12-2.17.
@@ -7,6 +19,7 @@ Based on 233 CLC bugs from ACM 2.12-2.17.
 ## 1. Detach Destroys Hosted Clusters (ACM-15018)
 
 **Versions:** MCE 2.5-2.8 | **Severity:** Critical | **Fix:** Code change (import-controller/pull/408)
+**JIRA Status:** Closed -- Fixed in MCE 2.7.1. Resolved in ACM 5.0.
 
 Detaching a hosted cluster deletes the hosting namespace, which contains
 the HostedCluster control plane pods. The cluster is destroyed instead
@@ -33,6 +46,7 @@ remove ACM-specific resources (ManagedCluster, import secrets, addons).
 ## 2. ClusterDeployment Finalizer Broken (ACM-26271)
 
 **Versions:** ACM 2.16 | **Severity:** Blocker | **Fix:** Code change (hive/pull/2729)
+**JIRA Status:** Resolved -- Fixed in MCE 2.10.0. Resolved in ACM 5.0.
 
 ClusterDeployment finalizer doesn't work when Hive metadata passthrough
 is missing. Clusters can't be deprovisioned -- cloud resources are
@@ -57,6 +71,7 @@ from CD: `oc patch cd <name> -p '{"metadata":{"finalizers":null}}' --type merge`
 ## 3. ClusterPermission Controller OOM at Scale (ACM-24032)
 
 **Versions:** ACM 2.15 | **Severity:** Important | **Fix:** Code change (cluster-permission/pull/69)
+**JIRA Status:** Closed -- Fixed in ACM 2.15.0. Resolved in ACM 5.0.
 
 cluster-permission controller OOM-kills in large environments (1000+
 managed clusters) during performance testing.
@@ -67,9 +82,10 @@ created by cluster-permission. At scale, this consumed gigabytes of
 memory. ManifestWorks are created by many controllers (GRC, App, addons),
 so the cache grew far beyond what cluster-permission needed.
 
-**Signals:** `oc get pods -n open-cluster-management -l app=cluster-permission`
+**Signals:** `oc get pods -n multicluster-engine -l app=cluster-permission`
 shows OOMKilled. Pod restart count climbing. Check events:
-`oc get events -n open-cluster-management --field-selector reason=OOMKilling`
+`oc get events -n multicluster-engine --field-selector reason=OOMKilling`
+*(Changed in ACM 5.0; previously namespace was `open-cluster-management` in ACM 2.x.)*
 
 **Fix pattern:** Removed `Owns` watch on ManifestWork. Controller now
 uses label-filtered watches to only cache ManifestWorks it created.
@@ -80,6 +96,7 @@ Memory dropped from GBs to MBs.
 ## 4. ClusterPermission Hot-Loop Reconciliation (ACM-25572)
 
 **Versions:** ACM 2.15 | **Severity:** Important | **Fix:** Code change (cluster-permission/pull/77)
+**JIRA Status:** Closed -- Fixed in ACM 2.15.0. Resolved in ACM 5.0.
 
 cluster-permission controller reconciles continuously even when nothing
 changed, causing elevated CPU and API server load.
@@ -102,6 +119,7 @@ ACM-24032 fix to dramatically reduce controller resource usage.
 ## 5. ManagedCluster Remains After HostedCluster Destroy (ACM-20695)
 
 **Versions:** ACM 2.14-2.15 | **Severity:** Critical | **Fix:** Code change (hypershift-addon/pull/525)
+**JIRA Status:** Closed -- Fixed in ACM 2.14.0. Resolved in ACM 5.0.
 
 After destroying a HostedCluster, the corresponding ManagedCluster
 resource is re-created automatically, preventing clean deletion.
@@ -207,8 +225,9 @@ Cluster import fails at various stages. Common patterns:
 
 ### 8a. Import controller not running
 - **Signals:** ManagedCluster created but no import secret generated
-- **Detection:** `oc get pods -n open-cluster-management -l app=managedcluster-import-controller`
+- **Detection:** `oc get pods -n multicluster-engine -l app=managedcluster-import-controller`
   shows CrashLoopBackOff or missing
+  *(Changed in ACM 5.0; previously namespace was `open-cluster-management` in ACM 2.x.)*
 - **Fix:** Investigate import controller crash (check logs, events)
 
 ### 8b. Auto-import secret invalid
@@ -241,6 +260,7 @@ Cluster import fails at various stages. Common patterns:
 ## 9. ClusterPermission RoleBinding Namespace Wrong (ACM-22985)
 
 **Versions:** ACM 2.14-2.15 | **Severity:** Normal | **Fix:** Code change (cluster-permission/pull/68)
+**JIRA Status:** Closed -- Fixed in ACM 2.15.0. Resolved in ACM 5.0.
 
 ClusterPermission creates RoleBindings in the wrong namespace on the
 managed cluster after the managed-serviceaccount addon namespace changed.
@@ -259,6 +279,7 @@ ClusterPermission granting access.
 ## 10. ClusterPool Remains After MCE Uninstall (ACM-27552)
 
 **Versions:** ACM 2.16 | **Severity:** Normal | **Fix:** Code change (backplane-operator/pull/2352)
+**JIRA Status:** Closed -- Fixed in MCE 2.11.0. Resolved in ACM 5.0.
 
 ClusterPool CR is not cleaned up when MCE is uninstalled, leaving
 orphaned pre-provisioned clusters running.
@@ -277,6 +298,7 @@ blocks until ClusterPools are cleaned up.
 ## 11. Curator Fails to Upgrade OCP 4.21 (ACM-30314)
 
 **Versions:** ACM 2.17 | **Severity:** Normal | **Fix:** Code change (curator-controller/pull/524)
+**JIRA Status:** Closed -- Fixed in MCE 2.11.0. Resolved in ACM 5.0.
 
 ClusterCurator upgrade logic incompatible with OCP 4.21 ClusterVersion
 API changes.

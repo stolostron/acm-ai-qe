@@ -1,3 +1,16 @@
+---
+type: health
+subsystem: governance
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - architecture/governance/architecture.md
+  - failures/governance/failure-signatures.md
+version_notes:
+  - "All JIRA bugs in this file resolved before ACM 5.0 (historical context)"
+  - "iam-policy-controller entries are historical; component removed in ACM 5.0"
+---
+
 # Governance (GRC) -- Known Issues
 
 Based on 100 GRC bugs from ACM 2.12-2.17.
@@ -7,6 +20,7 @@ Based on 100 GRC bugs from ACM 2.12-2.17.
 ## 1. ConfigurationPolicy Hot-Loop (ACM-25694)
 
 **Versions:** 2.15, 2.16 | **Severity:** Normal | **Fix:** Code change
+**JIRA Status:** Closed -- Fixed in ACM 2.15.0. Resolved in ACM 5.0.
 
 config-policy-controller re-evaluates compliant policies every ~10s even when
 nothing changed. Lookup watchers trigger on status-only changes.
@@ -24,6 +38,7 @@ updates -> watcher fires -> re-evaluates -> still compliant -> repeat.
 ## 2. Status Updates Overload Framework (ACM-28668)
 
 **Versions:** 2.15.1 | **Severity:** Blocker | **Fix:** Code change (z-stream)
+**JIRA Status:** Closed -- Fixed in ACM 2.15.1. Resolved in ACM 5.0.
 
 History calculation bug causes Status Sync to re-emit compliance events on
 every cycle even when state unchanged. At scale: hub API throttling, propagator
@@ -37,6 +52,7 @@ Framework addon logs show continuous status writes.
 ## 3. pruneObjectBehavior=DeleteAll + objectSelector (ACM-26186)
 
 **Versions:** 2.15, 2.16 | **Severity:** Blocker | **Fix:** Code change (PR#1560)
+**JIRA Status:** Closed -- Fixed in ACM 2.15.0. Resolved in ACM 5.0.
 
 Objects incorrectly deleted on policy removal. Pruning logic didn't filter by
 objectSelector -- deleted objects no longer matching the selector.
@@ -49,6 +65,7 @@ objectSelector -- deleted objects no longer matching the selector.
 ## 4. config-policy-controller Crash During Uninstall (ACM-22679)
 
 **Versions:** 2.14, 2.15 | **Severity:** Major | **Fix:** Code change
+**JIRA Status:** Closed -- Fixed in ACM 2.14.1. Resolved in ACM 5.0.
 
 Nil pointer in addon pre-delete task (`triggeruninstall.go`). CrashLoopBackOff
 during addon removal.
@@ -62,6 +79,7 @@ dereference` in logs. Addon removal hangs.
 ## 5. Gatekeeper ConstraintTemplate Oscillation (ACM-29231)
 
 **Versions:** 2.16 | **Severity:** Critical | **Fix:** Code change
+**JIRA Status:** Closed -- Fixed in ACM 2.16.0. Resolved in ACM 5.0.
 
 Gatekeeper Sync Controller treats identical audit results as "new" on each
 cycle, flipping compliance status repeatedly.
@@ -74,6 +92,7 @@ metric flips between 0 and 1.
 ## 6. Policy Template Namespace Mismatch (ACM-17666)
 
 **Versions:** 2.13, 2.14, 2.15 | **Severity:** Normal | **Fix:** Code change (PR#625)
+**JIRA Status:** Closed -- Fixed in ACM 2.13.0. Resolved in ACM 5.0.
 
 Namespace validation runs BEFORE template resolution. Go template expressions
 in namespace field compared literally against expected value.
@@ -86,6 +105,7 @@ in namespace field.
 ## 7. OperatorPolicy Multi-CSV InstallPlan (ACM-20500)
 
 **Versions:** 2.14, 2.15 | **Severity:** Normal | **Fix:** Code change
+**JIRA Status:** Resolved -- Fixed in ACM 2.15.0. Resolved in ACM 5.0.
 
 Approval logic expects 1:1 InstallPlan-to-CSV mapping. Fails with multi-CSV
 InstallPlans.
@@ -98,6 +118,7 @@ InstallPlans.
 ## 8. Template Library Crashes on Arrays (ACM-20863)
 
 **Versions:** 2.14, 2.15 | **Severity:** Normal | **Fix:** Code change
+**JIRA Status:** Closed -- Fixed in ACM 2.14.0. Resolved in ACM 5.0.
 
 Template engine panics when `lookup` returns an array assigned to context variable.
 Type assertion fails.
@@ -110,6 +131,7 @@ Type assertion fails.
 ## 9. mustnothave Behavior Change (ACM-15772)
 
 **Versions:** 2.12 -> 2.13+ | **Severity:** Normal | **Fix:** Upgrade regression
+**JIRA Status:** Closed -- Fixed in ACM 2.13.0. Resolved in ACM 5.0.
 
 Field comparison semantics changed for `mustnothave` across versions. Policies
 compliant in 2.12 may become non-compliant in 2.13+ without policy/cluster changes.

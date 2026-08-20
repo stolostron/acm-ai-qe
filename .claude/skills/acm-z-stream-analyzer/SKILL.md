@@ -4,7 +4,7 @@ description: Analyze Jenkins pipeline test failures and classify each as PRODUCT
 compatibility: "Required MCPs: acm-source, jira, polarion. Recommended: neo4j-rhacm, jenkins. Requires oc CLI and gh CLI. Run /onboard to configure all MCPs."
 metadata:
   author: acm-qe
-  version: "1.0.0"
+  version: "4.0.0"
 ---
 
 # ACM Z-Stream Pipeline Failure Analyzer
@@ -24,7 +24,7 @@ This skill orchestrates the following skills:
 | **acm-data-enricher** | Post-Stage 1 | Enrich core-data.json with selector verification, timeline analysis, page object resolution |
 | **acm-failure-classifier** | Stage 2 | Full 5-phase classification analysis (A through E) |
 | **acm-cluster-investigator** | Stage 2 | Per-group deep investigation dispatched by the classifier |
-| **acm-source** (MCP) | Stages 1.5-2 | Selector verification, source code search |
+| **acm-source** (MCP) | Data Enrichment, Stage 2 | Selector verification, source code search |
 | **neo4j-rhacm** (MCP) | Stages 1.5-2 | Component dependency analysis |
 | **jira** (MCP) | Stage 2 | Bug correlation and story context |
 | **polarion** (MCP) | Stage 2 | Test case expected behavior |
@@ -70,9 +70,9 @@ Using the acm-cluster-health skill methodology, perform a comprehensive cluster 
 
 Follow the 6-phase diagnostic process:
 1. **Discover:** MCH namespace, version, operators, nodes, managed clusters, CSVs, webhooks
-2. **Learn:** Read knowledge baselines (`${KNOWLEDGE_DIR}/baselines/healthy-baseline.yaml`, `baselines/components.yaml`, `baselines/addon-catalog.yaml`, `diagnostics/diagnostic-traps.md`)
+2. **Learn:** Read knowledge baselines (`${KNOWLEDGE_DIR}/baselines/healthy-baseline.yaml`, `${KNOWLEDGE_DIR}/baselines/components.yaml`, `${KNOWLEDGE_DIR}/baselines/addon-catalog.yaml`, `${KNOWLEDGE_DIR}/diagnostics/diagnostic-traps.md`)
 3. **Check:** 12-layer bottom-up verification (compute, network guards, storage, config, pods, addons)
-4. **Pattern Match:** Cross-reference against `${KNOWLEDGE_DIR}/failures/failure-patterns.yaml` and per-area `failures/<area>/failure-signatures.md`
+4. **Pattern Match:** Cross-reference against `${KNOWLEDGE_DIR}/failures/failure-patterns.yaml` and per-area `${KNOWLEDGE_DIR}/failures/<area>/failure-signatures.md`
 5. **Correlate:** Trace dependency chains, identify root causes across subsystems
 6. **Output:** Write `cluster-diagnosis.json` with structured health data
 
@@ -163,6 +163,8 @@ If an MCP server is unavailable (not configured or connection refused), degrade 
 | polarion | No test case expected behavior lookup | Skip PR-6b check, rely on other evidence |
 | neo4j-rhacm | No dependency chain analysis | Use knowledge file dependency chains instead |
 | jenkins | No pre-flight connectivity check | Proceed if Jenkins URL is directly accessible via gather.py |
+| acm-search | No fleet-wide resource queries | Fall back to `oc` CLI for direct cluster queries |
+| acm-kubectl | No spoke cluster access | Skip spoke-side verification, note in output |
 
 Do NOT abort the pipeline for a missing optional MCP. Report which MCPs were unavailable in the pipeline summary.
 

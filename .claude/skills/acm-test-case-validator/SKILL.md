@@ -11,9 +11,12 @@ description: >-
   test case quality/format (use acm-test-case-reviewer); verify a bug fix (use
   acm-bug-fix-verifier).
 compatibility: >-
-  Required: playwright MCP (UI actions), oc CLI (setup/teardown/backend checks).
-  Optional: polarion MCP (fetch test case by Polarion ID), acm-kubectl MCP (spoke
-  cluster checks), acm-search MCP (resource existence). Run /onboard to configure.
+  Required: playwright MCP launched with --caps testing (the browser_verify_* assertion
+  tools register only under that capability; the repo's canonical .mcp.json and
+  mcp/setup.sh already pass --caps core,testing). If the testing cap is absent the
+  validator falls back to snapshot-based assertions (see execution-patterns.md). Also
+  required: oc CLI (setup/teardown/backend checks). Optional: polarion MCP (fetch test
+  case by Polarion ID). Run /onboard to configure.
 metadata:
   author: acm-qe
   version: "1.0.0"
@@ -43,11 +46,18 @@ allowed-tools:
   - mcp__playwright__browser_navigate
   - mcp__playwright__browser_snapshot
   - mcp__playwright__browser_click
-  - mcp__playwright__browser_fill
+  - mcp__playwright__browser_fill_form
   - mcp__playwright__browser_hover
+  - mcp__playwright__browser_close
+  - mcp__playwright__browser_handle_dialog
   - mcp__playwright__browser_take_screenshot
   - mcp__playwright__browser_console_messages
   - mcp__playwright__browser_wait_for
+  - mcp__playwright__browser_verify_element_visible
+  - mcp__playwright__browser_verify_text_visible
+  - mcp__playwright__browser_verify_value
+  - mcp__playwright__browser_verify_list_visible
+  - mcp__playwright__browser_tabs
   - mcp__polarion__get_polarion_work_item
   - mcp__polarion__get_polarion_test_steps
   - mcp__polarion__get_polarion_setup_html
@@ -73,7 +83,7 @@ Reference files (load only when executing the relevant phase):
 
 ## Knowledge Database (Fallback Context)
 
-The shared knowledge database at `${SKILLS_DIR}/../knowledge/` provides supplementary context when the test case itself doesn't specify enough detail for execution. **The test case is always the primary source of truth** -- knowledge DB is a fallback for filling execution gaps.
+The shared knowledge database at `${CLAUDE_SKILL_DIR}/../../knowledge/` provides supplementary context when the test case itself doesn't specify enough detail for execution. **The test case is always the primary source of truth** -- knowledge DB is a fallback for filling execution gaps.
 
 **When to consult the knowledge DB:**
 
@@ -313,7 +323,7 @@ oc get route console -n openshift-console -o jsonpath='https://{.spec.host}'
 2. Navigate and authenticate:
 - `browser_navigate` to the console URL
 - `browser_snapshot` to identify login form
-- Fill credentials using `browser_fill`
+- Fill credentials using `browser_fill_form`
 - Submit and wait for dashboard
 
 3. Navigate to ACM console:
@@ -326,11 +336,11 @@ Record: "Console login: PASS/FAIL"
 
 ## Phase 4: Execute Test Steps
 
-Read `${CLAUDE_SKILL_DIR}/references/execution-patterns.md` for the full action-to-tool mapping.
+Read `${CLAUDE_SKILL_DIR}/references/execution-patterns.md` for the full action-to-tool mapping, the `browser_verify_*` assertion mapping, and the snapshot-evidence model. Follow that file for the mechanics; this section defines the per-step sequence and the mandatory verdict gate.
 
 This phase runs INLINE (not as a subagent) because Playwright MCP requires inline execution.
 
-**Knowledge DB loading:** At the start of Phase 4, read `${SKILLS_DIR}/../knowledge/ui/<area>.md` for the test case's area. This provides route tables, component structure, and known UI patterns that help when the test case uses shorthand navigation or when elements are not immediately findable in snapshots. Do NOT use the knowledge DB to override or question the test case's expected results.
+**Knowledge DB loading:** At the start of Phase 4, read `${CLAUDE_SKILL_DIR}/../../knowledge/ui/<area>.md` for the test case's area. This provides route tables, component structure, and known UI patterns that help when the test case uses shorthand navigation or when elements are not immediately findable in snapshots. Do NOT use the knowledge DB to override or question the test case's expected results.
 
 ### Core loop
 
@@ -342,44 +352,31 @@ For each step `i` in `steps[0..N]`:
 
 #### 4.1 Pre-step snapshot
 
-Before any action, capture the current state:
+At step entry, capture the current state ONCE. This snapshot yields the element refs the step's actions need and is the retained per-step evidence:
 ```
 browser_snapshot -> save to evidence/step-{i}-pre-snapshot.txt
 ```
 
 #### 4.2 Execute actions
 
-For each numbered action in the step, classify and execute:
+Classify and execute each numbered action per the Action Mapping Table in `execution-patterns.md`. Do NOT take a confirmation snapshot after every action: `browser_click`, `browser_hover`, and `browser_navigate` each return a fresh post-action snapshot with element refs, so reuse that returned state for the next action and for verification.
 
-| Action Pattern | Tool | Execution |
-|---------------|------|-----------|
-| "Navigate to X > Y > Z" | `browser_navigate` + `browser_click` | Follow navigation path via sidebar/menu clicks |
-| "Click on X" / "Click the X button" | `browser_click` | Find element ref in snapshot, click it |
-| "Hover over X" | `browser_hover` | Find element ref, hover |
-| "Fill/Enter X in Y field" | `browser_fill` | Find input ref, fill value |
-| "Observe/View/Look at X" | `browser_snapshot` | Capture state, no interaction |
-| "Refresh the page" | `browser_navigate` | Re-navigate to current URL |
-| "`oc get ...`" or CLI command | `Bash` | Execute and capture output |
-| "Sort by X" / "Click column header" | `browser_click` | Click the header element |
-| "Open new tab" / "Verify new tab" | `browser_snapshot` | Check URL or page state |
-
-Between each action, wait briefly (1-2s) then `browser_snapshot` to confirm the action took effect.
+**Exception -- `browser_fill_form` returns no snapshot.** Before the next action, if its target ref is absent from the last action's return (real trigger: a fill that reveals a typeahead/autocomplete or inline-validation surface), take exactly ONE `browser_snapshot` on that surface. Do not blanket-snapshot every action. (A reactive net also exists: ref-not-found -> re-snapshot after a short wait, else BLOCKED -- see execution-patterns.md "Error Recovery".)
 
 #### 4.3 Verify expected results
 
-For each bullet in the Expected Result section:
+For each bullet in the Expected Result section, assert with the matching tool per the Verification Patterns in `execution-patterns.md`:
+- "X is displayed" / "X appears" -> `browser_verify_element_visible` or `browser_verify_text_visible`
+- "field shows N" / value assertions -> `browser_verify_value`
+- "menu/table/list present" -> `browser_verify_list_visible`
+- "navigates to X" / "URL contains X" / "new tab opens" -> compare the ACTUAL URL per the Navigation Verification carve-out (never a text-visible check on the URL; a new-tab case may need `browser_tabs` to read the opened tab's URL)
+- "No errors" / "No broken UI" -> `browser_console_messages`
+- element count / sort order / text absence / visual position -> take a full `browser_snapshot` and evaluate against it
+- CLI expected output -> pattern-match against command output
 
-| Expected Pattern | Verification Method |
-|-----------------|-------------------|
-| "X is displayed" / "X appears" | Search accessibility snapshot for text X |
-| "N columns" / "N items" | Count matching elements in snapshot |
-| "Column header reads X" | Find header element, compare text |
-| "URL contains X" | Check current URL from snapshot metadata |
-| "Sorted in ascending/descending order" | Capture column values, verify order |
-| "Link opens to X" | Check navigation target |
-| "No errors" / "No broken UI" | Check `browser_console_messages` for errors |
-| CLI expected output | Pattern match against command output |
-| "NOT present" / "NOT displayed" | Confirm absence in snapshot |
+Also take a full `browser_snapshot` for any non-PASS verdict (debug evidence).
+
+**If a `browser_verify_*` call returns a tool-not-found error** (the Playwright MCP was launched without `--caps testing`), switch to the snapshot-based assertion fallback for the remainder of the run -- see execution-patterns.md "Verify-tool availability". Never emit a verdict from a failed or absent verify call.
 
 For each expected result: record PASS (confirmed), FAIL (contradicted), or MANUAL_CHECK (cannot programmatically verify).
 
@@ -388,7 +385,7 @@ For each expected result: record PASS (confirmed), FAIL (contradicted), or MANUA
 Before assigning ANY step verdict, complete this checklist:
 
 1. **Re-read** the exact expected result text from the test case (Polarion step HTML or markdown bullets). Quote it.
-2. **Cite concrete evidence.** For UI verification: take a `browser_snapshot` and reference the snapshot content. For CLI verification: quote the command output. Never base a verdict on memory of what you saw -- cite the artifact.
+2. **Cite concrete evidence.** Quote the tool result or artifact the verdict rests on -- a `browser_verify_*` invocation (the locator/text asserted and its pass/fail return), a `browser_snapshot`, `browser_console_messages` output, or CLI output. Never base a verdict on memory of what you saw -- cite the tool result or artifact.
 3. **Compare literally.** For each expected result bullet, place the expected text next to the observed evidence. Does the evidence confirm or contradict the literal text?
 4. **Check for injected assumptions.** Ask: "Am I failing this because the test case says it should fail, or because I THINK it should fail based on my own reasoning?" If the latter, stop and re-evaluate.
 
@@ -402,11 +399,9 @@ A verdict of FAIL requires a specific expected result bullet that is contradicte
 
 #### 4.5 Post-step evidence
 
-After verifying all expected results:
-```
-browser_take_screenshot -> save to evidence/step-{i}-screenshot.png
-browser_snapshot -> save to evidence/step-{i}-post-snapshot.txt
-```
+- The step-entry snapshot from 4.1 is always saved (`evidence/step-{i}-pre-snapshot.txt`).
+- Save a post-step `browser_snapshot` to `evidence/step-{i}-post-snapshot.txt` ONLY when the step required a full structural snapshot (count/sort/absence/position) or the verdict is not PASS.
+- Take a `browser_take_screenshot` to `evidence/step-{i}-screenshot.png` ONLY when the verdict is not PASS (FAIL/BLOCKED/MANUAL_CHECK evidence). Do not screenshot passing steps.
 
 #### 4.6 Record step verdict
 
@@ -466,9 +461,13 @@ Read `${CLAUDE_SKILL_DIR}/references/verdict-format.md` for the full report spec
 | Condition | Overall Verdict |
 |-----------|----------------|
 | All steps PASS | `ALL_PASS` |
-| Some steps PASS, some FAIL/MANUAL_CHECK | `PARTIAL_PASS (N/M steps passed)` |
+| All steps PASS or MANUAL_CHECK (>=1 MANUAL_CHECK, no FAIL/BLOCKED) | `ALL_PASS_WITH_MANUAL` |
+| >=1 PASS and >=1 FAIL/BLOCKED | `PARTIAL_PASS (N/M steps passed)` |
+| All steps FAIL/BLOCKED | `FAILED` |
 | Critical prerequisite missing | `BLOCKED` |
-| All/most steps FAIL | `FAILED` |
+| Setup phase failed before test execution | `SETUP_FAILED` |
+
+`verdict-format.md` (read above) is authoritative for full precedence and edge cases.
 
 ### Step 2: Generate report file
 
@@ -530,6 +529,7 @@ This registry is the ONLY source of truth for what can be deleted during teardow
 | Overall Verdict | Teardown Behavior | Rationale |
 |----------------|-------------------|-----------|
 | `ALL_PASS` | Run full teardown | Test passed, safe to clean up |
+| `ALL_PASS_WITH_MANUAL` | Run full teardown | No failures, manual checks don't need preserved state |
 | `PARTIAL_PASS` | **SKIP teardown** | Preserve state for debugging failed steps |
 | `FAILED` | **SKIP teardown** | Preserve state for debugging |
 | `BLOCKED` | **SKIP teardown** | Likely nothing was created, or state is uncertain |

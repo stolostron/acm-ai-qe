@@ -1,3 +1,11 @@
+---
+type: conventions
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - conventions/test-case-format.md
+---
+
 # Polarion HTML Templates
 
 Fixed HTML templates for Polarion import. Use exactly as specified.

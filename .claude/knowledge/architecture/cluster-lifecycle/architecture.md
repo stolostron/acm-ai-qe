@@ -1,3 +1,20 @@
+---
+type: architecture
+subsystem: cluster-lifecycle
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - data-flow/cluster-lifecycle/data-flow.md
+  - health/cluster-lifecycle/known-issues.md
+  - failures/cluster-lifecycle/failure-signatures.md
+  - versions/acm-2x-to-5x-changes.md
+version_notes:
+  - "registration-operator renamed to cluster-manager (3 replicas) in ACM 5.0"
+  - "managedcluster-import-controller moved to multicluster-engine namespace"
+  - "hive-operator moved from hive to multicluster-engine namespace"
+  - "cluster-curator-controller runs in multicluster-engine namespace"
+---
+
 # Cluster Lifecycle (CLC) -- Architecture
 
 ## What Cluster Lifecycle Does
@@ -94,7 +111,7 @@ management.
 
 ### Key Components
 
-- **hypershift-addon-operator:** Manages the HyperShift addon on the
+- **hypershift-addon-manager:** (deployment: `hypershift-addon-manager` in `multicluster-engine`, 1 replica) Manages the HyperShift addon on the
   hub. Watches HostedCluster resources and triggers auto-import.
 - **HyperShift Operator:** Manages HostedCluster and NodePool lifecycle.
 - **external-managed-kubeconfig:** Secret generated for existing HCPs
@@ -106,10 +123,10 @@ management.
 
 ### managedcluster-import-controller
 
-- **Pod label:** `app=managedcluster-import-controller` (hub-health) /
-  `app=managedcluster-import-controller-v2` (z-stream)
-- **Namespace:** MCH namespace (`open-cluster-management`) or
-  `multicluster-engine` namespace
+- **Deployment name:** `managedcluster-import-controller-v2`
+- **Pod label:** `app=managedcluster-import-controller-v2`
+- **Namespace:** `multicluster-engine`
+- **Replicas:** 2
 
 Watches ManagedCluster CRs and deploys klusterlet to spoke clusters.
 Generates import manifests (klusterlet deployment, bootstrap kubeconfig
@@ -123,8 +140,10 @@ in it (ACM-15018 fix).
 
 ### cluster-curator-controller
 
-- **Pod label:** `app=cluster-curator` / `app=cluster-curator-controller`
-- **Namespace:** MCH namespace or `multicluster-engine`
+- **Deployment name:** `cluster-curator-controller`
+- **Pod label:** `app=cluster-curator-controller`
+- **Namespace:** `multicluster-engine`
+- **Replicas:** 2
 
 Watches ClusterCurator CRs and orchestrates cluster upgrades. Creates
 Job pods that drive the upgrade workflow. Supports pre/post-upgrade
@@ -135,21 +154,31 @@ changes (ACM-30314). Curator pods run in the cluster's namespace.
 
 ### cluster-manager
 
-- **Pod label:** `app=cluster-manager` /
-  `app=cluster-manager-registration-controller`
-- **Namespace:** MCH namespace / `open-cluster-management-hub`
+- **Deployment name:** `cluster-manager`
+- **Pod label:** `app=cluster-manager`
+- **Namespace:** `multicluster-engine`
+- **Replicas:** 3
 
-Core cluster management controller from the registration-operator.
-Deploys hub-side components (registration, placement, work controllers)
-in `open-cluster-management-hub` namespace. The ClusterManager CR
-(`operator.open-cluster-management.io/v1`) controls the deployment mode.
+Core cluster management operator. Deploys hub-side components in
+`open-cluster-management-hub` namespace:
+- `cluster-manager-registration-controller` (3 replicas)
+- `cluster-manager-placement-controller` (3 replicas)
+- `cluster-manager-work-webhook` (3 replicas)
+- `cluster-manager-registration-webhook` (3 replicas)
+- `cluster-manager-addon-manager-controller` (3 replicas)
+- `cluster-manager-addon-webhook` (3 replicas)
+
+The ClusterManager CR (`operator.open-cluster-management.io/v1`) controls
+the deployment mode.
 
 ### hive-operator
 
 - **Pod label:** `app=hive-operator`
-- **Namespace:** `hive`
+- **Namespace:** `multicluster-engine` (Changed in ACM 5.0; previously in `hive` namespace in ACM 2.x)
+- **Replicas:** 1
 
-Manages Hive controllers and CRDs.
+Manages Hive controllers and CRDs. The operator itself runs in the MCE namespace
+but deploys hive-controllers into the `hive` namespace.
 
 ### hive-controllers
 
@@ -166,20 +195,21 @@ configurations.
 
 ### hive-clustersync
 
+- **Kind:** StatefulSet (not Deployment)
 - **Pod label:** `app=hive-clustersync`
 - **Namespace:** `hive`
+- **Replicas:** 1
 
 Syncs cluster state between Hive and managed clusters.
 
-### registration-operator
+### registration-operator (logical, covered by cluster-manager)
 
-- **Pod label:** `app=registration-operator`
-- **Namespace:** MCH namespace
-
-Manages hub-side registration of managed clusters. Deploys and manages
+No standalone `registration-operator` deployment exists on ACM 5.0. The
+registration functionality is provided by the `cluster-manager` deployment
+in the `multicluster-engine` namespace (3 replicas), which deploys and manages
 the registration controller, work controller, and placement controller
-in `open-cluster-management-hub`. Also deploys klusterlet on spoke
-clusters (via the klusterlet CR).
+in `open-cluster-management-hub`. Changed in ACM 5.0; previously existed as
+a standalone deployment in ACM 2.x.
 
 ### placement-controller
 
@@ -193,8 +223,10 @@ selected clusters. Used by GRC (policy distribution), Application
 
 ### cluster-permission-controller
 
+- **Deployment name:** `cluster-permission`
 - **Pod label:** `app=cluster-permission`
-- **Namespace:** MCH namespace
+- **Namespace:** `multicluster-engine`
+- **Replicas:** 1
 
 Propagates RBAC rules to managed clusters via ManifestWork. Watches
 ClusterPermission CRs and creates ManifestWork resources containing
@@ -273,9 +305,9 @@ CLC uses multiple namespaces, which is a common source of confusion:
 
 | Namespace | Contents |
 |---|---|
-| `open-cluster-management` | Hub controllers (import-controller, curator, cluster-permission), MCH operator |
+| `ocm` | MCH operator, GRC controllers, search, observability operator, ALC operators. Changed in ACM 5.0; previously `open-cluster-management` in ACM 2.x |
 | `open-cluster-management-hub` | Registration, placement, work controllers |
-| `multicluster-engine` | MCE components: import controller, foundation, placement, addon-manager, hypershift |
+| `multicluster-engine` | MCE components: import controller, cluster-manager, hive-operator, foundation, addon-manager, hypershift, cluster-proxy, discovery, ocm-controller/proxyserver/webhook |
 | `hive` | Hive operator and hive-controllers |
 | `<cluster-name>` | Per-cluster: ClusterDeployment, install pods, kubeconfig secrets, curator Jobs |
 | `open-cluster-management-agent` | Klusterlet agent on spoke |

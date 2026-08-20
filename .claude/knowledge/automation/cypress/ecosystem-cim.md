@@ -1,3 +1,12 @@
+---
+type: automation
+subsystem: infrastructure
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - automation/playwright/ecosystem-cim.md
+---
+
 # Ecosystem / CIM Area Knowledge Base
 
 Domain knowledge for writing CIM (Central Infrastructure Management) and AI-assisted install tests.

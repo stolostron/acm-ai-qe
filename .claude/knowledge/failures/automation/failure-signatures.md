@@ -1,3 +1,13 @@
+---
+type: failures
+subsystem: automation
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - architecture/automation/architecture.md
+  - health/automation/known-issues.md
+---
+
 # Automation Failure Signatures
 
 Known failure patterns for Ansible Automation tests.

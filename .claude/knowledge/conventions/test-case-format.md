@@ -1,3 +1,13 @@
+---
+type: conventions
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - conventions/polarion-html-templates.md
+  - conventions/area-naming-patterns.md
+  - conventions/cli-in-steps-rules.md
+---
+
 # Test Case Conventions
 
 Conventions extracted from 85+ existing test cases in `documentation/acm-components/virt/test-cases/`.

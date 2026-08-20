@@ -1,3 +1,12 @@
+---
+type: failures
+subsystem: foundation
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - failures/foundation/failure-signatures.md
+---
+
 # Foundation Test Dependencies
 
 External and internal dependencies required for Foundation (acmqe-autotest) tests.

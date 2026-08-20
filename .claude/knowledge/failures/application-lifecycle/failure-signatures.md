@@ -1,3 +1,13 @@
+---
+type: failures
+subsystem: application-lifecycle
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - architecture/application-lifecycle/architecture.md
+  - health/application-lifecycle/known-issues.md
+---
+
 # Application Lifecycle Failure Signatures
 
 Known failure patterns for ALC-related test failures.

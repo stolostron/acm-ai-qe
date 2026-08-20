@@ -69,6 +69,7 @@ environment-*.config
 **/settings.local.json
 
 # Personal/development skills (not part of the ACM suite)
+.claude/skills/auto-grill/
 .claude/skills/grill-me/
 .claude/skills/youtube-digest/
 
@@ -88,6 +89,10 @@ mcp/.external/
 
 # Playwright MCP runtime data (console logs, session state)
 .playwright-mcp/
+
+# omo tool local state (code-index symlink + run-continuation session state)
+.codegraph
+.omo/
 
 # Python virtual environments
 **/.venv/

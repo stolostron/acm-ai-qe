@@ -1,3 +1,15 @@
+---
+type: health
+subsystem: virtualization
+acm_version: "5.0"
+last_verified: 2026-08-12
+related:
+  - architecture/virtualization/architecture.md
+  - failures/virtualization/failure-signatures.md
+version_notes:
+  - "All JIRA bugs in this file resolved before ACM 5.0 (historical context)"
+---
+
 # Virtualization -- Known Issues
 
 Based on 99 virtualization/CNV bugs from ACM 2.14-2.17.
@@ -7,6 +19,7 @@ Based on 99 virtualization/CNV bugs from ACM 2.14-2.17.
 ## 1. MCRA Controller Panics on Concurrent PATCH (ACM-24737)
 
 **Versions:** 2.15, 2.16 | **Severity:** Critical | **Fix:** Code change (PR#41)
+**JIRA Status:** Closed -- Fixed in ACM 2.15.0. Resolved in ACM 5.0.
 
 MCRA controller panics when multiple concurrent PATCH requests arrive. Uses
 stale in-memory state for optimistic updates, causing conflict panics.
@@ -24,6 +37,7 @@ partial updates. Role assignments created via UI sometimes silently fail.
 ## 2. Aggregate API Misses kubevirt Roles (ACM-24887)
 
 **Versions:** 2.15, 2.16 | **Severity:** Blocker | **Fix:** Code change (PR#1052)
+**JIRA Status:** Closed -- Fixed in MCE 2.10.0. Resolved in ACM 5.0.
 
 Search aggregate API doesn't pick up kubevirt roles from the
 `clusterRoleBindings` array field in ClusterPermission. Only honors the older
@@ -41,6 +55,7 @@ not the `clusterRoleBindings` array added for fine-grained VM RBAC.
 ## 3. MCRA CRD Breaking Change Blocks Upgrades (ACM-28211)
 
 **Versions:** 2.15 -> 2.16 upgrade | **Severity:** Blocker | **Fix:** Code change (PR#3260)
+**JIRA Status:** Closed -- Fixed in ACM 2.16.0. Resolved in ACM 5.0.
 
 MCRA CRD removed `v1alpha1` version during 2.16 upgrade without a conversion
 webhook. Existing MCRAs stored as v1alpha1 fail CRD validation post-upgrade.
@@ -57,6 +72,7 @@ become inaccessible. `oc get mcra` returns validation errors.
 ## 4. MTV Finalizer Race on ManagedCluster Deletion (ACM-29920)
 
 **Versions:** 2.16 | **Severity:** Normal | **Fix:** Code change (PR#253)
+**JIRA Status:** Closed -- Fixed in ACM 2.15.2 / ACM 2.16.0. Resolved in ACM 5.0.
 
 mtv-integrations-controller adds finalizer to ManagedCluster while it's being
 deleted. Race condition between controller reconciliation and cluster deletion.
@@ -177,6 +193,32 @@ KubeVirt's cert-manager regenerates the secrets automatically on pod restart.
 
 ---
 
+## 10. MTV forklift-operator CrashLoop on ARM (Exec format error)
+
+**Versions:** MTV 2.12.5 on OCP arm64 (verified ACM 5.0.0-203 / OCP 4.22.8 AWS ARM)
+**Severity:** High for MTV feature tests | **Cluster-Fixable:** Workaround only (use x86 cluster or ARM-capable MTV image)
+**JIRA:** Related discussion MTV-2434 (ARM image build); no closed product bug matched for this exact CrashLoop.
+
+On arm64 hubs, `forklift-operator` in `openshift-mtv` CrashLoopBackOff with:
+`exec container process /usr/libexec/catatonit/catatonit: Exec format error`
+
+**Root cause:** Operator image architecture mismatch — binary cannot execute on aarch64 nodes.
+
+**Signals:**
+- `oc get csv -n openshift-mtv` shows `mtv-operator` Failed
+- Pod restarts climbing; logs are only the Exec format error line
+- CNV/HCO can still be healthy (`Available=True`) — MTV failure is independent of CNV
+
+**Diagnostic:**
+```bash
+oc logs -n openshift-mtv -l app=forklift --tail=5
+oc get nodes -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.status.nodeInfo.architecture}{"\n"}{end}'
+```
+
+**Impact:** MTV migration UI/tests fail. Does not by itself abort Jenkins Cypress agent pods.
+
+---
+
 ## Bug Pattern Distribution
 
 | Category | Count | Top Issues |
@@ -208,3 +250,4 @@ KubeVirt's cert-manager regenerates the secrets automatically on pod restart.
 | 7 | MSA rolebinding conflicts | Manual workaround | Normal |
 | 8 | Providers go to staging | Restart provider | Normal |
 | 9 | CCLM sync controller TLS cert mismatch | Manual workaround | Critical |
+| 10 | MTV forklift Exec format error on ARM | Use x86 or ARM image | High |

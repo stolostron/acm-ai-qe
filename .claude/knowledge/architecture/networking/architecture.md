@@ -1,3 +1,13 @@
+---
+type: architecture
+subsystem: networking
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - data-flow/networking/data-flow.md
+  - health/networking/known-issues.md
+---
+
 # Networking -- Architecture
 
 ## What Multicluster Networking Does

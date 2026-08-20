@@ -1,3 +1,13 @@
+---
+type: failures
+subsystem: governance
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - architecture/governance/architecture.md
+  - health/governance/known-issues.md
+---
+
 # Governance Failure Signatures
 
 Known failure patterns for GRC-related test failures.

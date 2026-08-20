@@ -83,15 +83,17 @@ Generates Polarion-ready test cases for ACM Console UI features from JIRA ticket
 
 ## Subagents
 
-| Agent | Phase | MCP Tools | Role |
-|-------|:-----:|-----------|------|
-| Data Gatherer | 1 | jira, polarion, neo4j-rhacm, bash | Data collection + JIRA deep dive: ACs, comments, linked tickets, Polarion coverage |
-| Code Analyzer | 2 | acm-source, neo4j-rhacm, bash | PR diff analysis: changed components, UI elements, interaction models |
-| UI Discoverer | 3 | acm-source, neo4j-rhacm, playwright (conditional), bash | ACM Console source: selectors, translations, routes, wizard steps |
-| Synthesizer | 4 | — | Merge investigation outputs, scope gate, AC cross-reference, outcome-intent detection, test plan |
-| Live Validator | 5 | playwright, acm-search, acm-kubectl, bash, gh CLI | Env verification + OAuth browser auth + oc CLI + fleet queries on real cluster |
-| Test Case Writer | 6 | acm-source | Write test case markdown from synthesized context |
-| Quality Reviewer | 7 | acm-source | Convention compliance, discovered vs assumed, AC vs implementation, outcome coverage |
+| Agent | Phase | Model | MCP Tools | Role |
+|-------|:-----:|:-----:|-----------|------|
+| Data Gatherer | 1 | Sonnet | jira, polarion, neo4j-rhacm, bash | Data collection + JIRA deep dive: ACs, comments, linked tickets, Polarion coverage |
+| Code Analyzer | 2 | Opus | acm-source, neo4j-rhacm, bash | PR diff analysis: changed components, UI elements, interaction models |
+| UI Discoverer | 3 | Sonnet | acm-source, neo4j-rhacm, playwright (conditional), bash | ACM Console source: selectors, translations, routes, wizard steps |
+| Synthesizer | 4 | Opus | — | Merge investigation outputs, scope gate, AC cross-reference, outcome-intent detection, test plan |
+| Live Validator | 5 | Sonnet | playwright, acm-search, acm-kubectl, bash, gh CLI | Env verification + OAuth browser auth + oc CLI + fleet queries on real cluster |
+| Test Case Writer | 6 | Sonnet | acm-source | Write test case markdown from synthesized context |
+| Quality Reviewer | 7 | Opus | acm-source | Convention compliance, discovered vs assumed, AC vs implementation, outcome coverage |
+
+Mechanical phases (data-gather, UI discovery, live validation, writing) run on **Sonnet**; the reasoning and gate phases (code analysis, synthesis, quality review) run on **Opus**, set per-spawn via the Agent tool's `model` param. `CLAUDE_CODE_SUBAGENT_MODEL`, if set in the environment, overrides all of these and forces one model on every subagent.
 
 ## MCP Servers
 
@@ -112,7 +114,7 @@ Each pipeline run produces artifacts under `runs/<JIRA_ID>/<JIRA_ID>-<timestamp>
 ```
 runs/test-case-generator/ACM-30459/ACM-30459-2026-04-18T02-00-46/
   gather-output.json                 # Phase 1: all gathered data
-  pr-diff.txt                        # Phase 1: full PR diff
+  pr-diff.txt                        # Phase 1: PR diff(s), capped ~40KB; noise dropped first, full file list kept in gather-output.json
   phase1-jira.json                   # Phase 1: JIRA investigation findings
   phase2-code.json                   # Phase 2: code change analysis
   phase3-ui.json                     # Phase 3: UI element discovery

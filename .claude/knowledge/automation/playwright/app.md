@@ -1,3 +1,12 @@
+---
+type: automation
+subsystem: application-lifecycle
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - ui/applications.md
+---
+
 # Application Lifecycle (ALC) — Playwright Knowledge
 
 Domain knowledge for ALC / Applications list tests in `console-e2e`.

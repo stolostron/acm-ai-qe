@@ -100,6 +100,7 @@ AREA: <value>
 RUN_DIR: <path>
 SYNTHESIZED_CONTEXT_PATH: <path to synthesized-context.md>
 LIVE_VALIDATION_PATH: <path to phase5-live-validation.md or "N/A">
+UI_DISCOVERY_PATH: <path to phase3-ui.json>
 GATHER_OUTPUT_PATH: <path to gather-output.json>
 SKILL_DIR: ${CLAUDE_SKILL_DIR}
 KNOWLEDGE_DIR: ${CLAUDE_SKILL_DIR}/../../knowledge

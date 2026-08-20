@@ -1,3 +1,16 @@
+---
+type: architecture
+subsystem: virtualization
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - data-flow/virtualization/data-flow.md
+  - health/virtualization/known-issues.md
+  - failures/virtualization/failure-signatures.md
+  - ui/fleet-virt.md
+  - automation/playwright/fleet-virt.md
+---
+
 # Virtualization (Fleet Virtualization) -- Architecture
 
 ## What Virtualization Does
@@ -126,21 +139,102 @@ cross-cluster live migration (CCLM):
 
 ## CCLM (Cross-Cluster Live Migration)
 
-Uses KubeVirt Migration Operator (depends on KubeVirt Operator) for live VM
-migration between OpenShift clusters. Requires:
-- Source and target clusters both running CNV
-- Network connectivity between clusters
-- Compatible storage backends
-- RBAC user needs both source and target cluster permissions
-- KVM-capable worker nodes on the target cluster (check `devices.kubevirt.io/kvm` in node allocatable)
-- MTV operator installed, ForkliftController Available
-- Provider CRs with valid credentials for source and target
+Live VM migration between OpenShift clusters using CNV's decentralized
+migration API and Submariner for cross-cluster pod-to-pod connectivity.
 
-If ANY of these prerequisites is missing, migration fails. The failure mode
-depends on which prerequisite is broken:
-- No KVM nodes: VM scheduling failure (FailedScheduling)
-- Provider token expired: migration starts but never completes (silent failure)
-- No network: migration fails with timeout
+### virt-synchronization-controller
+
+| Field | Value |
+|-------|-------|
+| Namespace | `openshift-cnv` |
+| Replicas | 2 |
+| Port | 9185/TCP |
+| Label | `kubevirt.io=virt-synchronization-controller` |
+
+Handles live memory state transfer during cross-cluster migration. The source
+cluster's controller streams VM memory pages to the destination cluster's
+controller over port 9185 via the Submariner tunnel. Must be running on both
+source and target clusters.
+
+### ServiceExport for Cross-Cluster Discovery
+
+The virt-synchronization-controller Service must be exported via a
+`ServiceExport` (`multicluster.x-k8s.io/v1alpha1`) on both hub and spoke.
+Submariner's Lighthouse agent syncs this to other clusters as a `ServiceImport`,
+enabling DNS resolution at:
+
+```
+virt-synchronization-controller.openshift-cnv.svc.clusterset.local
+```
+
+Without the ServiceExport, the sync controllers on different clusters cannot
+discover each other, and migration silently fails to start.
+
+### Feature Gates
+
+The `decentralizedLiveMigration` feature gate must be enabled on the
+HyperConverged CR on **both** hub and spoke clusters:
+
+```bash
+oc patch hyperconverged kubevirt-hyperconverged -n openshift-cnv \
+  --type=merge -p '{"spec":{"featureGates":{"decentralizedLiveMigration":true}}}'
+```
+
+This enables the virt-synchronization-controller deployment and the
+cross-cluster migration API.
+
+### UI Visibility ConfigMap
+
+The `kubevirt-ui-features` ConfigMap in `openshift-cnv` controls whether the
+"Cross cluster migration" option appears in the Fleet Virt console
+(VM Actions > Migration submenu):
+
+```bash
+oc patch configmap kubevirt-ui-features -n openshift-cnv \
+  --type=merge -p '{"data":{"kubevirtCrossClusterMigration":"true"}}'
+```
+
+Without this patch, the CCLM action is hidden in the UI even if all backend
+prerequisites are met.
+
+### Prerequisites (complete list)
+
+1. CNV installed on **both** clusters (HyperConverged CR in Available state)
+2. Submariner tunnel connected between clusters (gateway active, connection established)
+3. `decentralizedLiveMigration` feature gate enabled on both clusters' HyperConverged CR
+4. `ServiceExport` created for virt-synchronization-controller on both clusters
+5. `kubevirt-ui-features` ConfigMap patched with `kubevirtCrossClusterMigration: "true"`
+6. MTV operator installed, ForkliftController Available
+7. Provider CRs with valid credentials for source and target
+8. KVM-capable worker nodes on target cluster (`devices.kubevirt.io/kvm` in node allocatable)
+9. RBAC user needs permissions on both source and target clusters
+10. Compatible storage backends on both clusters
+
+### Migration Flow
+
+```
+1. User selects "Cross cluster migration" from VM Actions menu
+2. UI reads kubevirt-ui-features ConfigMap to confirm CCLM is enabled
+3. User selects target cluster and target namespace
+4. MTV creates a Migration Plan (Forklift) with source/target providers
+5. Source virt-synchronization-controller begins streaming VM memory pages
+   to target controller over port 9185 via Submariner tunnel
+6. Target controller writes memory pages to a new VMI on the target cluster
+7. Final memory delta is transferred (convergence phase)
+8. Source VM is stopped, target VM is started
+9. Migration Plan status transitions to Succeeded
+```
+
+### Failure Modes
+
+| Missing Prerequisite | Failure Behavior |
+|---|---|
+| No KVM nodes on target | VM scheduling failure (FailedScheduling) |
+| Provider token expired | Migration starts but never completes (silent failure) |
+| No Submariner tunnel | Migration fails with timeout |
+| No ServiceExport | Sync controllers cannot discover each other, migration hangs |
+| Feature gate disabled | Migration API returns 404, UI action hidden |
+| Incompatible storage | DataVolume creation fails on target cluster |
 
 ---
 

@@ -1,3 +1,13 @@
+---
+type: ui
+subsystem: virtualization
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - architecture/virtualization/architecture.md
+  - ui/fleet-virt.md
+---
+
 # CCLM (Cross-Cluster Live Migration) Area Knowledge
 
 ## Overview

@@ -1,3 +1,13 @@
+---
+type: failures
+subsystem: observability
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - architecture/observability/architecture.md
+  - health/observability/known-issues.md
+---
+
 # Observability Failure Signatures
 
 Known failure patterns for observability-related test failures.

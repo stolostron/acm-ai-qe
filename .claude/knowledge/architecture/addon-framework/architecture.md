@@ -1,3 +1,13 @@
+---
+type: architecture
+subsystem: addon-framework
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - data-flow/addon-framework/data-flow.md
+  - health/addon-framework/known-issues.md
+---
+
 # Addon Framework -- Architecture
 
 ## What the Addon Framework Does

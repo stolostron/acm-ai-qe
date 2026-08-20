@@ -1,3 +1,13 @@
+---
+type: health
+subsystem: infrastructure
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - architecture/infrastructure/architecture.md
+  - failures/infrastructure/failure-signatures.md
+---
+
 # Infrastructure -- Known Issues
 
 Based on infrastructure-related bugs from ACM 2.12-2.17 and common OCP

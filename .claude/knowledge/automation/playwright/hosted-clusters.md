@@ -1,3 +1,12 @@
+---
+type: automation
+subsystem: cluster-lifecycle
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - automation/cypress/hosted-clusters.md
+---
+
 # Hosted Clusters Area Knowledge Base
 
 Domain knowledge for writing Hosted Clusters (HyperShift) automation tests.

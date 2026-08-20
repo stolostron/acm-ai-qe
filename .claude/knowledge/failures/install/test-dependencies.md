@@ -1,3 +1,15 @@
+---
+type: failures
+subsystem: install
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - failures/install/failure-signatures.md
+  - versions/acm-2x-to-5x-changes.md
+version_notes:
+  - "OLM diagnostic namespace is ocm for ACM 5.0 (previously open-cluster-management)"
+---
+
 # Install Test Dependencies
 
 External and internal dependencies required for Install (ACM/MCE installation) tests.
@@ -35,7 +47,7 @@ because ACM depends on MCE.
 |------------|---------------|
 | CatalogSource healthy | `oc get catalogsource -n openshift-marketplace` |
 | PackageManifest available | `oc get packagemanifest multiclusterhub-operator` |
-| CSV phase Succeeded | `oc get csv -n open-cluster-management` |
+| CSV phase Succeeded | `oc get csv -n <mch-ns>` *(MCH namespace is `ocm` in ACM 5.0; was `open-cluster-management` in ACM 2.x)* |
 
 ## CRD Dependencies
 

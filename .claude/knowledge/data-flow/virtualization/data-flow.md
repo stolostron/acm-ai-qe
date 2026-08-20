@@ -1,3 +1,13 @@
+---
+type: data-flow
+subsystem: virtualization
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - architecture/virtualization/architecture.md
+  - failures/virtualization/failure-signatures.md
+---
+
 # Virtualization -- Data Flow
 
 ## VM Discovery Flow

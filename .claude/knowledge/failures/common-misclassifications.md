@@ -1,3 +1,11 @@
+---
+type: failures
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - failures/classification-decision-tree.md
+---
+
 # Common Misclassifications
 
 Known cases where the classification pipeline gets confused and why.

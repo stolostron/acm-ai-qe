@@ -4,15 +4,17 @@ Seven specialized subagents, each with a dedicated role in the pipeline. Agent d
 
 ## Agent Summary
 
-| Agent | File | Phase | Tools | Input | Output |
-|-------|------|-------|-------|-------|--------|
-| Data Gatherer | `data-gatherer.md` | 1 | jira, polarion, neo4j-rhacm, bash | JIRA ID | `gather-output.json`, `phase1-jira.json` |
-| Code Analyzer | `code-analyzer.md` | 2 | acm-source, neo4j-rhacm, bash | PR number, repo, version | `phase2-code.json` |
-| UI Discoverer | `ui-discoverer.md` | 3 | acm-source, neo4j-rhacm, bash | Version, area, feature name | `phase3-ui.json` |
-| Synthesizer | `synthesizer.md` | 4 | — | Phase 1-3 outputs | `synthesized-context.md` |
-| Live Validator | `live-validator.md` | 5 | playwright, acm-search, acm-kubectl, bash, gh CLI | Console URL, feature path | `phase5-live-validation.md` |
-| Test Case Writer | `test-case-writer.md` | 6 | acm-source | Run dir, synthesized context | `test-case.md`, `analysis-results.json` |
-| Quality Reviewer | `quality-reviewer.md` | 7 | acm-source | test-case.md path, version, area | PASS or NEEDS_FIXES (`phase7-review.md`) |
+| Agent | File | Phase | Model | Tools | Input | Output |
+|-------|------|-------|-------|-------|-------|--------|
+| Data Gatherer | `data-gatherer.md` | 1 | Sonnet | jira, polarion, neo4j-rhacm, bash | JIRA ID | `gather-output.json`, `phase1-jira.json` |
+| Code Analyzer | `code-analyzer.md` | 2 | Opus | acm-source, neo4j-rhacm, bash | PR number, repo, version | `phase2-code.json` |
+| UI Discoverer | `ui-discoverer.md` | 3 | Sonnet | acm-source, neo4j-rhacm, bash | Version, area, feature name | `phase3-ui.json` |
+| Synthesizer | `synthesizer.md` | 4 | Opus | — | Phase 1-3 outputs | `synthesized-context.md` |
+| Live Validator | `live-validator.md` | 5 | Sonnet | playwright, acm-search, acm-kubectl, bash, gh CLI | Console URL, feature path | `phase5-live-validation.md` |
+| Test Case Writer | `test-case-writer.md` | 6 | Sonnet | acm-source | Run dir, synthesized context | `test-case.md`, `analysis-results.json` |
+| Quality Reviewer | `quality-reviewer.md` | 7 | Opus | acm-source | test-case.md path, version, area | PASS or NEEDS_FIXES (`phase7-review.md`) |
+
+**Model tiering:** mechanical phases (data-gather, UI discovery, live validation, writing) run on **Sonnet**; the reasoning and gate phases (code analysis, synthesis, quality review) run on **Opus**. The tier is set per-spawn via the Agent tool's `model` param (see SKILL.md). If `CLAUDE_CODE_SUBAGENT_MODEL` is set in the environment it overrides all of these and forces one model on every subagent, so the orchestrator surfaces it and recommends leaving it unset.
 
 ---
 
@@ -69,12 +71,12 @@ Structured JSON written to `phase1-jira.json`:
 
 ### Purpose
 
-Reads the full PR diff to understand what changed and what needs testing. Identifies new UI elements, modified behavior, affected routes, and the interaction model for new interactive elements.
+Reads the PR diff (`pr-diff.txt`, capped ~40KB with noise dropped first; the full changed-file list is retained in `gather-output.json`) to understand what changed and what needs testing. Identifies new UI elements, modified behavior, affected routes, and the interaction model for new interactive elements.
 
 ### Process
 
 1. Fetch PR metadata via `gh pr view`
-2. Read the full PR diff from `pr-diff.txt`
+2. Read the PR diff from `pr-diff.txt` (capped; if truncated, the full changed-file list remains in `gather-output.json` metadata)
 3. Set ACM version in acm-source MCP
 4. For each changed file, identify: new UI components, modified elements, new routes, API interactions, conditional logic, error handling, translation strings, UI interaction model
 5. **MANDATORY: Read full source of PRIMARY target file** via `get_component_source` (not just the diff)
@@ -263,9 +265,9 @@ Writes the Polarion-ready test case markdown from the synthesized investigation 
 
 ### Key Rules
 
-- Reads conventions and peer test cases before writing
+- Reads conventions and one convention-compliant peer test case before writing
 - Scope gate: only plans steps that map to target JIRA story's ACs
-- MCP spot-check: verifies entry point route and key translations are current
+- MCP spot-check: verifies key translations and behavioral claims via `search_translations` + `get_component_source` (entry-point/navigation routes are read from `phase3-ui.json`, already verified in Phase 3 -- no live `get_routes()` call)
 - Finds component-specific parameterized routes, not just area-level routes
 - Never states numeric thresholds without evidence from PR diff, JIRA AC, MCP, or area knowledge
 - AC discrepancy notes: if synthesized context has discrepancies, includes Notes explaining each

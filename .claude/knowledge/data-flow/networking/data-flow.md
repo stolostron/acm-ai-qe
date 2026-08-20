@@ -1,3 +1,12 @@
+---
+type: data-flow
+subsystem: networking
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - architecture/networking/architecture.md
+---
+
 # Networking (Submariner) -- Data Flow
 
 ## End-to-End Cross-Cluster Communication

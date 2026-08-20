@@ -1,3 +1,12 @@
+---
+type: automation
+subsystem: infrastructure
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - ui/credentials.md
+---
+
 # Credentials Area Knowledge Base
 
 Domain knowledge for writing Credentials automation tests.

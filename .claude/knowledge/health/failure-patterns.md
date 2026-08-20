@@ -1,3 +1,15 @@
+---
+type: health
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - diagnostics/diagnostic-traps.md
+  - versions/acm-2x-to-5x-changes.md
+version_notes:
+  - "registration-operator renamed to cluster-manager-registration-controller in ACM 5.0"
+  - "console-mce pod label is app=console-mce (unchanged despite deployment rename)"
+---
+
 # Known Failure Patterns & Correlation Heuristics
 
 Reference guide for cross-component failure patterns observed in ACM hubs.
@@ -70,7 +82,8 @@ is almost certainly hub-side (networking, API server, or registration
 controllers), not individual cluster failures. Independent spoke failures
 don't usually happen simultaneously.
 
-**Investigate**: Check hub API server health, registration-operator pods,
+**Investigate**: Check hub API server health, cluster-manager-registration-controller pods
+(in `open-cluster-management-hub`; was `registration-operator` in ACM 2.x),
 and any recent network policy changes on the hub.
 
 ### Single Managed Cluster Unknown, Others Fine
@@ -390,7 +403,7 @@ registered; broken rendering means the plugin backend is down.
 oc get consoleplugins -o json | jq '.items[] | {name: .metadata.name, service: .spec.backend.service}'
 # Check the backend pods
 oc get pods -n <mch-ns> -l app=console-chart-console-v2
-oc get pods -n multicluster-engine -l app=console-mce-console
+oc get pods -n multicluster-engine -l app=console-mce
 ```
 
 **Cross-ref**: Trap 13 in `common-diagnostic-traps.md`

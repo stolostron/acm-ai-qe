@@ -1,3 +1,13 @@
+---
+type: ui
+subsystem: virtualization
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - ui/fleet-virt.md
+  - ui/cclm.md
+---
+
 # MTV (Migration Toolkit for Virtualization) Area Knowledge
 
 ## Overview

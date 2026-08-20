@@ -1,3 +1,12 @@
+---
+type: data-flow
+subsystem: addon-framework
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - architecture/addon-framework/architecture.md
+---
+
 # Addon Framework -- Data Flow
 
 ## End-to-End Addon Deployment Flow

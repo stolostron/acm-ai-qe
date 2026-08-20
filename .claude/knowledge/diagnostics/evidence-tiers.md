@@ -1,3 +1,11 @@
+---
+type: diagnostics
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - diagnostics/diagnostic-layers.md
+---
+
 # Evidence Tiers
 
 How to weight evidence when making diagnostic conclusions. Stronger evidence

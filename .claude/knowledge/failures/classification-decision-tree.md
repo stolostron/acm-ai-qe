@@ -1,3 +1,12 @@
+---
+type: failures
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - failures/common-misclassifications.md
+  - diagnostics/diagnostic-traps.md
+---
+
 # Classification Decision Tree
 
 The complete decision tree for classifying test failures.

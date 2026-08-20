@@ -1,3 +1,9 @@
+---
+type: architecture
+acm_version: "5.0"
+last_verified: 2026-08-10
+---
+
 # Kubernetes Fundamentals for ACM Analysis
 
 Kubernetes internals an AI agent must understand to diagnose issues on an ACM
@@ -398,8 +404,8 @@ Key resources:
 CSV phases: `Succeeded` (healthy), `Installing`, `Pending`, `Failed`, `Replacing`, `Deleting`.
 
 ACM uses two CSVs:
-- `advanced-cluster-management.v2.X.Y` in the MCH namespace
-- `multicluster-engine.v2.X.Y` in `multicluster-engine`
+- `advanced-cluster-management.v5.0.0-xxx` in the MCH namespace (Changed in ACM 5.0; previously `v2.X.Y` in ACM 2.x)
+- `multicluster-engine.v5.0.0-xxx` in `multicluster-engine` (Changed in ACM 5.0; previously `v2.X.Y` in ACM 2.x)
 
 CRD changes during upgrade can break existing CRs. If a new CRD removes a
 version with data in etcd, objects stored in that version become inaccessible

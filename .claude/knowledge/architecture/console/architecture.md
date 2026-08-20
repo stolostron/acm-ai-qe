@@ -1,3 +1,18 @@
+---
+type: architecture
+subsystem: console
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - data-flow/console/data-flow.md
+  - health/console/known-issues.md
+  - failures/console/failure-signatures.md
+  - versions/acm-2x-to-5x-changes.md
+version_notes:
+  - "console-mce deployment renamed to console-mce-console in ACM 5.0, but pod label remains app=console-mce"
+  - "MCH namespace (where ACM console runs) changed from open-cluster-management to ocm"
+---
+
 # Console Subsystem -- Architecture
 
 ## What Console Does
@@ -49,7 +64,7 @@ ACM Console uses the OpenShift dynamic plugin system introduced in OCP 4.10+:
 
 | Plugin | CR Name | Namespace | Pod Label | What It Provides |
 |--------|---------|-----------|-----------|------------------|
-| ACM plugin | `acm` | MCH namespace (`open-cluster-management`) | `app=console-chart-console-v2` | ACM-specific UI: Search, Governance, Applications, Credentials, Overview, Fleet Virtualization, RBAC User Management |
+| ACM plugin | `acm` | MCH namespace (`ocm`) | `app=console-chart-console-v2` | ACM-specific UI: Search, Governance, Applications, Credentials, Overview, Fleet Virtualization, RBAC User Management |
 | MCE plugin | `mce` | MCE namespace (`multicluster-engine`) | `app=console-mce` | MCE-layer UI: Cluster Lifecycle, Infrastructure, Import/Create wizards, cluster details |
 
 Both plugins serve their JS bundles via HTTPS. The OCP Console fetches and
@@ -72,11 +87,12 @@ Each plugin declares a `container` entry in its webpack config:
 The console loads multiple OCP ConsolePlugins:
 - `acm` -- ACM hub management
 - `mce` -- MCE cluster management
-- `forklift` -- MTV migration UI
-- `gitops` -- ArgoCD integration
-- `kubevirt` -- Fleet Virtualization UI
-- `monitoring` -- OCP monitoring
-- `networking` -- OCP networking
+- `forklift-console-plugin` -- MTV migration UI (Changed in ACM 5.0; previously referenced as `forklift` shortname in ACM 2.x)
+- `gitops-plugin` -- ArgoCD integration (Changed in ACM 5.0; previously referenced as `gitops` shortname in ACM 2.x)
+- `kubevirt-plugin` -- Fleet Virtualization UI
+- `monitoring-plugin` -- OCP monitoring
+- `monitoring-console-plugin` -- OCP monitoring (additional plugin)
+- `networking-console-plugin` -- OCP networking
 
 Each plugin contributes routes, navigation items, and page components.
 If a plugin fails to load, its features disappear from the UI.
@@ -103,9 +119,10 @@ The console-api backend handles:
 - Authentication via OpenShift OAuth token passthrough
 - WebSocket connections for real-time dashboard updates
 
-### console-mce (MCE plugin pod)
+### console-mce-console (MCE plugin pod)
 
-- **Pod label:** `app=console-mce`
+- **Deployment name:** `console-mce-console` (Changed in ACM 5.0; previously `console-mce` in ACM 2.x)
+- **Pod label:** `app=console-mce` (label unchanged from ACM 2.x despite deployment rename)
 - **Namespace:** MCE namespace (`multicluster-engine`)
 - **CR:** `ConsolePlugin/mce`
 

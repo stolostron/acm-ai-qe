@@ -1,3 +1,14 @@
+---
+type: health
+subsystem: addon-framework
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - architecture/addon-framework/architecture.md
+version_notes:
+  - "All JIRA bugs in this file resolved before ACM 5.0 (historical context)"
+---
+
 # Addon Framework -- Known Issues
 
 Based on addon-framework-related bugs from ACM 2.12-2.17, cross-referenced
@@ -68,7 +79,7 @@ the spoke cluster.
 **Versions:** ACM 2.13-2.16
 **Severity:** High (addon stuck, blocks MCH uninstall)
 **Fix:** Code change needed + cluster workaround
-**JIRA:** ACM-22679
+**JIRA:** ACM-22679 -- Closed, Fixed in ACM 2.14.1. Resolved in ACM 5.0.
 
 config-policy-controller pre-delete task crashes with a nil pointer
 dereference during uninstall when the cluster is in a specific state.

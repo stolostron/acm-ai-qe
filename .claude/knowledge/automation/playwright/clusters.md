@@ -1,3 +1,13 @@
+---
+type: automation
+subsystem: cluster-lifecycle
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - ui/clusters.md
+  - automation/playwright/cluster-sets.md
+---
+
 # Clusters Area Knowledge Base
 
 Domain knowledge for writing Cluster Lifecycle automation tests.

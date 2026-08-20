@@ -1,3 +1,13 @@
+---
+type: ui
+subsystem: application-lifecycle
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - automation/playwright/app.md
+  - automation/cypress/fleet-virt.md
+---
+
 # Applications Area Knowledge
 
 ## Overview

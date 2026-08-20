@@ -1,3 +1,13 @@
+---
+type: ui
+subsystem: governance
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - automation/playwright/fleet-virt.md
+  - automation/cypress/fleet-virt.md
+---
+
 # Governance Area Knowledge
 
 ## Overview

@@ -37,7 +37,7 @@ Test Step Action Text
 | Navigation | "Navigate to", "Go to", "Open" | `browser_navigate(url)` or sequential `browser_click` |
 | Click | "Click", "Press", "Select", "Toggle" | `browser_click(ref)` |
 | Hover | "Hover over", "Mouse over" | `browser_hover(ref)` |
-| Form input | "Fill", "Type", "Enter", "Clear" | `browser_fill(ref, value)` |
+| Form input | "Fill", "Type", "Enter", "Clear" | `browser_fill_form(ref, value)` |
 | Observation | "Observe", "View", "Look at", "Note" | `browser_snapshot()` (no interaction) |
 | Refresh | "Refresh", "Reload" | `browser_navigate(current_url)` |
 
@@ -51,7 +51,7 @@ Test Step Action Text
 
 ## Playwright MCP Workflow
 
-Every UI interaction follows a strict cycle:
+Capture one snapshot at step entry, then rely on each action's returned state:
 
 ```
 ┌────────────────────────────────────────────┐
@@ -66,13 +66,15 @@ Every UI interaction follows a strict cycle:
 ├────────────────────────────────────────────┤
 │ 4. Wait 1-3 seconds                        │
 ├────────────────────────────────────────────┤
-│ 5. browser_snapshot()                      │
-│    → Confirm action took effect            │
+│ 5. Reuse the action's returned snapshot    │
+│    → do NOT re-snapshot to "confirm"       │
 ├────────────────────────────────────────────┤
 │ 6. If action failed → retry once           │
 │    If retry fails → BLOCKED                │
 └────────────────────────────────────────────┘
 ```
+
+Do NOT snapshot after every action to "confirm it took effect" -- click/hover/navigate already return a fresh ref-bearing snapshot to reuse. Re-snapshot only for a `browser_fill_form`-revealed surface or a delayed surface (tooltip/popover). When the Playwright MCP lacks `--caps testing`, the first `browser_verify_*` tool-not-found error reverts this to a snapshot-after-each-action model for the rest of the run (see `references/execution-patterns.md`).
 
 ### Element Resolution Strategy
 
@@ -101,14 +103,27 @@ When finding a target element in the accessibility snapshot:
 
 Each bullet in a test step's "Expected Result" section is verified using a pattern-matched method.
 
+### Assertion Tools (default for non-structural checks)
+
+When the Playwright MCP runs with `--caps testing`, non-structural assertions use a `browser_verify_*` tool (result cited directly, no resident snapshot):
+
+| Expected result | Tool |
+|-----------------|------|
+| "X is displayed" / "appears" / "text reads X" | `browser_verify_element_visible` / `browser_verify_text_visible` |
+| "field shows N" / input value | `browser_verify_value` |
+| "menu/table/list present" | `browser_verify_list_visible` |
+
+A full `browser_snapshot` is still used for the structural patterns below (count, sort, absence, position), for any non-PASS verdict, and as the fallback when `--caps testing` is absent.
+
 ### Text Presence
 
 **Triggers:** "is displayed", "appears", "reads", "shows", "contains"
 
 ```
 Expected: "The column header text reads 'GPU count'"
-Method:   Search accessibility snapshot for exact text "GPU count"
-          in an element with role "columnheader"
+Method:   browser_verify_text_visible(text="GPU count")  -> pass/fail
+          (fallback: search the accessibility snapshot for "GPU count"
+           in an element with role "columnheader")
 Verdict:  PASS if found at expected position
           FAIL if text absent or at wrong position
 ```

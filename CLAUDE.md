@@ -29,7 +29,7 @@ Generates Polarion-ready test cases for ACM Console features from JIRA tickets. 
 | Test Case Validation | `acm-test-case-validator` | `/acm-test-case-validator` |
 | Hub Health | `acm-hub-health-check`, `acm-cluster-remediation`, `acm-knowledge-learner` | `/acm-hub-health-check` |
 | Z-Stream | `acm-z-stream-analyzer`, `acm-failure-classifier`, `acm-cluster-investigator`, `acm-data-enricher` | `/analyze`, `/gather`, `/quick` |
-| Bug Investigation | `acm-bug-hunter`, `acm-bug-fix-verifier` | `/acm-bug-hunter` |
+| Bug Investigation | `acm-bug-hunter`, `acm-bug-fix-verifier` | `/acm-bug-hunter`, `/acm-bug-fix-verifier` |
 | Playwright Automation | `acm-playwright-automation` | `/acm-playwright-automation` |
 | Utility | `onboard` | `/onboard` |
 
@@ -128,14 +128,29 @@ This repo only contains our original MCP code: ACM Source, Polarion wrapper, Jen
 
 ## Knowledge Database (`.claude/knowledge/`)
 
-When you discover a verified, durable fact about ACM (architecture, failure pattern, UI behavior, health issue, test automation gotcha), write it directly to the appropriate file in `.claude/knowledge/`. Do NOT use `learned/` as a staging area — it is deprecated.
+A unified knowledge database covering 14 ACM subsystems. This repo's `.claude/knowledge/` is a git-tracked copy; the canonical location for Cursor agents is `~/Documents/work/notes/knowledge/`. Changes sync bidirectionally.
+
+**When to Read (BEFORE acting on ACM-related tasks):**
+
+Before performing any ACM-related task, check if the knowledge DB has relevant content:
+
+| Task Type | Read These First |
+|-----------|-----------------|
+| Writing or updating test cases | `conventions/test-case-format.md`, `conventions/polarion-html-templates.md`, `ui/<area>.md` |
+| Investigating cluster health | `diagnostics/diagnostic-layers.md`, `diagnostics/diagnostic-traps.md`, `health/<subsystem>/known-issues.md` |
+| Writing automation scripts | `automation/playwright/<area>.md` or `automation/cypress/<area>.md` |
+| Answering architecture questions | `architecture/<subsystem>/architecture.md`, `data-flow/<subsystem>/data-flow.md` |
+| Classifying test failures | `failures/<subsystem>/failure-signatures.md`, `failures/classification-decision-tree.md` |
+| Hunting for bugs | `failures/<subsystem>/failure-signatures.md`, `architecture/<subsystem>/architecture.md` |
+| Verifying bug fixes | `failures/<subsystem>/failure-signatures.md`, `health/<subsystem>/known-issues.md` |
 
 **Write protocol:**
 1. Identify the target file from the directory map (architecture, failures, health, ui, automation, baselines, data-flow)
 2. Read the target file first
-3. Check for duplicates (semantic — same concept even if different wording)
+3. Check for duplicates (semantic -- same concept even if different wording)
 4. Append to the appropriate section, matching the existing format
 5. Only write verified facts (confirmed via live cluster, source code, docs, or JIRA)
+6. Include YAML frontmatter (`type`, `subsystem`, `acm_version`, `last_verified`)
 
 **Directory map (key paths):**
 - Architecture: `.claude/knowledge/architecture/<subsystem>/architecture.md`

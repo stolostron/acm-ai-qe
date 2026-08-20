@@ -366,7 +366,7 @@ The most heavily used MCP server. Source code search across `stolostron/console`
 |-------|---------|-----------|
 | 2 (Code Analysis) | Verify source code, translations, routes against PR diff | `set_acm_version`, `search_code`, `get_component_source`, `search_translations`, `get_routes` |
 | 3 (UI Discovery) | Discover all UI elements for the feature | `set_acm_version`, `set_cnv_version`, `search_code`, `get_component_source`, `find_test_ids`, `search_translations`, `get_routes`, `get_wizard_steps`, `get_acm_selectors`, `get_patternfly_selectors` |
-| 6 (Writing) | Spot-check key elements during writing | `set_acm_version`, `get_routes`, `search_translations`, `get_component_source` |
+| 6 (Writing) | Spot-check key elements during writing | `set_acm_version`, `search_translations`, `get_component_source` (routes read from `phase3-ui.json`) |
 | 7 (Review) | Verify claims in the test case | `set_acm_version`, `search_translations`, `get_routes`, `get_component_source` |
 
 **Gotcha:** Always call `set_acm_version` (and `set_cnv_version` for Fleet Virt/CCLM/MTV) before any search. Without it, lookups target the wrong branch.
@@ -499,15 +499,17 @@ flowchart TD
 
 The pipeline runs 7 subagents sequentially (Phases 1–7), each spawned via the Agent tool into a fresh context. Each subagent receives file paths as input, reads from disk, writes structured output to disk, and terminates — preventing context pressure and recency bias.
 
-| Subagent | File | Phase | Role |
-|----------|------|-------|------|
-| Data Gatherer | `references/agents/data-gatherer.md` | 1 | Data collection + JIRA deep dive |
-| Code Analyzer | `references/agents/code-analyzer.md` | 2 | PR diff analysis |
-| UI Discoverer | `references/agents/ui-discoverer.md` | 3 | Source code discovery |
-| Synthesizer | `references/agents/synthesizer.md` | 4 | Merge + scope gate + test plan |
-| Live Validator | `references/agents/live-validator.md` | 5 | Browser (with OAuth auth) + env verification + oc + acm-search |
-| Test Case Writer | `references/agents/test-case-writer.md` | 6 | Write test case |
-| Quality Reviewer | `references/agents/quality-reviewer.md` | 7 | Quality gate |
+| Subagent | File | Phase | Model | Role |
+|----------|------|-------|-------|------|
+| Data Gatherer | `references/agents/data-gatherer.md` | 1 | Sonnet | Data collection + JIRA deep dive |
+| Code Analyzer | `references/agents/code-analyzer.md` | 2 | Opus | PR diff analysis |
+| UI Discoverer | `references/agents/ui-discoverer.md` | 3 | Sonnet | Source code discovery |
+| Synthesizer | `references/agents/synthesizer.md` | 4 | Opus | Merge + scope gate + test plan |
+| Live Validator | `references/agents/live-validator.md` | 5 | Sonnet | Browser (with OAuth auth) + env verification + oc + acm-search |
+| Test Case Writer | `references/agents/test-case-writer.md` | 6 | Sonnet | Write test case |
+| Quality Reviewer | `references/agents/quality-reviewer.md` | 7 | Opus | Quality gate |
+
+> **Model tiering:** mechanical phases (data-gather, UI discovery, live validation, writing) run on Sonnet; the reasoning and gate phases (code analysis, synthesis, quality review) run on Opus, set per-spawn via the Agent tool's `model` param. `CLAUDE_CODE_SUBAGENT_MODEL`, if set in the environment, overrides all of these and forces one model on every subagent.
 
 > **App pipeline note:** The app pipeline (`apps/test-case-generator/`) consolidates Phases 1–3 into one parallel Phase 1 for speed. The portable skill runs them sequentially for context isolation. Both produce equivalent results.
 
@@ -528,7 +530,7 @@ The portable skill uses isolated subagents to prevent context pressure. Each inv
 
 **How it works:**
 
-1. Orchestrator spawns subagent via the `Agent` tool with full instructions from `references/agents/<agent>.md`
+1. Orchestrator spawns the subagent via the `Agent` tool with a pointer prompt — the subagent reads its own brief from `references/agents/<agent>.md` (the orchestrator does NOT load the brief into its own context)
 2. Subagent receives `<input>` block with file paths (not file contents) — reads from disk
 3. Subagent writes structured output (JSON or markdown) to the run directory
 4. Subagent terminates — its context is released
@@ -681,7 +683,7 @@ Each run produces artifacts under `runs/test-case-generator/<JIRA_ID>/<JIRA_ID>-
 ```
 runs/test-case-generator/ACM-30459/ACM-30459-2026-04-08T12-00-00/
   gather-output.json                 Phase 1: collected data (deterministic)
-  pr-diff.txt                        Phase 1: full PR diff (deterministic)
+  pr-diff.txt                        Phase 1: PR diff(s), capped ~40KB; noise dropped first, full file list in gather-output.json
   phase1-jira.json                   Phase 1: JIRA investigation findings
   phase2-code.json                   Phase 2: code change analysis
   phase3-ui.json                     Phase 3: UI element discovery

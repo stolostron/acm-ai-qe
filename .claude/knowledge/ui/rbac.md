@@ -1,3 +1,14 @@
+---
+type: ui
+subsystem: rbac
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - automation/playwright/rbac.md
+  - automation/cypress/rbac.md
+  - architecture/rbac/architecture.md
+---
+
 # RBAC Area Knowledge
 
 ## Overview

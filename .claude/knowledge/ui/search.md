@@ -1,3 +1,16 @@
+---
+type: ui
+subsystem: search
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - automation/playwright/search.md
+  - automation/cypress/search.md
+  - architecture/search/architecture.md
+version_notes:
+  - "Search pods run in MCH namespace (ocm in ACM 5.0, previously open-cluster-management)"
+---
+
 # Search Area Knowledge
 
 ## Overview
@@ -38,6 +51,7 @@ Search indexes ~22 Kubernetes resource types with ~90 fields. No custom CRDs —
 | `resourceYAML` | `/multicloud/search/resources/yaml` | Resource YAML view |
 | `resourceRelated` | `/multicloud/search/resources/related` | Related resources |
 | `resourceLogs` | `/multicloud/search/resources/logs` | Resource logs |
+| `vmSnapshots` | `/multicloud/search/resources/snapshots` | VM snapshots view |
 
 ## Storage Model
 

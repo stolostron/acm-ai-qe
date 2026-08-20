@@ -1,3 +1,13 @@
+---
+type: failures
+subsystem: rbac
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - architecture/rbac/architecture.md
+  - health/rbac/known-issues.md
+---
+
 # RBAC Failure Signatures
 
 Known failure patterns for RBAC-related test failures.

@@ -1,3 +1,15 @@
+---
+type: health
+subsystem: rbac
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - architecture/rbac/architecture.md
+  - failures/rbac/failure-signatures.md
+version_notes:
+  - "All JIRA bugs in this file resolved before ACM 5.0 (historical context)"
+---
+
 # RBAC -- Known Issues
 
 Based on RBAC-related bugs from ACM 2.14-2.17 (spanning Console, Virtualization,
@@ -8,6 +20,7 @@ Cluster Lifecycle, and Search components).
 ## 1. MCRA Controller Concurrent PATCH Panic (ACM-24737)
 
 **Versions:** 2.15, 2.16 | **Severity:** Critical | **Fix:** Code change (PR#41)
+**JIRA Status:** Closed -- Fixed in ACM 2.15.0. Resolved in ACM 5.0.
 
 MCRA operator panics on concurrent PATCH commands. Controller caches MCRA
 resource in memory and uses stale state for optimistic updates. When multiple
@@ -23,6 +36,7 @@ conditions.
 ## 2. Aggregate API Gaps for kubevirt Roles (ACM-24887)
 
 **Versions:** 2.15, 2.16 | **Severity:** Blocker | **Fix:** Code change (PR#1052)
+**JIRA Status:** Closed -- Fixed in MCE 2.10.0. Resolved in ACM 5.0.
 
 Search aggregate API only checks the original `clusterRole` field in
 ClusterPermission, ignoring the `clusterRoleBindings` array field used for
@@ -57,6 +71,7 @@ with ManifestWork count. Pod restart cycle.
 ## 4. MCRA CRD Breaking Change Blocks Upgrades (ACM-28211)
 
 **Versions:** 2.15 -> 2.16 upgrade | **Severity:** Blocker | **Fix:** Code change (PR#3260)
+**JIRA Status:** Closed -- Fixed in ACM 2.16.0. Resolved in ACM 5.0.
 
 MCRA CRD removed `v1alpha1` version in 2.16 without a conversion webhook.
 Existing MCRAs stored as v1alpha1 in etcd fail CRD validation after upgrade.
@@ -71,6 +86,7 @@ stored version mismatch.
 ## 5. RBAC Pages Empty or Stop Displaying (ACM-26185)
 
 **Versions:** 2.15, 2.16 | **Severity:** Critical | **Fix:** Code change (PR#5212)
+**JIRA Status:** Closed -- Fixed in ACM 2.15.0. Resolved in ACM 5.0.
 
 User/Group/Role pages in User Management tab stop displaying intermittently,
 especially at scale (many users, clusters, or role assignments).
@@ -86,6 +102,7 @@ Refreshing sometimes fixes temporarily. More frequent with large environments.
 ## 6. RBAC Wizard Scope Alignment Bugs (ACM-29966, ACM-28902)
 
 **Versions:** 2.16 | **Severity:** Blocker | **Fix:** Code change (PR#5516)
+**JIRA Status:** ACM-29966 Closed -- Fixed in ACM 2.16.0. Resolved in ACM 5.0.
 
 RBAC wizard review section shows wrong scope information:
 - Global access review doesn't show projects scope correctly

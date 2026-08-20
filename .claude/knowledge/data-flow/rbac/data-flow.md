@@ -1,3 +1,13 @@
+---
+type: data-flow
+subsystem: rbac
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - architecture/rbac/architecture.md
+  - failures/rbac/failure-signatures.md
+---
+
 # RBAC -- Data Flow
 
 ## End-to-End MCRA Propagation

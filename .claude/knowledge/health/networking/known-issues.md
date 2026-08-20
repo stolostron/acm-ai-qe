@@ -1,3 +1,14 @@
+---
+type: health
+subsystem: networking
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - architecture/networking/architecture.md
+version_notes:
+  - "All JIRA bugs in this file resolved before ACM 5.0 (historical context)"
+---
+
 # Networking -- Known Issues
 
 Based on 34 Submariner/MCN bugs from ACM 2.12-2.17.
@@ -7,6 +18,7 @@ Based on 34 Submariner/MCN bugs from ACM 2.12-2.17.
 ## 1. RouteAgent Race Condition (ACM-25262)
 
 **Versions:** 2.15, 2.16 | **Severity:** Important | **Fix:** Code change (PR#3679)
+**JIRA Status:** Closed -- Fixed in Submariner 0.21.2. Resolved in ACM 5.0.
 
 RouteAgent uses `CreationTimestamp` with second granularity to detect stale
 endpoint events. When two endpoint events arrive within the same second,
@@ -26,6 +38,7 @@ Gateway pod logs show conflicting endpoint handling.
 ## 2. Submariner Breaks OCP 4.18+ (ACM-22805)
 
 **Versions:** 2.14, 2.15 | **Severity:** Critical | **Fix:** Code change (PR#3577)
+**JIRA Status:** Closed -- Fixed in Submariner 0.20.2. Resolved in ACM 5.0.
 
 Submariner gateway connectivity fails on OCP 4.18+ due to OVN-Kubernetes
 changes. The OVN network plugin made changes to how external traffic is
@@ -47,6 +60,7 @@ is deployed.
 ## 3. MCH Uninstall Hangs with Submariner (ACM-15538)
 
 **Versions:** 2.13, 2.14, 2.15 | **Severity:** Critical | **Fix:** Code change (PR#1745)
+**JIRA Status:** Closed -- Fixed in ACM 2.12.2. Resolved in ACM 5.0.
 
 MCH uninstallation hangs indefinitely when Submariner is deployed. ManifestWork
 deletion races with submariner-addon operator cleanup.

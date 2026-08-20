@@ -1,4 +1,19 @@
-# Foundation Subsystem Architecture
+---
+type: architecture
+subsystem: foundation
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - failures/foundation/failure-signatures.md
+  - versions/acm-2x-to-5x-changes.md
+version_notes:
+  - "cluster-proxy moved from open-cluster-management to multicluster-engine namespace in ACM 5.0"
+  - "addon-manager referenced as cluster-manager-addon-manager-controller in open-cluster-management-hub"
+  - "work-manager removed as standalone hub deployment; spoke-side klusterlet-addon-workmgr still exists"
+  - "registration-operator renamed to cluster-manager-registration-controller"
+---
+
+# Foundation -- Architecture
 
 The Foundation subsystem covers the OCM (Open Cluster Management) core
 framework: addon management, managed cluster registration, work distribution,
@@ -18,12 +33,12 @@ cluster-proxy connectivity, and managed service accounts.
 
 | Component | Namespace | Purpose |
 |-----------|-----------|---------|
-| `registration-controller` | `open-cluster-management-hub` | Manages ManagedCluster registration and CSR approval |
-| `work-agent` | `open-cluster-management-agent` | Executes ManifestWork on spoke clusters |
-| `work-manager` | `open-cluster-management-hub` | Creates and tracks ManifestWork from hub |
-| `cluster-proxy` | `open-cluster-management` | Provides kube-apiserver proxy to spoke clusters |
-| `managed-serviceaccount` | `open-cluster-management` | Creates ServiceAccount tokens on spoke clusters |
-| `addon-manager` | `open-cluster-management` | Lifecycle management for ManagedClusterAddons |
+| `cluster-manager-registration-controller` | `open-cluster-management-hub` (3 replicas) | Manages ManagedCluster registration and CSR approval |
+| `work-agent` | `open-cluster-management-agent` (spoke-side) | Executes ManifestWork on spoke clusters |
+| `klusterlet-addon-workmgr` | `open-cluster-management-agent-addon` (spoke-side) | Spoke-side work manager addon. No standalone hub-side deployment in ACM 5.0. |
+| `cluster-proxy` | `multicluster-engine` (2 replicas) | Provides kube-apiserver proxy to spoke clusters. Changed in ACM 5.0; previously in `open-cluster-management` in ACM 2.x. |
+| `managed-serviceaccount-addon-agent` | `open-cluster-management-agent-addon` (spoke-side) | Creates ServiceAccount tokens on spoke clusters. No hub-side deployment; managed via addon framework. |
+| `cluster-manager-addon-manager-controller` | `open-cluster-management-hub` (3 replicas) | Lifecycle management for ManagedClusterAddons. Changed in ACM 5.0; previously referenced as `addon-manager` in `open-cluster-management` in ACM 2.x. |
 
 ## CRDs
 

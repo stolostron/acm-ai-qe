@@ -1,3 +1,13 @@
+---
+type: failures
+subsystem: console
+acm_version: "5.0"
+last_verified: 2026-08-10
+related:
+  - architecture/console/architecture.md
+  - health/console/known-issues.md
+---
+
 # Console Failure Signatures
 
 Known failure patterns for console-related test failures.

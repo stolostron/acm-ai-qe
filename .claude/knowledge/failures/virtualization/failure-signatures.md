@@ -1,3 +1,13 @@
+---
+type: failures
+subsystem: virtualization
+acm_version: "5.0"
+last_verified: 2026-08-12
+related:
+  - architecture/virtualization/architecture.md
+  - health/virtualization/known-issues.md
+---
+
 # Virtualization Failure Signatures
 
 Known failure patterns for Fleet Virtualization test failures.
@@ -5,6 +15,20 @@ Known failure patterns for Fleet Virtualization test failures.
 ---
 
 ## INFRASTRUCTURE Patterns
+
+### Jenkins virt-e2e-container OOMKilled (exit 137)
+- **Error:** Build `ABORTED`; console log `Container [virt-e2e-container] terminated [OOMKilled]`; exit `(137)`; agent offline `Pod failed because container terminated (Reason: ContainerError)`
+- **Pattern:** Some Cypress specs pass, then run stops mid-suite with no JUnit report / incomplete results. Not a product assertion failure.
+- **Classification:** INFRASTRUCTURE (98% confidence)
+- **Explanation:** Kubernetes OOM-killed the Jenkins agent container running Cypress+Chrome. Observed pod template limit `memory: 6Gi` / request `1Gi` in `acm-ci-infra--runtime-int` (build #194, 2026-08-12).
+- **Diagnostic:** Search console log for `terminated [OOMKilled]` and the printed podTemplate `resources.limits.memory` for `virt-e2e-container`.
+- **Action:** Raise `virt-e2e-container` memory limit in the Jenkins pod template; re-run. Hub MCH/MTV issues may coexist but are not the OOM cause.
+
+### MTV forklift-operator Exec format error (ARM)
+- **Error:** `exec container process /usr/libexec/catatonit/catatonit: Exec format error`
+- **Pattern:** `forklift-operator` CrashLoopBackOff on arm64 nodes; MTV CSV Failed; CNV may still be healthy
+- **Classification:** INFRASTRUCTURE (95% confidence) — wrong-arch image / ARM gap
+- **Diagnostic:** `oc logs -n openshift-mtv deploy/forklift-operator --tail=5`; confirm node arch is `arm64`
 
 ### No KVM-Capable Nodes
 - **Error:** `FailedScheduling: 0/N nodes available, insufficient devices.kubevirt.io/kvm`

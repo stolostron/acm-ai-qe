@@ -20,7 +20,7 @@ MCP tools (acm-source, jira, polarion, neo4j-rhacm) are called directly by subag
 
 | Skill | Purpose | Uses Shared Skills / MCPs |
 |-------|---------|--------------------------|
-| `acm-test-case-generator` | Orchestrator: 10-phase pipeline from JIRA to Polarion-ready test case | All 3 shared + MCP tools + 3 below |
+| `acm-test-case-generator` | Orchestrator: 9-phase pipeline from JIRA to Polarion-ready test case | All 3 shared + MCP tools + 3 below |
 | `acm-qe-code-analyzer` | PR diff analysis for ACM Console | acm-knowledge-base (+ acm-source, neo4j-rhacm MCPs) |
 | `acm-test-case-writer` | Test case markdown authoring with conventions and self-review | acm-knowledge-base (+ acm-source MCP) |
 | `acm-test-case-reviewer` | Quality gate with mandatory MCP verification | acm-knowledge-base (+ acm-source MCP) |
@@ -49,7 +49,7 @@ Skill selection / description disambiguation for this workflow: [test-case-gener
 
 | Skill | Purpose | Uses Shared Skills / MCPs |
 |-------|---------|--------------------------|
-| `acm-test-case-validator` | Orchestrator: 7-phase pipeline executing existing test cases against live clusters with per-step pass/fail evidence | acm-knowledge-base (+ playwright, polarion, acm-kubectl MCPs) |
+| `acm-test-case-validator` | Orchestrator: 7-phase pipeline executing existing test cases against live clusters with per-step pass/fail evidence | acm-knowledge-base (+ playwright, polarion MCPs; oc CLI) |
 
 ### Bug Investigation Skills (2)
 

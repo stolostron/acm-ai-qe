@@ -168,22 +168,23 @@ This is the core value of the skill. Each test step is executed sequentially aga
 │   For each numbered action:                          │
 │     Classify (UI/CLI/Hybrid) -> select tool          │
 │     Execute (click/navigate/fill/oc)                 │
-│     Wait 1-2s                                        │
-│     Confirm action via snapshot                      │
+│     Reuse action's returned snapshot; re-snapshot    │
+│       only for fill-revealed or delayed surfaces     │
 ├──────────────────────────────────────────────────────┤
 │ 4.3 Verify expected results                          │
 │   For each bullet in Expected Result:                │
-│     Apply verification method (text search, count,   │
-│     sort check, URL check, absence check)            │
+│     Assert via browser_verify_* (visible/text/       │
+│     value/list); full snapshot for structural        │
+│     (count/sort/absence/position) + URL carve-out     │
 │     Record: PASS / FAIL / MANUAL_CHECK               │
 ├──────────────────────────────────────────────────────┤
 │ 4.4 Pre-verdict checkpoint (MANDATORY)               │
 │   Re-read expected result text, cite evidence,       │
 │   compare literally, check for injected assumptions  │
 ├──────────────────────────────────────────────────────┤
-│ 4.5 Post-step evidence                               │
-│   browser_take_screenshot -> evidence/step-{i}.png   │
-│   browser_snapshot -> evidence/step-{i}-post.txt     │
+│ 4.5 Conditional evidence                             │
+│   post-snapshot: structural check or non-PASS only   │
+│   screenshot: only when verdict != PASS              │
 ├──────────────────────────────────────────────────────┤
 │ 4.6 Record step verdict                              │
 │   PASS | FAIL (details) | BLOCKED | MANUAL_CHECK     │

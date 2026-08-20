@@ -303,7 +303,8 @@ Live Validator (Phase 5):
   acm-kubectl -> clusters, kubectl, connect_cluster
 
 Test Case Writer (Phase 6, spot-check only):
-  acm-source    -> set_acm_version, get_routes, search_translations
+  acm-source    -> set_acm_version, search_translations, get_component_source
+                   (routes/entry_point read from phase3-ui.json -- no get_routes call)
 
 Quality Reviewer (Phase 7):
   acm-source    -> set_acm_version, search_translations, get_routes, get_wizard_steps

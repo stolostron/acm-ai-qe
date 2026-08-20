@@ -79,18 +79,16 @@ Executes existing ACM Console UI test cases step-by-step against a live environm
 | Subagents | 7 parallel/sequential | None (all inline) |
 | Modifies cluster? | No | Yes (setup/teardown, with approval) |
 | Browser usage | Investigation only | Full step execution |
-| MCP dependency | 7 MCP servers | 2 required (Playwright, oc), 2 optional |
+| MCP dependency | 7 MCP servers | 2 required (Playwright w/ `--caps testing`, oc), 1 optional (Polarion) |
 | Context source | JIRA + PRs + source code | The test case itself + knowledge DB fallback |
 
 ## MCP and Tool Requirements
 
 | MCP / Tool | Role | Required? |
 |------------|------|-----------|
-| `playwright` | All UI actions: navigate, click, fill, hover, snapshot, screenshot | Required |
+| `playwright` (with `--caps testing`) | UI actions + assertions: navigate, click, fill, hover, snapshot, screenshot, `browser_verify_*`, `browser_tabs` | Required |
 | `oc` CLI | Setup commands, mid-step backend checks, teardown, environment detection | Required |
 | `polarion` | Fetch test case by Polarion ID (alternative to file path) | Optional |
-| `acm-kubectl` | Spoke cluster checks if steps reference managed clusters | Optional |
-| `acm-search` | Resource existence verification | Optional |
 
 ## Input Formats
 
@@ -105,7 +103,7 @@ Executes existing ACM Console UI test cases step-by-step against a live environm
 Phase 4 includes a mandatory pre-verdict checkpoint that prevents the agent from injecting assumptions into verdict evaluation. Before assigning any step verdict, the agent must:
 
 1. **Re-read** the exact expected result text from the test case and quote it
-2. **Cite concrete evidence** -- browser snapshot for UI, command output for CLI (never from memory)
+2. **Cite concrete evidence** -- a `browser_verify_*` result or browser snapshot for UI, command output for CLI (never from memory)
 3. **Compare literally** -- place expected text next to observed evidence
 4. **Check for injected assumptions** -- distinguish "the test case says FAIL" from "I think it should fail"
 
@@ -145,12 +143,10 @@ runs/test-case-validator/RHACM4K-64825/RHACM4K-64825-2026-06-23T14-48-40/
   execution-plan.json           # Parsed test case structure (Phase 1)
   environment-readiness.md      # Phase 2 readiness table
   evidence/
-    step-1-pre-snapshot.txt     # Accessibility snapshot before step 1
-    step-1-post-snapshot.txt    # Accessibility snapshot after step 1
-    step-1-screenshot.png       # Visual screenshot after step 1
-    step-2-pre-snapshot.txt
-    step-2-post-snapshot.txt
-    step-2-screenshot.png
+    step-1-pre-snapshot.txt     # Step-entry snapshot -- ALWAYS written
+    step-1-post-snapshot.txt    # CONDITIONAL: structural check (count/sort/absence/position) or non-PASS verdict
+    step-1-screenshot.png       # FAILURE-ONLY: only when the step verdict is not PASS
+    step-2-pre-snapshot.txt     # (post-snapshot / screenshot present only under the conditions above)
     ...
     setup-output.txt            # Combined setup command outputs
     teardown-output.txt         # Combined teardown command outputs

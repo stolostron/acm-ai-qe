@@ -39,7 +39,7 @@ The onboarding skill detects your environment, walks you through MCP server setu
 | **Z-Stream Analyzer** | Classifies Jenkins pipeline test failures as PRODUCT_BUG, AUTOMATION_BUG, INFRASTRUCTURE, or NO_BUG. 4-stage pipeline with data gathering, cluster diagnostics, 12-layer AI classification, and report generation. | `"Analyze this run: <JENKINS_URL>"` |
 | **Hub Health Check** | Diagnoses ACM hub cluster health using a 6-phase pipeline with 4 depth modes. Checks operators, pods, addons, subsystems, dependency chains, and known failure patterns. | `"How's my hub health?"` (after `oc login`) |
 | **Bug Hunter** | Proactively hunts for bugs in ACM feature implementations using test cases as a starting point. 10-dimension investigation with adversarial subagents. | `"Hunt bugs using RHACM4K-61733"` |
-| **Bug Fix Verifier** | Verifies whether a known bug fix has landed on a target environment. Checks branch reachability, build dates, code presence, and UI behavior. | `"Verify ACM-29818 is fixed on this cluster"` |
+| **Bug Fix Verifier** | Verifies whether a known bug fix has landed on a target environment. 9-phase pipeline: three-tier presence check (branch reachability, build date, code presence), PR code review, prerequisite gap analysis, environment health gate, and Playwright UI/backend verification -- yields FIXED / NOT FIXED / BLOCKED with a confidence level. | `"Verify ACM-29818 is fixed on this cluster"` |
 | **Playwright Automation** | Write Playwright E2E automation scripts for ACM Console -- 7-phase pipeline with requirements extraction, UI discovery, code generation, and test execution. | `/acm-playwright-automation RHACM4K-xxxxx` |
 
 ### Supporting Skills

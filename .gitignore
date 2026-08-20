@@ -69,6 +69,7 @@ environment-*.config
 **/settings.local.json
 
 # Personal/development skills (not part of the ACM suite)
+.claude/skills/auto-grill/
 .claude/skills/grill-me/
 .claude/skills/youtube-digest/
 

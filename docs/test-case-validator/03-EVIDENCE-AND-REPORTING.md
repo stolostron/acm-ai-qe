@@ -15,8 +15,9 @@ Evidence is captured at every significant point during execution to provide an a
 │       ↓                                                   │
 │  [Actions execute]                                        │
 │       ↓                                                   │
-│  Post-action:  browser_snapshot → step-{i}-post.txt      │
-│                browser_screenshot → step-{i}.png          │
+│  Post (cond.): browser_snapshot → step-{i}-post.txt      │
+│                (only for a structural check or non-PASS)  │
+│  On non-PASS:  browser_take_screenshot → step-{i}.png     │
 │       ↓                                                   │
 │  On failure:   browser_console_messages → errors.txt      │
 │                                                           │
@@ -27,8 +28,8 @@ Evidence is captured at every significant point during execution to provide an a
 
 | Type | Format | Content | When Captured |
 |------|--------|---------|---------------|
-| Accessibility snapshot | `.txt` (YAML tree) | Full page DOM tree with roles, names, refs | Before and after each step |
-| Screenshot | `.png` | Visual page capture | After each step (post-verification) |
+| Accessibility snapshot | `.txt` (YAML tree) | Full page DOM tree with roles, names, refs | Step entry always; post-step only for a structural check or non-PASS verdict |
+| Screenshot | `.png` | Visual page capture | Only when the step verdict is not PASS (FAIL/BLOCKED/MANUAL_CHECK) |
 | CLI output | `.txt` | Command stdout/stderr | After each setup/teardown/CLI step |
 | Console errors | `.txt` | Browser JavaScript errors | On FAIL or BLOCKED verdicts |
 
@@ -37,8 +38,8 @@ Evidence is captured at every significant point during execution to provide an a
 ```
 evidence/
   step-{N}-pre-snapshot.txt      # Before step N actions
-  step-{N}-post-snapshot.txt     # After step N actions + verification
-  step-{N}-screenshot.png        # Visual capture after step N
+  step-{N}-post-snapshot.txt     # Conditional: structural check or non-PASS verdict
+  step-{N}-screenshot.png        # Failure-only: written when verdict is not PASS
   step-{N}-{description}.png     # Named screenshots for key moments
   setup-output.txt               # All setup commands and outputs
   teardown-output.txt            # All teardown commands and outputs

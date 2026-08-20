@@ -90,6 +90,10 @@ mcp/.external/
 # Playwright MCP runtime data (console logs, session state)
 .playwright-mcp/
 
+# omo tool local state (code-index symlink + run-continuation session state)
+.codegraph
+.omo/
+
 # Python virtual environments
 **/.venv/
 

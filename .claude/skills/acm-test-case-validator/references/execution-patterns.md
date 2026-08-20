@@ -4,18 +4,26 @@ How to translate test case actions into executable Playwright MCP and CLI tool c
 
 ## Playwright MCP Workflow
 
-Every UI interaction follows this cycle:
+Capture ONE snapshot at step entry to get element refs, then rely on each action's returned state:
 
 ```
-1. browser_snapshot() -> get current state + element refs
-2. Identify target element by text/role/ref in the snapshot
-3. Execute action (click, fill, hover, navigate)
-4. Wait 1-3 seconds
-5. browser_snapshot() -> confirm action took effect
-6. (Optional) browser_take_screenshot() -> evidence capture
+1. browser_snapshot() at step entry -> current state + element refs (saved as step evidence)
+2. Identify the target element by text/role/ref in that snapshot
+3. Execute the action:
+   - browser_click / browser_hover / browser_navigate -> each RETURNS a fresh post-action
+     snapshot with refs; reuse it for the next action and for verification (no extra snapshot)
+   - browser_fill_form -> returns NO snapshot; if the next action's target ref is missing,
+     take exactly one browser_snapshot on the revealed surface
+   - Delayed surfaces (tooltip / popover / toast that render after a wait) -> the action's
+     immediate return predates the render; browser_wait_for the surface, then take exactly
+     one browser_snapshot before verifying (see the Hover -> tooltip mapping below)
+4. Assert the expected result with a browser_verify_* tool (see Verification Patterns);
+   take a full browser_snapshot only for structural checks (count/sort/absence/position)
+   or a non-PASS verdict
+5. browser_take_screenshot() -> evidence capture ONLY when the verdict is not PASS
 ```
 
-Always snapshot BEFORE interacting. Element `ref` values from the snapshot are required for click/fill/hover.
+The step-entry `ref` values (and the refs returned by click/hover/navigate) are required for click/fill/hover. Do NOT snapshot after every action to "confirm it took effect" -- the action's own return already carries the post-action state. When the testing cap is absent, this reverts to a snapshot-after-each-action model (see "Verify-Tool Availability and Fallback").
 
 ## Action Mapping Table
 
@@ -53,9 +61,9 @@ Always snapshot BEFORE interacting. Element `ref` values from the snapshot are r
 
 | Test Case Language | Tool | Notes |
 |-------------------|------|-------|
-| "Enter X in the Y field" | `browser_fill(ref, "X")` | Find input with label "Y" |
-| "Type X" | `browser_fill(ref, "X")` | Find the focused or specified input |
-| "Clear the X field" | `browser_fill(ref, "")` | Fill with empty string |
+| "Enter X in the Y field" | `browser_fill_form(ref, "X")` | Find input with label "Y" |
+| "Type X" | `browser_fill_form(ref, "X")` | Find the focused or specified input |
+| "Clear the X field" | `browser_fill_form(ref, "")` | Fill with empty string |
 | "Select X from the Y dropdown" | `browser_click` (open) + `browser_click` (option) | |
 
 ### Observation Actions (No Interaction)
@@ -91,6 +99,21 @@ The patterns below are common examples, not an exhaustive list. For ANY expected
 5. **Do not stop at the first negative.** If a check fails on one cluster or one namespace, check all relevant targets before rendering FAIL. A resource found on ANY target cluster satisfies "resources persist on the target cluster" unless the test case names a specific cluster.
 
 The specific patterns below illustrate this method for common cases. When you encounter a verification that does not match any listed pattern, apply the general method directly.
+
+### Assertion Tools (`browser_verify_*`) -- default for non-structural checks
+
+When the Playwright MCP is launched with `--caps testing`, prefer a `browser_verify_*` tool over a manual snapshot scan for these assertion types. The tool performs the assertion and returns a pass/fail result you cite directly (no resident snapshot needed):
+
+| Expected result | Tool |
+|-----------------|------|
+| "X is displayed" / "X appears" / "text reads X" | `browser_verify_element_visible` or `browser_verify_text_visible` |
+| "field shows N" / input value assertions | `browser_verify_value` |
+| "menu/table/list present" / list-of-items visible | `browser_verify_list_visible` |
+| "No errors" / "No broken UI" | `browser_console_messages` (unchanged) |
+
+**Still use a full `browser_snapshot`** (not a verify tool) for the structural patterns below -- element count, sort order, text absence, and visual/layout position -- and for any non-PASS verdict, because those require reading and evaluating the full accessibility tree. URL/navigation assertions use the Navigation Verification carve-out, never a verify tool.
+
+The patterns that follow describe the snapshot-based method; when a verify tool applies (per the table above), use it and cite its result instead of a manual snapshot scan.
 
 ### Text Presence
 
@@ -147,13 +170,15 @@ Result: PASS if correctly ordered, FAIL if not (show actual order)
 
 **Pattern:** "navigates to X" / "URL contains X" / "new tab opens"
 
-**Method:** After the click action, check the URL in the next snapshot or capture via `browser_snapshot` metadata.
+**Method:** Compare the ACTUAL URL. Read the Page-URL header from the action-return snapshot (click/navigate carry it); if the return has no URL metadata (e.g. after `browser_fill_form`), take one `browser_snapshot` and read its URL. For a "new tab opens" assertion, use `browser_tabs` to list open tabs and read the opened tab's URL. Do NOT use `browser_verify_text_visible` for a URL assertion -- it checks visible page text, not the URL; a landmark `browser_verify_*` is at most an optional page-loaded sanity check, never the URL assertion itself.
 
 ```
 Expected: "The Grafana explore URL contains a query for node_accelerator_card_info"
 Verify: new page URL contains "node_accelerator_card_info"
 Result: PASS if URL matches, FAIL if different (show actual URL)
 ```
+
+This carve-out is authoritative for all URL/navigation assertions: they compare the actual URL, not a `browser_verify_*` visibility check.
 
 ### Visual/Layout Verification
 
@@ -219,6 +244,20 @@ For these: take a screenshot, record MANUAL_CHECK, note what would need human re
 | Access control > Roles | `/multicloud/access/roles` |
 
 When the test case Description includes a **Route** field, use that as the direct navigation target after the initial login. This avoids fragile menu clicking for the entry point.
+
+## Verify-Tool Availability and Fallback (`--caps testing`)
+
+The `browser_verify_*` tools register only when the Playwright MCP is launched with `--caps testing` (the repo's canonical `.mcp.json` and `mcp/setup.sh` pass `--caps core,testing`). If the cap is absent, those tools are granted in allowed-tools but not registered at runtime, so the first call fails with a tool-not-found error.
+
+**Fallback trigger and behavior:**
+1. Treat the FIRST `browser_verify_*` tool-not-found error as the signal that the testing cap is off. (This is cleaner than a start-of-run probe, which would conflate "tool absent" with "assertion returned false".)
+2. For the REMAINDER of the run, fall back to the snapshot-based assertion model: re-enable the per-step post-action confirmation snapshot that the rely-on-return model drops, and evaluate every assertion against `browser_snapshot` output (the pre-optimization evidence model).
+3. Warn the user once: "Playwright MCP has no `--caps testing`; falling back to snapshot-based assertions for this run."
+4. The step whose verify call first hit the error may need an on-the-spot `browser_snapshot` to salvage its own assertion (its confirmation snapshot was already dropped, and the step-entry snapshot may not cover the post-action surface).
+
+**Never emit a verdict from a failed or absent verify call.** A tool-not-found error is not a FAIL -- it triggers the fallback, and the assertion is re-evaluated via snapshot.
+
+This fallback fires only when the cap is unset, so the snapshot savings on the canonical `--caps testing` path are unaffected.
 
 ## Error Recovery
 

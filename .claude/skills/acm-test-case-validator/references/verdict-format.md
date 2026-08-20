@@ -10,12 +10,10 @@ runs/test-case-validator/<POLARION_ID>/<POLARION_ID>-<TIMESTAMP>/
   execution-plan.json           # Parsed test case structure (Phase 1 output)
   environment-readiness.md      # Phase 2 readiness table
   evidence/
-    step-1-pre-snapshot.txt     # Accessibility snapshot before step 1
-    step-1-post-snapshot.txt    # Accessibility snapshot after step 1
-    step-1-screenshot.png       # Visual screenshot after step 1
-    step-2-pre-snapshot.txt
-    step-2-post-snapshot.txt
-    step-2-screenshot.png
+    step-1-pre-snapshot.txt     # Step-entry snapshot -- ALWAYS written (Phase 4.1)
+    step-1-post-snapshot.txt    # CONDITIONAL: only for a structural check (count/sort/absence/position) or a non-PASS verdict
+    step-1-screenshot.png       # FAILURE-ONLY: only when the step verdict is not PASS
+    step-2-pre-snapshot.txt     # (post-snapshot / screenshot present only under the conditions above)
     ...
     setup-output.txt            # Combined setup command outputs
     teardown-output.txt         # Combined teardown command outputs
@@ -69,7 +67,7 @@ Record: screenshot captured, what needs human review, and why automated verifica
 |-----------|----------------|-------------|
 | All steps PASS | `ALL_PASS` | Test case fully validated |
 | All steps PASS or MANUAL_CHECK (no FAIL/BLOCKED) | `ALL_PASS_WITH_MANUAL` | Passed but some steps need human confirmation |
-| >=1 FAIL, rest are PASS/MANUAL_CHECK | `PARTIAL_PASS` | Some steps failed, include count: "(N/M steps passed)" |
+| >=1 PASS and >=1 FAIL/BLOCKED (not all FAIL/BLOCKED) | `PARTIAL_PASS` | Some steps failed, include count: "(N/M steps passed)" |
 | Environment prerequisites missing | `BLOCKED` | Cannot execute -- environment not ready |
 | All steps FAIL or BLOCKED | `FAILED` | Test case does not pass on this environment |
 | Setup commands failed critically | `SETUP_FAILED` | Could not establish test preconditions |
@@ -182,7 +180,18 @@ Raw accessibility tree output from `browser_snapshot()`. Contains:
 
 ### Screenshot Files (`.png`)
 
-Binary PNG from `browser_take_screenshot()`. One per step (post-action state).
+Binary PNG from `browser_take_screenshot()`. Written only when a step verdict is not PASS (FAIL/BLOCKED/MANUAL_CHECK evidence).
+
+### Verify-Tool Results (PASS-step evidence)
+
+A PASS step that used a `browser_verify_*` tool cites the tool result directly instead of a saved snapshot file. Record the locator/text asserted and the pass/fail return in the step's report row, e.g.:
+
+```
+Step 2 (PASS): browser_verify_text_visible(text="GPU count") -> pass
+Step 5 (PASS): browser_verify_value(ref=..., value="10") -> pass
+```
+
+No post-step snapshot or screenshot file is written for such a step; the step-entry `pre-snapshot.txt` from Phase 4.1 is still written (see the Run Directory Layout conditions above).
 
 ### Output Files
 

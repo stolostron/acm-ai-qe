@@ -23,16 +23,15 @@ REQUIRED_EVAL_FIELDS = {"id", "prompt", "expected_output", "assertions", "catego
 VALID_CATEGORIES = {"process", "structure", "edge-case", "degradation"}
 
 KNOWN_PHASES = [
-    "phase 0", "stage 1", "phase 1", "phase 2", "phase 3",
-    "phase 4", "phase 4.5", "stage 3",
+    "phase 0", "phase 1", "phase 2", "phase 3", "phase 4",
+    "phase 5", "phase 6", "phase 7", "phase 8",
 ]
 
 KNOWN_ARTIFACTS = [
-    "gather-output.json", "pr-diff.txt",
-    "phase1-feature-investigation.md", "phase1-code-change-analysis.md",
-    "phase1-ui-discovery.md", "phase2-synthesized-context.md",
-    "phase3-live-validation.md", "test-case.md", "analysis-results.json",
-    "phase4.5-quality-review.md", "review-results.json", "SUMMARY.txt",
+    "phase1-jira.json", "phase2-code.json",
+    "phase3-ui.json", "synthesized-context.md",
+    "phase5-live-validation.md", "test-case.md",
+    "phase7-review.md", "review-results.json", "SUMMARY.txt",
     "test-case-description.html", "test-case-setup.html",
     "test-case-steps.html", "validation-warnings.json",
 ]

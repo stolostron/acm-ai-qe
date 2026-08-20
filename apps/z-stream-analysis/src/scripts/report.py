@@ -312,15 +312,39 @@ class ReportFormatter:
             if per_test:
                 lines.extend(self._format_per_test_section(per_test))
             else:
-                # analysis-results.json exists but per_test_analysis is missing/empty.
-                # This means field names don't match — fail instead of silently dropping all analysis.
-                raise ValueError(
-                    "analysis-results.json exists but 'per_test_analysis' is missing or empty.\n"
-                    "The report would be generated without any test classifications.\n\n"
-                    "Common mistake: using 'failed_tests' instead of 'per_test_analysis'.\n"
-                    "See schema: src/schemas/analysis_results_schema.json\n"
-                    f"Fix analysis-results.json and re-run: python -m src.scripts.report {self.run_dir}"
+                build_result = (
+                    self.analysis_results.get('analysis_metadata', {}).get('build_result', '')
+                    or self.raw_data.get('jenkins', {}).get('build_result', '')
                 )
+                if build_result == 'ABORTED':
+                    # ABORTED builds legitimately have no test results
+                    pipeline_failure = self.analysis_results.get('pipeline_failure', {})
+                    root_cause = pipeline_failure.get('root_cause', 'Build was aborted before tests could run.')
+                    lines.extend([
+                        "---",
+                        "",
+                        "## Build Aborted",
+                        "",
+                        f"**Result:** {build_result}",
+                        "",
+                        f"**Root Cause:** {root_cause}",
+                        "",
+                        "No test results were produced. The build was terminated before "
+                        "the test suite could complete.",
+                        "",
+                    ])
+                    recommendation = pipeline_failure.get('recommendation', '')
+                    if recommendation:
+                        lines.extend([f"**Recommendation:** {recommendation}", ""])
+                else:
+                    # Non-ABORTED build with empty per_test_analysis — field name mismatch
+                    raise ValueError(
+                        "analysis-results.json exists but 'per_test_analysis' is missing or empty.\n"
+                        "The report would be generated without any test classifications.\n\n"
+                        "Common mistake: using 'failed_tests' instead of 'per_test_analysis'.\n"
+                        "See schema: src/schemas/analysis_results_schema.json\n"
+                        f"Fix analysis-results.json and re-run: python -m src.scripts.report {self.run_dir}"
+                    )
         else:
             # No analysis-results.json file — show raw data as placeholder
             failed_tests = test_report.get('failed_tests', [])

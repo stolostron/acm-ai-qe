@@ -68,21 +68,29 @@ Use the `createdAt` timestamp as an approximation. Note reduced confidence in th
 
 ---
 
-## 2. Build Date Comparison Logic
+## 2. Build Date Comparison Logic (24-hour pipeline-lag model)
 
 1. Normalize both dates to UTC:
    - PR merge date: from `gh pr view --json mergedAt` (already UTC ISO 8601)
    - Image build date: from DOWNSTREAM tag parsing above
 
 2. Compare:
-   - `image_date >= merge_date`: **PASS** — build was created after the fix merged
-   - `merge_date - 2h <= image_date < merge_date`: **AMBIGUOUS** — the build pipeline may have started before the merge but finished after. Treat as FAIL with explanatory note.
-   - `image_date < merge_date - 2h`: **FAIL** — image clearly predates the fix
+   - `image_date < merge_date` (image clearly predates the merge): **FAIL** -> verdict **BLOCKED (pipeline lag)**, not NOT FIXED. The fix is in the branch; the running build is just stale. Action: rebuild/redeploy with a snapshot newer than the merge.
+   - `image_date >= merge_date`: the build *could* include the fix. Confirm with Tier C (`oc exec` grep) when available. When Tier C is unavailable, grade by the merge->build gap (a small positive gap does not guarantee inclusion, because the build may have started before the merge landed):
 
-3. The 2-hour window accounts for:
+| Gap (build_date − merge_date) | Fix in build? | Action |
+|-------------------------------|---------------|--------|
+| 0-6h | NO (likely) | Build probably started before the merge landed. Get Tier C or a newer build. |
+| 6-12h | MAYBE | Ambiguous. Strongly recommend a Tier C grep before verifying. |
+| 12-24h | LIKELY | Probably included. Confirm with Tier C if possible. |
+| 24h+ | YES | Enough time for the build to include the merge. Proceed. |
+
+3. The graduated window accounts for:
    - CI pipeline queuing and build time (~30-90 min for ACM downstream builds)
    - Git merge to image registry publish delay
    - Timezone conversion edge cases
+
+This model must read identically in `verification-patterns.md` Tier B.
 
 ---
 
@@ -91,28 +99,18 @@ Use the `createdAt` timestamp as an approximation. Note reduced confidence in th
 ### ACM version detection
 
 ```bash
-# Method 1: From MCH status (preferred)
+# Preferred: MCH status
 oc get mch -A -o jsonpath='{range .items[*]}{.metadata.namespace}{"\t"}{.status.currentVersion}{"\n"}{end}'
-
-# Method 2: From CSV name
-oc get csv -n $MCH_NS -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' | grep advanced-cluster-management
-
-# Method 3: From MCE
+# Fallback: MCE
 oc get multiclusterengines -o jsonpath='{.items[0].status.currentVersion}'
-
 # OCP version
 oc get clusterversion version -o jsonpath='{.status.desired.version}'
 ```
 
-### Component image verification
+### Component image and pod readiness
 
 ```bash
 oc get deploy <component-name> -n $MCH_NS -o jsonpath='{.spec.template.spec.containers[0].image}'
-```
-
-### Pod readiness check
-
-```bash
 oc get pods -n $MCH_NS -l app=<component-label> -o jsonpath='{range .items[*]}{.metadata.name}: restarts={.status.containerStatuses[0].restartCount}, started={.status.startTime}{"\n"}{end}'
 ```
 
@@ -236,11 +234,13 @@ oc get deploy <dep-deploy> -n <dep-ns> -o jsonpath='{.status.readyReplicas}/{.st
 
 ### Confidence adjustment
 
-| Prerequisite source | Confidence modifier |
-|--------------------|-------------------|
-| Neo4j (full graph) | No penalty |
-| Heuristic table | -0.10 |
-| oc-only discovery | -0.20 |
+Confidence is a level (HIGH / MEDIUM / LOW), not a number (see `verification-patterns.md` tier weights). Prerequisite-source quality adjusts that level:
+
+| Prerequisite source | Confidence adjustment |
+|--------------------|----------------------|
+| Neo4j (full graph) | No adjustment |
+| Heuristic table | Reduce one level |
+| oc-only discovery | Reduce two levels |
 
 Always state which source was used in the verdict prerequisites section.
 
@@ -353,15 +353,9 @@ If valid, skip token extraction and use the existing session.
 
 ## 10. Console Authentication
 
-For full browser-based OAuth authentication to the ACM Console, follow the procedure in:
+Preferred: read `${CLAUDE_SKILL_DIR}/../acm-test-case-generator/references/console-auth.md` (covers IDP detection, form handling, post-login verification).
 
-```
-Read `${CLAUDE_SKILL_DIR}/../acm-test-case-generator/references/console-auth.md`
-```
-
-That sibling skill reference covers IDP detection, Playwright navigation, IDP selection page handling (kube:admin, htpasswd, ldap), form fill and submit, post-login verification, and error handling with AUTH_STATUS values.
-
-If the sibling reference is not available in this clone, the minimum auth procedure is:
+If the sibling reference is unavailable, minimum auth procedure:
 1. `browser_navigate(CONSOLE_URL)` then `browser_snapshot()`
 2. Click the IDP link matching the username type
 3. `browser_fill_form` for username and password fields
@@ -395,34 +389,3 @@ return await resp.json();
 
 GET requests may not require the CSRF token, but including it does no harm.
 
----
-
-## 12. Cluster Connectivity Verification
-
-### Basic connectivity
-
-```bash
-oc whoami --show-server
-oc whoami
-oc auth can-i get pods -n open-cluster-management
-```
-
-### After kubeconfig changes
-
-Always re-verify:
-```bash
-oc whoami --show-server
-```
-
-### Permission check
-
-The verifier needs read-only access. Minimum permissions:
-
-```bash
-oc auth can-i get pods -n open-cluster-management
-oc auth can-i get csv -n open-cluster-management
-oc auth can-i get deploy -n open-cluster-management
-oc auth can-i get mch -A
-```
-
-If any fail, warn the user about limited verification scope. Do not abort — proceed with available permissions and note restrictions in the verdict.

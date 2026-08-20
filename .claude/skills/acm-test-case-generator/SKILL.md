@@ -52,12 +52,35 @@ allowed-tools:
   - mcp__acm-source__search_translations
   - mcp__acm-source__get_component_source
   - mcp__acm-source__search_code
+  - mcp__acm-source__list_versions
+  - mcp__acm-source__detect_cnv_version
+  - mcp__acm-source__get_route_component
+  - mcp__acm-source__get_component_types
+  - mcp__acm-source__get_acm_selectors
   - mcp__jira__get_issue
   - mcp__jira__search_issues
   - mcp__polarion__get_polarion_work_items
   - mcp__polarion__get_polarion_work_item
   - mcp__polarion__get_polarion_test_case_summary
   - mcp__polarion__check_polarion_status
+  - mcp__neo4j-rhacm__read_neo4j_cypher
+  - mcp__neo4j-rhacm__get_neo4j_schema
+  - mcp__playwright__browser_navigate
+  - mcp__playwright__browser_snapshot
+  - mcp__playwright__browser_click
+  - mcp__playwright__browser_fill_form
+  - mcp__playwright__browser_take_screenshot
+  - mcp__playwright__browser_console_messages
+  - mcp__playwright__browser_network_requests
+  - mcp__playwright__browser_wait_for
+  - mcp__playwright__browser_hover
+  - mcp__playwright__browser_close
+  - mcp__acm-kubectl__clusters
+  - mcp__acm-kubectl__kubectl
+  - mcp__acm-kubectl__connect_cluster
+  - mcp__acm-search__find_resources
+  - mcp__acm-search__query_database
+  - mcp__acm-search__get_database_stats
 ---
 
 # ACM Console Test Case Generator
@@ -75,6 +98,10 @@ Read `${CLAUDE_SKILL_DIR}/references/pipeline-detail.md` for phase input schemas
 
 Read `references/phase-gates.md` for gate rules and progress indicators.
 
+**Subagent spawn discipline (all phases):** Each phase below names a `brief:` (a file under `${CLAUDE_SKILL_DIR}/references/agents/`). Do NOT read that brief into orchestrator context. Spawn the subagent with a prompt that tells IT to read the brief and follow it exactly, plus that phase's input from `pipeline-detail.md`. The orchestrator reads only the structured JSON/markdown outputs it needs for routing -- never the briefs.
+
+**Model tiering (all phases):** Each spawn also names a `model:` -- pass it as the Agent tool's `model` param. Mechanical fetch/discovery/writing phases run on `sonnet`; the reasoning and gate phases (code-analysis, synthesis, quality-review) run on `opus`. If `CLAUDE_CODE_SUBAGENT_MODEL` is set in the environment it overrides these and forces one model on all subagents (savings lost, or a silent gate downgrade) -- leave it unset so the per-phase `model:` governs.
+
 ### Phase 0: Determine Inputs
 
 Resolve before starting the pipeline:
@@ -86,12 +113,13 @@ Resolve before starting the pipeline:
 5. **Cluster URL** (optional): Run `oc whoami --show-server 2>/dev/null`. If logged in, derive console URL via `oc get route console -n openshift-console -o jsonpath='{.spec.host}' 2>/dev/null`. If unavailable, ask or skip live validation. In headless mode (`-p`), auto-detect only.
 6. **Console Credentials** (optional): Resolve via the priority cascade in `pipeline-detail.md#phase-0-credential-resolution`.
 7. **MCP Availability Check**: Run the MCP probe described in `pipeline-detail.md#phase-0-mcp-availability-check`. If REQUIRED MCPs are unavailable, warn the user. If IMPORTANT MCPs are unavailable, warn and proceed.
+8. **Model-tiering env check**: Run `echo "${CLAUDE_CODE_SUBAGENT_MODEL:-unset}"`. If it is set to any value, it overrides every per-phase `model:` below and forces one model on all subagents. Surface this to the user before proceeding: a cheaper value silently downgrades the Opus gate phases (code-analysis, synthesis, quality-review) -- weakening the correctness gate -- while an Opus value nullifies the Sonnet savings. Recommend leaving it unset (or `inherit` on v2.1.196+) so per-phase tiering governs.
 
 If all inputs can be inferred from the JIRA ticket, proceed without asking.
 
 ### Phase 1: Gather Data + Investigate JIRA Story
 
-Read `${CLAUDE_SKILL_DIR}/references/agents/data-gatherer.md`. Spawn a subagent (Agent tool, description: "Data Gathering + JIRA Investigation") with the full agent instructions and the Phase 1 input from `pipeline-detail.md`.
+Spawn the Phase 1 subagent (Agent tool, description: "Data Gathering + JIRA Investigation", model: sonnet, brief: `agents/data-gatherer.md`) with the Phase 1 input from `pipeline-detail.md`.
 
 - `gather-output` validation FAIL: **stop the pipeline** (gather.py is deterministic -- failures indicate a script bug, not an LLM issue).
 - `phase1-jira` validation FAIL: enter Retry Protocol (see `pipeline-detail.md`).
@@ -103,7 +131,7 @@ Show: "Phase 1 complete. Gathered N PRs, JIRA findings written to phase1-jira.js
 
 ### Phase 2: Analyze PR Code Changes
 
-Read `${CLAUDE_SKILL_DIR}/references/agents/code-analyzer.md`. Spawn a subagent (description: "Code Analysis") with the instructions and the Phase 2 input from `pipeline-detail.md`.
+Spawn the Phase 2 subagent (description: "Code Analysis", model: opus, brief: `agents/code-analyzer.md`) with the Phase 2 input from `pipeline-detail.md`.
 
 If validation PASS: continue. If FAIL: enter Retry Protocol.
 
@@ -111,7 +139,7 @@ Show: "Phase 2 complete. Code analysis written to phase2-code.json."
 
 ### Phase 3: Discover UI Elements
 
-Read `${CLAUDE_SKILL_DIR}/references/agents/ui-discoverer.md`. Spawn a subagent (description: "UI Discovery") with the instructions and the Phase 3 input from `pipeline-detail.md`.
+Spawn the Phase 3 subagent (description: "UI Discovery", model: sonnet, brief: `agents/ui-discoverer.md`) with the Phase 3 input from `pipeline-detail.md`.
 
 If validation PASS: continue. If FAIL: enter Retry Protocol.
 
@@ -126,7 +154,7 @@ If FAIL: **stop the pipeline**. Upstream phases already exhausted their retry at
 
 ### Phase 4: Synthesize
 
-Read `${CLAUDE_SKILL_DIR}/references/agents/synthesizer.md`. Spawn a subagent (description: "Synthesis") with the instructions and the Phase 4 input from `pipeline-detail.md`.
+Spawn the Phase 4 subagent (description: "Synthesis", model: opus, brief: `agents/synthesizer.md`) with the Phase 4 input from `pipeline-detail.md`.
 
 If validation PASS: continue. If FAIL: enter Retry Protocol.
 
@@ -136,7 +164,7 @@ Show: "Phase 4 complete. Synthesized context written."
 
 **Skip** if no cluster URL was resolved in Phase 0: "Skipping live validation -- no cluster available."
 
-Read `${CLAUDE_SKILL_DIR}/references/agents/live-validator.md`. Spawn a subagent (description: "Live Validation") with the instructions and the Phase 5 input from `pipeline-detail.md`.
+Spawn the Phase 5 subagent (description: "Live Validation", model: sonnet, brief: `agents/live-validator.md`) with the Phase 5 input from `pipeline-detail.md`.
 
 Verify `phase5-live-validation.md` exists. Apply live validation corrections per `pipeline-detail.md#phase-5-live-validation-corrections`.
 
@@ -144,7 +172,7 @@ Show: "Phase 5 complete. Live validation written."
 
 ### Phase 6: Write Test Case
 
-Read `${CLAUDE_SKILL_DIR}/references/agents/test-case-writer.md`. Spawn a subagent (description: "Test Case Writing") with the instructions and the Phase 6 input from `pipeline-detail.md`.
+Spawn the Phase 6 subagent (description: "Test Case Writing", model: sonnet, brief: `agents/test-case-writer.md`) with the Phase 6 input from `pipeline-detail.md`.
 
 If validation PASS: continue. If FAIL: enter Retry Protocol.
 
@@ -152,7 +180,7 @@ Show: "Phase 6 complete. Test case written."
 
 ### Phase 7: Quality Review (MANDATORY GATE)
 
-Read `${CLAUDE_SKILL_DIR}/references/agents/quality-reviewer.md`. Spawn a subagent (description: "Quality Review") with the instructions and the Phase 7 input from `pipeline-detail.md`.
+Spawn the Phase 7 subagent (description: "Quality Review", model: opus, brief: `agents/quality-reviewer.md`) with the Phase 7 input from `pipeline-detail.md`.
 
 Read the review output. Run programmatic enforcement (see `pipeline-detail.md`).
 
@@ -160,9 +188,9 @@ Read the review output. Run programmatic enforcement (see `pipeline-detail.md`).
 
 **If NEEDS_FIXES -- 3-tier escalation:**
 
-**Tier 1 (inline MCP):** Parse BLOCKING issues. Make 1-3 targeted MCP calls (`set_acm_version`, `search_translations`, `get_component_source`) for correct values. Fix `test-case.md` via Edit. Spawn NEW quality-reviewer subagent. Re-run enforcement.
+**Tier 1 (inline MCP):** Parse BLOCKING issues. Make 1-3 targeted MCP calls (`set_acm_version`, `search_translations`, `get_component_source`) for correct values. Fix `test-case.md` via Edit. Spawn a NEW quality-reviewer subagent (model: opus, brief: `agents/quality-reviewer.md`). Re-run enforcement.
 
-**Tier 2 (writer retry):** Spawn NEW test-case-writer subagent with `MODE: REVISION` and reviewer flags. Spawn NEW quality-reviewer subagent. Re-run enforcement.
+**Tier 2 (writer retry -- single cycle):** Spawn a NEW test-case-writer subagent (model: sonnet, brief: `agents/test-case-writer.md`) with `MODE: REVISION` and ONLY the reviewer's BLOCKING deltas (not the full review). Spawn a NEW quality-reviewer subagent (model: opus, brief: `agents/quality-reviewer.md`) and re-run enforcement. Run this writer+reviewer cycle at most once; if it still fails, go to Tier 3.
 
 **Tier 3 (proceed):** Mark unresolvable steps with `[MANUAL VERIFICATION REQUIRED: <issue>]`. Proceed to Phase 8.
 

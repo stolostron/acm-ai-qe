@@ -149,13 +149,132 @@ def get_pr_metadata(pr_number: int, repo: str = "stolostron/console"):
         return None
 
 
-def get_pr_diff(pr_number: int, repo: str, output_path: Path = None):
+DIFF_CAP_DEFAULT = 40 * 1024  # 40 KB: per-PR and total cap for pr-diff.txt
+
+
+def _diff_section_priority(file_path):
+    """Retention priority for a diff section when capping. Lower is dropped first.
+
+    4 = production code (kept longest), 3 = tests, 2 = snapshots,
+    1 = generated/minified/vendored, 0 = lockfiles.
+    """
+    p = (file_path or "").lower()
+    lockfiles = (
+        "package-lock.json", "yarn.lock", "pnpm-lock.yaml", "go.sum",
+        "cargo.lock", "poetry.lock", "pipfile.lock", "composer.lock",
+    )
+    if any(p == lf or p.endswith("/" + lf) for lf in lockfiles):
+        return 0
+    if (".min.js" in p or ".min.css" in p or "/dist/" in p or "/build/" in p
+            or "/vendor/" in p or ".generated." in p or "/generated/" in p
+            or p.endswith(".pb.go") or p.endswith("_generated.go")
+            or p.endswith(".lock")):
+        return 1
+    if "__snapshots__/" in p or p.endswith(".snap"):
+        return 2
+    if (".test." in p or ".spec." in p or "/tests/" in p or "/__tests__/" in p
+            or "/test/" in p or p.endswith("_test.go") or p.endswith("_test.py")):
+        return 3
+    return 4
+
+
+def _split_diff_by_file(diff_text):
+    """Split a unified diff into (file_path, section_text) tuples by 'diff --git'."""
+    sections = []
+    path = None
+    buf = []
+    for line in diff_text.split("\n"):
+        if line.startswith("diff --git "):
+            if buf:
+                sections.append((path, "\n".join(buf)))
+            buf = [line]
+            m = re.match(r"diff --git a/(.+?) b/(.+)$", line)
+            path = m.group(2) if m else None
+        else:
+            buf.append(line)
+    if buf:
+        sections.append((path, "\n".join(buf)))
+    return sections
+
+
+def _cap_diff(diff_text, cap_bytes):
+    """Cap a single PR's unified diff to cap_bytes.
+
+    Drops noise (lockfiles -> generated -> snapshots -> tests) before any
+    production-code hunk, then truncates production at a file boundary if it
+    still overflows. Appends a [TRUNCATED ...] marker when content is removed.
+    Returns (capped_text, dropped_bytes, dropped_files). The full changed-file
+    list lives separately in metadata['files'], so a truncated diff never hides
+    which files changed.
+    """
+    data = diff_text.encode("utf-8")
+    if len(data) <= cap_bytes:
+        return diff_text, 0, 0
+
+    reserve = 160  # room for the marker line
+    budget = max(cap_bytes - reserve, 0)
+
+    annotated = []
+    for idx, (path, text) in enumerate(_split_diff_by_file(diff_text)):
+        annotated.append({
+            "idx": idx,
+            "text": text,
+            "bytes": len(text.encode("utf-8")),
+            "prio": _diff_section_priority(path),
+        })
+
+    prod = [s for s in annotated if s["prio"] == 4]
+    noise = [s for s in annotated if s["prio"] < 4]
+    prod_bytes = sum(s["bytes"] for s in prod)
+
+    kept = []
+    dropped_files = 0
+    dropped_bytes = 0
+
+    if prod_bytes <= budget:
+        # All production hunks fit; fill leftover budget with noise by priority.
+        kept.extend(prod)
+        remaining = budget - prod_bytes
+        for s in sorted(noise, key=lambda s: (-s["prio"], s["idx"])):
+            if s["bytes"] <= remaining:
+                kept.append(s)
+                remaining -= s["bytes"]
+            else:
+                dropped_files += 1
+                dropped_bytes += s["bytes"]
+    else:
+        # Production alone overflows: drop all noise, then give each production
+        # file an equal share of the budget so every changed prod file stays
+        # visible (header + leading hunks) rather than a few files taking all.
+        dropped_files += len(noise)
+        dropped_bytes += sum(s["bytes"] for s in noise)
+        share = budget // len(prod) if prod else budget
+        for s in sorted(prod, key=lambda s: s["idx"]):
+            raw = s["text"].encode("utf-8")
+            if len(raw) <= share:
+                kept.append(s)
+            else:
+                trunc_text = raw[:share].decode("utf-8", errors="ignore")
+                kept.append({"idx": s["idx"], "text": trunc_text})
+                dropped_bytes += s["bytes"] - len(trunc_text.encode("utf-8"))
+
+    out = sorted(kept, key=lambda s: s["idx"])
+
+    body = "\n".join(s["text"] for s in out)
+    marker = (f"\n\n[TRUNCATED {dropped_bytes} bytes / {dropped_files} file(s) "
+              f"omitted to fit diff cap; full file list retained in metadata]")
+    return body + marker, dropped_bytes, dropped_files
+
+
+def get_pr_diff(pr_number: int, repo: str, output_path: Path = None, cap_bytes: int = None):
     output = _run_gh([
         "pr", "diff", str(pr_number),
         "--repo", repo,
     ], timeout=60)
     if not output:
         return None
+    if cap_bytes is not None:
+        output, _, _ = _cap_diff(output, cap_bytes)
     if output_path:
         output_path.write_text(output, encoding="utf-8")
         return str(output_path)
@@ -343,6 +462,8 @@ def parse_args():
     parser.add_argument("--skip-live", action="store_true", help="Skip live cluster validation")
     parser.add_argument("--cluster-url", help="Console URL for live validation")
     parser.add_argument("--repo", default="stolostron/console", help="GitHub repo")
+    parser.add_argument("--diff-cap", type=int, default=DIFF_CAP_DEFAULT,
+                        help="Max bytes per PR diff and total (default 40960 = 40KB)")
     return parser.parse_args()
 
 
@@ -377,6 +498,7 @@ def main():
     # --- PR Metadata + Diffs ---
     all_files = []
     all_diffs = []
+    total_diff_remaining = args.diff_cap  # total byte budget across all PR diffs
     for pr_info in prs_found:
         print(f"  Fetching PR #{pr_info['number']} ({pr_info['repo']}) metadata...")
         metadata = get_pr_metadata(pr_info["number"], pr_info["repo"])
@@ -386,10 +508,29 @@ def main():
             pr_data_list.append(metadata)
             all_files.extend(metadata["files"])
 
-            diff_text = get_pr_diff(pr_info["number"], pr_info["repo"])
-            if diff_text:
-                header = f"# PR #{pr_info['number']} ({pr_info['repo']})"
-                all_diffs.append(f"{'=' * 60}\n{header}\n{'=' * 60}\n{diff_text}")
+            header = f"# PR #{pr_info['number']} ({pr_info['repo']})"
+            wrapper = f"{'=' * 60}\n{header}\n{'=' * 60}\n"
+            # Count the bytes this section adds around the diff text: the header wrapper
+            # plus the "\n\n" separator that join() inserts before every section after
+            # the first. Charging them to the budget keeps pr-diff.txt within diff_cap.
+            sep_bytes = 2 if all_diffs else 0
+            wrapper_bytes = len(wrapper.encode("utf-8")) + sep_bytes
+            if total_diff_remaining - wrapper_bytes > 0:
+                # Cap the diff text so wrapper + separator + text fits both the per-PR
+                # cap and the remaining total budget.
+                eff_cap = min(args.diff_cap, total_diff_remaining - wrapper_bytes)
+                diff_text = get_pr_diff(pr_info["number"], pr_info["repo"], cap_bytes=eff_cap)
+                if diff_text:
+                    all_diffs.append(f"{wrapper}{diff_text}")
+                    total_diff_remaining -= wrapper_bytes + len(diff_text.encode("utf-8"))
+                    if "[TRUNCATED" in diff_text:
+                        print(f"    Diff capped to fit {args.diff_cap}-byte budget")
+            else:
+                all_diffs.append(
+                    f"{wrapper}"
+                    f"[TRUNCATED: total diff cap reached; {len(metadata['files'])} file(s) listed in metadata]"
+                )
+                print(f"    Diff omitted (total {args.diff_cap}-byte cap reached)")
         else:
             print(f"    Failed to fetch PR #{pr_info['number']} metadata")
 

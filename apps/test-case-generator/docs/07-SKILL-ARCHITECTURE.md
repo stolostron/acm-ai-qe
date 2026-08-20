@@ -88,7 +88,7 @@ Deterministic scripts (gather.py, report.py, review_enforcement.py) handle data 
 ### 1. acm-test-case-generator — Pipeline Orchestrator
 
 **Pipeline stage:** All phases
-**Files:** SKILL.md (routing) + pipeline-detail.md (implementation) + 7 agent instruction files + 5 other reference files (phase-gates.md, pipeline-workflow.md, synthesis-template.md, console-auth.md, skill-feedback.md) + 5 scripts (gather.py, report.py, generate_html.py, review_enforcement.py, validate_artifact.py)
+**Files:** SKILL.md (routing) + pipeline-detail.md (implementation) + 7 agent instruction files + 5 other reference files (phase-gates.md, pipeline-workflow.md, synthesis-template.md, console-auth.md, skill-feedback.md) + 4 scripts (gather.py, report.py, review_enforcement.py, validate_artifact.py)
 **Depends on:** 5 skills (writer, reviewer, code-analyzer, knowledge-base, cluster-health) + 4 MCP servers (jira, acm-source, polarion, neo4j-rhacm)
 
 The entry point. Receives a JIRA ticket ID and orchestrates the 9-phase pipeline with visible phase-by-phase progress:
@@ -276,7 +276,7 @@ flowchart TD
 ### 4. acm-test-case-reviewer — Quality Gate (Phase 7)
 
 **Pipeline stage:** 7 (mandatory, cannot skip)
-**Files:** SKILL.md + 1 reference file (review-checklist.md) + 1 script (validate_conventions.py)
+**Files:** SKILL.md + 1 reference file (review-checklist.md)
 **Depends on:** acm-source MCP (spot-checks), acm-knowledge-base (conventions)
 **Invocation:** `disable-model-invocation: true` — not auto-triggered by "review test case" prompts. Invoked by the generator's subagents via `Read` tool, or explicitly via `/acm-test-case-reviewer`.
 
@@ -623,8 +623,7 @@ flowchart TD
 |-----------|------|-------------|-----------|
 | `gather.py` | Deterministic (Python) | PR metadata, file list, peer test cases, area knowledge | Always produces `gather-output.json` + `pr-diff.txt` |
 | `review_enforcement.py` | Deterministic (Python) | Parses reviewer output, counts MCP verifications | Cannot be skipped by AI |
-| `validate_conventions.py` | Deterministic (Python) | Structural validation of test case markdown | Title format, metadata, step format |
-| `generate_html.py` | Deterministic (Python) | Polarion-compatible HTML from markdown | Setup + steps HTML |
+| `validate_artifact.py` | Deterministic (Python) | Schema validation of pipeline artifacts | Field presence, type correctness |
 | `report.py` | Deterministic (Python) | Orchestrates validation + HTML + summary | Always produces output files |
 | `log_phase` | Deterministic (Python) | Write telemetry entries between AI phases | Pipeline observability |
 | Phase 1–6 | AI (Skills) | Investigation, analysis, synthesis, writing | Evidence-based, MCP-verified |
@@ -731,14 +730,14 @@ Which tools each skill uses, and when:
 
 ## Unit Testing
 
-38 automated tests in `tests/unit/` validate pipeline components:
+103 automated tests in `tests/unit/` validate pipeline components:
 
 - **Convention validation** (`test_convention_validator.py`): Title patterns, metadata fields, step format, section order, CLI-in-steps rules
 - **Model fields** (`test_models.py`): Analysis result model fields, required attributes
 - **File operations** (`test_file_service.py`): File read/write, path handling
 
 ```bash
-# Run unit tests (38 tests, no external deps)
+# Run unit tests (103 tests, no external deps)
 cd apps/test-case-generator/
 python -m pytest tests/unit/ -q
 ```

@@ -14,19 +14,21 @@ Use the MCP tools directly as documented below. Do NOT invoke the Skill tool.
 
 For Step 3 spot-checks, call these tools directly:
 - `set_acm_version(version)` -- MUST call before any search/get
-- `get_routes()` -- verify entry point route exists
 - `search_translations(query)` -- verify key UI labels (partial match by default; `exact=true` for exact)
 - `get_component_source(path, repo)` -- verify key behavioral claims from source
 - `set_cnv_version(version)` -- also required for Fleet Virt, CCLM, MTV features
+
+Entry-point and navigation routes come from `phase3-ui.json` (`routes`/`entry_point`); Phase 3 already verified them, so do NOT call `get_routes()`.
 
 ## Input Files
 
 Read from the run directory:
 - `synthesized-context.md` -- merged investigation + test plan (Phase 4 output)
 - `phase5-live-validation.md` -- live validation results (if exists)
-- `gather-output.json` -- PR metadata, existing test cases, conventions, area knowledge
+- `phase3-ui.json` -- discovered routes, entry_point, selectors, test-ids (Phase 3 output)
+- `gather-output.json` -- PR metadata and existing test case paths
 
-From `gather-output.json`, extract: `jira_id`, `acm_version`, `area`, `pr_data`, `existing_test_cases`, `conventions`, `area_knowledge`.
+From `gather-output.json`, extract only: `jira_id`, `acm_version`, `area`, `pr_data`, `existing_test_cases`. Do NOT read `conventions`, `area_knowledge`, or `html_templates` from the JSON -- read conventions and area knowledge from the knowledge directory (Steps 1 and 1.5), which is authoritative. `report.py` renders HTML from its own style constants, so `html_templates` is never writer input.
 
 ## Process
 
@@ -36,7 +38,7 @@ Read from the knowledge directory (passed as `KNOWLEDGE_DIR` in your input):
 - `${KNOWLEDGE_DIR}/conventions/test-case-format.md` -- section order, naming, rules
 - `${KNOWLEDGE_DIR}/conventions/area-naming-patterns.md` -- title patterns for the area
 - `${KNOWLEDGE_DIR}/conventions/cli-in-steps-rules.md` -- when CLI allowed in steps
-- 2-3 peer test cases from `existing_test_cases` paths (or `${KNOWLEDGE_DIR}/examples/sample-test-case.md` if none)
+- 1 peer test case (the most convention-compliant exemplar) from `existing_test_cases` paths (or `${KNOWLEDGE_DIR}/examples/sample-test-case.md` if none)
 
 ### Step 1.5: Read Area Knowledge
 
@@ -53,12 +55,13 @@ Follow the synthesis plan's design optimizations. Do NOT revert to approaches th
 
 ### Step 3: Spot-Check Key UI Elements
 
+Read the entry-point and navigation route paths from `phase3-ui.json` (`routes`/`entry_point`) -- UI discovery verified them in Phase 3 and they are static per run, so do NOT re-fetch with `get_routes()`.
+
 Use acm-source MCP tools for focused verification:
 1. `set_acm_version(<version>)` -- MUST call first
-2. `get_routes()` -- verify entry point route exists
-3. `search_translations("<key label>")` -- spot-check 1-2 labels
-4. `get_component_source("<primary-file>")` -- verify key behavioral claims
-5. For filtering functions: also call `get_component_source()` on the utility file
+2. `search_translations("<key label>")` -- spot-check 1-2 labels
+3. `get_component_source("<primary-file>")` -- verify key behavioral claims
+4. For filtering functions: also call `get_component_source()` on the utility file
 
 ### Navigation Text in Steps
 

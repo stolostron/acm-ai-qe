@@ -10,7 +10,7 @@
         "Phases execute in order: JIRA investigation → code analysis → UI discovery → synthesis → writing → quality review",
         "acm-source MCP is called at least once before any UI label appears in the test case",
         "Quality review gate runs and produces review-results.json",
-        "report.py produces both test-case.md and SUMMARY.txt",
+        "report.py produces SUMMARY.txt; Phase 6 writer produces test-case.md",
         "No UI label, route, or selector is assumed without MCP or investigation evidence"
       ],
       "category": "process"

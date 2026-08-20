@@ -4,18 +4,20 @@ Decision trees and evidence model for ACM bug fix verification. Referenced by SK
 
 ---
 
-## Verdict Definitions
+## Verdict Model -- 3 Verdicts x Qualifiers
 
-| Verdict | Meaning | Condition |
-|---------|---------|-----------|
-| **BLOCKED** | Fix cannot be on the environment | PR merged only to `main` (or non-release branch). No cherry-pick PR merged to the environment's release branch. Downstream builds are cut from release branches, never from `main`. |
-| **NOT_FIXED** | Fix could be present but is not | PR is reachable from the release branch (directly or via cherry-pick), but the running image was built before the merge, OR the specific code change cannot be confirmed in the running container. |
-| **PRESENT** | Fix code confirmed on the environment | Branch reachability + build date evidence confirm the fix is included. Optionally confirmed via in-container code grep. |
-| **VERIFIED** | Fix confirmed working | PRESENT + Phase 3 live validation confirms the bug behavior no longer reproduces. |
+Every verification resolves to one of three verdicts, each carrying a qualifier that records *why* and drives the JIRA action. This replaces the older linear model (BLOCKED -> NOT_FIXED -> PRESENT -> VERIFIED); see `investigation-notes.md` D4 for the rationale. This is the canonical verdict model; the verdict + qualifier set must match the Phase 4 verdict table in SKILL.md exactly (that table adds operational "Recommended Action" detail).
 
-**BLOCKED vs NOT_FIXED distinction matters for recommended action:**
-- BLOCKED: development team must create a cherry-pick PR to `release-2.XX` (process gap)
-- NOT_FIXED: QE team must rebuild the environment with a newer snapshot (build timing gap)
+| Verdict | Qualifier | When | JIRA Action |
+|---------|-----------|------|-------------|
+| **FIXED** | (full) | Code present + UI verified (Phase 3A + 3B pass) | Close ticket |
+| **FIXED** | (code-only) | Code confirmed, UI not possible (no credentials) | Close with note |
+| **FIXED** | (backend-only) | Backend verified, Playwright unavailable/failed | Close with note |
+| **NOT FIXED** | (standard) | Bug still reproduces in Phase 3B | Reopen |
+| **NOT FIXED** | (code review) | Fix is incorrect per Phase 2b analysis | Reopen with PR feedback |
+| **BLOCKED** | (cherry-pick) | Fix not in target branch (main-only) | Comment, leave open |
+| **BLOCKED** | (pipeline lag) | Merged to branch but build predates the fix | Comment, leave open |
+| **BLOCKED** | (environment) | Cluster unhealthy for valid verification (Phase 2.75 or failure-sig gate) | Comment, leave open |
 
 ---
 
@@ -38,18 +40,24 @@ gh api repos/<REPO>/compare/release-<VER>...<MERGE_SHA> --jq '.status'
 
 When Tier A fails: search for a cherry-pick PR (see `environment-checks.md` cherry-pick detection). If a merged cherry-pick is found, re-run Tier A using the cherry-pick's merge commit SHA.
 
-### Tier B — Build Date Comparison
+### Tier B — Build Date Comparison (24-hour pipeline-lag model)
 
 Compares the PR merge timestamp against the environment's image build date.
 
 1. Get PR merge date: `gh pr view <N> --repo <REPO> --json mergedAt --jq '.mergedAt'`
 2. Get image tag date: parse the DOWNSTREAM tag (see `environment-checks.md` downstream tag extraction)
 3. Compare (both normalized to UTC):
-   - Image date >= PR merge date: **PASS** (build includes the fix)
-   - Image date within 2h before PR merge date: **AMBIGUOUS** (build pipeline race; treat as FAIL with note)
-   - Image date < PR merge date - 2h: **FAIL** (image predates the fix)
+   - **Image date < PR merge date** (image clearly predates the merge): **FAIL** -> verdict **BLOCKED (pipeline lag)**, not NOT FIXED. The fix is in the branch; the build is just stale. Action: rebuild/redeploy with a snapshot newer than the merge.
+   - **Image date >= PR merge date**: the build *could* include the fix. When Tier C is available, confirm directly. When Tier C is unavailable, grade by the merge->build gap (ACM downstream builds run several hours, so a small positive gap does not guarantee inclusion):
 
-The 2-hour window accounts for CI pipeline queuing and build time (~30-90 min for ACM downstream builds), git merge to image registry publish delay, and timezone conversion edge cases.
+| Gap (build_date − merge_date) | Fix in build? | Action |
+|-------------------------------|---------------|--------|
+| 0-6h | NO (likely) | Build probably started before the merge landed. Get Tier C or a newer build. |
+| 6-12h | MAYBE | Ambiguous. Strongly recommend a Tier C grep before verifying. |
+| 12-24h | LIKELY | Probably included. Confirm with Tier C if possible. |
+| 24h+ | YES | Enough time for the build to include the merge. Proceed. |
+
+The graduated window accounts for CI pipeline queuing and build time (~30-90 min for ACM downstream builds), git merge to image registry publish delay, and timezone conversion edge cases. This model must read identically in `environment-checks.md` section 2.
 
 ### Tier C — Code Presence (strongest evidence)
 
@@ -96,67 +104,83 @@ TIER A: Is merge SHA reachable from release branch?
   |            |
   |            +-- NO --> Cherry-pick PR exists (open/draft)?
   |            |            |
-  |            |            +-- YES --> VERDICT: BLOCKED
+  |            |            +-- YES --> VERDICT: BLOCKED (cherry-pick)
   |            |            |           (note: cherry-pick in progress)
   |            |            |
-  |            |            +-- NO ---> VERDICT: BLOCKED
+  |            |            +-- NO ---> VERDICT: BLOCKED (cherry-pick)
   |            |                        (action: file cherry-pick PR)
   |            |
   |            +-- YES --> Use cherry-pick SHA, restart Tier A
   |
-  +-- YES --> TIER B: Image date >= PR merge date?
+  +-- YES --> TIER B: Image build date vs PR merge date? (24-hour model)
                |
-               +-- FAIL ------> VERDICT: NOT_FIXED
-               |                 (action: rebuild with newer snapshot)
+               +-- image predates merge --> VERDICT: BLOCKED (pipeline lag)
+               |                             (action: rebuild with newer snapshot;
+               |                              NOT "reopen" -- the fix is in the branch)
                |
-               +-- AMBIGUOUS --> VERDICT: NOT_FIXED
-               |                  (note: build may be a race; rebuild)
-               |
-               +-- PASS ------> TIER C: Code found in running container?
-                                  |
-                                  +-- PASS ---------> VERDICT: PRESENT
-                                  |
-                                  +-- FAIL ---------> VERDICT: NOT_FIXED
-                                  |                    (note: possible rollback)
-                                  |
-                                  +-- UNAVAILABLE --> VERDICT: PRESENT
-                                                       (confidence: lower)
-                                                       |
-                                                       v
-                                                 PHASE 3 available?
-                                                       |
-                                                  +-- YES --> Bug behavior gone?
-                                                  |            |
-                                                  |       +-- YES -> VERIFIED
-                                                  |       +-- NO --> NOT_FIXED
-                                                  |                  (regression?)
-                                                  |
-                                                  +-- NO ---> Keep PRESENT
+               +-- in build (>= merge) --> TIER C: Code found in running container?
+                                             |
+                                             +-- PASS ---------> Fix IN BUILD -> Phase 2b
+                                             |
+                                             +-- UNAVAILABLE --> Fix in build (branch+build)
+                                             |                    -> Phase 2b (confidence lower)
+                                             |
+                                             +-- FAIL ---------> Red flag: code absent despite
+                                                                  branch+build. Re-check grep target
+                                                                  + acm-source (Phase 3A). If truly
+                                                                  absent: BLOCKED (pipeline lag).
+  |
+  v
+PHASE 2b: PR code review -- is the fix correct?
+  |
+  +-- clearly wrong --> VERDICT: NOT FIXED (code review)   [skip 2.5/2.75/3]
+  +-- correct ------->  PHASE 2.5 (prereq gaps) -> PHASE 2.75 (health gate)
+                          |
+                          +-- subsystem critically degraded --> VERDICT: BLOCKED (environment)  [skip 3]
+                          +-- healthy --------------------------> PHASE 3: 3A backend + 3B UI
+                                                                    |
+                                                                    +-- 3B skipped (no creds) ---> FIXED (code-only)
+                                                                    +-- 3B skipped (Playwright) -> FIXED (backend-only)
+                                                                    +-- bug behavior gone -------> FIXED (full)
+                                                                    +-- bug still reproduces ----> PHASE 4 pre-verdict gate:
+                                                                                                    known trap / failure sig?
+                                                                                                     +-- match --> BLOCKED (environment)
+                                                                                                     +-- none --> NOT FIXED (standard)
 ```
+
+**Note on the FAIL branch of Tier C:** code absent despite Tier A + Tier B passing is a red flag (stale pod, wrong grep target, or a change dropped in a merge conflict), not an automatic NOT FIXED. Re-check the grep target and cross-validate with acm-source in Phase 3A before concluding; if the code is genuinely absent from the running image, the correct verdict is **BLOCKED (pipeline lag)**.
 
 ---
 
-## Evidence Quality Scoring
+## Evidence Tier Weights and Confidence
 
-| Evidence combination | Confidence | Notes |
-|---------------------|------------|-------|
-| A + B + C + Live | 0.95 | Maximum — all tiers pass plus behavioral confirmation |
-| A + B + C | 0.90 | Code confirmed without live testing |
-| A + B + Live | 0.85 | No container grep but behavior confirmed |
-| A + B | 0.75 | Branch + date evidence only |
-| A + C | 0.70 | Branch + code but date comparison failed or unavailable |
-| A only | 0.50 | Branch reachability alone — weak |
-| B only | 0.40 | Date match without branch confirmation — unreliable |
+Confidence is derived from the evidence achieved, not from a fixed combination table. Per `diagnostics/evidence-tiers.md` in the knowledge DB. This is the canonical source for evidence tier weights. SKILL.md Phase 4 references this file rather than duplicating the table.
 
-When Neo4j was unavailable for Phase 2.5 prerequisites: subtract 0.10 from confidence (heuristic table fallback) or 0.20 (oc-only discovery fallback).
+| Evidence | Tier | Weight | Source |
+|----------|------|--------|--------|
+| Branch match (Tier A) | 1 | 1.0 | `gh api repos/.../compare` |
+| Build date >= merge date (Tier B) | 1 | 1.0 | DOWNSTREAM tag vs `mergedAt` |
+| Code grep in container (Tier C) | 1 | 1.0 | `oc exec` |
+| acm-source cross-validation | 1 | 1.0 | acm-source MCP `search_code` |
+| UI repro passes (Phase 3B) | 1 | 1.0 | Playwright |
+| PR code review positive (Phase 2b) | 2 | 0.5 | `gh pr diff` analysis |
+| Backend logs clean (Phase 3A) | 2 | 0.5 | `oc logs` |
 
-### Scope Downgrade Rule
+**Confidence = Σ achieved weights ÷ maximum possible weight:**
+- **HIGH** (>= 0.8): 4+ Tier 1 evidences achieved.
+- **MEDIUM** (0.5-0.79): 2-3 Tier 1 evidences.
+- **LOW** (< 0.5): mostly Tier 2 / inference.
 
-If the bug is UI-specific (console rendering, form behavior, display issue) and UI verification was skipped (no Playwright, no credentials), the maximum verdict confidence is LOW. The verdict report MUST state:
+Report confidence as a level, e.g. `FIXED (full, confidence: HIGH -- 5 Tier 1 evidences)`.
 
-> "UI verification was skipped (reason: [no credentials / Playwright unavailable]). Backend checks passed but cannot confirm UI-specific behavior."
+### Confidence Adjustments (reduce one level -- never a silent drop)
 
-Never silently claim VERIFIED from backend-only evidence when the bug category is UI.
+- **Neo4j unavailable for Phase 2.5 prerequisites**: reduce confidence one level (heuristic-table fallback) or two levels (oc-only discovery fallback). See `environment-checks.md` section 6.
+- **UI scope downgrade**: if the bug is UI-specific (console rendering, form behavior, display issue) and UI verification was skipped (no Playwright -> backend-only, or no credentials -> code-only), confidence is capped by the qualifier and the verdict report MUST state:
+
+  > "UI verification was skipped (reason: [no credentials / Playwright unavailable]). Backend checks passed but cannot confirm UI-specific behavior."
+
+Never silently claim FIXED (full) from backend-only evidence when the bug category is UI -- use the code-only / backend-only qualifier.
 
 ---
 
@@ -176,17 +200,26 @@ Use this format for Phase 4 output:
 | PR | [org/repo]#[number] (merged [ISO date]) |
 | Cherry-pick | [org/repo]#[number] or "None found" or "N/A (direct merge)" |
 | Release Branch | release-2.XX |
-| **Verdict** | **[BLOCKED / NOT_FIXED / PRESENT / VERIFIED]** |
-| Confidence | [0.00-1.00] |
+| **Verdict** | **[FIXED / NOT FIXED / BLOCKED]** |
+| **Qualifier** | **[full / code-only / backend-only / standard / code review / cherry-pick / pipeline lag / environment]** |
+| Confidence | [HIGH / MEDIUM / LOW] (N Tier 1 evidences) |
 
 ### Evidence
 
 | Tier | Check | Result | Detail |
 |------|-------|--------|--------|
 | A (Branch) | SHA reachable from release-2.XX | PASS / FAIL | [gh api compare output] |
-| B (Build) | Image date >= PR merge date | PASS / FAIL / AMBIGUOUS | [date comparison] |
+| B (Build) | Image date >= PR merge date | PASS / BLOCKED (pipeline lag) | [24-hour-model gap] |
 | C (Code) | Code pattern in running container | PASS / FAIL / UNAVAILABLE | [grep output or reason] |
-| Live | Bug behavior resolved | PASS / FAIL / SKIPPED | [Playwright evidence or skip reason] |
+| acm-source | Fix string present at deployed version | PASS / FAIL / UNAVAILABLE | [search_code result] |
+| 3A Backend | Resource/log state matches fix | PASS / FAIL / SKIPPED | [oc evidence] |
+| 3B UI | Bug behavior resolved | PASS / FAIL / SKIPPED (qualifier) | [Playwright evidence or skip reason] |
+
+### Environment Health Gate (Phase 2.75)
+
+| Subsystem | Result | Evidence |
+|-----------|--------|----------|
+| [bug subsystem] | HEALTHY / MINOR / CRITICAL | [trap checks: MCH phase, pod status] |
 
 ### Prerequisites (Phase 2.5)
 
@@ -196,14 +229,14 @@ Use this format for Phase 4 output:
 
 ### Recommended Action
 
-[Based on verdict - see verdict definitions above]
+[Based on verdict + qualifier -- see the verdict model above]
 ```
 
 ---
 
 ## Edge Cases
 
-**Multiple PRs for one JIRA:** Some bugs require multiple PRs across different repos (e.g., backend + frontend). Verify ALL linked PRs independently. The final verdict is the WORST verdict across all PRs. If one PR is PRESENT and another is BLOCKED, the overall verdict is BLOCKED.
+**Multiple PRs for one JIRA:** Some bugs require multiple PRs across different repos (e.g., backend + frontend). Verify ALL linked PRs independently. Classify each as PRIMARY / RELATED / TEST-ONLY, and order verification by dependency (upstream/backend before consumer/frontend -- use `neo4j-rhacm` when available, otherwise the fallback ordering); see SKILL.md Phase 2 "Multi-PR Fixes." ALL PRIMARY PRs must pass Tier A/B. The final verdict is the WORST across all PRs: if one PR is FIXED and another is BLOCKED, the overall verdict is BLOCKED.
 
 **Open cherry-pick PR (not yet merged):** Verdict is BLOCKED with a note that a cherry-pick is in progress. Include the cherry-pick PR number and its current state (draft, review, approved).
 
@@ -220,35 +253,45 @@ oc get crd <crd-name> -o yaml | grep "<pattern>"
 
 ---
 
-## JIRA Comment Template
+## JIRA Comment Templates
 
-When the user approves a JIRA update, use this template. Prefer a one-line QE close comment when the verdict is VERIFIED and the ticket is ready to close:
+Use the template matching the verdict + qualifier. Prefer a one-line QE close comment for FIXED verdicts.
 
-```
-Verified on <DOWNSTREAM-build-tag> (CSV <acm-version>), closing the ticket.
-```
+| Verdict + Qualifier | Comment template |
+|---------------------|-----------------|
+| **FIXED (full)** | `Verified on <TAG> (CSV <VER>), closing the ticket.` |
+| **FIXED (code-only)** | `Verified (code-only) on <TAG> (CSV <VER>), closing the ticket. Note: UI verification not possible (no credentials). Fix confirmed via branch match + code grep + PR review.` |
+| **FIXED (backend-only)** | `Verified (backend-only) on <TAG> (CSV <VER>), closing the ticket. Note: UI verification incomplete (Playwright failure). Backend confirmed via oc exec + log inspection.` |
+| **NOT FIXED** | `Re-tested on <TAG> (CSV <VER>): bug still reproduces. [standard: repro steps below. / code review: PR #<N> does not address root cause -- <reason>.] Reopening.` |
+| **BLOCKED (cherry-pick)** | `Fix present in <main / PR #<N>> but not on release-2.XX. Cherry-pick PR needed.` |
+| **BLOCKED (pipeline lag)** | `PR #<N> merged to release-2.XX on <date>, but this build (<TAG>) predates the merge. Rebuild with newer snapshot, then re-verify.` |
+| **BLOCKED (environment)** | `Could not validly verify on <TAG>: <subsystem> is degraded (<finding>). Re-verify after cluster is healthy.` |
 
-Attach the verification screenshot **inline** via `add_comment` with `attachment_paths` and `inline_attachment_paths` (same file path in both lists). Put only the build-tag line in `comment` text — do not add `!filename|thumbnail!` wiki lines (MCP appends them once). Requires JIRA MCP fork `feat/redhat-fields` (29 tools; see `mcp/README.md`).
+Attach screenshots **inline** via `add_comment(attachment_paths, inline_attachment_paths)` (same path in both lists). Do not add `!filename|thumbnail!` wiki lines (the MCP appends them).
 
 For detailed evidence, use the expanded template:
 
 ```
-h3. QE Verification - [VERDICT]
+h3. QE Verification - [VERDICT] ([QUALIFIER])
 
 *Cluster:* [api-url]
-*ACM Version:* [version] ([DOWNSTREAM-tag])
+*ACM Version:* [version] ([FULL_DOWNSTREAM_TAG])
 *Verified:* [date]
 
 *Fix Presence:*
 - PR #[number]: [merged to release-2.XX | cherry-pick #[cp-number] merged]
-- Evidence tiers: A=[PASS/FAIL] B=[PASS/FAIL] C=[PASS/FAIL/UNAVAILABLE]
+- Evidence tiers: A=[PASS/FAIL] B=[PASS/BLOCKED-pipeline-lag] C=[PASS/FAIL/UNAVAILABLE] acm-source=[PASS/FAIL/UNAVAILABLE]
+
+*Environment Health Gate:* [HEALTHY / MINOR / CRITICAL]
 
 *Live Verification:*
-- Backend: [PASS/FAIL/SKIPPED] - [detail]
-- UI: [PASS/FAIL/SKIPPED] - [detail]
+- Backend (3A): [PASS/FAIL/SKIPPED] - [detail]
+- UI (3B): [PASS/FAIL/SKIPPED (qualifier)] - [detail]
 
-*Verdict:* *[BLOCKED / NOT_FIXED / PRESENT / VERIFIED]* (confidence: [0.00-1.00])
+*Verdict:* *[FIXED / NOT FIXED / BLOCKED] ([qualifier])* (confidence: [HIGH/MEDIUM/LOW])
 
-[If BLOCKED: "Cherry-pick PR to release-2.XX needed."]
-[If NOT_FIXED: "Rebuild environment with snapshot newer than [date]."]
+[If BLOCKED (cherry-pick): "Cherry-pick PR to release-2.XX needed."]
+[If BLOCKED (pipeline lag): "Rebuild environment with snapshot newer than [merge date]."]
+[If BLOCKED (environment): "Environment degraded; re-verify after cluster is healthy."]
+[If NOT FIXED: repro details / PR feedback.]
 ```

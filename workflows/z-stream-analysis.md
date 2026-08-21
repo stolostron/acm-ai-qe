@@ -5,9 +5,8 @@ Analyze Jenkins pipeline failures with a 5-stage classification pipeline.
 ## Trigger
 
 - `/analyze <JENKINS_URL>` -- full pipeline (5 stages)
-- `/gather <JENKINS_URL>` -- stage 1 only (data extraction)
-- `/quick <JENKINS_URL>` -- skip cluster diagnostic (stages 1 + 2 + 3, no 1.5)
 - Natural language: "Analyze this run: `<JENKINS_URL>`"
+- Skill: `acm-z-stream-analyzer` (invoked automatically by skill routing)
 
 ## Prerequisites
 
@@ -33,8 +32,6 @@ Run artifacts are saved to `runs/z-stream-analysis/<timestamp>/`.
 
 ## References
 
-- App: [`apps/z-stream-analysis/CLAUDE.md`](../apps/z-stream-analysis/CLAUDE.md)
-- Agents: `apps/z-stream-analysis/.claude/agents/` (4 agents)
-- Commands: `apps/z-stream-analysis/.claude/commands/` (`/analyze`, `/gather`, `/quick`)
+- Library: [`lib/z-stream-analysis/`](../lib/z-stream-analysis/)
 - Skills: `acm-z-stream-analyzer`, `acm-failure-classifier`, `acm-cluster-investigator`, `acm-data-enricher`
 - Docs: [`docs/z-stream-analysis/`](../docs/z-stream-analysis/)

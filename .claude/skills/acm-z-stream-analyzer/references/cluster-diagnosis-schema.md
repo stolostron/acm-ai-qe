@@ -3,10 +3,10 @@
 Stage 1.5 (cluster diagnostic) writes `cluster-diagnosis.json` to the run directory. Stage 2
 (failure classifier) reads it as Tier 1 evidence, and Stage 3 (`report.py`) renders its fields in
 the Environment tab of the HTML report. The field names and the `environment_health_score` formula
-below are the single source of truth for the skill — ported verbatim from the app agent
-`apps/z-stream-analysis/.claude/agents/cluster-diagnostic.md` (Step 6.2). Keep them in sync with
-that file, NOT with `acm-hub-health-check/references/diagnostic-output-schema.md`, whose penalty
-values diverge (see the note at the end).
+below are the single source of truth. This file is the authoritative schema for
+cluster-diagnosis.json. It governs Stage 1.5 output (produced by acm-hub-health-check), Stage 2
+evidence consumption (used by acm-failure-classifier), and Stage 3 HTML rendering (validated by
+report.py).
 
 ## `environment_health_score` (float 0.0–1.0)
 
@@ -151,7 +151,7 @@ the file.
 }
 ```
 
-The app agent's `cluster-diagnosis.json` carries additional optional diagnostic arrays for deeper
+The `acm-hub-health-check` skill's `cluster-diagnosis.json` carries additional optional diagnostic arrays for deeper
 investigation (`operator_inventory`, `addon_health`, `webhook_status`, `component_log_excerpts`,
 `component_restart_counts`, `managed_cluster_detail`, `ocp_operators_degraded`,
 `console_plugin_status`, `infrastructure_issues`, `dependency_chains_verified`,
@@ -164,4 +164,4 @@ the data; the fields listed above are the ones Stage 2 routing and the HTML repo
 formula (subsystem `-0.10`/`-0.05`, managed clusters `-0.05` per cluster capped at `-0.15`, no
 infrastructure-guard `cap 0.20`, and no weight column). That divergence pre-dates this skill and is
 OUT OF SCOPE here — do NOT "reconcile" it by editing the shared hub-health file. This reference
-tracks the z-stream app agent (`cluster-diagnostic.md`) only.
+tracks the z-stream pipeline's cluster-diagnosis output only.

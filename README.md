@@ -68,15 +68,14 @@ These are called by the primary workflows or used standalone for focused tasks.
 
 ## Apps
 
-**Skills are the execution path.** When you ask in natural language (e.g. `"Analyze this run: <JENKINS_URL>"`), the **skill** runs — not the app. The applications in `apps/` are the backing implementation: tested deterministic Python, agents, knowledge bases, tests, and slash commands that the skills reuse (for example, the Z-Stream skill reuses the app's `gather.py` and `report.py`). Run an app's own pipeline directly only for app development, debugging, or its Python test suite.
+**Skills are the execution path.** When you ask in natural language (e.g. `"Analyze this run: <JENKINS_URL>"`), the **skill** runs — not the app directly. `apps/acm-hub-health/` is the only remaining application: tested deterministic Python, agents, knowledge bases, and slash commands. The z-stream Python code (gather.py, report.py, schemas) lives in `lib/z-stream-analysis/` as a library consumed by skills — it has no agents or CLAUDE.md of its own.
 
-| App | Skills It Powers | Slash Commands |
-|-----|-----------------|----------------|
-| **[Z-Stream Analysis](apps/z-stream-analysis/)** | z-stream-analyzer, failure-classifier, data-enricher, cluster-investigator | `/analyze`, `/gather`, `/quick` |
-| **[Hub Health](apps/acm-hub-health/)** | hub-health-check, cluster-health, cluster-remediation, knowledge-learner | `/health-check`, `/deep`, `/sanity`, `/investigate`, `/learn` |
-| **[Test Case Generator](apps/test-case-generator/)** | test-case-generator, test-case-writer, test-case-reviewer, qe-code-analyzer | `/generate`, `/review`, `/batch` |
+| App / Lib | Skills It Powers | Slash Commands |
+|-----------|-----------------|----------------|
+| **[Z-Stream Analysis](lib/z-stream-analysis/)** (lib) | z-stream-analyzer, failure-classifier, data-enricher, cluster-investigator | `/analyze`, `/gather`, `/quick` |
+| **[Hub Health](apps/acm-hub-health/)** (app) | hub-health-check, cluster-health, cluster-remediation, knowledge-learner | `/health-check`, `/deep`, `/sanity`, `/investigate`, `/learn` |
 
-Each app has its own `CLAUDE.md` with architecture details, data contracts, and development conventions.
+The Hub Health app has its own `CLAUDE.md` with architecture details, data contracts, and development conventions. Z-stream analysis orchestration is handled entirely by portable skills (see `.claude/skills/acm-z-stream-analyzer/`).
 
 ## Prerequisites
 
@@ -108,13 +107,13 @@ ai_systems/
 ├── .claude/
 │   ├── skills/                # 19 portable skills (usable from repo root)
 │   ├── knowledge/             # Shared knowledge database (11 categories, 14 subsystems)
-│   ├── commands/pre-push.md   # /pre-push quality gate
+│   ├── commands/              # /pre-push, /analyze, /gather, /quick
 │   ├── settings.json          # Root-level Claude Code settings
 │   └── statusline.sh          # Status line (model, branch, context %)
 ├── apps/
-│   ├── z-stream-analysis/     # Pipeline failure classifier
-│   ├── acm-hub-health/        # Cluster diagnostic agent
-│   └── test-case-generator/   # JIRA-to-Polarion test cases
+│   └── acm-hub-health/        # Cluster diagnostic agent
+├── lib/
+│   └── z-stream-analysis/     # Pipeline failure classifier (Python code, schemas, tests)
 ├── mcp/                       # MCP server code + setup
 │   ├── setup.sh               # Automated MCP setup (also used by /onboard)
 │   ├── deploy-acm-search.sh   # ACM Search MCP deploy
@@ -139,7 +138,7 @@ This repo integrates with MCP servers maintained by other teams (JIRA, Jenkins, 
 ## Contributing
 
 ```bash
-cd apps/z-stream-analysis
+cd lib/z-stream-analysis
 python -m pytest tests/unit/ tests/regression/ -q    # 779 tests, no external deps
 ```
 

@@ -2,7 +2,7 @@
 name: onboard
 description: |
   Interactive onboarding for the AI Systems Suite. Detects current
-  environment state, explains the three apps, and guides MCP server
+  environment state, explains the app and skills, and guides MCP server
   setup with credential configuration. Run at first clone or to
   verify an existing setup.
 when_to_use: |
@@ -86,9 +86,7 @@ This repo provides ACM QE capabilities as portable skills:
 
   Apps (Claude Code specific, in apps/):
   ───────────────────────────────────────
-  z-stream-analysis         Jenkins pipeline failure classification
   acm-hub-health            ACM hub cluster health diagnosis
-  test-case-generator       Test case generation (original app)
 
 Checking your environment...
 ```
@@ -124,9 +122,7 @@ test -f .mcp.json && echo "root .mcp.json: configured" || echo "root .mcp.json: 
 test -f .mcp.json && python3 -c "import json; d=json.load(open('.mcp.json')); print(f'root MCP servers: {len(d.get(\"mcpServers\", {}))}')" 2>/dev/null
 
 # App-level MCP configs
-test -f apps/z-stream-analysis/.mcp.json && echo "z-stream: configured" || echo "z-stream: not configured"
 test -f apps/acm-hub-health/.mcp.json && echo "hub-health: configured" || echo "hub-health: not configured"
-test -f apps/test-case-generator/.mcp.json && echo "test-case-gen: configured" || echo "test-case-gen: not configured"
 
 # venvs
 test -d mcp/acm-source-mcp-server/.venv && echo "acm-source venv: exists" || echo "acm-source venv: missing"
@@ -182,9 +178,7 @@ Skills Config:
   root .mcp.json:        exists     OK     (8 MCP servers)
 
 App Configs:
-  z-stream-analysis:     .mcp.json exists   OK
   acm-hub-health:        .mcp.json exists   OK
-  test-case-generator:   .mcp.json exists   OK
 ```
 
 Mark items as OK or MISSING. Use OK for present, MISSING for required but absent.
@@ -192,7 +186,7 @@ Exception: acm-search and acm-kubectl are cluster-dependent — show their actua
 
 ## Step 3: Ask What to Set Up
 
-If ALL app `.mcp.json` files exist AND root `.mcp.json` exists AND all required venvs are present, print:
+If the app `.mcp.json` exists AND root `.mcp.json` exists AND all required venvs are present, print:
 
 ```
 All apps and skills are already configured. No setup needed.
@@ -200,38 +194,27 @@ All apps and skills are already configured. No setup needed.
 
 And stop here (idempotent behavior).
 
-If app configs exist but root `.mcp.json` is MISSING, print:
+If app config exists but root `.mcp.json` is MISSING, print:
 
 ```
-App configs exist but skills don't have MCP access.
-Creating root .mcp.json from existing app configs...
+App config exists but skills don't have MCP access.
+Generating root .mcp.json via setup.sh...
 ```
 
-Then generate the root `.mcp.json` by merging app configs (see Step 4 merge procedure) and proceed to Step 5. Do NOT re-run setup.sh or ask what to configure.
+Then run `bash mcp/setup.sh` to generate the root `.mcp.json` and proceed to Step 5. Do NOT ask what to configure.
 
-Otherwise (missing app configs or venvs), ask the user what they want to configure.
+Otherwise (missing app config or venvs), ask the user what they want to configure.
 
 ### Level 1: Apps or Skills?
 
 Ask: "How do you want to use this repo?"
 
-1. **Apps** — Work with a specific application (z-stream analysis, hub health, test case generator)
+1. **Apps** — Work with the ACM Hub Health application (cluster diagnostics)
 2. **Skills** — Use portable skills from the repo root
 
 ### Level 2a: If the user chose Apps
 
-Show the app selection:
-
-1. **ACM Hub Health** — cluster diagnostics (needs: acm-source, neo4j-rhacm, acm-search)
-2. **Z-Stream Analysis** — pipeline failure classification (needs: acm-source, jira, jenkins, polarion, neo4j-rhacm)
-3. **Test Case Generator** — Polarion test cases from JIRA (needs: acm-source, jira, polarion, neo4j-rhacm, acm-search, acm-kubectl, playwright)
-4. **All apps**
-
-Map the selection to a setup.sh app number:
-- Hub Health = 1
-- Z-Stream = 2
-- Test Case Generator = 3
-- All = 4
+The only app is ACM Hub Health (needs: acm-source, neo4j-rhacm, acm-search). Map to setup.sh app number 1.
 
 ### Level 2b: If the user chose Skills
 
@@ -245,9 +228,7 @@ For the selected app(s), check which credentials are needed and missing.
 
 | App | JIRA | Jenkins | Polarion |
 |-----|------|---------|----------|
-| Z-Stream | Required | Required | Required |
 | Hub Health | - | - | - |
-| Test Case Generator | Required | - | Required |
 
 ### Collect credentials from the user (do NOT write files yet):
 
@@ -336,40 +317,13 @@ Show the output to the user.
 
 ### Generate root `.mcp.json`
 
-This merge must run AFTER the setup.sh regeneration pass above, because setup.sh (including deploy-acm-search.sh if oc is logged in) updates app-level `.mcp.json` files with credentials and live acm-search config.
-
-Merge all app-level MCP configs into a single root `.mcp.json`:
+Run `mcp/setup.sh` to generate the root `.mcp.json`:
 
 ```bash
-python3 -c "
-import json, sys
-from pathlib import Path
-
-app_configs = ['apps/test-case-generator/.mcp.json', 'apps/z-stream-analysis/.mcp.json', 'apps/acm-hub-health/.mcp.json']
-missing = [c for c in app_configs if not Path(c).exists()]
-if missing:
-    print(f'WARNING: Missing app configs: {missing}')
-    print('Root .mcp.json will be incomplete. Re-run: bash mcp/setup.sh --app 4')
-
-merged = {'mcpServers': {}}
-for app_config in app_configs:
-    p = Path(app_config)
-    if p.exists():
-        data = json.loads(p.read_text())
-        merged['mcpServers'].update(data.get('mcpServers', {}))
-
-if not merged['mcpServers']:
-    print('ERROR: No MCP servers found in any app config. Cannot create root .mcp.json.')
-    sys.exit(1)
-
-Path('.mcp.json').write_text(json.dumps(merged, indent=2))
-print(f'Root .mcp.json created with {len(merged[\"mcpServers\"])} MCP servers: {list(merged[\"mcpServers\"].keys())}')
-"
+bash mcp/setup.sh
 ```
 
-This gives all skills at the repo root access to every MCP server. The root `.mcp.json` is the UNION of all app-level configs — every MCP that any skill might need.
-
-Print: `Root .mcp.json created with N MCP servers.`
+This generates the root `.mcp.json` with all MCP servers (acm-source, jira, jenkins, polarion, neo4j-rhacm, acm-search, acm-kubectl, playwright). The root config gives all skills access to every MCP server they might need.
 
 Note: acm-search is a cluster-side MCP deployed per-cluster as needed — it is NOT required during onboarding. If `oc` happens to be logged into an ACM hub, setup.sh deploys it automatically. If not, setup.sh skips it with instructions for later. When a skill or app needs acm-search at runtime and it's not deployed, it will prompt the user to log in and run `bash mcp/deploy-acm-search.sh`. If the user rotates to a different cluster, they re-run the deploy script on the new cluster.
 
@@ -381,8 +335,8 @@ Run the verification script with the app number from Step 3:
 python3 mcp/verify.py --app <N>
 ```
 
-Where N is the mapped number from Step 3 (1=Hub Health, 2=Z-Stream, 3=Test Case Gen).
-If "All apps" was selected, run without `--app` to check everything.
+Where N is the mapped number from Step 3 (1=Hub Health).
+If "Skills" was selected (--app 4), run without `--app` to check everything.
 
 Print the verify.py output to the user.
 
@@ -410,11 +364,9 @@ Setup complete. Next steps:
      claude
      "Analyze this Jenkins run: <URL>"
 
-3. Or use Claude Code apps (from app directories):
+3. Or use the Claude Code app (from app directory):
 
-   Z-Stream:     cd apps/z-stream-analysis && claude && /analyze <URL>
    Hub Health:   cd apps/acm-hub-health && claude && /health-check
-   TC Generator: cd apps/test-case-generator && claude && /generate ACM-XXXXX
 
 To verify MCP connections: claude mcp list
 To re-run this setup: /onboard

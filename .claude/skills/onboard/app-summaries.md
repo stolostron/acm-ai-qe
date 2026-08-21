@@ -54,27 +54,6 @@ The z-stream failure analysis capability is available as a portable skill pack (
 
 ## Claude Code Apps (`apps/`)
 
-## Z-Stream Analysis (`apps/z-stream-analysis/`)
-
-Classifies Jenkins pipeline test failures using a 5-stage pipeline with a 12-layer diagnostic model. Produces per-test classifications (PRODUCT_BUG, AUTOMATION_BUG, INFRASTRUCTURE, NO_BUG) with evidence chains.
-
-**Pipeline stages:**
-1. `gather.py` — Extracts test data from Jenkins
-2. `cluster-diagnostic` agent — Cluster health investigation
-3. `data-collector` agent — Selector verification via MCP
-4. `analysis` agent — 12-layer root cause classification
-5. `report.py` — Generates markdown + HTML report
-
-**Slash commands:** `/analyze`, `/gather`, `/quick`
-
-**MCP servers needed:** acm-source, jira, jenkins, polarion, neo4j-rhacm
-
-**Credentials needed:** JIRA (email + API token), Jenkins (username + API token), Polarion (JWT token)
-
-**Additional requirements:** Red Hat VPN for Jenkins and Polarion access
-
----
-
 ## ACM Hub Health (`apps/acm-hub-health/`)
 
 AI-powered diagnostic agent for ACM hub clusters. 6-phase investigation pipeline: Discover, Learn, Check, Pattern Match, Correlate, Deep Investigate. Read-only diagnosis; cluster fixes only after explicit approval.
@@ -89,29 +68,15 @@ AI-powered diagnostic agent for ACM hub clusters. 6-phase investigation pipeline
 
 ---
 
-## Test Case Generator (`apps/test-case-generator/`)
-
-Generates Polarion-ready test cases from JIRA tickets. 6-phase subagent pipeline: data gathering, parallel AI investigation (3 agents), synthesis, optional live validation, test case writing, mandatory quality review gate.
-
-**Slash commands:** `/generate`, `/review`, `/batch`
-
-**MCP servers needed:** acm-source, jira, polarion, neo4j-rhacm, acm-search, acm-kubectl, playwright
-
-**Credentials needed:** JIRA (email + API token), Polarion (JWT token)
-
-**Additional requirements:** GitHub CLI (`gh`) authenticated for ACM Source source searches
-
----
-
 ## MCP Server Reference
 
 | Server | Type | Credentials | Used By |
 |--------|------|-------------|---------|
 | acm-source | Local (this repo) | GitHub CLI auth (`gh auth login`) | All apps and skills |
-| jira | External (cloned) | JIRA email + API token | z-stream, test-case-gen |
-| jenkins | External (cloned) | Jenkins username + API token | z-stream |
-| polarion | Local (this repo) | Polarion JWT token (VPN required) | z-stream, test-case-gen |
-| neo4j-rhacm | PyPI (uvx) | None (local container) | All apps (dependency analysis) |
-| acm-search | External (cloned) | None (on-cluster deployment) | hub-health, test-case-gen, z-stream |
-| acm-kubectl | npm (npx) | None (uses oc login) | test-case-gen, z-stream |
-| playwright | npm (npx) | None (browser automation) | test-case-gen |
+| jira | External (cloned) | JIRA email + API token | z-stream skills |
+| jenkins | External (cloned) | Jenkins username + API token | z-stream skills |
+| polarion | Local (this repo) | Polarion JWT token (VPN required) | z-stream skills, test-case-gen skills |
+| neo4j-rhacm | PyPI (uvx) | None (local container) | All apps and skills (dependency analysis) |
+| acm-search | External (cloned) | None (on-cluster deployment) | hub-health, test-case-gen skills, z-stream skills |
+| acm-kubectl | npm (npx) | None (uses oc login) | test-case-gen skills, z-stream skills |
+| playwright | npm (npx) | None (browser automation) | test-case-gen skills |

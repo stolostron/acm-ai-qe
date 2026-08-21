@@ -20,7 +20,8 @@ This skill orchestrates the following skills:
 | Skill | Stage | How This Skill Uses It |
 |-------|-------|----------------------|
 | **acm-jenkins-client** | Pre-flight | Verify Jenkins connectivity, get build metadata |
-| **acm-cluster-health** | Stage 1.5 | 12-layer diagnostic methodology for cluster health assessment |
+| **acm-hub-health-check** | Stage 1.5 | Cluster diagnostic execution, produces cluster-diagnosis.json |
+| **acm-cluster-health** | Methodology | 12-layer diagnostic model (used by hub-health-check internally) |
 | **acm-data-enricher** | Post-Stage 1 | Enrich core-data.json with selector verification, timeline analysis, page object resolution |
 | **acm-failure-classifier** | Stage 2 | Full 5-phase classification analysis (A through E) |
 | **acm-cluster-investigator** | Stage 2 | Per-group deep investigation dispatched by the classifier |
@@ -34,7 +35,7 @@ This skill orchestrates the following skills:
 
 The AI stages run as real subagent spawns, not inline work. Each spawn:
 
-1. **Follows a sibling skill by relative path** -- spawn a subagent instructed to follow the sibling `SKILL.md`: `../acm-jenkins-client/SKILL.md` for pre-flight, `../acm-cluster-health/SKILL.md` for Stage 1.5, `../acm-data-enricher/SKILL.md` for enrichment, `../acm-failure-classifier/SKILL.md` for Stage 2, `../acm-knowledge-base/SKILL.md` for area context. Relative paths keep the pack portable from the repo root.
+1. **Follows a sibling skill by relative path** -- spawn a subagent instructed to follow the sibling `SKILL.md`: `../acm-jenkins-client/SKILL.md` for pre-flight, `../acm-hub-health-check/SKILL.md` for Stage 1.5, `../acm-data-enricher/SKILL.md` for enrichment, `../acm-failure-classifier/SKILL.md` for Stage 2, `../acm-knowledge-base/SKILL.md` for area context. Relative paths keep the pack portable from the repo root.
 2. **Names a `model:` tier per spawn** (Agent tool parameter, not frontmatter):
    - **opus** -- reasoning and gates: Stage 1.5 cluster diagnostic, Stage 2 classification (Phase B/D), per-group investigation.
    - **sonnet** -- mechanical work: data enrichment (selector verification, page-object tracing, timeline dedup).
@@ -54,9 +55,9 @@ Read `references/pipeline-stages.md` for full details.
 Stage 1: Gathering pipeline data from Jenkins...
 ```
 
-Run the gather script from the app directory:
+Run the gather script:
 ```bash
-cd apps/z-stream-analysis && python -m src.scripts.gather "<JENKINS_URL>" [--skip-env] [--skip-repo]
+cd lib/z-stream-analysis && python -m src.scripts.gather "<JENKINS_URL>" [--skip-env] [--skip-repo]
 ```
 
 This produces:
@@ -80,7 +81,7 @@ KNOWLEDGE_DIR = ${CLAUDE_SKILL_DIR}/../../knowledge/
 Stage 1.5: Running comprehensive cluster diagnostic...
 ```
 
-Spawn a subagent (model: opus) that follows the `../acm-cluster-health/SKILL.md` methodology to assess cluster health across all 12 layers. It reads `cluster.kubeconfig` from the run directory. If subagent spawning is unavailable, run the same methodology inline.
+Spawn a subagent (model: opus) that follows `../acm-hub-health-check/SKILL.md` to assess cluster health across all 12 layers. It reads `cluster.kubeconfig` from the run directory. If subagent spawning is unavailable, run the same methodology inline.
 
 Follow the 6-phase diagnostic process:
 1. **Discover:** MCH namespace, version, operators, nodes, managed clusters, CSVs, webhooks
@@ -93,10 +94,11 @@ Follow the 6-phase diagnostic process:
 The `cluster-diagnosis.json` **must** include these fields (required by the HTML report):
 - `cluster_connectivity` (boolean) — true if cluster API is reachable
 - `environment_health_score` (float 0.0-1.0) — weighted health score with penalty breakdown
+- `critical_issue_count` (integer) — count of critical infrastructure issues
+- `warning_issue_count` (integer) — count of infrastructure_issues entries with severity warning
 - `cluster_identity` (object) — `api_url`, `ocp_version`, `acm_version`, `mce_version`, `mch_namespace`, `mch_phase`, `node_count`, `node_ready_count`, `managed_cluster_count`, `managed_cluster_ready_count`
 - `operator_health` (object keyed by name) — each with `namespace`, `desired_replicas`, `available_replicas`, `status` (OK/DEGRADED/CRITICAL), `detail`
 - `console_plugins` (array) — each with `name`, `service`, `namespace`
-- `critical_issue_count` (integer) — count of critical infrastructure issues
 
 See `references/cluster-diagnosis-schema.md` for the full schema, the `environment_health_score` weighted-penalty formula, and field-by-field definitions.
 
@@ -161,7 +163,7 @@ Stage 3: Generating report...
 
 Run the report script:
 ```bash
-cd apps/z-stream-analysis && python -m src.scripts.report <run-directory>
+cd lib/z-stream-analysis && python -m src.scripts.report <run-directory>
 ```
 
 This produces:

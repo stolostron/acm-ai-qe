@@ -10,7 +10,7 @@ Stage 1: gather.py           -> core-data.json + cluster.kubeconfig + repos/
   Steps 6-9: Repo cloning, context extraction, feature grounding, knowledge
 
 Stage 1.5: Cluster diagnostic  -> cluster-diagnosis.json
-  6-phase investigation using acm-cluster-health methodology
+  6-phase investigation using acm-hub-health-check (acm-cluster-health methodology)
   Produces structured health data with classification guidance
 
 Data enrichment: acm-data-enricher -> enriches core-data.json

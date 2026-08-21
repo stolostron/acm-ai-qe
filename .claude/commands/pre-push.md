@@ -8,17 +8,15 @@ Run this checklist before pushing. If any step fails, fix the issue and restart 
 git diff --name-only origin/main...HEAD
 ```
 
-Identify which app directories have changes: `apps/z-stream-analysis`, `apps/acm-hub-health`, `apps/test-case-generator`, or root-level files.
+Identify which directories have changes: `apps/acm-hub-health`, `lib/`, `mcp/`, `.claude/`, or root-level files.
 
 ## Step 2: Run tests for changed apps
 
 For each app with changes, run its test suite:
 
-- **z-stream-analysis**: `cd apps/z-stream-analysis && python -m pytest tests/unit/ tests/regression/ -q`
 - **acm-hub-health**: `cd apps/acm-hub-health && python -m pytest tests/regression/ -q`
-- **test-case-generator**: `cd apps/test-case-generator && python -m pytest tests/unit/ -q`
 
-Skip apps with no changes. If any test fails, STOP -- fix the failure before proceeding.
+Skip if no changes in the app directory. If any test fails, STOP -- fix the failure before proceeding.
 
 ## Step 3: Check for credential leaks in staged files
 

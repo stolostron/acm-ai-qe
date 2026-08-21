@@ -11,20 +11,16 @@ Multi-app repository for ACM quality engineering tools built on Claude Code. **G
 ## Build and Test
 
 ```bash
-# Z-stream analysis (fast suite, 753 tests, no external deps)
-cd apps/z-stream-analysis
+# Z-stream analysis (fast suite, 779 tests, no external deps)
+cd lib/z-stream-analysis
 python -m pytest tests/unit/ tests/regression/ -q
 
-# Full suite (798 tests, requires Jenkins VPN for integration)
+# Full suite (824 tests, requires Jenkins VPN for integration)
 python -m pytest tests/ -q --timeout=300
 
 # Hub health (22 regression tests, no external deps)
 cd apps/acm-hub-health
 python -m pytest tests/regression/ -q
-
-# Test case generator (119 tests, no external deps)
-cd apps/test-case-generator
-python -m pytest tests/unit/ tests/integration/ -q
 
 # Portable skill eval harness (from repo root)
 cd ai_systems
@@ -47,21 +43,19 @@ This detects your environment, configures MCP servers, prompts for credentials, 
 
 ## Architecture
 
-Three applications, each with its own CLAUDE.md, knowledge base, and agent definitions.
+Two primary components: one application in `apps/` and one library in `lib/`.
 
-### Z-Stream Analysis (`apps/z-stream-analysis/`)
+### Z-Stream Analysis (`lib/z-stream-analysis/`)
 
-Jenkins pipeline failure analysis. 5-stage pipeline:
+Jenkins pipeline failure analysis. 5-stage pipeline orchestrated by the `acm-z-stream-analyzer` skill:
 
-1. **Stage 1** `gather.py` — Extracts test data from Jenkins, produces `core-data.json`
-2. **Post-Stage 1** `data-collector` agent — Enriches `core-data.json` with selector verification, page objects, timeline analysis
-3. **Stage 1.5** `cluster-diagnostic` agent — Cluster health investigation, produces `cluster-diagnosis.json`
-4. **Stage 2** `analysis` agent — 12-layer diagnostic investigation, produces `analysis-results.json`
-5. **Stage 3** `report.py` — Generates `Detailed-Analysis.md` + HTML report
+1. **Stage 1** `gather.py` — Deterministic Python; extracts test data from Jenkins, produces `core-data.json`
+2. **Stage 1.5** `acm-hub-health-check` skill — Cluster health investigation, produces `cluster-diagnosis.json`
+3. **Post-Stage 1** `acm-data-enricher` skill — Enriches `core-data.json` with selector verification, page objects, timeline analysis
+4. **Stage 2** `acm-failure-classifier` skill — 12-layer diagnostic investigation, produces `analysis-results.json`
+5. **Stage 3** `report.py` — Deterministic Python; generates `Detailed-Analysis.md` + HTML report
 
-4 agents in `.claude/agents/`: `analysis.md`, `cluster-diagnostic.md`, `data-collector.md`, `investigation-agent.md`
-
-3 slash commands in `.claude/commands/`: `/analyze`, `/gather`, `/quick`
+4 slash commands in `.claude/commands/`: `/analyze`, `/gather`, `/quick`, `/pre-push`
 
 Classifications: PRODUCT_BUG, AUTOMATION_BUG, INFRASTRUCTURE, NO_BUG, MIXED, UNKNOWN, FLAKY
 
@@ -70,12 +64,6 @@ Classifications: PRODUCT_BUG, AUTOMATION_BUG, INFRASTRUCTURE, NO_BUG, MIXED, UNK
 Diagnostic agent for ACM hub clusters. Single-agent architecture with 6 diagnostic phases (Discover, Learn, Check, Pattern Match, Correlate, Deep Investigate). Read-only diagnosis; remediation only after explicit approval.
 
 5 slash commands: `/sanity`, `/health-check`, `/deep`, `/investigate`, `/learn`
-
-### Test Case Generator (`apps/test-case-generator/`)
-
-Generates Polarion-ready test cases from JIRA tickets. 6-phase subagent pipeline with 6 specialized agents (each with structured anomaly reporting): feature-investigator, code-change-analyzer (with coverage gap analysis), ui-discovery, live-validator (with environment verification and form-based OAuth browser authentication), test-case-generator, quality-reviewer (with design efficiency and coverage gap verification). report.py includes artifact completeness check (9 expected files). Portable standalone scripts for repo-root execution.
-
-3 skills in `.claude/skills/`: `/generate`, `/review`, `/batch`
 
 ## Skills (`.claude/skills/`)
 
@@ -133,19 +121,18 @@ ai_systems/
 ├── .claude/
 │   ├── skills/                # 19 portable skills (usable from repo root)
 │   ├── knowledge/             # Shared knowledge database for skills (3 domains: tc-gen, z-stream, hub-health)
-│   ├── commands/pre-push.md   # /pre-push quality gate
+│   ├── commands/              # /pre-push, /analyze, /gather, /quick
 │   ├── settings.json          # Root-level Claude Code settings
 │   └── statusline.sh          # Status line script (model, branch, context %)
 ├── apps/
-│   ├── z-stream-analysis/     # Pipeline failure analysis
-│   ├── acm-hub-health/        # Hub health diagnostic
-│   └── test-case-generator/   # Test case generation
+│   └── acm-hub-health/        # Hub health diagnostic
+├── lib/
+│   └── z-stream-analysis/     # Pipeline failure analysis (Python code, schemas, tests)
 ├── docs/                      # Cross-app documentation
 │   ├── skill-architecture.md  # Skill inventory, blast radius, contributing guide
 │   ├── skill-authoring-guide.md # Anthropic-based skill authoring standards
 │   ├── acm-bug-hunter/        # Bug hunter implementation spec
 │   ├── hub-health/            # Hub health detailed docs
-│   ├── test-case-generator/   # TC gen detailed docs (pipeline, agents, quality gates)
 │   └── z-stream-analysis/     # Z-stream detailed docs
 ├── workflows/                 # Named multi-phase processes (user/cron triggered)
 ├── solutions/                 # Battle-tested SOPs for known problems (agent self-help)

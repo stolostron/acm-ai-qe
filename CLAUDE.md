@@ -4,29 +4,25 @@ Multi-app repository for ACM quality engineering tools, built on Claude Code.
 
 ## Execution Preference: Skills First
 
-For any user-facing task in this repo, **enter through the portable skill in `.claude/skills/`, not the app pipeline in `apps/`.** The skills are the execution path; the apps are the backing implementation (tested deterministic Python, agents, knowledge) that the skills reuse.
+For any user-facing task in this repo, **enter through the portable skill in `.claude/skills/`, not the app pipeline in `apps/`.** The skills are the execution path; the apps/libs are the backing implementation (tested deterministic Python, agents, knowledge) that the skills reuse.
 
-| User request | Execute this skill | Backing app (don't invoke for the request) |
+| User request | Execute this skill | Backing code (don't invoke for the request) |
 |--------------|--------------------|--------------------------------------------|
-| Jenkins pipeline / z-stream failure analysis | `acm-z-stream-analyzer` (with `acm-failure-classifier`, `acm-cluster-investigator`, `acm-data-enricher`) | `apps/z-stream-analysis/` agent pipeline |
-| Test case generation from a JIRA ticket | `acm-test-case-generator` (with `acm-test-case-writer`, `acm-test-case-reviewer`, `acm-qe-code-analyzer`) | `apps/test-case-generator/` agent pipeline |
+| Jenkins pipeline / z-stream failure analysis | `acm-z-stream-analyzer` (with `acm-failure-classifier`, `acm-cluster-investigator`, `acm-data-enricher`) | `lib/z-stream-analysis/` Python code |
+| Test case generation from a JIRA ticket | `acm-test-case-generator` (with `acm-test-case-writer`, `acm-test-case-reviewer`, `acm-qe-code-analyzer`) | Skill handles generation directly (no backing app) |
 | ACM hub health diagnosis | `acm-hub-health-check` (with `acm-cluster-health`, `acm-cluster-remediation`, `acm-knowledge-learner`) | `apps/acm-hub-health/` agent pipeline |
 
-**Jenkins runs:** When a user provides a Jenkins URL or asks to analyze a run, invoke the **z-stream skill** — not the app. The skill orchestrates the AI stages (cluster diagnosis, enrichment, 12-layer classification) and reuses the app's tested deterministic scripts `gather.py` (Stage 1) and `report.py` (Stage 3) — those are called by the skill, not reimplemented. Use an app's own pipeline directly only for app development, debugging, or running its Python test suite.
+**Jenkins runs:** When a user provides a Jenkins URL or asks to analyze a run, invoke the **z-stream skill** — not the lib directly. The skill orchestrates the AI stages (cluster diagnosis, enrichment, 12-layer classification) and reuses the lib's tested deterministic scripts `gather.py` (Stage 1) and `report.py` (Stage 3) — those are called by the skill, not reimplemented. Use the lib's own pipeline commands directly only for development, debugging, or running its Python test suite.
 
 ## Applications
-
-### Z-Stream Analysis (`apps/z-stream-analysis/`) — Active
-
-Jenkins pipeline failure analysis with 7 classification types (PRODUCT_BUG, AUTOMATION_BUG, INFRASTRUCTURE, FLAKY, NO_BUG, MIXED, UNKNOWN). Five-stage pipeline: Environment Oracle → gather.py → Cluster Diagnostic (AI agent) → AI Analysis (12-layer investigation) → report.py. 3 slash commands (`/analyze`, `/gather`, `/quick`), 4 agents, standalone knowledge database. See `apps/z-stream-analysis/CLAUDE.md` for details.
 
 ### ACM Hub Health Agent (`apps/acm-hub-health/`) — Active
 
 AI-powered diagnostic and remediation agent for ACM hub clusters. Read-only diagnosis with 12-layer model, 14 diagnostic traps, dependency chain tracing; cluster fixes only after explicit user approval. Uses `oc` + Claude Code with embedded knowledge database, ACM Search MCP for fleet queries, Neo4j for dependency analysis. Optional CLI wrapper (`acm-hub`). Usage: `oc login <hub> && claude`
 
-### Test Case Generator (`apps/test-case-generator/`) — Active
+### Z-Stream Analysis (`lib/z-stream-analysis/`) — Library
 
-Generates Polarion-ready test cases for ACM Console features from JIRA tickets. 9-phase subagent pipeline (Phases 0-8) with mandatory quality review gate. 7 specialized agents, 7 MCP integrations, 9 console areas supported. 3 skills: `/generate` (full pipeline), `/review` (quality review), `/batch` (multi-ticket). Portable skill pack with standalone scripts for repo-root execution.
+Jenkins pipeline failure analysis Python code (gather.py, report.py, schemas, tests). Invoked by the `acm-z-stream-analyzer` skill — not run as a standalone app. 5-stage pipeline: Environment Oracle → gather.py → Cluster Diagnostic (AI agent) → AI Analysis (12-layer investigation) → report.py. Classifications: PRODUCT_BUG, AUTOMATION_BUG, INFRASTRUCTURE, FLAKY, NO_BUG, MIXED, UNKNOWN.
 
 ## Skills (`.claude/skills/`)
 
@@ -49,7 +45,7 @@ Generates Polarion-ready test cases for ACM Console features from JIRA tickets. 
 
 ## Getting Started
 
-New to this repo? Run `/onboard` for interactive setup -- it detects your environment, explains the apps, and guides MCP server configuration with credential setup. It creates a root `.mcp.json` (union of all app configs) so portable skills have full MCP access from the repo root. Works for both new team members and fresh AI agent sessions.
+New to this repo? Run `/onboard` for interactive setup -- it detects your environment, explains the app and skills, and guides MCP server configuration with credential setup. It generates the root `.mcp.json` so portable skills have full MCP access from the repo root. Works for both new team members and fresh AI agent sessions.
 
 For manual setup: launch `claude` from the repo root and run `/onboard`.
 
@@ -79,7 +75,7 @@ Squad-specific workflows are documented in [`workflows/`](workflows/README.md). 
 
 ## CodeRabbit Review Policy
 
-After modifying code in any app (`z-stream-analysis`, `acm-hub-health`, `test-case-generator`), run `/coderabbit:review uncommitted` when changes touch:
+After modifying code in `apps/acm-hub-health/` or `lib/z-stream-analysis/`, run `/coderabbit:review uncommitted` when changes touch:
 - Python source or tests (`src/`, `tests/`)
 - Agent instructions (`.claude/agents/`)
 - Schema/model files (`src/schemas/`, `src/models/`)
@@ -114,11 +110,11 @@ Jenkins pipeline / z-stream failure analysis runs through the **`acm-z-stream-an
 /quick <JENKINS_URL>            # Skip cluster diagnostic
 ```
 
-Or natural language: `Analyze this run: <JENKINS_URL>` → invoke the z-stream skill. Claude Code runs each stage with visible progress updates — do NOT delegate the entire pipeline to a single agent. The skill reuses the app's `gather.py` (Stage 1) and `report.py` (Stage 3). Run the app's raw pipeline commands directly only for app development or debugging (see `apps/z-stream-analysis/CLAUDE.md`).
+Or natural language: `Analyze this run: <JENKINS_URL>` → invoke the z-stream skill. Claude Code runs each stage with visible progress updates — do NOT delegate the entire pipeline to a single agent. The skill reuses the lib's `gather.py` (Stage 1) and `report.py` (Stage 3). Run the lib's raw pipeline commands directly only for development or debugging (see `lib/z-stream-analysis/README.md`).
 
 ## MCP Servers (`mcp/`)
 
-From the repo root, launch `claude` and run `/onboard`. It detects your environment, prompts for credentials, configures MCP servers, generates `.mcp.json` for each app, and creates a root `.mcp.json` (union of all app configs) so portable skills have full MCP access.
+From the repo root, launch `claude` and run `/onboard`. It detects your environment, prompts for credentials, configures MCP servers, and generates the root `.mcp.json` so portable skills have full MCP access.
 
 | Server | Tools | Source | Purpose |
 |--------|-------|--------|---------|
@@ -183,9 +179,9 @@ Before performing any ACM-related task, check if the knowledge DB has relevant c
 ai_systems/
 ├── .mcp.json                  # Root MCP config for skills (generated by /onboard, gitignored)
 ├── apps/
-│   ├── acm-hub-health/        # Active — hub health diagnostic agent
-│   ├── z-stream-analysis/     # Active — pipeline failure analysis
-│   └── test-case-generator/   # Active — Polarion-ready test case generation from JIRA tickets
+│   └── acm-hub-health/        # Active — hub health diagnostic agent
+├── lib/
+│   └── z-stream-analysis/     # Pipeline failure analysis (Python code, schemas, tests)
 ├── mcp/
 │   ├── setup.sh               # Interactive setup (clones external MCPs, creates venvs)
 │   ├── deploy-acm-search.sh   # Non-interactive ACM Search MCP deploy (cluster → .mcp.json)
@@ -197,7 +193,7 @@ ai_systems/
 ├── .claude/
 │   ├── skills/                # 19 portable skills (usable from repo root via root .mcp.json)
 │   ├── knowledge/             # Shared knowledge database for skills (3 domains: tc-gen, z-stream, hub-health)
-│   ├── commands/pre-push.md   # /pre-push quality gate slash command
+│   ├── commands/              # /pre-push, /analyze, /gather, /quick
 │   ├── statusline.sh          # Status line script (model, branch, context %)
 │   └── settings.json          # Root-level Claude Code settings
 ├── docs/
@@ -218,18 +214,14 @@ ai_systems/
 ## Tests
 
 ```bash
-# Z-stream analysis (from app directory)
-cd apps/z-stream-analysis/
+# Z-stream analysis (from lib directory)
+cd lib/z-stream-analysis/
 python -m pytest tests/unit/ tests/regression/ -q    # 779 tests, no external deps
 python -m pytest tests/ -q --timeout=300             # 824 tests (requires Jenkins VPN)
 
 # Hub health (from app directory)
 cd apps/acm-hub-health/
 python -m pytest tests/regression/ -q                # 22 tests, no external deps
-
-# Test case generator (from app directory)
-cd apps/test-case-generator/
-python -m pytest tests/unit/ tests/integration/ -q   # 119 tests, no external deps
 
 # Portable skill eval harness (from repo root)
 python .claude/skills/acm-test-case-generator/evals/run_evals.py

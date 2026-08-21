@@ -4,9 +4,9 @@ Generate Polarion-ready test cases from JIRA tickets via a 6-phase subagent pipe
 
 ## Trigger
 
-- `/generate <JIRA_ID>` -- full pipeline (6 phases with quality review gate)
-- `/review <run_dir>` -- quality review only on existing output
-- `/batch <JIRA_ID_1> <JIRA_ID_2> ...` -- multi-ticket batch generation
+- Natural language: "Generate test cases for ACM-XXXXX"
+- Skill: `write-testcase-console` (invoked automatically by skill routing)
+- Batch: "Generate test cases for ACM-1234, ACM-5678"
 
 ## Prerequisites
 
@@ -28,7 +28,4 @@ Run artifacts are saved to `runs/test-case-generator/<JIRA_ID>/`. Includes 9 exp
 
 ## References
 
-- App: [`apps/test-case-generator/CLAUDE.md`](../apps/test-case-generator/CLAUDE.md)
-- Agents: `apps/test-case-generator/.claude/agents/` (6 agents)
 - Skills: `acm-test-case-generator`, `acm-qe-code-analyzer`, `acm-test-case-writer`, `acm-test-case-reviewer`
-- Docs: [`docs/test-case-generator/`](../docs/test-case-generator/)

@@ -9,8 +9,6 @@
 #
 # Apps and their MCP requirements:
 #   acm-hub-health    -> acm-source, neo4j-rhacm, acm-search
-#   z-stream-analysis -> acm-source, jira, jenkins, polarion, neo4j-rhacm
-#   test-case-generator -> acm-source, jira, polarion, neo4j-rhacm, acm-search, acm-kubectl, playwright
 #
 # All paths are resolved dynamically -- no machine-specific references.
 
@@ -51,13 +49,10 @@ check_version_floor() {
 
 # Which MCPs each app requires (space-separated)
 APP_HUB_HEALTH_MCPS="acm-source neo4j-rhacm acm-search"
-APP_ZSTREAM_MCPS="acm-source jira jenkins polarion neo4j-rhacm"
-APP_TESTCASE_GEN_MCPS="acm-source jira polarion neo4j-rhacm acm-search acm-kubectl playwright"
+ALL_MCPS="acm-source jira jenkins polarion neo4j-rhacm acm-search acm-kubectl playwright"
 
 # App directory names (relative to $REPO_ROOT/apps/)
 APP_HUB_HEALTH_DIR="acm-hub-health"
-APP_ZSTREAM_DIR="z-stream-analysis"
-APP_TESTCASE_GEN_DIR="test-case-generator"
 
 # Track which MCPs and apps to set up
 SELECTED_MCPS=""
@@ -72,7 +67,7 @@ needs_mcp() {
     esac
 }
 
-# Apply an app selection choice (1-4)
+# Apply an app selection choice (1-2)
 apply_selection() {
     APP_CHOICE_NUM="$1"
     case "$1" in
@@ -82,19 +77,9 @@ apply_selection() {
             ok "Selected: ACM Hub Health Agent"
             ;;
         2)
-            SELECTED_APPS="$APP_ZSTREAM_DIR"
-            SELECTED_MCPS="$APP_ZSTREAM_MCPS"
-            ok "Selected: Z-Stream Pipeline Analysis"
-            ;;
-        3)
-            SELECTED_APPS="$APP_TESTCASE_GEN_DIR"
-            SELECTED_MCPS="$APP_TESTCASE_GEN_MCPS"
-            ok "Selected: Test Case Generator"
-            ;;
-        4)
-            SELECTED_APPS="$APP_HUB_HEALTH_DIR $APP_ZSTREAM_DIR $APP_TESTCASE_GEN_DIR"
-            SELECTED_MCPS="acm-source jira jenkins polarion neo4j-rhacm acm-search acm-kubectl playwright"
-            ok "Selected: All apps"
+            SELECTED_APPS=""
+            SELECTED_MCPS="$ALL_MCPS"
+            ok "Selected: All MCP servers (root .mcp.json)"
             ;;
         *)
             return 1
@@ -134,7 +119,7 @@ if [ -n "$CLI_APP_CHOICE" ]; then
     echo -e "${BOLD}============================================${NC}"
     echo ""
     if ! apply_selection "$CLI_APP_CHOICE"; then
-        fail "Invalid --app value: $CLI_APP_CHOICE (expected 1, 2, 3, or 4)"
+        fail "Invalid --app value: $CLI_APP_CHOICE (expected 1 or 2)"
         exit 1
     fi
 else
@@ -143,28 +128,23 @@ else
     echo -e "${BOLD}  MCP Server Setup -- AI Systems Suite${NC}"
     echo -e "${BOLD}============================================${NC}"
     echo ""
-    echo "  Which app(s) would you like to configure?"
+    echo "  Which configuration would you like?"
     echo ""
     echo -e "    ${CYAN}1)${NC} ACM Hub Health Agent"
     echo -e "       Needs: acm-source, neo4j-rhacm, acm-search"
     echo ""
-    echo -e "    ${CYAN}2)${NC} Z-Stream Pipeline Analysis"
-    echo -e "       Needs: acm-source, jira, jenkins, polarion, neo4j-rhacm"
-    echo ""
-    echo -e "    ${CYAN}3)${NC} Test Case Generator"
-    echo -e "       Needs: acm-source, jira, polarion, neo4j-rhacm, acm-search, acm-kubectl, playwright"
-    echo ""
-    echo -e "    ${CYAN}4)${NC} All apps"
-    echo -e "       Sets up all MCP servers for all apps"
+    echo -e "    ${CYAN}2)${NC} All MCP servers"
+    echo -e "       Generates root .mcp.json with: acm-source, jira, jenkins,"
+    echo -e "       polarion, neo4j-rhacm, acm-search, acm-kubectl, playwright"
     echo ""
 
     while true; do
-        read -p "  Select [1/2/3/4]: " APP_CHOICE
+        read -p "  Select [1/2]: " APP_CHOICE
         echo ""
         if apply_selection "$APP_CHOICE"; then
             break
         else
-            echo -e "  ${RED}Invalid choice. Enter 1, 2, 3, or 4.${NC}"
+            echo -e "  ${RED}Invalid choice. Enter 1 or 2.${NC}"
         fi
     done
 fi
@@ -950,12 +930,16 @@ generate_mcp_json() {
     local app_dir="$1"
     shift
     local mcps=("$@")
-    local app_path="$REPO_ROOT/apps/$app_dir"
-    local mcp_json="$app_path/.mcp.json"
 
-    if [ ! -d "$app_path" ]; then
-        fail "App directory not found: $app_path"
-        return 1
+    if [ "$app_dir" = "__root__" ]; then
+        local mcp_json="$REPO_ROOT/.mcp.json"
+    else
+        local app_path="$REPO_ROOT/apps/$app_dir"
+        local mcp_json="$app_path/.mcp.json"
+        if [ ! -d "$app_path" ]; then
+            fail "App directory not found: $app_path"
+            return 1
+        fi
     fi
 
     python3 -c "
@@ -1083,16 +1067,14 @@ for app in $SELECTED_APPS; do
             # shellcheck disable=SC2086
             generate_mcp_json "$app" $APP_HUB_HEALTH_MCPS
             ;;
-        "$APP_ZSTREAM_DIR")
-            # shellcheck disable=SC2086
-            generate_mcp_json "$app" $APP_ZSTREAM_MCPS
-            ;;
-        "$APP_TESTCASE_GEN_DIR")
-            # shellcheck disable=SC2086
-            generate_mcp_json "$app" $APP_TESTCASE_GEN_MCPS
-            ;;
     esac
 done
+
+# Generate root .mcp.json for "All MCP servers" option
+if [ "$APP_CHOICE_NUM" = "2" ]; then
+    # shellcheck disable=SC2086
+    generate_mcp_json "__root__" $ALL_MCPS
+fi
 
 echo ""
 
@@ -1231,14 +1213,13 @@ for app in $SELECTED_APPS; do
         "$APP_HUB_HEALTH_DIR")
             echo "    $STEP. Hub Health: cd apps/acm-hub-health && oc login <hub> && claude"
             ;;
-        "$APP_ZSTREAM_DIR")
-            echo "    $STEP. Z-Stream: cd apps/z-stream-analysis && claude"
-            ;;
-        "$APP_TESTCASE_GEN_DIR")
-            echo "    $STEP. Test Case Generator: cd apps/test-case-generator && claude"
-            ;;
     esac
 done
+
+if [ "$APP_CHOICE_NUM" = "2" ]; then
+    STEP=$((STEP + 1))
+    echo "    $STEP. Root .mcp.json generated -- all servers available from repo root"
+fi
 
 echo ""
 echo "  To verify MCP connections in Claude Code:"
@@ -1251,7 +1232,7 @@ echo ""
 # Post-setup verification
 echo -e "${BOLD}  Running post-setup verification...${NC}"
 echo ""
-if [ "$APP_CHOICE_NUM" = "4" ]; then
+if [ "$APP_CHOICE_NUM" = "2" ]; then
     python3 "$SCRIPT_DIR/verify.py" 2>&1 || true
 else
     python3 "$SCRIPT_DIR/verify.py" --app "$APP_CHOICE_NUM" 2>&1 || true

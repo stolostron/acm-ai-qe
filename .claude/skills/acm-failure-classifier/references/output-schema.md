@@ -2,7 +2,7 @@
 
 Stage 2 (AI analysis) writes `analysis-results.json`; Stage 3 (`report.py`) reads it
 to render the report. Field names below are EXACT — they mirror
-`apps/z-stream-analysis/src/schemas/analysis_results_schema.json` and the fields
+`lib/z-stream-analysis/src/schemas/analysis_results_schema.json` and the fields
 `report.py` actually reads. A wrong or missing name renders **blank** in the report.
 
 ## Report-critical field names (must be exact)
